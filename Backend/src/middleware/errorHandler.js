@@ -1,13 +1,16 @@
+import { logger } from '../utils/logger.js';
+
 const errorHandler = (err, req, res, next) => {
-    let error = { ...err };
-    error.message = err.message;
+    const statusCode = err.statusCode || 500;
+    const message = err.message || 'Server Error';
 
-    // Log for developer
-    console.error(err);
+    logger.error(
+        `${req.method} ${req.originalUrl} ${statusCode} - ${err.name || 'Error'} - ${message}`
+    );
 
-    res.status(error.statusCode || 500).json({
+    res.status(statusCode).json({
         success: false,
-        error: error.message || 'Server Error'
+        error: message
     });
 };
 

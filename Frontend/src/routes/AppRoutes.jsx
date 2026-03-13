@@ -1,8 +1,8 @@
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Suspense, lazy, useEffect } from 'react'
 
-// Lazy load the Quick-spicy food App
-const FoodApp = lazy(() => import('../modules/food/Quick-spicy-main/frontend/src/App'))
+// Lazy load the Food service module (Quick-spicy app)
+const FoodApp = lazy(() => import('../modules/food/App'))
 
 // Simple loader fallback
 const PageLoader = () => (

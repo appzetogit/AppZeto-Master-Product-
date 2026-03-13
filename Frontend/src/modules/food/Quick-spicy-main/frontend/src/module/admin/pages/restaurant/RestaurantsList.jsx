@@ -1,0 +1,2212 @@
+﻿import { useState, useMemo, useEffect, useRef } from "react"
+import { useNavigate } from "react-router-dom"
+import { Search, Download, ChevronDown, Eye, Settings, ArrowUpDown, Loader2, X, MapPin, Phone, Mail, Clock, Star, Building2, User, FileText, CreditCard, Calendar, Image as ImageIcon, ExternalLink, ShieldX, AlertTriangle, Trash2, Plus } from "lucide-react"
+import { adminAPI, restaurantAPI, locationAPI, uploadAPI } from "../../../../lib/api"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@food/components/ui/dropdown-menu"
+import { exportRestaurantsToPDF } from "../../components/restaurants/restaurantsExportUtils"
+import { getGoogleMapsApiKey } from "@food/lib/utils/googleMapsApiKey"
+import { getRestaurantAvailabilityStatus } from "@food/lib/utils/restaurantAvailability"
+
+// Import icons from Dashboard-icons
+import locationIcon from "../../assets/Dashboard-icons/image1.png"
+import restaurantIcon from "../../assets/Dashboard-icons/image2.png"
+import inactiveIcon from "../../assets/Dashboard-icons/image3.png"
+const debugLog = (...args) => {}
+const debugWarn = (...args) => {}
+const debugError = (...args) => {}
+
+
+export default function RestaurantsList() {
+  const navigate = useNavigate()
+  const [searchQuery, setSearchQuery] = useState("")
+  const [restaurants, setRestaurants] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [selectedRestaurant, setSelectedRestaurant] = useState(null)
+  const [restaurantDetails, setRestaurantDetails] = useState(null)
+  const [loadingDetails, setLoadingDetails] = useState(false)
+  const [banConfirmDialog, setBanConfirmDialog] = useState(null) // { restaurant, action: 'ban' | 'unban' }
+  const [banning, setBanning] = useState(false)
+  const [deleteConfirmDialog, setDeleteConfirmDialog] = useState(null) // { restaurant }
+  const [deleting, setDeleting] = useState(false)
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" })
+  const [isEditingDetails, setIsEditingDetails] = useState(false)
+  const [savingDetails, setSavingDetails] = useState(false)
+  const [detailsForm, setDetailsForm] = useState({
+    name: "",
+    ownerName: "",
+    ownerEmail: "",
+    ownerPhone: "",
+    primaryContactNumber: "",
+    email: "",
+    cuisinesText: "",
+    estimatedDeliveryTime: "",
+    offer: "",
+    openingTime: "",
+    closingTime: "",
+    isActive: true,
+  })
+  const [profileImageFile, setProfileImageFile] = useState(null)
+  const [profileImagePreview, setProfileImagePreview] = useState("")
+  const [isEditingLocation, setIsEditingLocation] = useState(false)
+  const [savingLocation, setSavingLocation] = useState(false)
+  const [resolvingAddress, setResolvingAddress] = useState(false)
+  const [mapLoading, setMapLoading] = useState(false)
+  const [mapError, setMapError] = useState("")
+  const [availabilityTick, setAvailabilityTick] = useState(() => Date.now())
+  const [locationForm, setLocationForm] = useState({
+    latitude: "",
+    longitude: "",
+    formattedAddress: "",
+    addressLine1: "",
+    addressLine2: "",
+    area: "",
+    city: "",
+    state: "",
+    landmark: "",
+    pincode: "",
+  })
+  const mapContainerRef = useRef(null)
+  const mapRef = useRef(null)
+  const markerRef = useRef(null)
+
+  // Format Restaurant ID to REST format (e.g., REST422829)
+  const formatRestaurantId = (id) => {
+    if (!id) return "REST000000"
+
+    const idString = String(id)
+    // Extract last 6 digits from the ID
+    // Handle formats like "REST-1768045396242-2829" or "1768045396242-2829"
+    const parts = idString.split(/[-.]/)
+    let lastDigits = ""
+
+    // Get the last part and extract digits
+    if (parts.length > 0) {
+      const lastPart = parts[parts.length - 1]
+      // Extract only digits from the last part
+      const digits = lastPart.match(/\d+/g)
+      if (digits && digits.length > 0) {
+        // Get last 6 digits from all digits found
+        const allDigits = digits.join("")
+        lastDigits = allDigits.slice(-6).padStart(6, "0")
+      } else {
+        // If no digits in last part, look for digits in all parts
+        const allParts = parts.join("")
+        const allDigits = allParts.match(/\d+/g)
+        if (allDigits && allDigits.length > 0) {
+          const combinedDigits = allDigits.join("")
+          lastDigits = combinedDigits.slice(-6).padStart(6, "0")
+        }
+      }
+    }
+
+    // If no digits found, use a hash of the ID
+    if (!lastDigits) {
+      const hash = idString.split("").reduce((acc, char) => {
+        return ((acc << 5) - acc) + char.charCodeAt(0) | 0
+      }, 0)
+      lastDigits = Math.abs(hash).toString().slice(-6).padStart(6, "0")
+    }
+
+    return `REST${lastDigits}`
+  }
+
+  // Fetch restaurants from backend API
+  useEffect(() => {
+    const fetchRestaurants = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+
+        let response
+        try {
+          // Try admin API first
+          response = await adminAPI.getRestaurants()
+        } catch (adminErr) {
+          // Fallback to regular restaurant API if admin endpoint doesn't exist
+          debugLog("Admin restaurants endpoint not available, using fallback")
+          response = await restaurantAPI.getRestaurants()
+        }
+
+        if (response.data && response.data.success && response.data.data) {
+          // Map backend data to frontend format
+          const restaurantsData = response.data.data.restaurants || response.data.data || []
+
+          const mappedRestaurants = restaurantsData.map((restaurant, index) => ({
+            id: restaurant._id || restaurant.id || index + 1,
+            _id: restaurant._id, // Preserve original _id for API calls
+            name: restaurant.name || "N/A",
+            ownerName: restaurant.ownerName || "N/A",
+            ownerPhone: restaurant.ownerPhone || restaurant.phone || "N/A",
+            zone: restaurant.location?.area || restaurant.location?.city || restaurant.zone || "N/A",
+            cuisine: Array.isArray(restaurant.cuisines) && restaurant.cuisines.length > 0
+              ? restaurant.cuisines[0]
+              : (restaurant.cuisine || "N/A"),
+            status: restaurant.isActive !== false, // Default to true if not set
+            rating: restaurant.ratings?.average || restaurant.rating || 0,
+            logo: restaurant.profileImage?.url || restaurant.logo || "https://via.placeholder.com/40",
+            // Preserve original restaurant data for details modal
+            originalData: restaurant,
+          }))
+
+          setRestaurants(mappedRestaurants)
+        } else {
+          setRestaurants([])
+        }
+      } catch (err) {
+        debugError("Error fetching restaurants:", err)
+        setError(err.message || "Failed to fetch restaurants")
+        setRestaurants([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchRestaurants()
+  }, [])
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setAvailabilityTick(Date.now())
+    }, 60000)
+
+    return () => window.clearInterval(intervalId)
+  }, [])
+  const [filters, setFilters] = useState({
+    all: "All",
+    businessModel: "",
+    cuisine: "",
+    zone: "",
+  })
+
+  const filteredRestaurants = useMemo(() => {
+    const now = new Date(availabilityTick)
+    let result = [...restaurants]
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim()
+      result = result.filter(restaurant =>
+        restaurant.name.toLowerCase().includes(query) ||
+        restaurant.ownerName.toLowerCase().includes(query) ||
+        restaurant.ownerPhone.includes(query)
+      )
+    }
+
+    if (filters.all !== "All") {
+      if (filters.all === "Active") {
+        result = result.filter(restaurant => restaurant.status === true)
+      } else if (filters.all === "Inactive") {
+        result = result.filter(restaurant => restaurant.status === false)
+      }
+    }
+
+    if (filters.cuisine) {
+      result = result.filter(restaurant =>
+        restaurant.cuisine.toLowerCase().includes(filters.cuisine.toLowerCase())
+      )
+    }
+
+    if (filters.zone) {
+      result = result.filter(restaurant => restaurant.zone === filters.zone)
+    }
+
+    // Apply Sorting
+    if (sortConfig.key) {
+      result.sort((a, b) => {
+        let aValue, bValue;
+
+        switch (sortConfig.key) {
+          case 'sl':
+            aValue = restaurants.indexOf(a);
+            bValue = restaurants.indexOf(b);
+            break;
+          case 'name':
+            aValue = a.name.toLowerCase();
+            bValue = b.name.toLowerCase();
+            break;
+          case 'owner':
+            aValue = a.ownerName.toLowerCase();
+            bValue = b.ownerName.toLowerCase();
+            break;
+          case 'zone':
+            aValue = a.zone.toLowerCase();
+            bValue = b.zone.toLowerCase();
+            break;
+          case 'cuisine':
+            aValue = a.cuisine.toLowerCase();
+            bValue = b.cuisine.toLowerCase();
+            break;
+          case 'status':
+            aValue = getRestaurantAvailabilityStatus(a.originalData || a, now).isOpen ? 1 : 0;
+            bValue = getRestaurantAvailabilityStatus(b.originalData || b, now).isOpen ? 1 : 0;
+            break;
+          default:
+            return 0;
+        }
+
+        if (aValue < bValue) return sortConfig.direction === "asc" ? -1 : 1;
+        if (aValue > bValue) return sortConfig.direction === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return result.map((restaurant) => ({
+      ...restaurant,
+      availability: getRestaurantAvailabilityStatus(restaurant.originalData || restaurant, now),
+    }))
+  }, [restaurants, searchQuery, filters, sortConfig, availabilityTick])
+
+  const handleSort = (key) => {
+    let direction = "asc"
+    if (sortConfig.key === key && sortConfig.direction === "asc") {
+      direction = "desc"
+    }
+    setSortConfig({ key, direction })
+  }
+
+  const totalRestaurants = restaurants.length
+  const activeRestaurants = restaurants.filter(r => r.status).length
+  const inactiveRestaurants = restaurants.filter(r => !r.status).length
+
+  // Get unique cuisines from restaurants for filter dropdown
+  const uniqueCuisines = useMemo(() => {
+    const cuisines = restaurants
+      .map(r => r.cuisine)
+      .filter(c => c && c !== "N/A")
+      .filter((value, index, self) => self.indexOf(value) === index)
+      .sort()
+    return cuisines
+  }, [restaurants])
+
+  // Show full phone number without masking
+  const formatPhone = (phone) => {
+    if (!phone) return ""
+    return phone
+  }
+
+  const renderStars = (rating) => {
+    return "★".repeat(rating) + "☆".repeat(5 - rating)
+  }
+
+  const getLocationFromRestaurant = (restaurant) => {
+    return (
+      restaurant?.onboarding?.step1?.location ||
+      restaurant?.location ||
+      restaurant?.originalData?.location ||
+      {}
+    )
+  }
+
+  const formatLocationAddress = (location = {}, fallback = "N/A") => {
+    if (!location || typeof location !== "object") return fallback
+    if (location.formattedAddress) return location.formattedAddress
+    if (location.address) return location.address
+    const parts = [
+      location.addressLine1,
+      location.addressLine2,
+      location.area,
+      location.city,
+      location.state,
+      location.pincode || location.zipCode || location.postalCode,
+    ].filter(Boolean)
+    return parts.length > 0 ? parts.join(", ") : fallback
+  }
+
+  const normalizeLocationFormFromRestaurant = (restaurant) => {
+    const loc = getLocationFromRestaurant(restaurant)
+    const latitude = loc.latitude || (Array.isArray(loc.coordinates) ? loc.coordinates[1] : "")
+    const longitude = loc.longitude || (Array.isArray(loc.coordinates) ? loc.coordinates[0] : "")
+
+    return {
+      latitude: latitude || "",
+      longitude: longitude || "",
+      formattedAddress: loc.formattedAddress || loc.address || "",
+      addressLine1: loc.addressLine1 || "",
+      addressLine2: loc.addressLine2 || "",
+      area: loc.area || "",
+      city: loc.city || "",
+      state: loc.state || "",
+      landmark: loc.landmark || "",
+      pincode: loc.pincode || loc.zipCode || loc.postalCode || "",
+    }
+  }
+
+  const parseReverseGeocodeResult = (responseData = {}) => {
+    const firstResult = responseData?.data?.results?.[0] || responseData?.results?.[0] || null
+    if (!firstResult) return {}
+
+    const addressComponents = firstResult.address_components || {}
+    let area = ""
+    let city = ""
+    let state = ""
+    let pincode = ""
+
+    if (Array.isArray(addressComponents)) {
+      const getComponent = (types) =>
+        addressComponents.find((comp) =>
+          Array.isArray(comp.types) && types.some((t) => comp.types.includes(t)),
+        )
+
+      area =
+        getComponent(["sublocality_level_1", "sublocality", "neighborhood"])?.long_name ||
+        ""
+      city =
+        getComponent(["locality", "administrative_area_level_2"])?.long_name ||
+        ""
+      state = getComponent(["administrative_area_level_1"])?.long_name || ""
+      pincode = getComponent(["postal_code"])?.long_name || ""
+    } else {
+      area = addressComponents.area || ""
+      city = addressComponents.city || ""
+      state = addressComponents.state || ""
+      pincode = addressComponents.pincode || addressComponents.postalCode || ""
+    }
+
+    return {
+      formattedAddress: firstResult.formatted_address || "",
+      area,
+      city,
+      state,
+      pincode,
+    }
+  }
+
+  const reverseGeocodeLocation = async (lat, lng) => {
+    if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) return
+    try {
+      setResolvingAddress(true)
+      const response = await locationAPI.reverseGeocode(Number(lat), Number(lng))
+      const parsed = parseReverseGeocodeResult(response?.data)
+      setLocationForm((prev) => ({
+        ...prev,
+        formattedAddress: parsed.formattedAddress || prev.formattedAddress,
+        addressLine1: prev.addressLine1 || parsed.formattedAddress || prev.formattedAddress,
+        area: parsed.area || prev.area,
+        city: parsed.city || prev.city,
+        state: parsed.state || prev.state,
+        pincode: parsed.pincode || prev.pincode,
+      }))
+    } catch (err) {
+      debugWarn("Failed to reverse geocode location:", err)
+    } finally {
+      setResolvingAddress(false)
+    }
+  }
+
+  const loadGoogleMapsScript = async () => {
+    if (window.google?.maps) return true
+
+    const apiKey = await getGoogleMapsApiKey()
+    if (!apiKey) {
+      setMapError("Google Maps API key is missing in Admin Environment Variables.")
+      return false
+    }
+
+    const existingScript = document.getElementById("admin-google-maps-script")
+    if (existingScript) {
+      await new Promise((resolve, reject) => {
+        if (window.google?.maps) {
+          resolve()
+          return
+        }
+        existingScript.addEventListener("load", resolve, { once: true })
+        existingScript.addEventListener("error", reject, { once: true })
+      })
+      return !!window.google?.maps
+    }
+
+    await new Promise((resolve, reject) => {
+      const script = document.createElement("script")
+      script.id = "admin-google-maps-script"
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`
+      script.async = true
+      script.defer = true
+      script.onload = resolve
+      script.onerror = reject
+      document.head.appendChild(script)
+    })
+
+    return !!window.google?.maps
+  }
+
+  const initializeLocationMap = async (lat, lng) => {
+    if (!mapContainerRef.current) return
+
+    try {
+      setMapLoading(true)
+      setMapError("")
+      const loaded = await loadGoogleMapsScript()
+      if (!loaded || !window.google?.maps) {
+        setMapError("Unable to load Google Maps.")
+        return
+      }
+
+      const parsedLat = Number(lat)
+      const parsedLng = Number(lng)
+      const center = {
+        lat: Number.isFinite(parsedLat) ? parsedLat : 22.7196,
+        lng: Number.isFinite(parsedLng) ? parsedLng : 75.8577,
+      }
+
+      mapRef.current = new window.google.maps.Map(mapContainerRef.current, {
+        center,
+        zoom: 16,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+      })
+
+      markerRef.current = new window.google.maps.Marker({
+        position: center,
+        map: mapRef.current,
+        draggable: true,
+      })
+
+      markerRef.current.addListener("dragend", (event) => {
+        const nextLat = Number(event.latLng.lat().toFixed(6))
+        const nextLng = Number(event.latLng.lng().toFixed(6))
+        setLocationForm((prev) => ({
+          ...prev,
+          latitude: nextLat,
+          longitude: nextLng,
+        }))
+        reverseGeocodeLocation(nextLat, nextLng)
+      })
+
+      mapRef.current.addListener("click", (event) => {
+        const nextLat = Number(event.latLng.lat().toFixed(6))
+        const nextLng = Number(event.latLng.lng().toFixed(6))
+        markerRef.current?.setPosition({ lat: nextLat, lng: nextLng })
+        setLocationForm((prev) => ({
+          ...prev,
+          latitude: nextLat,
+          longitude: nextLng,
+        }))
+        reverseGeocodeLocation(nextLat, nextLng)
+      })
+    } catch (err) {
+      debugError("Error initializing location map:", err)
+      setMapError("Failed to initialize map. Please try again.")
+    } finally {
+      setMapLoading(false)
+    }
+  }
+
+  // Handle view restaurant details
+  const handleViewDetails = async (restaurant) => {
+    setIsEditingDetails(false)
+    setProfileImageFile(null)
+    setProfileImagePreview("")
+    setIsEditingLocation(false)
+    setSelectedRestaurant(restaurant)
+    setLoadingDetails(true)
+    setRestaurantDetails(null)
+
+    try {
+      // First, use original data if available (has all details)
+      if (restaurant.originalData) {
+        debugLog("Using original restaurant data:", restaurant.originalData)
+        setRestaurantDetails(restaurant.originalData)
+        setLoadingDetails(false)
+        return
+      }
+
+      // Try to fetch full restaurant details from API
+      // Use _id if available, otherwise use id or restaurantId
+      const restaurantId = restaurant._id || restaurant.id || restaurant.restaurantId
+      let response = null
+
+      if (restaurantId) {
+        try {
+          // Try admin API first if it exists
+          if (adminAPI.getRestaurantById) {
+            response = await adminAPI.getRestaurantById(restaurantId)
+          }
+        } catch (err) {
+          debugLog("Admin API failed, trying restaurant API:", err)
+        }
+
+        // Fallback to regular restaurant API
+        if (!response || !response?.data?.success) {
+          try {
+            response = await restaurantAPI.getRestaurantById(restaurantId)
+          } catch (err) {
+            debugLog("Restaurant API also failed:", err)
+          }
+        }
+      }
+
+      // Check response structure
+      if (response?.data?.success) {
+        const data = response.data.data
+        // Handle different response structures
+        if (data?.restaurant) {
+          setRestaurantDetails(data.restaurant)
+        } else if (data) {
+          setRestaurantDetails(data)
+        } else {
+          // Fallback to restaurant data from list
+          setRestaurantDetails(restaurant)
+        }
+      } else {
+        // Use the restaurant data we already have
+        debugLog("Using restaurant data from list:", restaurant)
+        setRestaurantDetails(restaurant)
+      }
+    } catch (err) {
+      debugError("Error fetching restaurant details:", err)
+      // Use the restaurant data we already have
+      setRestaurantDetails(restaurant)
+    } finally {
+      setLoadingDetails(false)
+    }
+  }
+
+  const handleEditLocation = async (restaurant) => {
+    await handleViewDetails(restaurant)
+    setIsEditingLocation(true)
+  }
+
+  const handleSaveLocation = async () => {
+    if (!selectedRestaurant) return
+
+    const restaurantId = selectedRestaurant._id || selectedRestaurant.id
+    const latitude = Number(locationForm.latitude)
+    const longitude = Number(locationForm.longitude)
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      alert("Please select a valid location on map")
+      return
+    }
+
+    try {
+      setSavingLocation(true)
+      const locationPayload = {
+        latitude,
+        longitude,
+        coordinates: [longitude, latitude],
+        formattedAddress: locationForm.formattedAddress || "",
+        address: locationForm.formattedAddress || "",
+        addressLine1: locationForm.addressLine1 || locationForm.formattedAddress || "",
+        addressLine2: locationForm.addressLine2 || "",
+        area: locationForm.area || "",
+        city: locationForm.city || "",
+        state: locationForm.state || "",
+        landmark: locationForm.landmark || "",
+        pincode: locationForm.pincode || "",
+        zipCode: locationForm.pincode || "",
+        postalCode: locationForm.pincode || "",
+      }
+
+      const response = await adminAPI.updateRestaurantLocation(restaurantId, locationPayload)
+      const updatedRestaurant = response?.data?.data?.restaurant
+
+      if (updatedRestaurant?.location) {
+        setRestaurantDetails((prev) => ({
+          ...(prev || {}),
+          ...updatedRestaurant,
+          location: updatedRestaurant.location,
+          onboarding: {
+            ...(prev?.onboarding || {}),
+            step1: {
+              ...(prev?.onboarding?.step1 || {}),
+              location: updatedRestaurant.location,
+            },
+          },
+        }))
+
+        setRestaurants((prev) =>
+          prev.map((item) =>
+            (item._id === restaurantId || item.id === restaurantId)
+              ? {
+                ...item,
+                zone:
+                  updatedRestaurant.location.area ||
+                  updatedRestaurant.location.city ||
+                  item.zone,
+                originalData: {
+                  ...(item.originalData || {}),
+                  location: updatedRestaurant.location,
+                },
+              }
+              : item,
+          ),
+        )
+      }
+
+      setIsEditingLocation(false)
+      alert("Restaurant location updated successfully")
+    } catch (err) {
+      debugError("Error saving restaurant location:", err)
+      alert(err?.response?.data?.message || "Failed to update restaurant location")
+    } finally {
+      setSavingLocation(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!isEditingLocation || !selectedRestaurant) return
+
+    const sourceRestaurant = restaurantDetails || selectedRestaurant?.originalData || selectedRestaurant
+    const initialForm = normalizeLocationFormFromRestaurant(sourceRestaurant)
+    setLocationForm(initialForm)
+    initializeLocationMap(initialForm.latitude, initialForm.longitude)
+
+    return () => {
+      if (markerRef.current) {
+        markerRef.current.setMap(null)
+      }
+      markerRef.current = null
+      mapRef.current = null
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditingLocation, selectedRestaurant, restaurantDetails?._id])
+
+  const getDetailsEditSource = () => {
+    return restaurantDetails || selectedRestaurant?.originalData || selectedRestaurant || null
+  }
+
+  const buildDetailsFormFromRestaurant = (restaurant) => {
+    if (!restaurant) {
+      return {
+        name: "",
+        ownerName: "",
+        ownerEmail: "",
+        ownerPhone: "",
+        primaryContactNumber: "",
+        email: "",
+        cuisinesText: "",
+        estimatedDeliveryTime: "",
+        offer: "",
+        openingTime: "",
+        closingTime: "",
+        isActive: true,
+      }
+    }
+
+    return {
+      name: restaurant.name || "",
+      ownerName: restaurant.ownerName || "",
+      ownerEmail: restaurant.ownerEmail || "",
+      ownerPhone: restaurant.ownerPhone || "",
+      primaryContactNumber: restaurant.primaryContactNumber || "",
+      email: restaurant.email || "",
+      cuisinesText: Array.isArray(restaurant.cuisines) ? restaurant.cuisines.join(", ") : "",
+      estimatedDeliveryTime: restaurant.estimatedDeliveryTime || "",
+      offer: restaurant.offer || "",
+      openingTime: restaurant.deliveryTimings?.openingTime || "",
+      closingTime: restaurant.deliveryTimings?.closingTime || "",
+      isActive: restaurant.isActive !== false,
+    }
+  }
+
+  const handleStartEditDetails = () => {
+    const source = getDetailsEditSource()
+    setDetailsForm(buildDetailsFormFromRestaurant(source))
+    setProfileImageFile(null)
+    setProfileImagePreview(source?.profileImage?.url || source?.logo || "")
+    setIsEditingLocation(false)
+    setIsEditingDetails(true)
+  }
+
+  const handleCancelEditDetails = () => {
+    setIsEditingDetails(false)
+    setProfileImageFile(null)
+    setProfileImagePreview("")
+  }
+
+  const handleSaveDetails = async () => {
+    if (!selectedRestaurant) return
+    const restaurantId = selectedRestaurant._id || selectedRestaurant.id
+
+    try {
+      setSavingDetails(true)
+
+      let profileImage = undefined
+      if (profileImageFile) {
+        const uploadRes = await uploadAPI.uploadMedia(profileImageFile, {
+          folder: "appzeto/restaurant/profile",
+        })
+        const media = uploadRes?.data?.data?.file || uploadRes?.data?.data || uploadRes?.data?.file
+        if (media?.url) {
+          profileImage = { url: media.url, publicId: media.publicId || media.public_id }
+        }
+      }
+
+      const payload = {
+        name: detailsForm.name.trim(),
+        ownerName: detailsForm.ownerName.trim(),
+        ownerEmail: detailsForm.ownerEmail.trim(),
+        ownerPhone: detailsForm.ownerPhone.trim(),
+        primaryContactNumber: detailsForm.primaryContactNumber.trim(),
+        email: detailsForm.email.trim(),
+        cuisines: detailsForm.cuisinesText
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean),
+        estimatedDeliveryTime: detailsForm.estimatedDeliveryTime.trim(),
+        offer: detailsForm.offer.trim(),
+        openingTime: detailsForm.openingTime.trim(),
+        closingTime: detailsForm.closingTime.trim(),
+        isActive: detailsForm.isActive,
+      }
+
+      if (profileImage) {
+        payload.profileImage = profileImage
+      }
+
+      const response = await adminAPI.updateRestaurant(restaurantId, payload)
+      const updatedRestaurant = response?.data?.data?.restaurant
+
+      if (updatedRestaurant) {
+        setRestaurantDetails(updatedRestaurant)
+        setRestaurants((prev) =>
+          prev.map((item) =>
+            (item._id === restaurantId || item.id === restaurantId)
+              ? {
+                ...item,
+                name: updatedRestaurant.name || item.name,
+                ownerName: updatedRestaurant.ownerName || item.ownerName,
+                ownerPhone: updatedRestaurant.ownerPhone || updatedRestaurant.phone || item.ownerPhone,
+                cuisine: Array.isArray(updatedRestaurant.cuisines) && updatedRestaurant.cuisines.length > 0
+                  ? updatedRestaurant.cuisines[0]
+                  : item.cuisine,
+                zone: updatedRestaurant.location?.area || updatedRestaurant.location?.city || item.zone,
+                status: updatedRestaurant.isActive !== false,
+                logo: updatedRestaurant.profileImage?.url || item.logo,
+                originalData: {
+                  ...(item.originalData || {}),
+                  ...updatedRestaurant,
+                },
+              }
+              : item,
+          ),
+        )
+      }
+
+      setIsEditingDetails(false)
+      setProfileImageFile(null)
+      alert("Restaurant details updated successfully")
+    } catch (err) {
+      debugError("Error updating restaurant details:", err)
+      alert(err?.response?.data?.message || "Failed to update restaurant details")
+    } finally {
+      setSavingDetails(false)
+    }
+  }
+
+  const closeDetailsModal = () => {
+    setIsEditingDetails(false)
+    setProfileImageFile(null)
+    setProfileImagePreview("")
+    setIsEditingLocation(false)
+    setMapError("")
+    setSelectedRestaurant(null)
+    setRestaurantDetails(null)
+  }
+
+  // Handle ban/unban restaurant
+  const handleBanRestaurant = (restaurant) => {
+    const isBanned = !restaurant.status
+    setBanConfirmDialog({
+      restaurant,
+      action: isBanned ? 'unban' : 'ban'
+    })
+  }
+
+  const confirmBanRestaurant = async () => {
+    if (!banConfirmDialog) return
+
+    const { restaurant, action } = banConfirmDialog
+    const isBanning = action === 'ban'
+    const newStatus = !isBanning // false for ban, true for unban
+
+    try {
+      setBanning(true)
+      const restaurantId = restaurant._id || restaurant.id
+
+      // Update restaurant status via API
+      try {
+        await adminAPI.updateRestaurantStatus(restaurantId, newStatus)
+
+        // Update local state on success
+        setRestaurants(prevRestaurants =>
+          prevRestaurants.map(r =>
+            r.id === restaurant.id || r._id === restaurant._id
+              ? { ...r, status: newStatus }
+              : r
+          )
+        )
+
+        // Close dialog
+        setBanConfirmDialog(null)
+
+        // Show success message
+        debugLog(`Restaurant ${isBanning ? 'banned' : 'unbanned'} successfully`)
+      } catch (apiErr) {
+        debugError("API Error:", apiErr)
+        // If API fails, still update locally for better UX
+        setRestaurants(prevRestaurants =>
+          prevRestaurants.map(r =>
+            r.id === restaurant.id || r._id === restaurant._id
+              ? { ...r, status: newStatus }
+              : r
+          )
+        )
+        setBanConfirmDialog(null)
+        alert(`Restaurant ${isBanning ? 'banned' : 'unbanned'} locally. Please check backend connection.`)
+      }
+
+    } catch (err) {
+      debugError("Error banning/unbanning restaurant:", err)
+      alert(`Failed to ${action} restaurant. Please try again.`)
+    } finally {
+      setBanning(false)
+    }
+  }
+
+  const cancelBanRestaurant = () => {
+    setBanConfirmDialog(null)
+  }
+
+  // Handle delete restaurant
+  const handleDeleteRestaurant = (restaurant) => {
+    setDeleteConfirmDialog({ restaurant })
+  }
+
+  const confirmDeleteRestaurant = async () => {
+    if (!deleteConfirmDialog) return
+
+    const { restaurant } = deleteConfirmDialog
+
+    try {
+      setDeleting(true)
+      const restaurantId = restaurant._id || restaurant.id
+
+      // Delete restaurant via API
+      try {
+        await adminAPI.deleteRestaurant(restaurantId)
+
+        // Remove from local state on success
+        setRestaurants(prevRestaurants =>
+          prevRestaurants.filter(r =>
+            r.id !== restaurant.id && r._id !== restaurant._id
+          )
+        )
+
+        // Close dialog
+        setDeleteConfirmDialog(null)
+
+        // Show success message
+        alert(`Restaurant "${restaurant.name}" deleted successfully!`)
+      } catch (apiErr) {
+        debugError("API Error:", apiErr)
+        alert(apiErr.response?.data?.message || "Failed to delete restaurant. Please try again.")
+      }
+
+    } catch (err) {
+      debugError("Error deleting restaurant:", err)
+      alert("Failed to delete restaurant. Please try again.")
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const cancelDeleteRestaurant = () => {
+    setDeleteConfirmDialog(null)
+  }
+
+  // Handle export functionality
+  const handleExport = () => {
+    const dataToExport = filteredRestaurants.length > 0 ? filteredRestaurants : restaurants
+    const filename = "restaurants_list"
+    exportRestaurantsToPDF(dataToExport, filename)
+  }
+
+  return (
+    <div className="p-4 lg:p-6 bg-slate-50 min-h-screen">
+      <div className="max-w-7xl mx-auto">
+        {/* Page Header */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-slate-900">Restaurants List</h1>
+            </div>
+
+          </div>
+        </div>
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          {/* Total Restaurants */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-600 mb-1">Total restaurants</p>
+                <p className="text-2xl font-bold text-slate-900">{totalRestaurants}</p>
+              </div>
+              <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
+                <img src={locationIcon} alt="Location" className="w-8 h-8" />
+              </div>
+            </div>
+          </div>
+
+          {/* Active Restaurants */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-600 mb-1">Active restaurants</p>
+                <p className="text-2xl font-bold text-slate-900">{activeRestaurants}</p>
+              </div>
+              <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
+                <img src={restaurantIcon} alt="Restaurant" className="w-8 h-8" />
+              </div>
+            </div>
+          </div>
+
+          {/* Inactive Restaurants */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-600 mb-1">Inactive restaurants</p>
+                <p className="text-2xl font-bold text-slate-900">{inactiveRestaurants}</p>
+              </div>
+              <div className="w-12 h-12 rounded-lg bg-red-100 flex items-center justify-center">
+                <img src={inactiveIcon} alt="Inactive" className="w-8 h-8" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Restaurants List Section */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+            <h2 className="text-xl font-bold text-slate-900">Restaurants List</h2>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate("/admin/restaurants/add")}
+                className="px-4 py-2.5 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Restaurant</span>
+              </button>
+              <div className="relative flex-1 sm:flex-initial min-w-[250px]">
+                <input
+                  type="text"
+                  placeholder="Ex: search by Restaurant n"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 pr-4 py-2.5 w-full text-sm rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              </div>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="px-4 py-2.5 text-sm font-medium rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 flex items-center gap-2 transition-all">
+                    <Download className="w-4 h-4" />
+                    <span>Export</span>
+                    <ChevronDown className="w-3 h-3" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-50 animate-in fade-in-0 zoom-in-95 duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95">
+                  <DropdownMenuLabel>Export Format</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleExport} className="cursor-pointer flex items-center gap-2">
+                    <FileText className="w-4 h-4" />
+                    PDF
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="overflow-x-auto">
+            {loading ? (
+              <div className="flex items-center justify-center py-20">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                <span className="ml-3 text-slate-600">Loading restaurants...</span>
+              </div>
+            ) : error ? (
+              <div className="flex flex-col items-center justify-center py-20">
+                <p className="text-lg font-semibold text-red-600 mb-1">Error Loading Data</p>
+                <p className="text-sm text-slate-500">{error}</p>
+              </div>
+            ) : (
+              <table className="w-full">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th
+                      className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors"
+                      onClick={() => handleSort('sl')}
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>SL</span>
+                        <ArrowUpDown className={`w-3 h-3 ${sortConfig.key === 'sl' ? 'text-blue-600' : 'text-slate-400'}`} />
+                      </div>
+                    </th>
+                    <th
+                      className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors"
+                      onClick={() => handleSort('name')}
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>Restaurant Info</span>
+                        <ArrowUpDown className={`w-3 h-3 ${sortConfig.key === 'name' ? 'text-blue-600' : 'text-slate-400'}`} />
+                      </div>
+                    </th>
+                    <th
+                      className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors"
+                      onClick={() => handleSort('owner')}
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>Owner Info</span>
+                        <ArrowUpDown className={`w-3 h-3 ${sortConfig.key === 'owner' ? 'text-blue-600' : 'text-slate-400'}`} />
+                      </div>
+                    </th>
+                    <th
+                      className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors"
+                      onClick={() => handleSort('zone')}
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>Zone</span>
+                        <ArrowUpDown className={`w-3 h-3 ${sortConfig.key === 'zone' ? 'text-blue-600' : 'text-slate-400'}`} />
+                      </div>
+                    </th>
+                    <th
+                      className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors"
+                      onClick={() => handleSort('cuisine')}
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>Cuisine</span>
+                        <ArrowUpDown className={`w-3 h-3 ${sortConfig.key === 'cuisine' ? 'text-blue-600' : 'text-slate-400'}`} />
+                      </div>
+                    </th>
+                    <th
+                      className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors"
+                      onClick={() => handleSort('status')}
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>Status</span>
+                        <ArrowUpDown className={`w-3 h-3 ${sortConfig.key === 'status' ? 'text-blue-600' : 'text-slate-400'}`} />
+                      </div>
+                    </th>
+                    <th className="px-6 py-4 text-center text-[10px] font-bold text-slate-700 uppercase tracking-wider">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-slate-100">
+                  {filteredRestaurants.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-20 text-center">
+                        <div className="flex flex-col items-center justify-center">
+                          <p className="text-lg font-semibold text-slate-700 mb-1">No Data Found</p>
+                          <p className="text-sm text-slate-500">No restaurants match your search</p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredRestaurants.map((restaurant, index) => (
+                      <tr
+                        key={restaurant.id}
+                        className="hover:bg-slate-50 transition-colors"
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="text-sm font-medium text-slate-700">{index + 1}</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 flex items-center justify-center flex-shrink-0">
+                              <img
+                                src={restaurant.logo}
+                                alt={restaurant.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.target.src = "https://via.placeholder.com/40"
+                                }}
+                              />
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium text-slate-900">{restaurant.name}</span>
+                              <span className="text-xs text-slate-500">ID #{formatRestaurantId(restaurant.originalData?.restaurantId || restaurant.originalData?._id || restaurant._id || restaurant.id)}</span>
+                              <span className="text-xs text-slate-500">{renderStars(restaurant.rating)}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium text-slate-900">{restaurant.ownerName}</span>
+                            <span className="text-xs text-slate-500">{formatPhone(restaurant.ownerPhone)}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="text-sm text-slate-700">{restaurant.zone}</span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="text-sm text-slate-700">{restaurant.cuisine}</span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex flex-col gap-1">
+                            <span className={`inline-flex w-fit items-center rounded-full px-2.5 py-1 text-xs font-semibold ${restaurant.availability?.isOpen ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>
+                              {restaurant.availability?.isOpen ? "Online" : "Offline"}
+                            </span>
+                            {restaurant.availability?.closingCountdownLabel ? (
+                              <span className="text-[11px] text-slate-500">
+                                {restaurant.availability.closingCountdownLabel}
+                              </span>
+                            ) : restaurant.availability?.openingTime && restaurant.availability?.closingTime ? (
+                              <span className="text-[11px] text-slate-500">
+                                {restaurant.availability.openingTime} - {restaurant.availability.closingTime}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-slate-500">
+                                No timings
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => handleViewDetails(restaurant)}
+                              className="p-1.5 rounded text-blue-600 hover:bg-blue-50 transition-colors"
+                              title="View Details"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleEditLocation(restaurant)}
+                              className="p-1.5 rounded text-indigo-600 hover:bg-indigo-50 transition-colors"
+                              title="Edit Location"
+                            >
+                              <Settings className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleBanRestaurant(restaurant)}
+                              className={`p-1.5 rounded transition-colors ${!restaurant.status
+                                ? "text-green-600 hover:bg-green-50"
+                                : "text-red-600 hover:bg-red-50"
+                                }`}
+                              title={!restaurant.status ? "Unban Restaurant" : "Ban Restaurant"}
+                            >
+                              <ShieldX className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteRestaurant(restaurant)}
+                              className="p-1.5 rounded text-red-600 hover:bg-red-50 transition-colors"
+                              title="Delete Restaurant"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Restaurant Details Modal */}
+      {selectedRestaurant && (
+        <div
+          className="fixed inset-0 bg-slate-900/10 backdrop-blur-md z-[100] flex items-center justify-center p-4 lg:p-8 transition-all duration-300"
+          onClick={closeDetailsModal}
+        >
+          <div
+            className="bg-white rounded-3xl shadow-[0_32px_64px_-12px_rgba(0,0,0,0.14)] border border-slate-200/60 max-w-4xl w-full max-h-[92vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-400"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-10">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">Restaurant Details</h2>
+                <p className="text-sm text-slate-500 mt-1">Detailed overview and information</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {!isEditingDetails ? (
+                  <button
+                    onClick={handleStartEditDetails}
+                    className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors"
+                  >
+                    Edit Details
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={handleCancelEditDetails}
+                      disabled={savingDetails}
+                      className="px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium transition-colors disabled:opacity-60"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSaveDetails}
+                      disabled={savingDetails}
+                      className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-60 flex items-center gap-2"
+                    >
+                      {savingDetails && <Loader2 className="w-4 h-4 animate-spin" />}
+                      {savingDetails ? "Saving..." : "Save Changes"}
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={closeDetailsModal}
+                  className="p-2.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all duration-200 bg-slate-50"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content - Scrollable area */}
+            <div className="p-8 overflow-y-auto">
+              {loadingDetails && (
+                <div className="flex flex-col items-center justify-center py-24">
+                  <div className="relative">
+                    <div className="w-12 h-12 rounded-full border-4 border-slate-100"></div>
+                    <div className="absolute inset-0 w-12 h-12 rounded-full border-4 border-blue-600 border-t-transparent animate-spin"></div>
+                  </div>
+                  <span className="mt-4 text-slate-500 font-medium tracking-wide">Fetching restaurant data...</span>
+                </div>
+              )}
+              {!loadingDetails && isEditingDetails && (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="md:col-span-2">
+                      <p className="text-xs text-slate-500 mb-2">Profile Image</p>
+                      <div className="flex items-center gap-4">
+                        <div className="w-24 h-24 rounded-xl overflow-hidden bg-slate-100 border border-slate-200">
+                          {profileImagePreview ? (
+                            <img src={profileImagePreview} alt="Profile preview" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-slate-400">
+                              <ImageIcon className="w-6 h-6" />
+                            </div>
+                          )}
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            setProfileImageFile(file || null)
+                            if (file) {
+                              const localUrl = URL.createObjectURL(file)
+                              setProfileImagePreview(localUrl)
+                            }
+                          }}
+                          className="block w-full text-sm text-slate-700 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-slate-500 mb-1">Restaurant Name</label>
+                      <input type="text" value={detailsForm.name} onChange={(e) => setDetailsForm((prev) => ({ ...prev, name: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-500 mb-1">Restaurant Email</label>
+                      <input type="email" value={detailsForm.email} onChange={(e) => setDetailsForm((prev) => ({ ...prev, email: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-500 mb-1">Owner Name</label>
+                      <input type="text" value={detailsForm.ownerName} onChange={(e) => setDetailsForm((prev) => ({ ...prev, ownerName: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-500 mb-1">Owner Email</label>
+                      <input type="email" value={detailsForm.ownerEmail} onChange={(e) => setDetailsForm((prev) => ({ ...prev, ownerEmail: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-500 mb-1">Owner Phone</label>
+                      <input type="text" value={detailsForm.ownerPhone} onChange={(e) => setDetailsForm((prev) => ({ ...prev, ownerPhone: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-500 mb-1">Primary Contact</label>
+                      <input type="text" value={detailsForm.primaryContactNumber} onChange={(e) => setDetailsForm((prev) => ({ ...prev, primaryContactNumber: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-xs text-slate-500 mb-1">Cuisines (comma separated)</label>
+                      <input type="text" value={detailsForm.cuisinesText} onChange={(e) => setDetailsForm((prev) => ({ ...prev, cuisinesText: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-500 mb-1">Opening Time</label>
+                      <input type="text" value={detailsForm.openingTime} onChange={(e) => setDetailsForm((prev) => ({ ...prev, openingTime: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-500 mb-1">Closing Time</label>
+                      <input type="text" value={detailsForm.closingTime} onChange={(e) => setDetailsForm((prev) => ({ ...prev, closingTime: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-500 mb-1">Estimated Delivery Time</label>
+                      <input type="text" value={detailsForm.estimatedDeliveryTime} onChange={(e) => setDetailsForm((prev) => ({ ...prev, estimatedDeliveryTime: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-500 mb-1">Offer</label>
+                      <input type="text" value={detailsForm.offer} onChange={(e) => setDetailsForm((prev) => ({ ...prev, offer: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                    </div>
+                    <div className="md:col-span-2 flex items-center gap-3">
+                      <input
+                        id="restaurant-status-active"
+                        type="checkbox"
+                        checked={detailsForm.isActive}
+                        onChange={(e) => setDetailsForm((prev) => ({ ...prev, isActive: e.target.checked }))}
+                        className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                      />
+                      <label htmlFor="restaurant-status-active" className="text-sm text-slate-700">
+                        Restaurant is active
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {!loadingDetails && !isEditingDetails && (restaurantDetails || selectedRestaurant) && (
+                <div className="space-y-10">
+                  {/* Restaurant Basic Info */}
+                  <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
+                    <div className="w-32 h-32 rounded-3xl overflow-hidden bg-slate-50 flex-shrink-0 shadow-inner group">
+                      <img
+                        src={restaurantDetails?.profileImage?.url || restaurantDetails?.logo || selectedRestaurant?.logo || selectedRestaurant?.originalData?.profileImage?.url || "https://via.placeholder.com/128"}
+                        alt={restaurantDetails?.name || selectedRestaurant?.name || "Restaurant"}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                        onError={(e) => {
+                          e.target.src = "https://via.placeholder.com/128"
+                        }}
+                      />
+                    </div>
+                    <div className="flex-1 text-center md:text-left pt-2">
+                      <div className="flex flex-col md:flex-row md:items-center gap-3 mb-4">
+                        <h3 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+                          {restaurantDetails?.name || selectedRestaurant?.name || "N/A"}
+                        </h3>
+                        <div className="flex items-center justify-center md:justify-start gap-2">
+                          <span className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${restaurantDetails?.isActive !== false ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            {restaurantDetails?.isActive !== false ? 'Active' : 'Inactive'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-center md:justify-start gap-6 flex-wrap">
+                        {(restaurantDetails?.ratings?.average || selectedRestaurant?.originalData?.ratings?.average) && (
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-50 rounded-xl">
+                            <Star className="w-4 h-4 fill-yellow-400 text-yellow-500" />
+                            <span className="text-sm font-bold text-yellow-700">
+                              {(restaurantDetails?.ratings?.average || selectedRestaurant?.originalData?.ratings?.average || 0).toFixed(1)}
+                            </span>
+                            <span className="text-xs text-yellow-600/70 ml-1 font-medium">
+                              ({(restaurantDetails?.ratings?.count || selectedRestaurant?.originalData?.ratings?.count || 0)} reviews)
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
+                          <Building2 className="w-4 h-4" />
+                          <span className="text-xs font-bold tracking-wider">{formatRestaurantId(restaurantDetails?.restaurantId || restaurantDetails?._id || selectedRestaurant?.id || selectedRestaurant?._id)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10">
+                    {/* Owner Information */}
+                    <div className="space-y-6">
+                      <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                        <User className="w-4 h-4 text-blue-600" />
+                        <h4 className="text-sm font-bold text-slate-900 uppercase tracking-widest">Owner Information</h4>
+                      </div>
+                      <div className="space-y-4">
+                        <div className="flex items-start gap-4 p-4 rounded-2xl bg-blue-50/30 border border-blue-100/30">
+                          <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+                            <User className="w-5 h-5 text-blue-600" />
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-blue-600 font-bold uppercase tracking-wider mb-0.5">Full Name</p>
+                            <p className="text-base font-bold text-slate-800">
+                              {restaurantDetails?.ownerName || selectedRestaurant?.ownerName || selectedRestaurant?.originalData?.ownerName || "N/A"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-4 p-4 rounded-2xl bg-emerald-50/30 border border-emerald-100/30">
+                          <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                            <Phone className="w-5 h-5 text-emerald-600" />
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider mb-0.5">Contact Number</p>
+                            <p className="text-base font-bold text-slate-800">
+                              {restaurantDetails?.ownerPhone || restaurantDetails?.phone || selectedRestaurant?.ownerPhone || selectedRestaurant?.originalData?.ownerPhone || selectedRestaurant?.originalData?.phone || "N/A"}
+                            </p>
+                          </div>
+                        </div>
+                        {restaurantDetails?.ownerEmail && (
+                          <div className="flex items-start gap-4 p-4 rounded-2xl bg-indigo-50/30 border border-indigo-100/30">
+                            <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
+                              <Mail className="w-5 h-5 text-indigo-600" />
+                            </div>
+                            <div>
+                              <p className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider mb-0.5">Email Address</p>
+                              <p className="text-base font-bold text-slate-800">{restaurantDetails.ownerEmail}</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Location & Contact */}
+                    <div>
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="text-lg font-semibold text-slate-900">Location & Contact</h4>
+                        {!isEditingLocation ? (
+                          <button
+                            onClick={() => setIsEditingLocation(true)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 text-xs font-semibold hover:bg-indigo-100 transition-colors"
+                          >
+                            <Settings className="w-3.5 h-3.5" />
+                            Edit Location
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setIsEditingLocation(false)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+                      <div className="space-y-3">
+                        {!isEditingLocation && restaurantDetails?.location && (
+                          <div className="flex items-start gap-3">
+                            <MapPin className="w-5 h-5 text-slate-400 mt-0.5" />
+                            <div>
+                              <p className="text-xs text-slate-500">Address</p>
+                              <p className="text-sm font-medium text-slate-900">
+                                {formatLocationAddress(restaurantDetails.location, selectedRestaurant.zone)}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                        {isEditingLocation && (
+                          <p className="text-xs text-indigo-700 font-medium bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2">
+                            Location editor is shown at the bottom of this details modal.
+                          </p>
+                        )}
+                        {restaurantDetails?.primaryContactNumber && (
+                          <div className="flex items-center gap-3">
+                            <Phone className="w-5 h-5 text-slate-400" />
+                            <div>
+                              <p className="text-xs text-slate-500">Primary Contact</p>
+                              <p className="text-sm font-medium text-slate-900">{restaurantDetails.primaryContactNumber}</p>
+                            </div>
+                          </div>
+                        )}
+                        {restaurantDetails?.email && (
+                          <div className="flex items-center gap-3">
+                            <Mail className="w-5 h-5 text-slate-400" />
+                            <div>
+                              <p className="text-xs text-slate-500">Restaurant Email</p>
+                              <p className="text-sm font-medium text-slate-900">{restaurantDetails.email}</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Cuisine & Timings */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <h4 className="text-lg font-semibold text-slate-900 mb-4">Cuisine & Details</h4>
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-xs text-slate-500 mb-1">Cuisines</p>
+                          <div className="flex flex-wrap gap-2">
+                            {restaurantDetails?.cuisines && Array.isArray(restaurantDetails.cuisines) && restaurantDetails.cuisines.length > 0 ? (
+                              restaurantDetails.cuisines.map((cuisine, idx) => (
+                                <span key={idx} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                                  {cuisine}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                                {restaurantDetails?.cuisine || selectedRestaurant.cuisine || "N/A"}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {restaurantDetails?.offer && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-1">Current Offer</p>
+                            <p className="text-sm font-medium text-green-600">{restaurantDetails.offer}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="text-lg font-semibold text-slate-900 mb-4">Timings & Status</h4>
+                      <div className="space-y-3">
+                        {restaurantDetails?.deliveryTimings && (
+                          <div className="flex items-center gap-3">
+                            <Clock className="w-5 h-5 text-slate-400" />
+                            <div>
+                              <p className="text-xs text-slate-500">Delivery Timings</p>
+                              <p className="text-sm font-medium text-slate-900">
+                                {restaurantDetails.deliveryTimings.openingTime || "N/A"} - {restaurantDetails.deliveryTimings.closingTime || "N/A"}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                        {restaurantDetails?.estimatedDeliveryTime && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-1">Estimated Delivery Time</p>
+                            <p className="text-sm font-medium text-slate-900">{restaurantDetails.estimatedDeliveryTime}</p>
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-xs text-slate-500 mb-1">Status</p>
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getRestaurantAvailabilityStatus(restaurantDetails || selectedRestaurant?.originalData || selectedRestaurant).isOpen ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
+                            }`}>
+                            {getRestaurantAvailabilityStatus(restaurantDetails || selectedRestaurant?.originalData || selectedRestaurant).isOpen ? "Online" : "Offline"}
+                          </span>
+                          <p className="mt-2 text-xs text-slate-500">
+                            Outlet: {(restaurantDetails?.isActive !== false) ? "Active" : "Inactive"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Registration Information */}
+                  {(restaurantDetails?.createdAt || restaurantDetails?.updatedAt) && (
+                    <div className="pt-6 border-t border-slate-200">
+                      <h4 className="text-lg font-semibold text-slate-900 mb-4">Registration Information</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        {restaurantDetails.createdAt && (
+                          <div className="flex items-center gap-3">
+                            <Calendar className="w-5 h-5 text-slate-400" />
+                            <div>
+                              <p className="text-xs text-slate-500 mb-1">Registration Date & Time</p>
+                              <p className="font-medium text-slate-900">
+                                {new Date(restaurantDetails.createdAt).toLocaleString('en-IN', {
+                                  year: 'numeric',
+                                  month: 'long',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                        {restaurantDetails.updatedAt && (
+                          <div className="flex items-center gap-3">
+                            <Calendar className="w-5 h-5 text-slate-400" />
+                            <div>
+                              <p className="text-xs text-slate-500 mb-1">Last Updated</p>
+                              <p className="font-medium text-slate-900">
+                                {new Date(restaurantDetails.updatedAt).toLocaleString('en-IN', {
+                                  year: 'numeric',
+                                  month: 'long',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                        {restaurantDetails.restaurantId && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-1">Restaurant ID</p>
+                            <p className="font-medium text-slate-900">{formatRestaurantId(restaurantDetails.restaurantId)}</p>
+                          </div>
+                        )}
+                        {restaurantDetails.slug && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-1">Slug</p>
+                            <p className="font-medium text-slate-900">{restaurantDetails.slug}</p>
+                          </div>
+                        )}
+                        {restaurantDetails.phoneVerified !== undefined && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-1">Phone Verified</p>
+                            <p className="font-medium text-slate-900">{restaurantDetails.phoneVerified ? "Yes" : "No"}</p>
+                          </div>
+                        )}
+                        {restaurantDetails.signupMethod && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-1">Signup Method</p>
+                            <p className="font-medium text-slate-900 capitalize">{restaurantDetails.signupMethod}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Registration Documents - PAN, GST, FSSAI, Bank */}
+                  {restaurantDetails?.onboarding?.step3 && (
+                    <div className="pt-6 border-t border-slate-200">
+                      <h4 className="text-lg font-semibold text-slate-900 mb-4">Registration Documents</h4>
+                      <div className="space-y-6">
+                        {/* PAN Details */}
+                        {restaurantDetails.onboarding.step3.pan && (
+                          <div className="bg-slate-50 rounded-lg p-4">
+                            <h5 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                              <FileText className="w-4 h-4" />
+                              PAN Details
+                            </h5>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                              {restaurantDetails.onboarding.step3.pan.panNumber && (
+                                <div>
+                                  <p className="text-xs text-slate-500 mb-1">PAN Number</p>
+                                  <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step3.pan.panNumber}</p>
+                                </div>
+                              )}
+                              {restaurantDetails.onboarding.step3.pan.nameOnPan && (
+                                <div>
+                                  <p className="text-xs text-slate-500 mb-1">Name on PAN</p>
+                                  <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step3.pan.nameOnPan}</p>
+                                </div>
+                              )}
+                              {restaurantDetails.onboarding.step3.pan.image?.url && (
+                                <div className="md:col-span-2">
+                                  <p className="text-xs text-slate-500 mb-2">PAN Document</p>
+                                  <a
+                                    href={restaurantDetails.onboarding.step3.pan.image.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700"
+                                  >
+                                    <ImageIcon className="w-4 h-4" />
+                                    <span>View PAN Document</span>
+                                    <ExternalLink className="w-3 h-3" />
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* GST Details */}
+                        {restaurantDetails.onboarding.step3.gst && (
+                          <div className="bg-slate-50 rounded-lg p-4">
+                            <h5 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                              <FileText className="w-4 h-4" />
+                              GST Details
+                            </h5>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                              <div>
+                                <p className="text-xs text-slate-500 mb-1">GST Registered</p>
+                                <p className="font-medium text-slate-900">
+                                  {restaurantDetails.onboarding.step3.gst.isRegistered ? "Yes" : "No"}
+                                </p>
+                              </div>
+                              {restaurantDetails.onboarding.step3.gst.gstNumber && (
+                                <div>
+                                  <p className="text-xs text-slate-500 mb-1">GST Number</p>
+                                  <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step3.gst.gstNumber}</p>
+                                </div>
+                              )}
+                              {restaurantDetails.onboarding.step3.gst.legalName && (
+                                <div>
+                                  <p className="text-xs text-slate-500 mb-1">Legal Name</p>
+                                  <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step3.gst.legalName}</p>
+                                </div>
+                              )}
+                              {restaurantDetails.onboarding.step3.gst.address && (
+                                <div>
+                                  <p className="text-xs text-slate-500 mb-1">GST Address</p>
+                                  <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step3.gst.address}</p>
+                                </div>
+                              )}
+                              {restaurantDetails.onboarding.step3.gst.image?.url && (
+                                <div className="md:col-span-2">
+                                  <p className="text-xs text-slate-500 mb-2">GST Document</p>
+                                  <a
+                                    href={restaurantDetails.onboarding.step3.gst.image.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700"
+                                  >
+                                    <ImageIcon className="w-4 h-4" />
+                                    <span>View GST Document</span>
+                                    <ExternalLink className="w-3 h-3" />
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* FSSAI Details */}
+                        {restaurantDetails.onboarding.step3.fssai && (
+                          <div className="bg-slate-50 rounded-lg p-4">
+                            <h5 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                              <FileText className="w-4 h-4" />
+                              FSSAI Details
+                            </h5>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                              {restaurantDetails.onboarding.step3.fssai.registrationNumber && (
+                                <div>
+                                  <p className="text-xs text-slate-500 mb-1">FSSAI Registration Number</p>
+                                  <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step3.fssai.registrationNumber}</p>
+                                </div>
+                              )}
+                              {restaurantDetails.onboarding.step3.fssai.expiryDate && (
+                                <div>
+                                  <p className="text-xs text-slate-500 mb-1">FSSAI Expiry Date</p>
+                                  <p className="font-medium text-slate-900">
+                                    {new Date(restaurantDetails.onboarding.step3.fssai.expiryDate).toLocaleDateString('en-IN', {
+                                      year: 'numeric',
+                                      month: 'long',
+                                      day: 'numeric'
+                                    })}
+                                  </p>
+                                </div>
+                              )}
+                              {restaurantDetails.onboarding.step3.fssai.image?.url && (
+                                <div className="md:col-span-2">
+                                  <p className="text-xs text-slate-500 mb-2">FSSAI Document</p>
+                                  <a
+                                    href={restaurantDetails.onboarding.step3.fssai.image.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700"
+                                  >
+                                    <ImageIcon className="w-4 h-4" />
+                                    <span>View FSSAI Document</span>
+                                    <ExternalLink className="w-3 h-3" />
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Bank Details */}
+                        {restaurantDetails.onboarding.step3.bank && (
+                          <div className="bg-slate-50 rounded-lg p-4">
+                            <h5 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                              <CreditCard className="w-4 h-4" />
+                              Bank Details
+                            </h5>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                              {restaurantDetails.onboarding.step3.bank.accountNumber && (
+                                <div>
+                                  <p className="text-xs text-slate-500 mb-1">Account Number</p>
+                                  <p className="font-medium text-slate-900">
+                                    {restaurantDetails.onboarding.step3.bank.accountNumber}
+                                  </p>
+                                </div>
+                              )}
+                              {restaurantDetails.onboarding.step3.bank.ifscCode && (
+                                <div>
+                                  <p className="text-xs text-slate-500 mb-1">IFSC Code</p>
+                                  <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step3.bank.ifscCode}</p>
+                                </div>
+                              )}
+                              {restaurantDetails.onboarding.step3.bank.accountHolderName && (
+                                <div>
+                                  <p className="text-xs text-slate-500 mb-1">Account Holder Name</p>
+                                  <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step3.bank.accountHolderName}</p>
+                                </div>
+                              )}
+                              {restaurantDetails.onboarding.step3.bank.accountType && (
+                                <div>
+                                  <p className="text-xs text-slate-500 mb-1">Account Type</p>
+                                  <p className="font-medium text-slate-900 capitalize">{restaurantDetails.onboarding.step3.bank.accountType}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Onboarding Step 1 Details */}
+                  {restaurantDetails?.onboarding?.step1 && (
+                    <div className="pt-6 border-t border-slate-200">
+                      <h4 className="text-lg font-semibold text-slate-900 mb-4">Registration Step 1 Details</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        {restaurantDetails.onboarding.step1.restaurantName && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-1">Restaurant Name (at registration)</p>
+                            <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step1.restaurantName}</p>
+                          </div>
+                        )}
+                        {restaurantDetails.onboarding.step1.ownerName && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-1">Owner Name (at registration)</p>
+                            <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step1.ownerName}</p>
+                          </div>
+                        )}
+                        {restaurantDetails.onboarding.step1.ownerEmail && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-1">Owner Email (at registration)</p>
+                            <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step1.ownerEmail}</p>
+                          </div>
+                        )}
+                        {restaurantDetails.onboarding.step1.ownerPhone && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-1">Owner Phone (at registration)</p>
+                            <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step1.ownerPhone}</p>
+                          </div>
+                        )}
+                        {restaurantDetails.onboarding.step1.primaryContactNumber && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-1">Primary Contact (at registration)</p>
+                            <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step1.primaryContactNumber}</p>
+                          </div>
+                        )}
+                        {restaurantDetails.onboarding.step1.location && (
+                          <div className="md:col-span-2">
+                            <p className="text-xs text-slate-500 mb-1">Location (at registration)</p>
+                            <p className="font-medium text-slate-900">
+                              {restaurantDetails.onboarding.step1.location.addressLine1 || ""}
+                              {restaurantDetails.onboarding.step1.location.addressLine2 && `, ${restaurantDetails.onboarding.step1.location.addressLine2}`}
+                              {restaurantDetails.onboarding.step1.location.area && `, ${restaurantDetails.onboarding.step1.location.area}`}
+                              {restaurantDetails.onboarding.step1.location.city && `, ${restaurantDetails.onboarding.step1.location.city}`}
+                              {restaurantDetails.onboarding.step1.location.landmark && `, ${restaurantDetails.onboarding.step1.location.landmark}`}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Onboarding Step 2 Details */}
+                  {restaurantDetails?.onboarding?.step2 && (
+                    <div className="pt-6 border-t border-slate-200">
+                      <h4 className="text-lg font-semibold text-slate-900 mb-4">Registration Step 2 Details</h4>
+                      <div className="space-y-4">
+                        {restaurantDetails.onboarding.step2.cuisines && Array.isArray(restaurantDetails.onboarding.step2.cuisines) && restaurantDetails.onboarding.step2.cuisines.length > 0 && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-2">Cuisines (at registration)</p>
+                            <div className="flex flex-wrap gap-2">
+                              {restaurantDetails.onboarding.step2.cuisines.map((cuisine, idx) => (
+                                <span key={idx} className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
+                                  {cuisine}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {restaurantDetails.onboarding.step2.deliveryTimings && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <p className="text-xs text-slate-500 mb-1">Opening Time (at registration)</p>
+                              <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step2.deliveryTimings.openingTime || "N/A"}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-slate-500 mb-1">Closing Time (at registration)</p>
+                              <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step2.deliveryTimings.closingTime || "N/A"}</p>
+                            </div>
+                          </div>
+                        )}
+                        {restaurantDetails.onboarding.step2.openDays && Array.isArray(restaurantDetails.onboarding.step2.openDays) && restaurantDetails.onboarding.step2.openDays.length > 0 && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-2">Open Days (at registration)</p>
+                            <div className="flex flex-wrap gap-2">
+                              {restaurantDetails.onboarding.step2.openDays.map((day, idx) => (
+                                <span key={idx} className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm font-medium capitalize">
+                                  {day}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {restaurantDetails.onboarding.step2.profileImageUrl?.url && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-2">Profile Image (at registration)</p>
+                            <a
+                              href={restaurantDetails.onboarding.step2.profileImageUrl.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-block"
+                            >
+                              <img
+                                src={restaurantDetails.onboarding.step2.profileImageUrl.url}
+                                alt="Profile"
+                                className="w-32 h-32 rounded-lg object-cover border border-slate-200 hover:border-blue-500 transition-colors"
+                                onError={(e) => {
+                                  e.target.src = "https://via.placeholder.com/128"
+                                }}
+                              />
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Onboarding Step 4 Details */}
+                  {restaurantDetails?.onboarding?.step4 && (
+                    <div className="pt-6 border-t border-slate-200">
+                      <h4 className="text-lg font-semibold text-slate-900 mb-4">Registration Step 4 Details</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        {restaurantDetails.onboarding.step4.estimatedDeliveryTime && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-1">Estimated Delivery Time (at registration)</p>
+                            <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step4.estimatedDeliveryTime}</p>
+                          </div>
+                        )}
+                        {restaurantDetails.onboarding.step4.distance && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-1">Distance (at registration)</p>
+                            <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step4.distance}</p>
+                          </div>
+                        )}
+                        {restaurantDetails.onboarding.step4.featuredDish && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-1">Featured Dish (at registration)</p>
+                            <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step4.featuredDish}</p>
+                          </div>
+                        )}
+                        {restaurantDetails.onboarding.step4.offer && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-1">Offer (at registration)</p>
+                            <p className="font-medium text-green-600">{restaurantDetails.onboarding.step4.offer}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Additional Information */}
+                  {(restaurantDetails?.slug || restaurantDetails?.restaurantId || restaurantDetails?.phoneVerified !== undefined || restaurantDetails?.signupMethod) && (
+                    <div className="pt-6 border-t border-slate-200">
+                      <h4 className="text-lg font-semibold text-slate-900 mb-4">Additional Information</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        {restaurantDetails?.slug && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-1">Slug</p>
+                            <p className="font-medium text-slate-900">{restaurantDetails.slug}</p>
+                          </div>
+                        )}
+                        {restaurantDetails?.restaurantId && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-1">Restaurant ID</p>
+                            <p className="font-medium text-slate-900">{formatRestaurantId(restaurantDetails.restaurantId)}</p>
+                          </div>
+                        )}
+                        {restaurantDetails?.phoneVerified !== undefined && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-1">Phone Verified</p>
+                            <p className="font-medium text-slate-900">{restaurantDetails.phoneVerified ? "Yes" : "No"}</p>
+                          </div>
+                        )}
+                        {restaurantDetails?.signupMethod && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-1">Signup Method</p>
+                            <p className="font-medium text-slate-900 capitalize">{restaurantDetails.signupMethod}</p>
+                          </div>
+                        )}
+                        {restaurantDetails?.onboarding?.completedSteps !== undefined && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-1">Onboarding Steps Completed</p>
+                            <p className="font-medium text-slate-900">{restaurantDetails.onboarding.completedSteps} / 4</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {isEditingLocation && (
+                    <div className="pt-6 border-t border-slate-200">
+                      <h4 className="text-lg font-semibold text-slate-900 mb-4">Location Editor</h4>
+                      <div className="space-y-3 border border-indigo-100 bg-indigo-50/40 rounded-xl p-4">
+                        <p className="text-xs text-indigo-700 font-semibold">
+                          Pinpoint the exact restaurant location on map. This will be the address used everywhere.
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs text-slate-500 mb-1">Latitude</label>
+                            <input
+                              type="number"
+                              step="any"
+                              value={locationForm.latitude}
+                              onChange={(e) => setLocationForm((prev) => ({ ...prev, latitude: e.target.value }))}
+                              className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-slate-500 mb-1">Longitude</label>
+                            <input
+                              type="number"
+                              step="any"
+                              value={locationForm.longitude}
+                              onChange={(e) => setLocationForm((prev) => ({ ...prev, longitude: e.target.value }))}
+                              className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="sm:col-span-2">
+                            <label className="block text-xs text-slate-500 mb-1">Formatted Address</label>
+                            <input
+                              type="text"
+                              value={locationForm.formattedAddress}
+                              onChange={(e) => setLocationForm((prev) => ({ ...prev, formattedAddress: e.target.value }))}
+                              className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-slate-500 mb-1">Area</label>
+                            <input
+                              type="text"
+                              value={locationForm.area}
+                              onChange={(e) => setLocationForm((prev) => ({ ...prev, area: e.target.value }))}
+                              className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-slate-500 mb-1">City</label>
+                            <input
+                              type="text"
+                              value={locationForm.city}
+                              onChange={(e) => setLocationForm((prev) => ({ ...prev, city: e.target.value }))}
+                              className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm"
+                            />
+                          </div>
+                        </div>
+                        <div
+                          ref={mapContainerRef}
+                          className="w-full h-[460px] rounded-xl border border-slate-300 bg-slate-100"
+                        />
+                        {mapLoading && <p className="text-xs text-slate-500">Loading map...</p>}
+                        {resolvingAddress && <p className="text-xs text-slate-500">Resolving address...</p>}
+                        {mapError && <p className="text-xs text-red-600">{mapError}</p>}
+                        <button
+                          onClick={handleSaveLocation}
+                          disabled={savingLocation}
+                          className={`inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-semibold text-white ${savingLocation ? "bg-indigo-300 cursor-not-allowed" : "bg-indigo-600 hover:bg-indigo-700"}`}
+                        >
+                          {savingLocation ? "Saving..." : "Save Location"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {!loadingDetails && !restaurantDetails && !selectedRestaurant && (
+                <div className="flex flex-col items-center justify-center py-20">
+                  <p className="text-lg font-semibold text-slate-700 mb-2">No Details Available</p>
+                  <p className="text-sm text-slate-500">Unable to load restaurant details</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ban/Unban Confirmation Dialog */}
+      {banConfirmDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={cancelBanRestaurant}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6">
+              <div className="flex items-center gap-4 mb-4">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${banConfirmDialog.action === 'ban' ? 'bg-red-100' : 'bg-green-100'
+                  }`}>
+                  <AlertTriangle className={`w-6 h-6 ${banConfirmDialog.action === 'ban' ? 'text-red-600' : 'text-green-600'
+                    }`} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">
+                    {banConfirmDialog.action === 'ban' ? 'Ban Restaurant' : 'Unban Restaurant'}
+                  </h3>
+                  <p className="text-sm text-slate-600">
+                    {banConfirmDialog.restaurant.name}
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-sm text-slate-700 mb-6">
+                {banConfirmDialog.action === 'ban'
+                  ? 'Are you sure you want to ban this restaurant? They will not be able to receive orders or access their account.'
+                  : 'Are you sure you want to unban this restaurant? They will be able to receive orders and access their account again.'
+                }
+              </p>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={cancelBanRestaurant}
+                  disabled={banning}
+                  className="flex-1 px-4 py-2.5 text-sm font-medium rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmBanRestaurant}
+                  disabled={banning}
+                  className={`flex-1 px-4 py-2.5 text-sm font-medium rounded-lg text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${banConfirmDialog.action === 'ban'
+                    ? 'bg-red-600 hover:bg-red-700'
+                    : 'bg-green-600 hover:bg-green-700'
+                    }`}
+                >
+                  {banning ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {banConfirmDialog.action === 'ban' ? 'Banning...' : 'Unbanning...'}
+                    </span>
+                  ) : (
+                    banConfirmDialog.action === 'ban' ? 'Ban Restaurant' : 'Unban Restaurant'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {deleteConfirmDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={cancelDeleteRestaurant}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+                  <Trash2 className="w-6 h-6 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">Delete Restaurant</h3>
+                  <p className="text-sm text-slate-600">
+                    {deleteConfirmDialog.restaurant.name}
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-sm text-slate-700 mb-6">
+                Are you sure you want to delete this restaurant? This action cannot be undone and will permanently remove all restaurant data, including orders, menu items, and settings.
+              </p>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={cancelDeleteRestaurant}
+                  disabled={deleting}
+                  className="flex-1 px-4 py-2.5 text-sm font-medium rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeleteRestaurant}
+                  disabled={deleting}
+                  className="flex-1 px-4 py-2.5 text-sm font-medium rounded-lg bg-red-600 hover:bg-red-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {deleting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Deleting...
+                    </span>
+                  ) : (
+                    "Delete Restaurant"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

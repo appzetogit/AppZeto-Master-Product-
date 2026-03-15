@@ -6,7 +6,7 @@ import { logger } from '../../utils/logger.js';
 import { ValidationError } from '../auth/errors.js';
 
 const generateOtpCode = () => {
-    const code = crypto.randomInt(100000, 999999);
+    const code = crypto.randomInt(1000, 9999);
     return String(code);
 };
 
@@ -69,7 +69,7 @@ export const createOrUpdateOtp = async (phone) => {
 
     let otp;
     if (config.useDefaultOtp) {
-        otp = '123456';
+        otp = '1234';
         logger.info(`Default OTP mode enabled – OTP is ${otp} for phone ${phone}`);
     } else {
         otp = generateOtpCode();

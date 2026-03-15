@@ -1,2 +1,2 @@
-export { default } from '../modules/food/Quick-spicy-main/frontend/src/components/ProtectedRoute.jsx'
+export { default } from '../modules/food/components/ProtectedRoute.jsx'
 

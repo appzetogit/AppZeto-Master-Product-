@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-const foodSrc = path.resolve(__dirname, './src/modules/food/Quick-spicy-main/frontend/src')
+const foodSrc = path.resolve(__dirname, './src/modules/Food')
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -24,13 +24,6 @@ export default defineConfig({
       '@emotion/styled',
       '@mui/material',
       '@mui/x-date-pickers',
-      'mapbox-gl',
-      'react-map-gl',
-      'firebase/app',
-      'firebase/auth',
-      'firebase/messaging',
-      'socket.io-client',
-      'axios',
     ],
   },
   server: {

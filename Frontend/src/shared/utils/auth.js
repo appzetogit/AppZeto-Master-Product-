@@ -1,2 +1,2 @@
-export * from '../modules/food/Quick-spicy-main/frontend/src/lib/utils/auth.js'
+export * from '../modules/food/lib/utils/auth.js'
 

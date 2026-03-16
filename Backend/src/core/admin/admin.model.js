@@ -26,7 +26,7 @@ const adminSchema = new mongoose.Schema(
         }
     },
     {
-        collection: 'zomato_admins',
+        collection: 'food_admins',
         timestamps: true
     }
 );

@@ -34,7 +34,7 @@ const zomatoDiningBannerSchema = new mongoose.Schema(
         }
     },
     {
-        collection: 'zomato_dining_banners',
+        collection: 'food_dining_banners',
         timestamps: true
     }
 );

@@ -34,7 +34,7 @@ const zomatoUnder250BannerSchema = new mongoose.Schema(
         }
     },
     {
-        collection: 'zomato_under250_banners',
+        collection: 'food_under250_banners',
         timestamps: true
     }
 );

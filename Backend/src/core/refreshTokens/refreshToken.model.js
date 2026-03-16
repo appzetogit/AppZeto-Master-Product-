@@ -28,7 +28,7 @@ const refreshTokenSchema = new mongoose.Schema(
         }
     },
     {
-        collection: 'zomato_refresh_tokens',
+        collection: 'food_refresh_tokens',
         timestamps: true
     }
 );

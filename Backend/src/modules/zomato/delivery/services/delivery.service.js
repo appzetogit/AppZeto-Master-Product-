@@ -14,18 +14,18 @@ export const registerDeliveryPartner = async (payload, files) => {
     const images = {};
 
     if (files?.profilePhoto?.[0]) {
-        images.profilePhoto = await uploadImageBuffer(files.profilePhoto[0].buffer, 'zomato/delivery/profile');
+        images.profilePhoto = await uploadImageBuffer(files.profilePhoto[0].buffer, 'food/delivery/profile');
     }
     if (files?.aadharPhoto?.[0]) {
-        images.aadharPhoto = await uploadImageBuffer(files.aadharPhoto[0].buffer, 'zomato/delivery/aadhar');
+        images.aadharPhoto = await uploadImageBuffer(files.aadharPhoto[0].buffer, 'food/delivery/aadhar');
     }
     if (files?.panPhoto?.[0]) {
-        images.panPhoto = await uploadImageBuffer(files.panPhoto[0].buffer, 'zomato/delivery/pan');
+        images.panPhoto = await uploadImageBuffer(files.panPhoto[0].buffer, 'food/delivery/pan');
     }
     if (files?.drivingLicensePhoto?.[0]) {
         images.drivingLicensePhoto = await uploadImageBuffer(
             files.drivingLicensePhoto[0].buffer,
-            'zomato/delivery/license'
+            'food/delivery/license'
         );
     }
 
@@ -71,18 +71,18 @@ export const updateDeliveryPartnerProfile = async (userId, payload, files) => {
     if (aadharNumber !== undefined) partner.aadharNumber = aadharNumber;
 
     if (files?.profilePhoto?.[0]) {
-        partner.profilePhoto = await uploadImageBuffer(files.profilePhoto[0].buffer, 'zomato/delivery/profile');
+        partner.profilePhoto = await uploadImageBuffer(files.profilePhoto[0].buffer, 'food/delivery/profile');
     }
     if (files?.aadharPhoto?.[0]) {
-        partner.aadharPhoto = await uploadImageBuffer(files.aadharPhoto[0].buffer, 'zomato/delivery/aadhar');
+        partner.aadharPhoto = await uploadImageBuffer(files.aadharPhoto[0].buffer, 'food/delivery/aadhar');
     }
     if (files?.panPhoto?.[0]) {
-        partner.panPhoto = await uploadImageBuffer(files.panPhoto[0].buffer, 'zomato/delivery/pan');
+        partner.panPhoto = await uploadImageBuffer(files.panPhoto[0].buffer, 'food/delivery/pan');
     }
     if (files?.drivingLicensePhoto?.[0]) {
         partner.drivingLicensePhoto = await uploadImageBuffer(
             files.drivingLicensePhoto[0].buffer,
-            'zomato/delivery/license'
+            'food/delivery/license'
         );
     }
 

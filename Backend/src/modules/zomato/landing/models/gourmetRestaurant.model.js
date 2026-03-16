@@ -23,7 +23,7 @@ const zomatoGourmetRestaurantSchema = new mongoose.Schema(
         }
     },
     {
-        collection: 'zomato_gourmet_restaurants',
+        collection: 'food_gourmet_restaurants',
         timestamps: true
     }
 );

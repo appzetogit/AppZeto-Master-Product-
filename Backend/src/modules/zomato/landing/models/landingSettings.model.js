@@ -37,7 +37,7 @@ const zomatoLandingSettingsSchema = new mongoose.Schema(
         }
     },
     {
-        collection: 'zomato_landing_settings',
+        collection: 'food_landing_settings',
         timestamps: true
     }
 );

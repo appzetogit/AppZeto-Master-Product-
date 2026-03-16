@@ -28,7 +28,7 @@ const otpSchema = new mongoose.Schema(
         }
     },
     {
-        collection: 'zomato_otps',
+        collection: 'food_otps',
         timestamps: true
     }
 );

@@ -30,7 +30,7 @@ const userSchema = new mongoose.Schema(
         }
     },
     {
-        collection: 'zomato_users',
+        collection: 'food_users',
         timestamps: true
     }
 );

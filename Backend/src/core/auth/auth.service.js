@@ -1,8 +1,8 @@
 import ms from 'ms';
 import { ZomatoUser } from '../users/user.model.js';
 import { ZomatoAdmin } from '../admin/admin.model.js';
-import { ZomatoRestaurant } from '../../modules/zomato/restaurant/models/restaurant.model.js';
-import { ZomatoDeliveryPartner } from '../../modules/zomato/delivery/models/deliveryPartner.model.js';
+import { ZomatoRestaurant } from '../../modules/food/restaurant/models/restaurant.model.js';
+import { ZomatoDeliveryPartner } from '../../modules/food/delivery/models/deliveryPartner.model.js';
 import { createOrUpdateOtp, verifyOtp } from '../otp/otp.service.js';
 import { signAccessToken, signRefreshToken } from './token.util.js';
 import { ZomatoRefreshToken } from '../refreshTokens/refreshToken.model.js';

@@ -29,7 +29,7 @@ const zomatoTop10RestaurantSchema = new mongoose.Schema(
         }
     },
     {
-        collection: 'zomato_top10_restaurants',
+        collection: 'food_top10_restaurants',
         timestamps: true
     }
 );

@@ -34,7 +34,7 @@ const zomatoExploreIconSchema = new mongoose.Schema(
         }
     },
     {
-        collection: 'zomato_explore_icons',
+        collection: 'food_explore_icons',
         timestamps: true
     }
 );

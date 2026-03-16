@@ -36,7 +36,7 @@ const zomatoHeroBannerSchema = new mongoose.Schema(
         }
     },
     {
-        collection: 'zomato_hero_banners',
+        collection: 'food_hero_banners',
         timestamps: true
     }
 );

@@ -16,7 +16,7 @@ export default function SignIn() {
 
   const [formData, setFormData] = useState({
     phone: "",
-    countryCode: "+91",
+    countryCode: "+91", // required; default +91 for India
   })
 
   const [error, setError] = useState("")
@@ -68,9 +68,18 @@ export default function SignIn() {
     if (submittingRef.current) return
     submittingRef.current = true
     setIsLoading(true)
+    setError("")
 
     try {
-      const fullPhone = `${formData.countryCode} ${formData.phone}`.trim()
+      const countryCode = formData.countryCode?.trim() || "+91"
+      const phoneDigits = String(formData.phone ?? "").replace(/\D/g, "").slice(0, 10)
+      if (phoneDigits.length !== 10) {
+        setError("Phone number must be exactly 10 digits")
+        setIsLoading(false)
+        submittingRef.current = false
+        return
+      }
+      const fullPhone = `${countryCode} ${phoneDigits}`
       await authAPI.sendOTP(fullPhone, "login", null)
 
       const authData = {

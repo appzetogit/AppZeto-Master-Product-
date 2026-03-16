@@ -171,25 +171,17 @@ export default function DeliverySignup() {
     }
 
     try {
-      const fullPhone = `${formData.countryCode} ${formData.phone}`.trim()
-      // Start a fresh OTP auth flow and avoid stale session auto-login.
+      // Backend: delivery partner must register first (details + documents), then login with OTP.
+      // Save name + phone for Step1 (details) and go to registration form.
+      const signupDetails = {
+        name: formData.name.trim(),
+        phone: formData.phone.trim(),
+        countryCode: formData.countryCode || "+91",
+      }
+      sessionStorage.setItem("deliverySignupDetails", JSON.stringify(signupDetails))
       clearModuleAuth("delivery")
 
-      // Match sign-in behavior: send OTP through backend
-      await deliveryAPI.sendOTP(fullPhone, "login")
-
-      // Store auth data in sessionStorage for OTP page
-      const authData = {
-        method: "phone",
-        phone: fullPhone,
-        name: formData.name,
-        isSignUp: true,
-        purpose: "login",
-        module: "delivery",
-      }
-      sessionStorage.setItem("deliveryAuthData", JSON.stringify(authData))
-
-      navigate("/food/delivery/otp")
+      navigate("/food/delivery/signup/details")
     } catch (error) {
       const message =
         error?.response?.data?.message ||

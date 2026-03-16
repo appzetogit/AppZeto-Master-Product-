@@ -4,11 +4,14 @@ import { ValidationError } from '../../core/auth/errors.js';
 const schema = z.object({
     phone: z
         .string()
+        .min(1, 'Phone is required')
+        .regex(/^\d+$/, 'Phone must contain only digits')
         .min(8, 'Phone must be at least 8 digits')
         .max(15, 'Phone must be at most 15 digits'),
     otp: z
         .string()
-        .length(4, 'OTP must be 4 digits')
+        .length(4, 'OTP must be exactly 4 digits')
+        .regex(/^\d{4}$/, 'OTP must be numeric and exactly 4 digits')
 });
 
 export const validateUserOtpVerifyDto = (body) => {

@@ -131,6 +131,7 @@ export default function DeliverySignIn() {
         err?.message ||
         "Failed to send OTP. Please try again."
       setError(message)
+    } finally {
       setIsSending(false)
     }
   }

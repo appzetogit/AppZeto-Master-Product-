@@ -39,3 +39,24 @@ export const validateDeliveryRegisterDto = (body) => {
     return result.data;
 };
 
+const deliveryProfileUpdateSchema = z.object({
+    name: z.string().min(1).optional(),
+    countryCode: z.string().optional(),
+    address: z.string().optional(),
+    city: z.string().optional(),
+    state: z.string().optional(),
+    vehicleType: z.string().optional(),
+    vehicleName: z.string().optional(),
+    vehicleNumber: z.string().optional(),
+    panNumber: z.string().regex(panRegex).optional().or(z.literal('')),
+    aadharNumber: z.string().regex(aadharRegex).optional().or(z.literal(''))
+});
+
+export const validateDeliveryProfileUpdateDto = (body) => {
+    const result = deliveryProfileUpdateSchema.safeParse(body);
+    if (!result.success) {
+        throw new ValidationError(result.error.errors[0].message);
+    }
+    return result.data;
+};
+

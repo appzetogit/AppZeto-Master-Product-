@@ -1,4 +1,4 @@
-import { api } from "@food/api"
+import { api, restaurantAPI } from "@food/api"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -157,10 +157,12 @@ export const determineStepToShow = (data) => {
 // Check onboarding status from API and return the step to navigate to
 export const checkOnboardingStatus = async () => {
   try {
-    const restaurantResponse = await api.get("/restaurant/auth/me")
+    const restaurantResponse = await restaurantAPI.getMe()
     const restaurant =
+      restaurantResponse?.data?.data?.user ||
       restaurantResponse?.data?.data?.restaurant ||
       restaurantResponse?.data?.restaurant ||
+      restaurantResponse?.data?.user ||
       null
 
     if (restaurant && isRestaurantOnboardingComplete(restaurant)) {

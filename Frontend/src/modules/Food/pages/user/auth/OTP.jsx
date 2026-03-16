@@ -9,7 +9,7 @@ import { setAuthData as setUserAuthData } from "@food/utils/auth"
 
 export default function OTP() {
   const navigate = useNavigate()
-  const [otp, setOtp] = useState(["", "", "", "", "", ""])
+  const [otp, setOtp] = useState(["", "", "", ""]) // exactly 4 digits
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
@@ -22,6 +22,7 @@ export default function OTP() {
   const [contactInfo, setContactInfo] = useState("")
   const [contactType, setContactType] = useState("phone")
   const inputRefs = useRef([])
+  const submittingRef = useRef(false)
 
   useEffect(() => {
     // Redirect to home if already authenticated
@@ -82,7 +83,7 @@ export default function OTP() {
   }, [showNameInput])
 
   const handleChange = (index, value) => {
-    // Only allow digits
+    // Only allow digits; OTP is exactly 4 digits
     if (value && !/^\d$/.test(value)) {
       return
     }
@@ -92,12 +93,12 @@ export default function OTP() {
     setOtp(newOtp)
     setError("")
 
-    // Auto-focus next input
-    if (value && index < 5) {
+    // Auto-focus next input (4 boxes only)
+    if (value && index < 3) {
       inputRefs.current[index + 1]?.focus()
     }
 
-    // Auto-submit when first 4 digits are entered (dev OTP mode = 1234)
+    // Auto-submit when all 4 digits are entered
     if (!showNameInput && newOtp.slice(0, 4).every((digit) => digit !== "")) {
       handleVerify(newOtp.slice(0, 4).join(""))
     }
@@ -119,22 +120,20 @@ export default function OTP() {
         setOtp(newOtp)
       }
     }
-    // Handle paste
+    // Handle paste (4 digits only)
     if (e.key === "v" && (e.ctrlKey || e.metaKey)) {
       e.preventDefault()
       navigator.clipboard.readText().then((text) => {
         const digits = text.replace(/\D/g, "").slice(0, 4).split("")
         const newOtp = [...otp]
         digits.forEach((digit, i) => {
-          if (i < 6) {
-            newOtp[i] = digit
-          }
+          if (i < 4) newOtp[i] = digit
         })
         setOtp(newOtp)
         if (!showNameInput && digits.length === 4) {
           handleVerify(newOtp.slice(0, 4).join(""))
         } else {
-          inputRefs.current[digits.length]?.focus()
+          inputRefs.current[Math.min(digits.length, 3)]?.focus()
         }
       })
     }
@@ -146,30 +145,28 @@ export default function OTP() {
     const digits = pastedData.replace(/\D/g, "").slice(0, 4).split("")
     const newOtp = [...otp]
     digits.forEach((digit, i) => {
-      if (i < 6) {
-        newOtp[i] = digit
-      }
+      if (i < 4) newOtp[i] = digit
     })
     setOtp(newOtp)
     if (!showNameInput && digits.length === 4) {
       handleVerify(newOtp.slice(0, 4).join(""))
     } else {
-      inputRefs.current[digits.length]?.focus()
+      inputRefs.current[Math.min(digits.length, 3)]?.focus()
     }
   }
 
   const handleVerify = async (otpValue = null) => {
-    if (showNameInput) {
-      // In name collection step, ignore OTP auto-submit
-      return
-    }
+    if (showNameInput) return
+    if (submittingRef.current) return
 
     const code = (otpValue || otp.join("")).replace(/\D/g, "")
     const code4 = code.slice(0, 4)
     if (code4.length !== 4) {
+      setError("OTP must be exactly 4 digits")
       return
     }
 
+    submittingRef.current = true
     setIsLoading(true)
     setError("")
 
@@ -180,7 +177,6 @@ export default function OTP() {
       const providedName = authData?.isSignUp ? authData?.name || null : null
       const referralCode = authData?.isSignUp ? authData?.referralCode : null
 
-      // First attempt: verify OTP for login/register with user role
       const response = await authAPI.verifyOTP(
         phone,
         code4,
@@ -193,13 +189,15 @@ export default function OTP() {
       )
       const data = response?.data?.data || response?.data || {}
 
-      // OTP verified – backend returns { accessToken, refreshToken, user }
       const accessToken = data.accessToken
-      const refreshToken = data.refreshToken || null
+      const refreshToken = data.refreshToken ?? null
       const user = data.user
 
       if (!accessToken || !user) {
         throw new Error("Invalid response from server")
+      }
+      if (!refreshToken) {
+        throw new Error("Invalid response from server: missing refresh token")
       }
 
       // Clear auth data from sessionStorage
@@ -225,6 +223,7 @@ export default function OTP() {
       setError(message)
     } finally {
       setIsLoading(false)
+      submittingRef.current = false
     }
   }
 
@@ -269,11 +268,14 @@ export default function OTP() {
       const data = response?.data?.data || response?.data || {}
 
       const accessToken = data.accessToken
-      const refreshToken = data.refreshToken || null
+      const refreshToken = data.refreshToken ?? null
       const user = data.user
 
       if (!accessToken || !user) {
         throw new Error("Invalid response from server")
+      }
+      if (!refreshToken) {
+        throw new Error("Invalid response from server: missing refresh token")
       }
 
       sessionStorage.removeItem("userAuthData")
@@ -300,7 +302,7 @@ export default function OTP() {
   }
 
   const handleResend = async () => {
-    if (resendTimer > 0) return
+    if (resendTimer > 0 || isLoading) return
 
     setIsLoading(true)
     setError("")
@@ -335,7 +337,7 @@ export default function OTP() {
       })
     }, 1000)
 
-    setOtp(["", "", "", "", "", ""])
+    setOtp(["", "", "", ""])
     setShowNameInput(false)
     setName("")
     setNameError("")
@@ -397,12 +399,14 @@ export default function OTP() {
                     ref={(el) => (inputRefs.current[index] = el)}
                     type="text"
                     inputMode="numeric"
+                    pattern="[0-9]*"
                     maxLength={1}
                     value={digit}
                     onChange={(e) => handleChange(index, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(index, e)}
                     onPaste={index === 0 ? handlePaste : undefined}
                     disabled={isLoading}
+                    aria-label={`OTP digit ${index + 1} of 4`}
                     className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-18 lg:h-18 text-center text-lg sm:text-xl md:text-2xl lg:text-3xl font-semibold p-0 border-2 border-black dark:border-gray-600 rounded-lg focus-visible:ring-2 focus-visible:ring-[#EB590E] focus-visible:border-[#EB590E] dark:focus-visible:border-[#EB590E] bg-white dark:bg-[#1a1a1a] text-black dark:text-white transition-all"
                   />
                 ))}

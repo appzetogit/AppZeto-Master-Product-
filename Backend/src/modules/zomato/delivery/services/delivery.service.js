@@ -41,9 +41,52 @@ export const registerDeliveryPartner = async (payload, files) => {
         vehicleNumber,
         panNumber,
         aadharNumber,
+        status: 'pending',
         ...images
     });
 
+    return partner.toObject();
+};
+
+export const updateDeliveryPartnerProfile = async (userId, payload, files) => {
+    const partner = await ZomatoDeliveryPartner.findById(userId);
+    if (!partner) {
+        throw new ValidationError('Delivery partner not found');
+    }
+
+    const {
+        name, countryCode, address, city, state,
+        vehicleType, vehicleName, vehicleNumber, panNumber, aadharNumber
+    } = payload;
+
+    if (name) partner.name = name;
+    if (countryCode !== undefined) partner.countryCode = countryCode;
+    if (address !== undefined) partner.address = address;
+    if (city !== undefined) partner.city = city;
+    if (state !== undefined) partner.state = state;
+    if (vehicleType !== undefined) partner.vehicleType = vehicleType;
+    if (vehicleName !== undefined) partner.vehicleName = vehicleName;
+    if (vehicleNumber !== undefined) partner.vehicleNumber = vehicleNumber;
+    if (panNumber !== undefined) partner.panNumber = panNumber;
+    if (aadharNumber !== undefined) partner.aadharNumber = aadharNumber;
+
+    if (files?.profilePhoto?.[0]) {
+        partner.profilePhoto = await uploadImageBuffer(files.profilePhoto[0].buffer, 'zomato/delivery/profile');
+    }
+    if (files?.aadharPhoto?.[0]) {
+        partner.aadharPhoto = await uploadImageBuffer(files.aadharPhoto[0].buffer, 'zomato/delivery/aadhar');
+    }
+    if (files?.panPhoto?.[0]) {
+        partner.panPhoto = await uploadImageBuffer(files.panPhoto[0].buffer, 'zomato/delivery/pan');
+    }
+    if (files?.drivingLicensePhoto?.[0]) {
+        partner.drivingLicensePhoto = await uploadImageBuffer(
+            files.drivingLicensePhoto[0].buffer,
+            'zomato/delivery/license'
+        );
+    }
+
+    await partner.save();
     return partner.toObject();
 };
 

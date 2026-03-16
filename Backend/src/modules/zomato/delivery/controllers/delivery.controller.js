@@ -1,5 +1,5 @@
-import { registerDeliveryPartner } from '../services/delivery.service.js';
-import { validateDeliveryRegisterDto } from '../validators/delivery.validator.js';
+import { registerDeliveryPartner, updateDeliveryPartnerProfile } from '../services/delivery.service.js';
+import { validateDeliveryRegisterDto, validateDeliveryProfileUpdateDto } from '../validators/delivery.validator.js';
 import { sendResponse } from '../../../../utils/response.js';
 
 export const registerDeliveryPartnerController = async (req, res, next) => {
@@ -7,6 +7,17 @@ export const registerDeliveryPartnerController = async (req, res, next) => {
         const validated = validateDeliveryRegisterDto(req.body);
         const partner = await registerDeliveryPartner(validated, req.files);
         return sendResponse(res, 201, 'Delivery partner registered successfully', partner);
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const updateDeliveryPartnerProfileController = async (req, res, next) => {
+    try {
+        const userId = req.user?.userId;
+        const validated = validateDeliveryProfileUpdateDto(req.body);
+        const partner = await updateDeliveryPartnerProfile(userId, validated, req.files);
+        return sendResponse(res, 200, 'Profile updated successfully', partner);
     } catch (error) {
         next(error);
     }

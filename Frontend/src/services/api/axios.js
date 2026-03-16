@@ -20,11 +20,18 @@ const apiClient = axios.create({
 function getModuleFromUrl(url = "") {
   const u = typeof url === "string" ? url : (url?.url || "");
   if (u.includes("/auth/admin") || u.includes("admin/login")) return "admin";
+  if (u.includes("/auth/restaurant")) return "restaurant";
+  if (u.includes("/auth/delivery")) return "delivery";
   return "user";
 }
 
+function getModuleFromConfig(config) {
+  if (config?.contextModule) return config.contextModule;
+  return getModuleFromUrl(config?.url);
+}
+
 function getAccessToken(config) {
-  const module = getModuleFromUrl(config?.url);
+  const module = getModuleFromConfig(config);
   const key = `${module}_accessToken`;
   try {
     return localStorage.getItem(key) || null;
@@ -73,6 +80,7 @@ function onRefreshFailed(module) {
 apiClient.interceptors.request.use(
   (config) => {
     if (!baseURL) return config;
+    config.contextModule = getModuleFromConfig(config);
     const token = getAccessToken(config);
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -89,7 +97,7 @@ apiClient.interceptors.response.use(
     if (err?.response?.status !== 401 || !original || original._retry) {
       return Promise.reject(err);
     }
-    const module = getModuleFromUrl(original.url);
+    const module = original.contextModule || getModuleFromUrl(original.url);
     const refreshToken = getRefreshToken(module);
     if (!refreshToken) {
       clearModuleAuth(module);

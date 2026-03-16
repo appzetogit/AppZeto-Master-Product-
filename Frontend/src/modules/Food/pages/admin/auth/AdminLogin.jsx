@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { adminAPI } from "@food/api"
 import { setAuthData } from "@food/utils/auth"
@@ -29,6 +29,7 @@ export default function AdminLogin() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [logoUrl, setLogoUrl] = useState(quickSpicyLogo)
+  const submittingRef = useRef(false)
 
   // Fetch business settings logo on mount
   useEffect(() => {
@@ -49,29 +50,46 @@ export default function AdminLogin() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError("")
-    setIsLoading(true)
+    if (submittingRef.current) return
 
-    // Simple validation
-    if (!email.trim() || !password) {
-      setError("Email and password are required")
-      setIsLoading(false)
+    const trimmedEmail = email.trim()
+    if (!trimmedEmail) {
+      setError("Email is required")
+      return
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(trimmedEmail)) {
+      setError("Please enter a valid email address")
+      return
+    }
+    if (!password) {
+      setError("Password is required")
+      return
+    }
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters")
       return
     }
 
+    submittingRef.current = true
+    setIsLoading(true)
+
     try {
-      const response = await adminAPI.login(email, password)
+      const response = await adminAPI.login(trimmedEmail, password)
       const data = response?.data?.data || response?.data || {}
 
       const accessToken = data.accessToken
       const adminUser = data.user || data.admin
-      const refreshToken = data.refreshToken || null
+      const refreshToken = data.refreshToken ?? null
 
-      if (accessToken && adminUser) {
-        setAuthData("admin", accessToken, adminUser, refreshToken)
-        navigate("/admin/food", { replace: true })
-      } else {
-        throw new Error("Login failed. Please try again.")
+      if (!accessToken || !adminUser) {
+        throw new Error("Invalid response from server")
       }
+      if (!refreshToken) {
+        throw new Error("Invalid response from server: missing refresh token")
+      }
+      setAuthData("admin", accessToken, adminUser, refreshToken)
+      navigate("/admin/food", { replace: true })
     } catch (err) {
       const message =
         err?.response?.data?.message ||
@@ -81,6 +99,7 @@ export default function AdminLogin() {
       setError(message)
     } finally {
       setIsLoading(false)
+      submittingRef.current = false
     }
   }
 

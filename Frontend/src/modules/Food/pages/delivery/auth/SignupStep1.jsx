@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { ArrowLeft } from "lucide-react"
-import { deliveryAPI } from "@food/api"
 import { toast } from "sonner"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -12,15 +11,10 @@ export default function SignupStep1() {
   const navigate = useNavigate()
   const [formData, setFormData] = useState(() => {
     const saved = sessionStorage.getItem("deliverySignupDetails")
-    if (saved) {
-      try {
-        return JSON.parse(saved)
-      } catch (e) {
-        debugError("Error parsing saved details:", e)
-      }
-    }
-    return {
+    const base = {
       name: "",
+      phone: "",
+      countryCode: "+91",
       email: "",
       address: "",
       city: "",
@@ -31,6 +25,14 @@ export default function SignupStep1() {
       panNumber: "",
       aadharNumber: ""
     }
+    if (saved) {
+      try {
+        return { ...base, ...JSON.parse(saved) }
+      } catch (e) {
+        debugError("Error parsing saved details:", e)
+      }
+    }
+    return base
   })
   const [errors, setErrors] = useState({})
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -160,27 +162,26 @@ export default function SignupStep1() {
     setIsSubmitting(true)
 
     try {
-      const response = await deliveryAPI.submitSignupDetails({
+      const details = {
         name: formData.name.trim(),
-        email: formData.email.trim() || null,
+        phone: String(formData.phone || "").replace(/\D/g, "").slice(0, 15),
+        countryCode: formData.countryCode || "+91",
+        email: formData.email?.trim() || "",
         address: formData.address.trim(),
         city: formData.city.trim(),
         state: formData.state.trim(),
-        vehicleType: formData.vehicleType,
-        vehicleName: formData.vehicleName.trim() || null,
+        vehicleType: formData.vehicleType || "bike",
+        vehicleName: formData.vehicleName?.trim() || "",
         vehicleNumber: formData.vehicleNumber.trim(),
         panNumber: formData.panNumber.trim().toUpperCase(),
         aadharNumber: formData.aadharNumber.replace(/\s/g, "")
-      })
-
-      if (response?.data?.success) {
-        toast.success("Details saved successfully")
-        navigate("/delivery/signup/documents")
       }
+      sessionStorage.setItem("deliverySignupDetails", JSON.stringify(details))
+      toast.success("Details saved")
+      navigate("/food/delivery/signup/documents")
     } catch (error) {
-      debugError("Error submitting signup details:", error)
-      const message = error?.response?.data?.message || "Failed to save details. Please try again."
-      toast.error(message)
+      debugError("Error saving details:", error)
+      toast.error("Failed to save. Please try again.")
     } finally {
       setIsSubmitting(false)
     }

@@ -165,36 +165,15 @@ export default function RestaurantOTP() {
       const email = authData.method === "email" ? authData.email : null
       const purpose = authData.isSignUp ? "register" : "login"
 
-      const nameToSend = authData.isSignUp && authData.name ? String(authData.name).trim() : null
-      let response = await restaurantAPI.verifyOTP(phone, code, purpose, nameToSend, email)
-
-      // Extract restaurant and token or special flags (like needsName) from backend response
-      let data = response?.data?.data || response?.data
-
-      // Backward compatibility for older backend responses.
-      // Auto-generate a temporary name so onboarding can collect the final name.
-      if (data?.needsName) {
-        const digits = String(phone || "").replace(/\D/g, "")
-        const generatedName = `Restaurant ${digits.slice(-4) || "NEW"}`
-        const updatedAuthData = {
-          ...authData,
-          isSignUp: true,
-          name: generatedName,
-        }
-
-        setAuthData(updatedAuthData)
-        sessionStorage.setItem("restaurantAuthData", JSON.stringify(updatedAuthData))
-
-        response = await restaurantAPI.verifyOTP(phone, code, "register", generatedName, email)
-        data = response?.data?.data || response?.data
-      }
-
+      // Backend: POST /auth/restaurant/verify-otp returns { accessToken, refreshToken, user } (user = restaurant doc)
+      const response = await restaurantAPI.verifyOTP(phone, code, purpose, null, email)
+      const data = response?.data?.data || response?.data
       const accessToken = data?.accessToken
-      const restaurant = data?.restaurant
+      const refreshToken = data?.refreshToken ?? null
+      const restaurant = data?.user ?? data?.restaurant
 
       if (accessToken && restaurant) {
-        // Store auth data using utility function to ensure proper module-specific token storage
-        setRestaurantAuthData("restaurant", accessToken, restaurant)
+        setRestaurantAuthData("restaurant", accessToken, restaurant, refreshToken)
 
         // Dispatch custom event for same-tab updates
         window.dispatchEvent(new Event("restaurantAuthChanged"))
@@ -204,28 +183,22 @@ export default function RestaurantOTP() {
 
         setTimeout(async () => {
           debugLog({ authData })
-          // After signup, send to onboarding
           if (authData?.isSignUp) {
             navigate("/food/restaurant/onboarding", { replace: true })
           } else {
-            // After login, check if onboarding is incomplete
             try {
-              const onboardingComplete = isRestaurantOnboardingComplete(data?.restaurant)
+              const onboardingComplete = isRestaurantOnboardingComplete(restaurant)
               if (!onboardingComplete) {
                 const incompleteStep = await checkOnboardingStatus()
                 if (incompleteStep) {
-                // Navigate to onboarding with the incomplete step
                   navigate(`/food/restaurant/onboarding?step=${incompleteStep}`, { replace: true })
                   return
                 }
               }
-
-              // Onboarding is complete, go to restaurant home
               navigate("/food/restaurant", { replace: true })
             } catch (err) {
               debugError("Failed to check onboarding status:", err)
-              // Fallback to restaurant home
-              navigate("/restaurant", { replace: true })
+              navigate("/food/restaurant", { replace: true })
             }
           }
         }, 500)

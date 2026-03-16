@@ -137,9 +137,17 @@ export const verifyDeliveryOtpAndLogin = async (phone, otp) => {
         throw new AuthError(result.reason || 'OTP verification failed');
     }
 
-    const deliveryPartner = await ZomatoDeliveryPartner.findOne({ phone }).lean();
+    let deliveryPartner = await ZomatoDeliveryPartner.findOne({ phone }).lean();
+    let needsRegistration = false;
+
     if (!deliveryPartner) {
-        throw new AuthError('No delivery partner found with this phone. Please complete registration first.');
+        const created = await ZomatoDeliveryPartner.create({
+            phone,
+            name: 'Pending',
+            status: 'pending'
+        });
+        deliveryPartner = created.toObject();
+        needsRegistration = true;
     }
 
     const payload = { userId: deliveryPartner._id.toString(), role: ROLES.DELIVERY_PARTNER };
@@ -154,7 +162,7 @@ export const verifyDeliveryOtpAndLogin = async (phone, otp) => {
         expiresAt
     });
 
-    return { accessToken, refreshToken, user: deliveryPartner };
+    return { accessToken, refreshToken, user: deliveryPartner, needsRegistration };
 };
 
 export const logout = async (refreshToken) => {

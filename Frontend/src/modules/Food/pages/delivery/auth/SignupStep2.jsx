@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { ArrowLeft, Upload, X, Check } from "lucide-react"
-import { deliveryAPI, uploadAPI } from "@food/api"
+import { deliveryAPI } from "@food/api"
 import { toast } from "sonner"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -284,51 +284,18 @@ export default function SignupStep2() {
   const handleFileSelect = async (docType, file) => {
     if (!file) return
 
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
+    if (!file.type.startsWith("image/")) {
       toast.error("Please select an image file")
       return
     }
-
-    // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       toast.error("Image size should be less than 5MB")
       return
     }
 
-    setUploading(prev => ({ ...prev, [docType]: true }))
-
-    try {
-      const response = await uploadAPI.uploadMedia(file, {
-        folder: 'appzeto/delivery/documents'
-      })
-
-      if (response?.data?.success && response?.data?.data) {
-        const { url, publicId } = response.data.data
-
-        setDocuments(prev => ({
-          ...prev,
-          [docType]: file
-        }))
-
-        setUploadedDocs(prev => ({
-          ...prev,
-          [docType]: { url, publicId }
-        }))
-
-        toast.success(`${docType.replace(/([A-Z])/g, ' $1').trim()} uploaded successfully`)
-      } else {
-        toast.error("Upload failed. Please try again.")
-      }
-    } catch (error) {
-      debugError(`Error uploading ${docType}:`, error)
-      toast.error(
-        error?.response?.data?.message ||
-        `Failed to upload ${docType.replace(/([A-Z])/g, ' $1').trim()}`
-      )
-    } finally {
-      setUploading(prev => ({ ...prev, [docType]: false }))
-    }
+    setDocuments((prev) => ({ ...prev, [docType]: file }))
+    setUploadedDocs((prev) => ({ ...prev, [docType]: { file: true } }))
+    toast.success(`${docType.replace(/([A-Z])/g, " $1").trim()} selected`)
   }
 
   const handleRemove = (docType) => {
@@ -345,32 +312,71 @@ export default function SignupStep2() {
   const handleSubmit = async (e) => {
     e.preventDefault()
 
-    // Check if all required documents are uploaded
-    if (!uploadedDocs.profilePhoto || !uploadedDocs.aadharPhoto || !uploadedDocs.panPhoto || !uploadedDocs.drivingLicensePhoto) {
+    if (!documents.profilePhoto || !documents.aadharPhoto || !documents.panPhoto || !documents.drivingLicensePhoto) {
       toast.error("Please upload all required documents")
       return
     }
 
+    const raw = sessionStorage.getItem("deliverySignupDetails")
+    if (!raw) {
+      toast.error("Session expired. Please start from Create Account.")
+      navigate("/food/delivery/signup", { replace: true })
+      return
+    }
+
+    let details
+    try {
+      details = JSON.parse(raw)
+    } catch {
+      toast.error("Invalid session. Please start from Create Account.")
+      navigate("/food/delivery/signup", { replace: true })
+      return
+    }
+
+    const formData = new FormData()
+    formData.append("name", details.name || "")
+    formData.append("phone", String(details.phone || "").replace(/\D/g, "").slice(0, 15))
+    if (details.countryCode) formData.append("countryCode", details.countryCode)
+    if (details.address) formData.append("address", details.address)
+    if (details.city) formData.append("city", details.city)
+    if (details.state) formData.append("state", details.state)
+    if (details.vehicleType) formData.append("vehicleType", details.vehicleType)
+    if (details.vehicleName) formData.append("vehicleName", details.vehicleName)
+    if (details.vehicleNumber) formData.append("vehicleNumber", details.vehicleNumber)
+    if (details.panNumber) formData.append("panNumber", details.panNumber)
+    if (details.aadharNumber) formData.append("aadharNumber", details.aadharNumber)
+    formData.append("profilePhoto", documents.profilePhoto)
+    formData.append("aadharPhoto", documents.aadharPhoto)
+    formData.append("panPhoto", documents.panPhoto)
+    formData.append("drivingLicensePhoto", documents.drivingLicensePhoto)
+
+    const isCompleteProfile = sessionStorage.getItem("deliveryNeedsRegistration") === "true"
+
     setIsSubmitting(true)
 
     try {
-      const response = await deliveryAPI.submitSignupDocuments({
-        profilePhoto: uploadedDocs.profilePhoto,
-        aadharPhoto: uploadedDocs.aadharPhoto,
-        panPhoto: uploadedDocs.panPhoto,
-        drivingLicensePhoto: uploadedDocs.drivingLicensePhoto
-      })
+      const response = isCompleteProfile
+        ? await deliveryAPI.completeProfile(formData)
+        : await deliveryAPI.register(formData)
 
       if (response?.data?.success) {
-        toast.success("Signup completed successfully!")
-        // Redirect to delivery home page
-        setTimeout(() => {
-          navigate("/delivery", { replace: true })
-        }, 1000)
+        sessionStorage.removeItem("deliverySignupDetails")
+        sessionStorage.removeItem("deliverySignupDocs")
+        if (isCompleteProfile) {
+          sessionStorage.removeItem("deliveryNeedsRegistration")
+          toast.success("Profile submitted. Waiting for admin approval.")
+          setTimeout(() => navigate("/food/delivery", { replace: true }), 1500)
+        } else {
+          toast.success("Registration successful. Sign in with your phone.")
+          setTimeout(() => navigate("/food/delivery/login", { replace: true }), 1500)
+        }
       }
     } catch (error) {
-      debugError("Error submitting documents:", error)
-      const message = error?.response?.data?.message || "Failed to submit documents. Please try again."
+      debugError("Error submitting registration:", error)
+      const message =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        "Failed to register. Please try again."
       toast.error(message)
     } finally {
       setIsSubmitting(false)

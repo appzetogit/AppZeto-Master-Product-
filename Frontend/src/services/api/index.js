@@ -57,10 +57,9 @@ export const authAPI = {
     if (!phone || !otp) return Promise.reject(new Error("Phone and OTP are required"));
     return authService.verifyUserOtp(phone, otp);
   },
-  getCurrentUser: () => authService.getMe(),
+  getCurrentUser: () => authService.getMe("user"),
   refreshToken: (token) => authService.refreshToken(token),
   logout: (refreshToken) => {
-    // If caller didn't pass refreshToken, use stored user refresh token.
     const token =
       refreshToken ||
       (typeof localStorage !== "undefined" ? localStorage.getItem("user_refreshToken") : null);
@@ -71,7 +70,7 @@ export const authAPI = {
 /** Admin API – login via new backend */
 export const adminAPI = {
   login: (email, password) => authService.adminLogin(email, password),
-  getCurrentAdmin: () => authService.getMe(),
+  getCurrentAdmin: () => authService.getMe("admin"),
   logout: (refreshToken) => {
     const token =
       refreshToken ||
@@ -80,11 +79,64 @@ export const adminAPI = {
   },
 };
 
+/** Restaurant API – OTP login via new backend; no email/password. */
+export const restaurantAPI = {
+  sendOTP: (phone, _purpose = "login") => {
+    if (!phone) return Promise.reject(new Error("Phone is required"));
+    return authService.requestRestaurantOtp(phone);
+  },
+  verifyOTP: (phone, otp, _purpose, _name, _email) => {
+    if (!phone || !otp) return Promise.reject(new Error("Phone and OTP are required"));
+    return authService.verifyRestaurantOtp(phone, otp);
+  },
+  getMe: () => authService.getMe("restaurant"),
+  logout: (refreshToken) => {
+    const token =
+      refreshToken ||
+      (typeof localStorage !== "undefined" ? localStorage.getItem("restaurant_refreshToken") : null);
+    return authService.logout(token);
+  },
+  /** Backend has no email/password login; use phone OTP only. */
+  login: (_email, _password) =>
+    Promise.reject(new Error("Please use phone number and OTP to sign in.")),
+};
+
+/** Delivery API – OTP login + registration via new backend. */
+export const deliveryAPI = {
+  sendOTP: (phone, _purpose = "login") => {
+    if (!phone) return Promise.reject(new Error("Phone is required"));
+    return authService.requestDeliveryOtp(phone);
+  },
+  verifyOTP: (phone, otp, _purpose, _name) => {
+    if (!phone || !otp) return Promise.reject(new Error("Phone and OTP are required"));
+    return authService.verifyDeliveryOtp(phone, otp);
+  },
+  getMe: () => authService.getMe("delivery"),
+  logout: (refreshToken) => {
+    const token =
+      refreshToken ||
+      (typeof localStorage !== "undefined" ? localStorage.getItem("delivery_refreshToken") : null);
+    return authService.logout(token);
+  },
+  /** POST /zomato/delivery/register – multipart FormData (new partner, no token). */
+  register: (formData) => {
+    if (!formData || !(formData instanceof FormData)) {
+      return Promise.reject(new Error("FormData with details and document files is required"));
+    }
+    return apiClient.post("/zomato/delivery/register", formData);
+  },
+  /** PATCH /zomato/delivery/profile – complete profile after OTP (Bearer token required). */
+  completeProfile: (formData) => {
+    if (!formData || !(formData instanceof FormData)) {
+      return Promise.reject(new Error("FormData with details and document files is required"));
+    }
+    return apiClient.patch("/zomato/delivery/profile", formData, { contextModule: "delivery" });
+  },
+};
+
 export const userAPI = createStubAPI();
 export const locationAPI = createStubAPI();
 export const zoneAPI = createStubAPI();
-export const restaurantAPI = createStubAPI();
-export const deliveryAPI = createStubAPI();
 export const uploadAPI = createStubAPI();
 export const orderAPI = createStubAPI();
 export const diningAPI = createStubAPI();

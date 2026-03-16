@@ -187,59 +187,23 @@ export default function DeliveryOTP() {
         return
       }
 
+      // Backend: POST /auth/delivery/verify-otp returns { accessToken, refreshToken, user }
       const response = await deliveryAPI.verifyOTP(phone, code, purpose, providedName)
       debugLog("Delivery OTP Response:", response)
       const data = response?.data?.data || response?.data || {}
       debugLog("Parsed Delivery OTP Data:", data)
 
-      // Check if user needs to complete signup
-      if (data.needsSignup) {
-        // Store tokens for authenticated signup flow
-        const accessToken = data.accessToken
-        const refreshToken = data.refreshToken || null
-        const user = data.user
-
-        if (!accessToken || !user) {
-          throw new Error("Invalid response from server")
-        }
-
-        // Store auth data using utility function
-        try {
-          debugLog("Storing auth data for signup flow:", { hasToken: !!accessToken, hasUser: !!user })
-          storeAuthData("delivery", accessToken, user, refreshToken)
-          debugLog("Auth data stored successfully for signup")
-        } catch (storageError) {
-          debugError("Failed to store authentication data:", storageError)
-          setError("Failed to save authentication. Please try again or clear your browser storage.")
-          setIsLoading(false)
-          return
-        }
-
-        // Dispatch custom event
-        window.dispatchEvent(new Event("deliveryAuthChanged"))
-
-        // Redirect to signup step 1 after token is stored
-        setTimeout(() => {
-          navigate("/food/delivery/signup/details", { replace: true })
-        }, 200)
-        setIsLoading(false)
-        return
-      }
-
-      // Otherwise, OTP verified and user logged in (existing user with complete profile)
       const accessToken = data.accessToken
       const refreshToken = data.refreshToken || null
       const user = data.user
+      const needsRegistration = data.needsRegistration === true
 
       if (!accessToken || !user) {
         throw new Error("Invalid response from server")
       }
 
-      // Clear auth data from sessionStorage
       sessionStorage.removeItem("deliveryAuthData")
 
-      // Store auth data using utility function to ensure proper role handling
-      // The setAuthData function includes error handling and verification
       try {
         debugLog("Storing auth data for delivery:", { hasToken: !!accessToken, hasUser: !!user })
         storeAuthData("delivery", accessToken, user, refreshToken)
@@ -251,38 +215,40 @@ export default function DeliveryOTP() {
         return
       }
 
-      // Dispatch custom event for same-tab updates
       window.dispatchEvent(new Event("deliveryAuthChanged"))
 
       setSuccess(true)
       setIsLoading(false)
 
-      // Verify token is stored and then navigate
+      if (needsRegistration) {
+        sessionStorage.setItem("deliveryNeedsRegistration", "true")
+        const digits = (user.phone || phone || "").replace(/\D/g, "")
+        const details = {
+          name: user.name === "Pending" ? "" : (user.name || ""),
+          phone: digits.slice(-10),
+          countryCode: user.countryCode || "+91",
+        }
+        sessionStorage.setItem("deliverySignupDetails", JSON.stringify(details))
+        navigate("/food/delivery/signup/details", { replace: true })
+        return
+      }
+
       let retryCount = 0
       const maxRetries = 10
       const verifyAndNavigate = () => {
         const storedToken = localStorage.getItem("delivery_accessToken")
         const storedAuth = localStorage.getItem("delivery_authenticated")
 
-        debugLog("Verifying token storage:", { hasToken: !!storedToken, authenticated: storedAuth, retryCount })
-
         if (storedToken && storedAuth === "true") {
-          // Token is stored, navigate to delivery home
-          debugLog("Token verified, navigating to /delivery")
           navigate("/food/delivery", { replace: true })
         } else if (retryCount < maxRetries) {
-          // Token not stored yet, retry after short delay
           retryCount++
           setTimeout(verifyAndNavigate, 100)
         } else {
-          // Max retries reached, show error
-          debugError("Token storage verification failed after max retries")
           setError("Failed to save authentication. Please try again.")
           setIsLoading(false)
         }
       }
-
-      // Start verification after a small delay
       setTimeout(verifyAndNavigate, 200)
     } catch (err) {
       debugError("OTP Verification Error:", err)

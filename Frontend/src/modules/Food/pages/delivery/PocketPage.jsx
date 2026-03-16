@@ -232,76 +232,54 @@ export default function PocketPage() {
     }
   }, [])
 
-  // Fetch active earning addon offers
-  useEffect(() => {
-    const fetchActiveEarningAddons = async () => {
-      try {
-        setEarningAddonLoading(true)
-        debugLog('?? Fetching active earning addons...')
-        const response = await deliveryAPI.getActiveEarningAddons()
-        debugLog('? Active earning addons response:', response?.data)
-
-        if (response?.data?.success && response?.data?.data?.activeOffers) {
-          const offers = response.data.data.activeOffers
-          debugLog('?? Active offers found:', offers.length, offers)
-
-          // Get the first valid active offer (prioritize isValid, then isUpcoming, then any active status)
-          const activeOffer = offers.find(offer => offer.isValid) ||
-            offers.find(offer => offer.isUpcoming) ||
-            offers.find(offer => offer.status === 'active') ||
-            offers[0] ||
-            null
-
-          debugLog('?? Selected active offer:', activeOffer)
-          setActiveEarningAddon(activeOffer)
-        } else {
-          debugLog('?? No active offers found in response')
-          setActiveEarningAddon(null)
-        }
-      } catch (error) {
-        if (error.code !== 'ECONNABORTED' && !error.message?.includes('timeout')) {
-          if (error.code === 'ERR_NETWORK') {
-            debugWarn('Active offers: network error. Ensure backend is running and CORS allows /api/delivery.')
-          } else if (error.response) {
-            debugWarn('Active offers fetch failed:', error.response.status, error.response?.data?.message || error.response?.data)
-          } else {
-            debugWarn('Active offers fetch failed:', error.message)
-          }
-        }
-        setActiveEarningAddon(null)
-      } finally {
-        setEarningAddonLoading(false)
-      }
-    }
-
-    // Fetch immediately on mount
-    fetchActiveEarningAddons()
-
-    // Refresh every 5 seconds to get latest offers
-    const refreshInterval = setInterval(() => {
-      fetchActiveEarningAddons()
-    }, 3000) // Refresh every 3 seconds - FAST REFRESH
-
-    // Refresh when page becomes visible
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        fetchActiveEarningAddons()
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
-    // Also listen for focus events for instant refresh
-    const handleFocus = () => {
-      fetchActiveEarningAddons()
-    }
-    window.addEventListener('focus', handleFocus)
-
-    return () => {
-      clearInterval(refreshInterval)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('focus', handleFocus)
-    }
-  }, [])
+  // Fetch active earning addon offers – disabled until backend is ready
+  // useEffect(() => {
+  //   const fetchActiveEarningAddons = async () => {
+  //     try {
+  //       setEarningAddonLoading(true)
+  //       const response = await deliveryAPI.getActiveEarningAddons()
+  //       if (response?.data?.success && response?.data?.data?.activeOffers) {
+  //         const offers = response.data.data.activeOffers
+  //         const activeOffer = offers.find(offer => offer.isValid) ||
+  //           offers.find(offer => offer.isUpcoming) ||
+  //           offers.find(offer => offer.status === 'active') ||
+  //           offers[0] ||
+  //           null
+  //         setActiveEarningAddon(activeOffer)
+  //       } else {
+  //         setActiveEarningAddon(null)
+  //       }
+  //     } catch (error) {
+  //       setActiveEarningAddon(null)
+  //     } finally {
+  //       setEarningAddonLoading(false)
+  //     }
+  //   }
+  //
+  //   fetchActiveEarningAddons()
+  //
+  //   const refreshInterval = setInterval(() => {
+  //     fetchActiveEarningAddons()
+  //   }, 3000)
+  //
+  //   const handleVisibilityChange = () => {
+  //     if (!document.hidden) {
+  //       fetchActiveEarningAddons()
+  //     }
+  //   }
+  //   document.addEventListener('visibilitychange', handleVisibilityChange)
+  //
+  //   const handleFocus = () => {
+  //     fetchActiveEarningAddons()
+  //   }
+  //   window.addEventListener('focus', handleFocus)
+  //
+  //   return () => {
+  //     clearInterval(refreshInterval)
+  //     document.removeEventListener('visibilitychange', handleVisibilityChange)
+  //     window.removeEventListener('focus', handleFocus)
+  //   }
+  // }, [])
 
   // Calculate bonus earnings from earning_addon transactions (only for active offer)
   const calculateBonusEarnings = () => {

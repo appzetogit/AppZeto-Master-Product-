@@ -199,13 +199,13 @@ export const deliveryAPI = {
     return apiClient.get(API_ENDPOINTS.DELIVERY.EARNINGS, { params });
   },
 
-  // Get active earning addon offers
+  // Get active earning addon offers (disabled until backend is ready)
   getActiveEarningAddons: () => {
     const endpoint = API_ENDPOINTS.DELIVERY.EARNINGS_ACTIVE_OFFERS;
-    if (import.meta.env.DEV) {
-      console.log("? Fetching active earning addons from:", endpoint);
-    }
-    return apiClient.get(endpoint);
+    // Temporarily return a resolved stub response to avoid noisy logs and failed calls
+    return Promise.resolve({
+      data: { success: false, data: { activeOffers: [] }, endpoint, disabled: true },
+    });
   },
 
   // Update location

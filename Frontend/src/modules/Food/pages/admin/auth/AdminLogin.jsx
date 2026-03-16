@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { adminAPI } from "@food/api"
-import { setAuthData, isModuleAuthenticated } from "@food/utils/auth"
+import { setAuthData } from "@food/utils/auth"
 import { loadBusinessSettings } from "@food/utils/businessSettings"
 import { Button } from "@food/components/ui/button"
 import {
@@ -29,14 +29,6 @@ export default function AdminLogin() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [logoUrl, setLogoUrl] = useState(quickSpicyLogo)
-
-  // Redirect to admin dashboard if already authenticated
-  useEffect(() => {
-    if (isModuleAuthenticated("admin")) {
-      navigate("/admin/food", { replace: true })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   // Fetch business settings logo on mount
   useEffect(() => {

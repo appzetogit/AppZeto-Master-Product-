@@ -47,5 +47,5 @@ adminSchema.methods.comparePassword = function (candidatePassword) {
     return bcrypt.compare(candidatePassword, this.password);
 };
 
-export const Admin = mongoose.model('Admin', adminSchema);
+export const ZomatoAdmin = mongoose.model('ZomatoAdmin', adminSchema);
 

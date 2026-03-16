@@ -64,5 +64,5 @@ const deliveryPartnerSchema = new mongoose.Schema(
 
 // Indices are defined inline in the schema fields above (phone: { unique: true }, vehicleNumber: { unique: true, sparse: true })
 
-export const DeliveryPartner = mongoose.model('DeliveryPartner', deliveryPartnerSchema);
+export const ZomatoDeliveryPartner = mongoose.model('ZomatoDeliveryPartner', deliveryPartnerSchema);
 

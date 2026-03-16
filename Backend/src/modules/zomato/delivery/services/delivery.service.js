@@ -1,4 +1,4 @@
-import { DeliveryPartner } from '../models/deliveryPartner.model.js';
+import { ZomatoDeliveryPartner } from '../models/deliveryPartner.model.js';
 import { uploadImageBuffer } from '../../../../services/cloudinary.service.js';
 import { ValidationError } from '../../../../core/auth/errors.js';
 
@@ -6,7 +6,7 @@ export const registerDeliveryPartner = async (payload, files) => {
     const { name, phone, countryCode, address, city, state, vehicleType, vehicleName, vehicleNumber, panNumber, aadharNumber } =
         payload;
 
-    const existing = await DeliveryPartner.findOne({ phone }).lean();
+    const existing = await ZomatoDeliveryPartner.findOne({ phone }).lean();
     if (existing) {
         throw new ValidationError('Delivery partner with this phone already exists');
     }
@@ -29,7 +29,7 @@ export const registerDeliveryPartner = async (payload, files) => {
         );
     }
 
-    const partner = await DeliveryPartner.create({
+    const partner = await ZomatoDeliveryPartner.create({
         name,
         phone,
         countryCode,

@@ -1,11 +1,11 @@
-import { User } from './user.model.js';
+import { ZomatoUser } from './user.model.js';
 import { buildPaginationOptions, buildPaginatedResult } from '../../utils/helpers.js';
 
 export const findOrCreateUserByPhone = async ({ phone, countryCode = '+91' }) => {
-    let user = await User.findOne({ phone }).lean();
+    let user = await ZomatoUser.findOne({ phone }).lean();
 
     if (!user) {
-        const created = await User.create({ phone, countryCode });
+        const created = await ZomatoUser.create({ phone, countryCode });
         user = created.toObject();
     }
 
@@ -16,8 +16,8 @@ export const getUsers = async (query) => {
     const { page, limit, skip } = buildPaginationOptions(query);
 
     const [docs, total] = await Promise.all([
-        User.find().skip(skip).limit(limit).lean(),
-        User.countDocuments()
+        ZomatoUser.find().skip(skip).limit(limit).lean(),
+        ZomatoUser.countDocuments()
     ]);
 
     return buildPaginatedResult({ docs, total, page, limit });

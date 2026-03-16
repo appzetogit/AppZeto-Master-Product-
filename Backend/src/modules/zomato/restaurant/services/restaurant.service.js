@@ -1,4 +1,4 @@
-import { Restaurant } from '../models/restaurant.model.js';
+import { ZomatoRestaurant } from '../models/restaurant.model.js';
 import { uploadImageBuffer } from '../../../../services/cloudinary.service.js';
 import { ValidationError } from '../../../../core/auth/errors.js';
 
@@ -32,7 +32,7 @@ export const registerRestaurant = async (payload, files) => {
         accountType
     } = payload;
 
-    const existing = await Restaurant.findOne({ restaurantName, ownerPhone }).lean();
+    const existing = await ZomatoRestaurant.findOne({ restaurantName, ownerPhone }).lean();
     if (existing) {
         throw new ValidationError('Restaurant with this name and owner phone already exists');
     }
@@ -59,7 +59,7 @@ export const registerRestaurant = async (payload, files) => {
         );
     }
 
-    const restaurant = await Restaurant.create({
+    const restaurant = await ZomatoRestaurant.create({
         restaurantName,
         ownerName,
         ownerEmail,

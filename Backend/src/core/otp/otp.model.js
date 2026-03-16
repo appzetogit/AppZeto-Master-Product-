@@ -37,5 +37,5 @@ const otpSchema = new mongoose.Schema(
 otpSchema.index({ phone: 1 });
 otpSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
-export const Otp = mongoose.model('Otp', otpSchema);
+export const ZomatoOtp = mongoose.model('ZomatoOtp', otpSchema);
 

@@ -36,5 +36,5 @@ const refreshTokenSchema = new mongoose.Schema(
 // TTL index for automatic expiration
 refreshTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
-export const RefreshToken = mongoose.model('RefreshToken', refreshTokenSchema);
+export const ZomatoRefreshToken = mongoose.model('ZomatoRefreshToken', refreshTokenSchema);
 

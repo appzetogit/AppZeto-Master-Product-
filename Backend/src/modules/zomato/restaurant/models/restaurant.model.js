@@ -118,5 +118,5 @@ restaurantSchema.index({ restaurantName: 1 });
 restaurantSchema.index({ city: 1 });
 restaurantSchema.index({ restaurantName: 1, ownerPhone: 1 });
 
-export const Restaurant = mongoose.model('Restaurant', restaurantSchema);
+export const ZomatoRestaurant = mongoose.model('ZomatoRestaurant', restaurantSchema);
 

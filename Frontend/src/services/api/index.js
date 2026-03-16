@@ -79,7 +79,7 @@ export const adminAPI = {
   },
   // Restaurant approvals and join requests
   getPendingRestaurants: () =>
-    apiClient.get("/v1/food/admin/restaurants/pending", { contextModule: "admin" }),
+    apiClient.get("/food/admin/restaurants/pending", { contextModule: "admin" }),
   approveRestaurant: (id) =>
     apiClient.patch(`/v1/food/admin/restaurants/${id}/approve`, null, {
       contextModule: "admin",
@@ -92,7 +92,7 @@ export const adminAPI = {
     ),
   /** Delivery partner join requests for admin panel */
   getDeliveryPartnerJoinRequests: (params) =>
-    apiClient.get("/v1/food/delivery/admin/join-requests", {
+    apiClient.get("/food/delivery/admin/join-requests", {
       params,
       contextModule: "admin",
     }),
@@ -120,13 +120,13 @@ export const restaurantAPI = {
     Promise.reject(new Error("Please use phone number and OTP to sign in.")),
   /**
    * Register a restaurant (multipart FormData).
-   * Backend: POST /v1/food/restaurant/register
+   * Backend: POST /api/v1/food/restaurant/register
    */
   register: (formData) => {
     if (!formData || !(formData instanceof FormData)) {
       return Promise.reject(new Error("FormData is required"));
     }
-    return apiClient.post("/v1/food/restaurant/register", formData);
+    return apiClient.post("/food/restaurant/register", formData);
   },
 };
 
@@ -147,19 +147,19 @@ export const deliveryAPI = {
       (typeof localStorage !== "undefined" ? localStorage.getItem("delivery_refreshToken") : null);
     return authService.logout(token);
   },
-  /** POST /v1/food/delivery/register – multipart FormData (new partner, no token). */
+  /** POST /food/delivery/register – multipart FormData (new partner, no token). */
   register: (formData) => {
     if (!formData || !(formData instanceof FormData)) {
       return Promise.reject(new Error("FormData with details and document files is required"));
     }
-    return apiClient.post("/v1/food/delivery/register", formData);
+    return apiClient.post("/food/delivery/register", formData);
   },
-  /** PATCH /v1/food/delivery/profile – complete profile after OTP (Bearer token required). */
+  /** PATCH /food/delivery/profile – complete profile after OTP (Bearer token required). */
   completeProfile: (formData) => {
     if (!formData || !(formData instanceof FormData)) {
       return Promise.reject(new Error("FormData with details and document files is required"));
     }
-    return apiClient.patch("/v1/food/delivery/profile", formData, { contextModule: "delivery" });
+    return apiClient.patch("/food/delivery/profile", formData, { contextModule: "delivery" });
   },
 };
 

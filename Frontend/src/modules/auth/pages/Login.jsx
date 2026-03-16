@@ -26,7 +26,7 @@ export default function UnifiedOTPFastLogin() {
   }
 
   const handleVerifyOTP = (e) => {
-    e.preventDefault()
+    if (e?.preventDefault) e.preventDefault()
     if (otp === "1234") {
       setLoading(true)
       setTimeout(() => {
@@ -121,7 +121,13 @@ export default function UnifiedOTPFastLogin() {
                       type="password"
                       required
                       value={otp}
-                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                      onChange={(e) => {
+                        const next = e.target.value.replace(/\D/g, "").slice(0, 4)
+                        setOtp(next)
+                        if (next.length === 4) {
+                          handleVerifyOTP()
+                        }
+                      }}
                       maxLength={4}
                       className="block w-full pl-12 pr-4 py-4 bg-white/[0.05] border border-white/10 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all outline-none placeholder:text-gray-700 tracking-[0.5em]"
                       placeholder="••••"

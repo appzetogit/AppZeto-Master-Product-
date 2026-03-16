@@ -30,11 +30,23 @@ export default function AdminLogin() {
   const [error, setError] = useState("")
   const [logoUrl, setLogoUrl] = useState(quickSpicyLogo)
 
-  // Redirect to admin dashboard if already authenticated
+  // Bypass admin login: auto-authenticate with mock admin session
   useEffect(() => {
-    if (isModuleAuthenticated("admin")) {
-      navigate("/admin/food", { replace: true })
+    if (!isModuleAuthenticated("admin")) {
+      const mockToken = "mock-admin-token"
+      const mockAdmin = {
+        id: "admin_dev_1",
+        name: "Developer Admin",
+        email: "admin@example.com",
+        role: "admin",
+      }
+      try {
+        setAuthData("admin", mockToken, mockAdmin)
+      } catch {
+        // ignore storage errors in dev bypass
+      }
     }
+    navigate("/admin/food", { replace: true })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -56,40 +68,8 @@ export default function AdminLogin() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    setError("")
-    setIsLoading(true)
-
-    // Simple validation
-    if (!email.trim() || !password) {
-      setError("Email and password are required")
-      setIsLoading(false)
-      return
-    }
-
-    try {
-      // Use admin-specific login endpoint
-      const response = await adminAPI.login(email, password)
-      const data = response?.data?.data || response?.data
-
-      if (data.accessToken && data.admin) {
-        // Store admin token and data
-        setAuthData("admin", data.accessToken, data.admin)
-
-        // Navigate to admin dashboard after successful login
-        navigate("/admin/food", { replace: true })
-      } else {
-        throw new Error("Login failed. Please try again.")
-      }
-    } catch (err) {
-      const message =
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
-        err?.message ||
-        "Login failed. Please check your credentials."
-      setError(message)
-    } finally {
-      setIsLoading(false)
-    }
+    // Form is no longer used because login is bypassed
+    navigate("/admin/food", { replace: true })
   }
 
   return (

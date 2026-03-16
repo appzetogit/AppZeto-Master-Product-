@@ -53,11 +53,10 @@ export const registerRestaurant = async (payload, files) => {
     }
 
     let menuImages = [];
-    if (files?.menuImages) {
-        for (const file of files.menuImages) {
-            const url = await uploadImageBuffer(file.buffer, 'zomato/restaurants/menu');
-            menuImages.push(url);
-        }
+    if (files?.menuImages?.length) {
+        menuImages = await Promise.all(
+            files.menuImages.map((file) => uploadImageBuffer(file.buffer, 'zomato/restaurants/menu'))
+        );
     }
 
     const restaurant = await Restaurant.create({

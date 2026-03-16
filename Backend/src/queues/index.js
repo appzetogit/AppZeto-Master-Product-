@@ -79,11 +79,19 @@ export const initializeQueues = () => {
         return { initialized: false, queues: [] };
     }
 
+    const initialized = [];
     for (const name of QUEUE_NAMES) {
-        createQueue(name);
+        try {
+            createQueue(name);
+            initialized.push(name);
+        } catch (err) {
+            logger.error(`BullMQ queue "${name}" initialization failed: ${err.message}`);
+        }
     }
-    logger.info(`BullMQ queues initialized: ${QUEUE_NAMES.join(', ')}`);
-    return { initialized: true, queues: [...QUEUE_NAMES] };
+    if (initialized.length > 0) {
+        logger.info(`BullMQ queues initialized: ${initialized.join(', ')}`);
+    }
+    return { initialized: initialized.length === QUEUE_NAMES.length, queues: initialized };
 };
 
 /**

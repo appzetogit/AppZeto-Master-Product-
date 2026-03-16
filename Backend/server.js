@@ -16,8 +16,8 @@ const startServer = async () => {
         // 2. Create HTTP server from Express app
         const httpServer = http.createServer(app);
 
-        // 3. Initialize Socket.IO with the HTTP server
-        initSocket(httpServer);
+        // 3. Initialize Socket.IO with the HTTP server (Redis adapter when Redis enabled)
+        await initSocket(httpServer);
 
         // 4. Conditionally connect Redis (only if REDIS_ENABLED=true)
         if (config.redisEnabled) {
@@ -26,7 +26,11 @@ const startServer = async () => {
 
         // 5. Conditionally initialize BullMQ queues (only if BULLMQ_ENABLED=true). Workers run separately.
         if (config.bullmqEnabled) {
-            initializeQueues();
+            try {
+                initializeQueues();
+            } catch (err) {
+                logger.error(`BullMQ initialization error (server continues): ${err.message}`);
+            }
         }
 
         // 6. Start the HTTP server

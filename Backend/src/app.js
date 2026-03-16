@@ -7,6 +7,7 @@ import xssClean from 'xss-clean';
 import routes from './routes/index.js';
 import errorHandler from './middleware/errorHandler.js';
 import { apiRateLimiter } from './middleware/rateLimit.js';
+import { responseTimeLogger } from './middleware/responseTimeLogger.js';
 
 const app = express();
 
@@ -28,6 +29,9 @@ app.use(xssClean());
 
 // Global rate limiting for API routes
 app.use('/api', apiRateLimiter);
+
+// Optional: log API response time (method, path, status, duration) - no sensitive data
+app.use('/api', responseTimeLogger);
 
 // API Routes
 app.use('/api', routes);

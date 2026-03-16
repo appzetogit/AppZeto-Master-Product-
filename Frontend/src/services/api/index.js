@@ -90,12 +90,43 @@ export const adminAPI = {
       { reason },
       { contextModule: "admin" },
     ),
-  /** Delivery partner join requests for admin panel */
+  /** Delivery partner join requests – uses /food/admin/delivery/* (new backend API) */
   getDeliveryPartnerJoinRequests: (params) =>
-    apiClient.get("/food/delivery/admin/join-requests", {
+    apiClient.get("/food/admin/delivery/join-requests", {
       params,
       contextModule: "admin",
     }),
+  /** List approved delivery partners (Deliveryman List page) */
+  getDeliveryPartners: (params) =>
+    apiClient.get("/food/admin/delivery/partners", {
+      params,
+      contextModule: "admin",
+    }),
+  /** Delivery boy wallets (stub until backend implements – returns empty so list still loads) */
+  getDeliveryBoyWallets: (params) =>
+    apiClient.get("/food/admin/delivery/wallets", {
+      params,
+      contextModule: "admin",
+    }),
+  getDeliveryPartnerById: (id) =>
+    apiClient.get(`/food/admin/delivery/${id}`, { contextModule: "admin" }),
+  approveDeliveryPartner: (id) =>
+    apiClient.patch(`/food/admin/delivery/${String(id)}/approve`, {}, {
+      contextModule: "admin",
+    }),
+  rejectDeliveryPartner: (id, reason) =>
+    apiClient.patch(`/food/admin/delivery/${String(id)}/reject`, { reason: String(reason || "").trim() }, {
+      contextModule: "admin",
+    }),
+  /** GET /food/admin/delivery/support-tickets – list all delivery support tickets (query: status, priority, search, page, limit). */
+  getDeliverySupportTickets: (params) =>
+    apiClient.get("/food/admin/delivery/support-tickets", { params, contextModule: "admin" }),
+  /** GET /food/admin/delivery/support-tickets/stats – counts by status. */
+  getDeliverySupportTicketStats: () =>
+    apiClient.get("/food/admin/delivery/support-tickets/stats", { contextModule: "admin" }),
+  /** PATCH /food/admin/delivery/support-tickets/:id – update adminResponse, status. */
+  updateDeliverySupportTicket: (id, body) =>
+    apiClient.patch(`/food/admin/delivery/support-tickets/${id}`, body ?? {}, { contextModule: "admin" }),
 };
 
 /** Restaurant API – OTP login via new backend; no email/password. */
@@ -130,6 +161,32 @@ export const restaurantAPI = {
   },
 };
 
+/** Single in-flight + short cache for delivery /auth/me – one call per page load / refresh. */
+let deliveryMeInFlight = null;
+let deliveryMeCached = null;
+let deliveryMeCacheTime = 0;
+const DELIVERY_ME_CACHE_MS = 3000;
+
+const getDeliveryMeOnce = () => {
+  const now = Date.now();
+  if (deliveryMeCached && now - deliveryMeCacheTime < DELIVERY_ME_CACHE_MS) {
+    return Promise.resolve(deliveryMeCached);
+  }
+  if (!deliveryMeInFlight) {
+    deliveryMeInFlight = authService
+      .getMe("delivery")
+      .then((res) => {
+        deliveryMeCached = res;
+        deliveryMeCacheTime = Date.now();
+        return res;
+      })
+      .finally(() => {
+        deliveryMeInFlight = null;
+      });
+  }
+  return deliveryMeInFlight;
+};
+
 /** Delivery API – OTP login + registration via new backend. */
 export const deliveryAPI = {
   sendOTP: (phone, _purpose = "login") => {
@@ -140,8 +197,19 @@ export const deliveryAPI = {
     if (!phone || !otp) return Promise.reject(new Error("Phone and OTP are required"));
     return authService.verifyDeliveryOtp(phone, otp);
   },
-  getMe: () => authService.getMe("delivery"),
+  getMe: () => getDeliveryMeOnce(),
+  /** Get delivery profile (same as getMe under the hood; maps response to profile shape). */
+  getProfile: () =>
+    getDeliveryMeOnce().then((res) => ({
+      ...res,
+      data: {
+        ...res.data,
+        data: { profile: res.data?.data?.user ?? res.data?.data },
+      },
+    })),
   logout: (refreshToken) => {
+    deliveryMeCached = null;
+    deliveryMeCacheTime = 0;
     const token =
       refreshToken ||
       (typeof localStorage !== "undefined" ? localStorage.getItem("delivery_refreshToken") : null);
@@ -161,6 +229,33 @@ export const deliveryAPI = {
     }
     return apiClient.patch("/food/delivery/profile", formData, { contextModule: "delivery" });
   },
+  /** PATCH /food/delivery/profile/details – JSON updates (vehicle number, etc). */
+  updateProfileDetails: (payload) =>
+    apiClient.patch("/food/delivery/profile/details", payload ?? {}, { contextModule: "delivery" }),
+  /** PATCH /food/delivery/profile – multipart updates for photos/documents (uses same endpoint). */
+  updateProfileMultipart: (formData) => {
+    if (!formData || !(formData instanceof FormData)) {
+      return Promise.reject(new Error("FormData is required"));
+    }
+    return apiClient.patch("/food/delivery/profile", formData, { contextModule: "delivery" });
+  },
+  /** POST /food/delivery/profile/photo-base64 – Flutter in-app camera base64 upload. */
+  updateProfilePhotoBase64: (payload) =>
+    apiClient.post("/food/delivery/profile/photo-base64", payload ?? {}, { contextModule: "delivery" }),
+  /** PATCH /food/delivery/profile/bank-details – update bank details + PAN (JSON, Bearer required). */
+  updateProfile: (payload) =>
+    apiClient.patch("/food/delivery/profile/bank-details", payload ?? {}, {
+      contextModule: "delivery",
+    }),
+  /** GET /food/delivery/support-tickets – list tickets for logged-in delivery partner. */
+  getSupportTickets: () =>
+    apiClient.get("/food/delivery/support-tickets", { contextModule: "delivery" }),
+  /** POST /food/delivery/support-tickets – create ticket (body: subject, description, category?, priority?). */
+  createSupportTicket: (body) =>
+    apiClient.post("/food/delivery/support-tickets", body ?? {}, { contextModule: "delivery" }),
+  /** GET /food/delivery/support-tickets/:id – get one ticket (own only). */
+  getSupportTicketById: (id) =>
+    apiClient.get(`/food/delivery/support-tickets/${id}`, { contextModule: "delivery" }),
 };
 
 export const userAPI = createStubAPI();

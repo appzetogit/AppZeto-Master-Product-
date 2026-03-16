@@ -336,6 +336,7 @@ export default function SignupStep2() {
     const formData = new FormData()
     formData.append("name", details.name || "")
     formData.append("phone", String(details.phone || "").replace(/\D/g, "").slice(0, 15))
+    if (details.email) formData.append("email", String(details.email).trim())
     if (details.countryCode) formData.append("countryCode", details.countryCode)
     if (details.address) formData.append("address", details.address)
     if (details.city) formData.append("city", details.city)

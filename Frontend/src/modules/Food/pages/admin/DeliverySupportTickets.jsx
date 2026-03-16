@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect } from "react"
 import { MessageSquare, Search, Clock, CheckCircle, XCircle, Loader2, Eye, Edit } from "lucide-react"
 import { adminAPI } from "@food/api"
 import { toast } from "sonner"
@@ -24,8 +24,11 @@ export default function DeliverySupportTickets() {
 
   useEffect(() => {
     fetchTickets()
-    fetchStats()
   }, [statusFilter, priorityFilter])
+
+  useEffect(() => {
+    fetchStats()
+  }, [])
 
   const fetchTickets = async () => {
     try {
@@ -33,7 +36,7 @@ export default function DeliverySupportTickets() {
       const params = {}
       if (statusFilter) params.status = statusFilter
       if (priorityFilter) params.priority = priorityFilter
-      if (searchQuery) params.search = searchQuery
+      if (searchQuery.trim()) params.search = searchQuery.trim()
 
       const response = await adminAPI.getDeliverySupportTickets(params)
       
@@ -120,19 +123,6 @@ export default function DeliverySupportTickets() {
       toast.error("Failed to update status")
     }
   }
-
-  const filteredTickets = useMemo(() => {
-    if (!searchQuery.trim()) return tickets
-    
-    const query = searchQuery.toLowerCase()
-    return tickets.filter(ticket =>
-      ticket.subject?.toLowerCase().includes(query) ||
-      ticket.description?.toLowerCase().includes(query) ||
-      ticket.ticketId?.toLowerCase().includes(query) ||
-      ticket.deliveryName?.toLowerCase().includes(query) ||
-      ticket.deliveryPhone?.toLowerCase().includes(query)
-    )
-  }, [tickets, searchQuery])
 
   const getStatusIcon = (status) => {
     switch (status) {
@@ -269,12 +259,12 @@ export default function DeliverySupportTickets() {
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredTickets.length === 0 ? (
+              {tickets.length === 0 ? (
                 <div className="bg-slate-50 rounded-lg p-8 text-center">
                   <p className="text-gray-600">No tickets found</p>
                 </div>
               ) : (
-                filteredTickets.map((ticket) => (
+                tickets.map((ticket) => (
                   <div
                     key={ticket._id}
                     className="bg-white rounded-lg p-3 shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
@@ -289,12 +279,15 @@ export default function DeliverySupportTickets() {
                                 #{ticket.ticketId}
                               </span>
                             )}
-                            <span className="text-xs text-gray-600">
-                              {ticket.deliveryName || 'N/A'}
+                            <span className="text-sm font-medium text-gray-900 truncate">
+                              {ticket.subject}
                             </span>
-                            {(ticket.deliveryId?.deliveryId || ticket.deliveryBoyId) && (
+                            <span className="text-xs text-gray-600">
+                              {ticket.deliveryPartner?.name || 'N/A'}
+                            </span>
+                            {ticket.deliveryPartner?._id && (
                               <span className="text-xs text-gray-500">
-                                ID: {ticket.deliveryId?.deliveryId || ticket.deliveryBoyId}
+                                ID: DP-{String(ticket.deliveryPartner._id).slice(-8).toUpperCase()}
                               </span>
                             )}
                             <span className="text-xs text-gray-500">
@@ -413,16 +406,16 @@ export default function DeliverySupportTickets() {
                 <div className="pl-4 space-y-3">
                   <div>
                     <p className="text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">Name</p>
-                    <p className="text-sm text-gray-900 font-semibold">{selectedTicket.deliveryName || 'N/A'}</p>
+                    <p className="text-sm text-gray-900 font-semibold">{selectedTicket.deliveryPartner?.name || 'N/A'}</p>
                   </div>
                   <div>
                     <p className="text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">Phone Number</p>
-                    <p className="text-sm text-gray-900">{selectedTicket.deliveryPhone || 'N/A'}</p>
+                    <p className="text-sm text-gray-900">{selectedTicket.deliveryPartner?.phone || 'N/A'}</p>
                   </div>
-                  {(selectedTicket.deliveryId?.deliveryId || selectedTicket.deliveryBoyId) && (
+                  {selectedTicket.deliveryPartner?._id && (
                     <div>
                       <p className="text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">ID</p>
-                      <p className="text-sm text-gray-900">{selectedTicket.deliveryId?.deliveryId || selectedTicket.deliveryBoyId}</p>
+                      <p className="text-sm text-gray-900">DP-{String(selectedTicket.deliveryPartner._id).slice(-8).toUpperCase()}</p>
                     </div>
                   )}
                 </div>

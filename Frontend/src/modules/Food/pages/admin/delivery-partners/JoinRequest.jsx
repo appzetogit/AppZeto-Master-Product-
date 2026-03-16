@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react"
 import { Search, Filter, Eye, Check, X, Package, ArrowUpDown, FileText, FileSpreadsheet, Loader2, Download, ExternalLink, Calendar, MapPin, CreditCard, User, Mail, Phone, Bike, FileCheck } from "lucide-react"
 import { adminAPI } from "@food/api"
+import { toast } from "sonner"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@food/components/ui/dialog"
 import { exportJoinRequestsToExcel, exportJoinRequestsToPDF } from "@food/components/admin/deliveryman/joinRequestExportUtils"
 const debugLog = (...args) => {}
@@ -27,25 +28,29 @@ export default function JoinRequest() {
     vehicleType: "",
   })
   const [isFilterOpen, setIsFilterOpen] = useState(false)
+  const [debouncedSearch, setDebouncedSearch] = useState("")
 
-  // Fetch join requests from API
+  // Debounce search so we don't fetch on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 500)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  // Fetch join requests from API (single source of truth for when to fetch)
   const fetchJoinRequests = async () => {
     try {
       setLoading(true)
       setError(null)
-      
+
       const params = {
         status: activeTab === "pending" ? "pending" : "denied",
         page: 1,
-        limit: 1000, // Get all for now, can add pagination later
+        limit: 1000,
       }
 
-      // Add search to params if provided
-      if (searchQuery.trim()) {
-        params.search = searchQuery.trim()
+      if (debouncedSearch.trim()) {
+        params.search = debouncedSearch.trim()
       }
-
-      // Add filters to params
       if (filters.zone) {
         params.zone = filters.zone
       }
@@ -86,30 +91,13 @@ export default function JoinRequest() {
     }
   }
 
-  // Fetch requests when tab changes
-  useEffect(() => {
-    fetchJoinRequests()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab])
-
-  // Debounced search effect
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchJoinRequests()
-    }, 500) // Wait 500ms after user stops typing
-
-    return () => clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery])
-
-  // Fetch when filters change (only when filter dialog is closed)
+  // Single effect: fetch only when tab, debounced search, filters, or filter dialog state change (avoids multiple calls on mount)
   useEffect(() => {
     if (!isFilterOpen) {
-      // Only fetch when filter dialog is closed (after applying)
       fetchJoinRequests()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, isFilterOpen])
+  }, [activeTab, debouncedSearch, filters, isFilterOpen])
 
   const filteredRequests = useMemo(() => {
     let result = [...requests]
@@ -140,11 +128,11 @@ export default function JoinRequest() {
       setIsApproveOpen(false)
       setSelectedRequest(null)
       
-      // Show success message
-      alert(`Successfully approved ${selectedRequest.name}'s join request!`)
+      toast.success(`Successfully approved ${selectedRequest.name}'s join request!`)
     } catch (err) {
       debugError("Error approving request:", err)
-      alert(err.response?.data?.message || "Failed to approve request. Please try again.")
+      const msg = err.response?.data?.message ?? err.response?.data?.error ?? err?.message
+      toast.error(msg || "Failed to approve request. Please try again.")
     } finally {
       setProcessing(false)
     }
@@ -161,7 +149,7 @@ export default function JoinRequest() {
 
     // Validate rejection reason
     if (!rejectionReason.trim()) {
-      alert("Please provide a reason for rejection")
+      toast.error("Please provide a reason for rejection")
       return
     }
 
@@ -176,11 +164,11 @@ export default function JoinRequest() {
       setSelectedRequest(null)
       setRejectionReason("")
       
-      // Show success message
-      alert(`Successfully rejected ${selectedRequest.name}'s join request.`)
+      toast.success(`Successfully rejected ${selectedRequest.name}'s join request.`)
     } catch (err) {
       debugError("Error rejecting request:", err)
-      alert(err.response?.data?.message || "Failed to reject request. Please try again.")
+      const msg = err.response?.data?.message ?? err.response?.data?.error ?? err?.message
+      toast.error(msg || "Failed to reject request. Please try again.")
     } finally {
       setProcessing(false)
     }
@@ -195,11 +183,11 @@ export default function JoinRequest() {
         setViewDetails(response.data.data.delivery)
         setIsViewOpen(true)
       } else {
-        alert("Failed to load details")
+        toast.error("Failed to load details")
       }
     } catch (err) {
       debugError("Error fetching details:", err)
-      alert(err.response?.data?.message || "Failed to load details")
+      toast.error(err.response?.data?.message || "Failed to load details")
     } finally {
       setLoading(false)
     }
@@ -207,7 +195,7 @@ export default function JoinRequest() {
 
   const handleExportPDF = () => {
     if (filteredRequests.length === 0) {
-      alert("No data to export")
+      toast.error("No data to export")
       return
     }
     exportJoinRequestsToPDF(filteredRequests)
@@ -215,7 +203,7 @@ export default function JoinRequest() {
 
   const handleExportExcel = () => {
     if (filteredRequests.length === 0) {
-      alert("No data to export")
+      toast.error("No data to export")
       return
     }
     exportJoinRequestsToExcel(filteredRequests)
@@ -405,8 +393,18 @@ export default function JoinRequest() {
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
-                              <span className="text-sm">??</span>
+                            <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center shrink-0 overflow-hidden">
+                              {(request.profileImage?.url || request.profilePhoto) ? (
+                                <img
+                                  src={request.profileImage?.url || request.profilePhoto}
+                                  alt={request.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <span className="text-sm font-medium text-slate-500">
+                                  {request.name?.trim() ? request.name.slice(0, 2).toUpperCase() : "?"}
+                                </span>
+                              )}
                             </div>
                             <span className="text-sm font-medium text-slate-900">{request.name}</span>
                           </div>

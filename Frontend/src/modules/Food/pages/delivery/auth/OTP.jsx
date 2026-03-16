@@ -187,16 +187,35 @@ export default function DeliveryOTP() {
         return
       }
 
-      // Backend: POST /auth/delivery/verify-otp returns { accessToken, refreshToken, user }
+      // Backend: POST /auth/delivery/verify-otp returns either:
+      // - { needsRegistration: true } when no partner exists yet
+      // - or { accessToken, refreshToken, user } for existing partners
       const response = await deliveryAPI.verifyOTP(phone, code, purpose, providedName)
       debugLog("Delivery OTP Response:", response)
       const data = response?.data?.data || response?.data || {}
       debugLog("Parsed Delivery OTP Data:", data)
 
+      const needsRegistration = data.needsRegistration === true
+
+      if (needsRegistration) {
+        // No DB record yet; redirect to registration details page WITHOUT creating anything in DB.
+        sessionStorage.removeItem("deliveryAuthData")
+        sessionStorage.setItem("deliveryNeedsRegistration", "true")
+        const digits = String(phone || "").replace(/\D/g, "")
+        const details = {
+          name: "",
+          phone: digits.slice(-10),
+          countryCode: "+91",
+        }
+        sessionStorage.setItem("deliverySignupDetails", JSON.stringify(details))
+        setIsLoading(false)
+        navigate("/food/delivery/signup/details", { replace: true })
+        return
+      }
+
       const accessToken = data.accessToken
       const refreshToken = data.refreshToken || null
       const user = data.user
-      const needsRegistration = data.needsRegistration === true
 
       if (!accessToken || !user) {
         throw new Error("Invalid response from server")
@@ -219,19 +238,6 @@ export default function DeliveryOTP() {
 
       setSuccess(true)
       setIsLoading(false)
-
-      if (needsRegistration) {
-        sessionStorage.setItem("deliveryNeedsRegistration", "true")
-        const digits = (user.phone || phone || "").replace(/\D/g, "")
-        const details = {
-          name: user.name === "Pending" ? "" : (user.name || ""),
-          phone: digits.slice(-10),
-          countryCode: user.countryCode || "+91",
-        }
-        sessionStorage.setItem("deliverySignupDetails", JSON.stringify(details))
-        navigate("/food/delivery/signup/details", { replace: true })
-        return
-      }
 
       let retryCount = 0
       const maxRetries = 10

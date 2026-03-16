@@ -77,6 +77,12 @@ export const adminAPI = {
       (typeof localStorage !== "undefined" ? localStorage.getItem("admin_refreshToken") : null);
     return authService.logout(token);
   },
+  /** Delivery partner join requests for admin panel */
+  getDeliveryPartnerJoinRequests: (params) =>
+    apiClient.get("/zomato/delivery/admin/join-requests", {
+      params,
+      contextModule: "admin",
+    }),
 };
 
 /** Restaurant API – OTP login via new backend; no email/password. */

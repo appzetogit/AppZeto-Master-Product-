@@ -137,17 +137,15 @@ export const verifyDeliveryOtpAndLogin = async (phone, otp) => {
         throw new AuthError(result.reason || 'OTP verification failed');
     }
 
-    let deliveryPartner = await ZomatoDeliveryPartner.findOne({ phone }).lean();
-    let needsRegistration = false;
-
+    const deliveryPartner = await ZomatoDeliveryPartner.findOne({ phone }).lean();
     if (!deliveryPartner) {
-        const created = await ZomatoDeliveryPartner.create({
-            phone,
-            name: 'Pending',
-            status: 'pending'
-        });
-        deliveryPartner = created.toObject();
-        needsRegistration = true;
+        // No partner yet – OTP is valid but registration must be completed first.
+        // Do NOT create any document here; frontend will redirect to registration form.
+        return { needsRegistration: true };
+    }
+
+    if (deliveryPartner.status && deliveryPartner.status !== 'approved') {
+        throw new AuthError('Your delivery account is pending admin approval.');
     }
 
     const payload = { userId: deliveryPartner._id.toString(), role: ROLES.DELIVERY_PARTNER };
@@ -162,7 +160,7 @@ export const verifyDeliveryOtpAndLogin = async (phone, otp) => {
         expiresAt
     });
 
-    return { accessToken, refreshToken, user: deliveryPartner, needsRegistration };
+    return { accessToken, refreshToken, user: deliveryPartner, needsRegistration: false };
 };
 
 export const logout = async (refreshToken) => {

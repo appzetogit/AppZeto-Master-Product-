@@ -90,3 +90,25 @@ export const updateDeliveryPartnerProfile = async (userId, payload, files) => {
     return partner.toObject();
 };
 
+export const listDeliveryPartnerJoinRequests = async ({ status = 'pending', search, vehicleType, page = 1, limit = 100 }) => {
+    const query = {};
+    if (status === 'pending' || status === 'denied') {
+        query.status = status === 'pending' ? 'pending' : 'rejected';
+    }
+    if (vehicleType) {
+        query.vehicleType = vehicleType.toLowerCase();
+    }
+    if (search) {
+        const regex = new RegExp(search, 'i');
+        query.$or = [{ name: regex }, { phone: regex }];
+    }
+
+    const skip = (Number(page) - 1) * Number(limit);
+    const [items, total] = await Promise.all([
+        ZomatoDeliveryPartner.find(query).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)).lean(),
+        ZomatoDeliveryPartner.countDocuments(query)
+    ]);
+
+    return { requests: items, total };
+};
+

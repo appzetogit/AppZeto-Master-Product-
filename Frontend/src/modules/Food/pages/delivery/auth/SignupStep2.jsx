@@ -355,20 +355,22 @@ export default function SignupStep2() {
     setIsSubmitting(true)
 
     try {
+      // New number (OTP ke baad pehli baar): DB me abhi partner nahi hai,
+      // is case me register hi call karna hai (no auth token needed).
       const response = isCompleteProfile
-        ? await deliveryAPI.completeProfile(formData)
-        : await deliveryAPI.register(formData)
+        ? await deliveryAPI.register(formData)
+        : await deliveryAPI.completeProfile(formData)
 
       if (response?.data?.success) {
         sessionStorage.removeItem("deliverySignupDetails")
         sessionStorage.removeItem("deliverySignupDocs")
         if (isCompleteProfile) {
           sessionStorage.removeItem("deliveryNeedsRegistration")
+          toast.success("Registration successful. Please login with OTP.")
+          setTimeout(() => navigate("/food/delivery/login", { replace: true }), 1500)
+        } else {
           toast.success("Profile submitted. Waiting for admin approval.")
           setTimeout(() => navigate("/food/delivery", { replace: true }), 1500)
-        } else {
-          toast.success("Registration successful. Sign in with your phone.")
-          setTimeout(() => navigate("/food/delivery/login", { replace: true }), 1500)
         }
       }
     } catch (error) {

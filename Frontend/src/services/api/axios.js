@@ -81,6 +81,14 @@ apiClient.interceptors.request.use(
   (config) => {
     if (!baseURL) return config;
     config.contextModule = getModuleFromConfig(config);
+
+    // If sending FormData, let the browser set proper multipart boundary.
+    if (config.data instanceof FormData) {
+      if (config.headers && config.headers["Content-Type"]) {
+        delete config.headers["Content-Type"];
+      }
+    }
+
     const token = getAccessToken(config);
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;

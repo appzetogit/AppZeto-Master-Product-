@@ -4,6 +4,7 @@ import { config } from './src/config/env.js';
 import { connectDB } from './src/config/db.js';
 import { connectRedis } from './src/config/redis.js';
 import { initSocket } from './src/config/socket.js';
+import { initializeQueues } from './src/queues/index.js';
 
 import { logger } from './src/utils/logger.js';
 
@@ -23,7 +24,12 @@ const startServer = async () => {
             await connectRedis();
         }
 
-        // 5. Start the HTTP server
+        // 5. Conditionally initialize BullMQ queues (only if BULLMQ_ENABLED=true). Workers run separately.
+        if (config.bullmqEnabled) {
+            initializeQueues();
+        }
+
+        // 6. Start the HTTP server
         const server = httpServer.listen(config.port, () => {
             logger.info(`Server running in ${config.nodeEnv} mode on port ${config.port}`);
             console.log(`🌐 [URL] http://localhost:${config.port}`);

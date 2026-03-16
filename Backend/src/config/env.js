@@ -45,6 +45,9 @@ export const config = {
     redisEnabled: process.env.REDIS_ENABLED === 'true',
     redisUrl: process.env.REDIS_URL,
 
+    // BullMQ
+    bullmqEnabled: process.env.BULLMQ_ENABLED === 'true',
+
     // Cloudinary
     cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME,
     cloudinaryApiKey: process.env.CLOUDINARY_API_KEY,

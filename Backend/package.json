@@ -7,12 +7,18 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "worker:otp": "node src/queues/workers/otp.worker.js",
+    "worker:notification": "node src/queues/workers/notification.worker.js",
+    "worker:order": "node src/queues/workers/order.worker.js",
+    "worker:payment": "node src/queues/workers/payment.worker.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "bullmq": "^5.34.5",
+    "ioredis": "^5.4.1",
     "bcryptjs": "^2.4.3",
     "cloudinary": "^1.41.3",
     "cors": "^2.8.5",

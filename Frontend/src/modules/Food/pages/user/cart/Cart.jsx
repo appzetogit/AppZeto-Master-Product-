@@ -1409,23 +1409,7 @@ export default function Cart() {
           apiBaseUrl: API_BASE_URL
         })
 
-        // Try to test backend connectivity
-        try {
-          fetch(backendUrl + '/health', { method: 'GET', signal: AbortSignal.timeout(5000) })
-            .then(response => {
-              if (response.ok) {
-                debugLog("? Backend health check passed - server is running")
-              } else {
-                debugWarn("?? Backend health check returned:", response.status)
-              }
-            })
-            .catch(fetchError => {
-              debugError("? Backend health check failed:", fetchError.message)
-              debugError("?? Make sure backend server is running at:", backendUrl)
-            })
-        } catch (fetchTestError) {
-          debugError("? Could not test backend connectivity:", fetchTestError.message)
-        }
+        // Backend disconnected - no health check (new backend in progress)
       }
       // Handle timeout errors
       else if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {

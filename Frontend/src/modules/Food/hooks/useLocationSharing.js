@@ -26,10 +26,12 @@ export const useLocationSharing = (orderId, enabled = false) => {
       '',
   );
 
-  const backendUrl = API_BASE_URL.replace('/api', '');
+  const backendUrl = API_BASE_URL ? API_BASE_URL.replace('/api', '') : '';
 
   const startSharing = () => {
     if (!orderId || isSharingRef.current) return;
+    // Backend disconnected - new backend in progress. Do not open Socket.
+    if (!API_BASE_URL || !backendUrl || !backendUrl.startsWith('http')) return;
 
     if (!socketRef.current) {
       socketRef.current = io(backendUrl, {

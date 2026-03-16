@@ -2784,30 +2784,11 @@ export default function DeliveryHome() {
                   
                   debugLog('? Route to restaurant initialized - polyline will update as delivery boy moves');
                 } else {
-                  // Fallback: Use backend route or OSRM
-                  debugLog('?? Directions API failed, using fallback...');
+                  // OSRM disabled - new backend in progress. Use straight line only.
+                  debugLog('?? Using straight line (no external routing API)');
                   if (!routeCoordinates || routeCoordinates.length === 0) {
-                    try {
-                      const url = `https://router.project-osrm.org/route/v1/driving/${currentLocation[1]},${currentLocation[0]};${restaurantInfo.lng},${restaurantInfo.lat}?overview=full&geometries=geojson`;
-                      const osrmResponse = await fetch(url);
-                      const osrmData = await osrmResponse.json();
-                      
-                      if (osrmData.code === 'Ok' && osrmData.routes && osrmData.routes.length > 0) {
-                        routeCoordinates = osrmData.routes[0].geometry.coordinates.map((coord) => [coord[1], coord[0]]);
-                        setRoutePolyline(routeCoordinates);
-                        debugLog('? Route calculated with OSRM:', routeCoordinates.length, 'points');
-                      } else {
-                        // Final fallback: straight line
-                        routeCoordinates = [currentLocation, [restaurantInfo.lat, restaurantInfo.lng]];
-                        setRoutePolyline(routeCoordinates);
-                        debugLog('?? Using straight line as fallback');
-                      }
-                    } catch (osrmError) {
-                      debugError('? Error calculating route with OSRM:', osrmError);
-                      // Final fallback: straight line
-                      routeCoordinates = [currentLocation, [restaurantInfo.lat, restaurantInfo.lng]];
-                      setRoutePolyline(routeCoordinates);
-                    }
+                    routeCoordinates = [currentLocation, [restaurantInfo.lat, restaurantInfo.lng]];
+                    setRoutePolyline(routeCoordinates);
                   }
                 }
               } catch (directionsError) {
@@ -2818,30 +2799,11 @@ export default function DeliveryHome() {
                   debugError('? Error calculating route with Directions API:', directionsError);
                 }
                 
-                // Fallback to OSRM or straight line
+                // OSRM disabled - new backend in progress. Use straight line only.
                 if (!routeCoordinates || routeCoordinates.length === 0) {
-                  try {
-                    // Try OSRM first
-                    const url = `https://router.project-osrm.org/route/v1/driving/${currentLocation[1]},${currentLocation[0]};${restaurantInfo.lng},${restaurantInfo.lat}?overview=full&geometries=geojson`;
-                    const osrmResponse = await fetch(url);
-                    const osrmData = await osrmResponse.json();
-                    
-                    if (osrmData.code === 'Ok' && osrmData.routes && osrmData.routes.length > 0) {
-                      routeCoordinates = osrmData.routes[0].geometry.coordinates.map((coord) => [coord[1], coord[0]]);
-                      setRoutePolyline(routeCoordinates);
-                      debugLog('? Route calculated with OSRM fallback:', routeCoordinates.length, 'points');
-                    } else {
-                      // Final fallback: straight line
-                      routeCoordinates = [currentLocation, [restaurantInfo.lat, restaurantInfo.lng]];
-                      setRoutePolyline(routeCoordinates);
-                      debugLog('?? Using straight line as final fallback');
-                    }
-                  } catch (osrmError) {
-                    debugWarn('?? OSRM fallback failed, using straight line');
-                    // Final fallback: straight line
-                    routeCoordinates = [currentLocation, [restaurantInfo.lat, restaurantInfo.lng]];
-                    setRoutePolyline(routeCoordinates);
-                  }
+                  routeCoordinates = [currentLocation, [restaurantInfo.lat, restaurantInfo.lng]];
+                  setRoutePolyline(routeCoordinates);
+                  debugLog('?? Using straight line (no external routing API)');
                 }
               }
             } else {

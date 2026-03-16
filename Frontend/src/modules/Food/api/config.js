@@ -15,11 +15,12 @@ const runtimeOrigin =
     ? window.location.origin
     : "";
 
-let rawApiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+// Backend disconnected - new backend being written from scratch. No outbound API calls.
+let rawApiBaseUrl = "";
 
-if (!rawApiBaseUrl) {
-  rawApiBaseUrl = "/api";
-}
+// Uncomment below and remove the line above when reconnecting to the new backend:
+// let rawApiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+// if (!rawApiBaseUrl) { rawApiBaseUrl = "/api"; }
 
 // In production/mobile WebView, localhost is unreachable from the device.
 if (
@@ -84,6 +85,8 @@ if (rawApiBaseUrl && typeof rawApiBaseUrl === "string") {
 
 export const API_BASE_URL = rawApiBaseUrl;
 
+// Skip URL validation when backend is disconnected
+if (rawApiBaseUrl) {
 // Validate URL format - catch malformed URLs like "https:/" or "https://https://"
 try {
   const urlObj = new URL(API_BASE_URL);
@@ -121,9 +124,10 @@ try {
     // Still invalid, keep original
   }
 }
+}
 
 // Validate API base URL
-if (API_BASE_URL.includes("5173")) {
+if (rawApiBaseUrl && API_BASE_URL.includes("5173")) {
   debugError(
     "❌ ERROR: API_BASE_URL is pointing to frontend port (5173) instead of backend port (5000)",
   );
@@ -136,8 +140,12 @@ if (API_BASE_URL.includes("5173")) {
 }
 
 // Log API base URL in both development and production for debugging
-debugLog("🌐 API Base URL:", API_BASE_URL);
-debugLog("🌐 Backend URL:", API_BASE_URL.replace("/api", ""));
+if (rawApiBaseUrl) {
+  debugLog("🌐 API Base URL:", API_BASE_URL);
+  debugLog("🌐 Backend URL:", API_BASE_URL.replace("/api", ""));
+} else {
+  debugLog("🌐 API Base URL: (disconnected - new backend in progress)");
+}
 debugLog("🌐 Frontend URL:", window.location.origin);
 debugLog("🌐 Environment:", import.meta.env.MODE);
 debugLog(
@@ -147,6 +155,7 @@ debugLog(
 
 // Warn if API_BASE_URL is localhost in production
 if (
+  rawApiBaseUrl &&
   import.meta.env.MODE === "production" &&
   API_BASE_URL.includes("localhost")
 ) {

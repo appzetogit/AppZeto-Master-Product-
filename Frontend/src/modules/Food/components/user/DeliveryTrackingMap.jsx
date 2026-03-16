@@ -16,6 +16,9 @@ const debugLog = () => {}
 const debugWarn = () => {}
 const debugError = () => {}
 
+// Disable Google Maps usage in customer app (no external Maps API calls)
+const MAPS_ENABLED = false
+
 
 // Helper function to calculate Haversine distance
 function calculateHaversineDistance(lat1, lng1, lat2, lng2) {
@@ -219,6 +222,7 @@ const DeliveryTrackingMap = ({
 
   // Load Google Maps API key from backend
   useEffect(() => {
+    if (!MAPS_ENABLED) return
     import('@food/utils/googleMapsApiKey.js').then(({ getGoogleMapsApiKey }) => {
       getGoogleMapsApiKey().then(key => {
         setGOOGLE_MAPS_API_KEY(key)
@@ -229,6 +233,7 @@ const DeliveryTrackingMap = ({
   // Draw route using Google Maps Directions API with live updates
   // OPTIMIZED: Added caching to reduce API calls
   const drawRoute = useCallback((start, end) => {
+    if (!MAPS_ENABLED) return;
     if (!ENABLE_GOOGLE_DIRECTIONS) return;
     if (!mapInstance.current || !directionsServiceRef.current || !directionsRendererRef.current) return;
 
@@ -1082,6 +1087,11 @@ const DeliveryTrackingMap = ({
     if (!mapRef.current || !restaurantCoords || !customerCoords || mapInitializedRef.current) return;
 
     const loadGoogleMapsIfNeeded = async () => {
+      if (!MAPS_ENABLED) {
+        // Maps disabled - skip loading Google Maps entirely
+        setIsMapLoaded(false);
+        return;
+      }
       // Wait for Google Maps to load from main.jsx first
       if (!window.google || !window.google.maps) {
         debugLog('? Waiting for Google Maps API to load...');

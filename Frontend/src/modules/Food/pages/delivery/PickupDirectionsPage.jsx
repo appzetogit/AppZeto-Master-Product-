@@ -112,25 +112,10 @@ export default function PickupDirectionsPage() {
         const routes = []
         let currentLocation = riderLocation
         
+        // OSRM disabled - new backend in progress. Use straight-line segments only.
         for (const restaurant of acceptedRestaurants) {
-          try {
-            const url = `https://router.project-osrm.org/route/v1/driving/${currentLocation[1]},${currentLocation[0]};${restaurant.lng},${restaurant.lat}?overview=full&geometries=geojson`
-            const response = await fetch(url)
-            const data = await response.json()
-            
-            if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-              const coordinates = data.routes[0].geometry.coordinates.map((coord) => [coord[1], coord[0]])
-              routes.push(coordinates)
-              currentLocation = [restaurant.lat, restaurant.lng]
-            } else {
-              routes.push([currentLocation, [restaurant.lat, restaurant.lng]])
-              currentLocation = [restaurant.lat, restaurant.lng]
-            }
-          } catch (error) {
-            debugError('Error fetching route:', error)
-            routes.push([currentLocation, [restaurant.lat, restaurant.lng]])
-            currentLocation = [restaurant.lat, restaurant.lng]
-          }
+          routes.push([currentLocation, [restaurant.lat, restaurant.lng]])
+          currentLocation = [restaurant.lat, restaurant.lng]
         }
         setRoutePolylines(routes)
       }

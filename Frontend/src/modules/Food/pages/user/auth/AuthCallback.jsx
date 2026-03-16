@@ -94,43 +94,9 @@ export default function AuthCallback() {
           return
         }
 
-        // In a real app, exchange code for tokens
-        // This is a simplified version
-        setStatus("loading")
-
-        // Simulate API call to exchange code for tokens
-        const response = await fetch("/api/auth/oauth/callback", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            code,
-            provider: providerParam,
-            state,
-          }),
-        })
-
-        if (!response.ok) {
-          throw new Error("Failed to authenticate")
-        }
-
-        const data = await response.json()
-
-        // Store auth tokens (in a real app, use secure storage)
-        if (data.token) {
-          localStorage.setItem("authToken", data.token)
-        }
-        if (data.user) {
-          localStorage.setItem("userProfile", JSON.stringify(data.user))
-        }
-
-        setStatus("success")
-
-        // Redirect to home
-        setTimeout(() => {
-          navigate("/user")
-        }, 1500)
+        // Backend disconnected - new backend in progress. OAuth callback disabled.
+        setStatus("error")
+        setError("OAuth is temporarily disabled. Backend is being rebuilt.")
       } catch (err) {
         setStatus("error")
         setError(

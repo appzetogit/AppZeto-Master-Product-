@@ -1,12 +1,21 @@
 import axios from 'axios';
 import { getModuleToken } from '../auth/auth.utils';
 
+// Backend disconnected - new backend in progress. No outbound requests.
 const axiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api',
+  baseURL: "",
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
   },
+  adapter: (config) =>
+    Promise.resolve({
+      data: { success: false, message: "API disabled" },
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      config,
+    }),
 });
 
 // Request interceptor for API calls

@@ -1148,33 +1148,30 @@ export default function DeliveryHome() {
       }
     }
 
-    // Fetch immediately on mount
-    fetchActiveEarningAddons()
-
-    // Refresh every 5 seconds to get latest offers
-    const refreshInterval = setInterval(() => {
-      fetchActiveEarningAddons()
-    }, 5000)
-
-    // Refresh when page becomes visible
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        fetchActiveEarningAddons()
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
-    // Also listen for focus events for instant refresh
-    const handleFocus = () => {
-      fetchActiveEarningAddons()
-    }
-    window.addEventListener('focus', handleFocus)
-
-    return () => {
-      clearInterval(refreshInterval)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('focus', handleFocus)
-    }
+    // Disabled while backend is not ready
+    // fetchActiveEarningAddons()
+    //
+    // const refreshInterval = setInterval(() => {
+    //   fetchActiveEarningAddons()
+    // }, 5000)
+    //
+    // const handleVisibilityChange = () => {
+    //   if (!document.hidden) {
+    //     fetchActiveEarningAddons()
+    //   }
+    // }
+    // document.addEventListener('visibilitychange', handleVisibilityChange)
+    //
+    // const handleFocus = () => {
+    //     fetchActiveEarningAddons()
+    // }
+    // window.addEventListener('focus', handleFocus)
+    //
+    // return () => {
+    //   clearInterval(refreshInterval)
+    //   document.removeEventListener('visibilitychange', handleVisibilityChange)
+    //   window.removeEventListener('focus', handleFocus)
+    // }
   }, [])
 
   // Calculate bonus earnings from earning_addon transactions (only for active offer)

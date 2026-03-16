@@ -433,8 +433,12 @@ export const useDeliveryNotifications = () => {
     fetchDeliveryPartnerId();
   }, []);
 
-  // Socket connection effect
+  // Socket connection effect (no backend when API_BASE_URL is empty)
   useEffect(() => {
+    if (!API_BASE_URL || !String(API_BASE_URL).trim()) {
+      setIsConnected(false);
+      return;
+    }
     if (!deliveryPartnerId) {
       debugLog('? Waiting for deliveryPartnerId...');
       return;
@@ -483,17 +487,14 @@ export const useDeliveryNotifications = () => {
     debugLog('?? Backend URL:', backendUrl);
     debugLog('?? API_BASE_URL:', API_BASE_URL);
     debugLog('?? Delivery Partner ID:', deliveryPartnerId);
-    debugLog('?? Environment:', import.meta.env.MODE);
+    debugLog('?? Environment: (ui-only mode)');
     
     // Warn if trying to connect to localhost in production
-    if (import.meta.env.MODE === 'production' && backendUrl.includes('localhost')) {
+    if (backendUrl.includes('localhost')) {
       debugError('? CRITICAL: Trying to connect Socket.IO to localhost in production!');
-      debugError('?? This means VITE_API_BASE_URL was not set during build time');
       debugError('?? Current socketUrl:', socketUrl);
       debugError('?? Current API_BASE_URL:', API_BASE_URL);
-      debugError('?? Fix: Rebuild frontend with: VITE_API_BASE_URL=https://your-backend-domain.com/api npm run build');
-      debugError('?? Note: Vite environment variables are embedded at BUILD TIME, not runtime');
-      debugError('?? You must rebuild and redeploy the frontend with correct VITE_API_BASE_URL');
+      debugError('?? Backend URL config is disabled in this build.');
       
       // Don't try to connect to localhost in production - it will fail
       setIsConnected(false);

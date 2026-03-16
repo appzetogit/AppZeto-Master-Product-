@@ -215,60 +215,7 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
     return location?.city || location?.area || "Detecting location..."
   })()
 
-  // Global error suppression for Ola Maps SDK errors (runs on component mount)
-  useEffect(() => {
-    // Suppress console errors for non-critical Ola Maps SDK errors
-    const originalConsoleError = console.error
-    const errorSuppressor = (...args) => {
-      const errorStr = args.join(' ')
-      // Suppress AbortError and sprite file errors from Ola Maps SDK
-      if (errorStr.includes('AbortError') ||
-        errorStr.includes('user aborted') ||
-        errorStr.includes('sprite@2x.json') ||
-        errorStr.includes('3d_model') ||
-        (errorStr.includes('Source layer') && errorStr.includes('does not exist')) ||
-        (errorStr.includes('AJAXError') && errorStr.includes('sprite')) ||
-        (errorStr.includes('AJAXError') && errorStr.includes('olamaps.io'))) {
-        // Silently ignore these non-critical errors
-        return
-      }
-      // Log other errors normally
-      originalConsoleError.apply(console, args)
-    }
-
-    // Replace console.error globally
-    console.error = errorSuppressor
-
-    // Handle unhandled promise rejections
-    const unhandledRejectionHandler = (event) => {
-      const error = event.reason || event
-      const errorMsg = error?.message || String(error) || ''
-      const errorName = error?.name || ''
-      const errorStack = error?.stack || ''
-
-      // Suppress non-critical errors from Ola Maps SDK
-      if (errorName === 'AbortError' ||
-        errorMsg.includes('AbortError') ||
-        errorMsg.includes('user aborted') ||
-        errorMsg.includes('3d_model') ||
-        (errorMsg.includes('Source layer') && errorMsg.includes('does not exist')) ||
-        (errorMsg.includes('AJAXError') && (errorMsg.includes('sprite') || errorMsg.includes('olamaps.io'))) ||
-        errorStack.includes('olamaps-web-sdk')) {
-        event.preventDefault() // Prevent error from showing in console
-        return
-      }
-    }
-
-    window.addEventListener('unhandledrejection', unhandledRejectionHandler)
-
-    // Cleanup
-    return () => {
-      // Restore original console.error
-      console.error = originalConsoleError
-      // Remove event listener
-      window.removeEventListener('unhandledrejection', unhandledRejectionHandler)
-    }
-  }, []) // Run once on mount
+  // No global console overrides; Ola Maps SDK errors will appear in dev tools if they occur.
 
   // Initialize map position from current location and update blue dot
   useEffect(() => {

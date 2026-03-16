@@ -32,8 +32,6 @@ export const useDiningData = (location) => {
       if (hero.data?.success && hero.data.data.banners?.length > 0) {
         setDiningHeroBanner(hero.data.data.banners[0]);
       }
-    } catch (err) {
-      console.error("Failed to fetch dining data", err);
     } finally {
       setLoading(false);
     }

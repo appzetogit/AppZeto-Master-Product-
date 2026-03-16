@@ -76,8 +76,6 @@ export const useHomeData = (location, zoneId) => {
         });
         setRestaurantsData(transformed);
       }
-    } catch (err) {
-      console.error("Failed to fetch restaurants", err);
     } finally {
       setLoadingRestaurants(false);
     }

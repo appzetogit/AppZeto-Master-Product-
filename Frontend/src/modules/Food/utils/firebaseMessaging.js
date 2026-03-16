@@ -641,7 +641,7 @@ export async function registerWebPushForCurrentModule(pathname = window.location
   if (registrationInFlight) return registrationInFlight;
 
   registrationInFlight = (async () => {
-    const firebasePublicEnv = await getFirebasePublicEnv();
+      const firebasePublicEnv = await getFirebasePublicEnv();
     if (!firebasePublicEnv?.vapidKey) {
       console.warn("FCM web registration skipped: FIREBASE_VAPID_KEY is missing in env setup.");
       return;
@@ -692,9 +692,7 @@ export async function registerWebPushForCurrentModule(pathname = window.location
     setSavedToken(moduleName, token);
     await attachForegroundListener(app);
   })()
-    .catch((error) => {
-      console.warn("FCM web token registration failed:", error?.message || error);
-    })
+    .catch(() => {})
     .finally(() => {
       registrationInFlight = null;
     });

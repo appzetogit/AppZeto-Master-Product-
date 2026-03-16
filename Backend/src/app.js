@@ -8,11 +8,36 @@ import routes from './routes/index.js';
 import errorHandler from './middleware/errorHandler.js';
 import { apiRateLimiter } from './middleware/rateLimit.js';
 import { responseTimeLogger } from './middleware/responseTimeLogger.js';
+import { requestIdMiddleware } from './middleware/requestId.js';
+import { healthCheck } from './config/health.js';
+import { config } from './config/env.js';
 
 const app = express();
 
+// Request ID tracing (before other middlewares so all logs can use it)
+app.use(requestIdMiddleware);
+
+// Health endpoints (no rate limit, minimal JSON, no secrets)
+app.get('/health', async (_req, res) => {
+    try {
+        const data = await healthCheck();
+        res.status(200).json(data);
+    } catch (err) {
+        res.status(503).json({ status: 'DOWN', error: 'Health check failed' });
+    }
+});
+app.get('/ready', (_req, res) => {
+    res.status(200).json({ status: 'ready' });
+});
+
 // Security & parsing middlewares
-app.use(helmet());
+app.use(helmet({
+    contentSecurityPolicy: { directives: { defaultSrc: ["'self'"] } },
+    hsts: config.nodeEnv === 'production' ? { maxAge: 31536000, includeSubDomains: true, preload: true } : false,
+    xssFilter: true,
+    noSniff: true,
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
+}));
 app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());

@@ -61,3 +61,15 @@ export const connectRedis = async () => {
 export const getRedisClient = () => {
     return redisClient;
 };
+
+/**
+ * Close Redis connection (e.g. graceful shutdown).
+ * @returns {Promise<void>}
+ */
+export const closeRedis = async () => {
+    if (redisClient) {
+        await redisClient.quit();
+        redisClient = null;
+        logger.info('Redis connection closed');
+    }
+};

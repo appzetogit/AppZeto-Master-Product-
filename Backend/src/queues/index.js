@@ -102,5 +102,26 @@ export const getNotificationQueue = () => getQueue(NOTIFICATION_QUEUE);
 export const getOrderQueue = () => getQueue(ORDER_QUEUE);
 export const getPaymentQueue = () => getQueue(PAYMENT_QUEUE);
 
+/**
+ * Get job counts per queue for admin observability. Returns [] if BullMQ disabled.
+ * @returns {Promise<Array<{ name: string, waiting: number, active: number, completed: number, failed: number }>>}
+ */
+export const getQueueStats = async () => {
+    if (!config.bullmqEnabled) return [];
+    const stats = [];
+    for (const name of QUEUE_NAMES) {
+        const queue = getQueue(name);
+        if (!queue) continue;
+        try {
+            const counts = await queue.getJobCounts();
+            stats.push({ name, ...counts });
+        } catch (err) {
+            logger.error(`Queue ${name} getJobCounts failed: ${err.message}`);
+            stats.push({ name, waiting: 0, active: 0, completed: 0, failed: 0, error: err.message });
+        }
+    }
+    return stats;
+};
+
 export { OTP_QUEUE, NOTIFICATION_QUEUE, ORDER_QUEUE, PAYMENT_QUEUE, QUEUE_NAMES } from './queue.constants.js';
 export { getBullMQConnection, closeBullMQConnection } from './connection.js';

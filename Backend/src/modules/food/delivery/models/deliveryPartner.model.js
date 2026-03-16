@@ -13,6 +13,7 @@ const deliveryPartnerSchema = new mongoose.Schema(
             trim: true,
             unique: true
         },
+        email: { type: String, trim: true },
         countryCode: {
             type: String,
             default: '+91'
@@ -58,8 +59,22 @@ const deliveryPartnerSchema = new mongoose.Schema(
         status: {
             type: String,
             enum: ['pending', 'approved', 'rejected'],
-            default: 'approved'
-        }
+            default: 'pending'
+        },
+        rejectionReason: { type: String },
+        rejectedAt: { type: Date },
+        approvedAt: { type: Date },
+        bankAccountHolderName: { type: String },
+        bankAccountNumber: { type: String },
+        bankIfscCode: { type: String },
+        bankName: { type: String },
+        availabilityStatus: {
+            type: String,
+            enum: ['online', 'offline'],
+            default: 'offline'
+        },
+        lastLat: { type: Number },
+        lastLng: { type: Number }
     },
     {
         collection: 'food_delivery_partners',

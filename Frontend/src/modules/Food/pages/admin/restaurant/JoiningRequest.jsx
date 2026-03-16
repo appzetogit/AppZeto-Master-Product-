@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useRef } from "react"
 import { 
   Search, Filter, Eye, Check, X, UtensilsCrossed, ArrowUpDown, Loader2,
   FileText, Image as ImageIcon, ExternalLink, CreditCard, Calendar, Star, Building2, User, Phone, Mail, MapPin, Clock
@@ -31,20 +31,23 @@ export default function JoiningRequest() {
     dateTo: ""
   })
 
+  // Track first render to avoid duplicate fetch in React StrictMode
+  const hasFetchedOnceRef = useRef(false)
+
   // Fetch restaurant join requests
   useEffect(() => {
-    fetchRequests()
-  }, [activeTab])
-
-  // Debounced search effect
-  useEffect(() => {
-    const timer = setTimeout(() => {
+    // On first render, fetch once for initial tab (usually "pending")
+    if (!hasFetchedOnceRef.current) {
+      hasFetchedOnceRef.current = true
       fetchRequests()
-    }, 500) // Wait 500ms after user stops typing
+      return
+    }
 
-    return () => clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery])
+    // On subsequent tab changes, refetch only when switching away from "pending"
+    if (activeTab !== "pending") {
+      fetchRequests()
+    }
+  }, [activeTab])
 
   const fetchRequests = async () => {
     try {
@@ -404,13 +407,17 @@ export default function JoiningRequest() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 flex items-center justify-center flex-shrink-0">
+                          <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 flex items-center justify-center shrink-0">
                             <img
-                              src={request.restaurantImage}
-                              alt={request.restaurantName}
+                              src={
+                                typeof request.profileImage === "string"
+                                  ? request.profileImage
+                                  : (request.profileImage?.url || request.profileImageUrl?.url || request.restaurantImage) || "https://via.placeholder.com/40?text=" + (request.restaurantName?.slice(0, 2) || "R").toUpperCase()
+                              }
+                              alt={request.restaurantName || "Restaurant"}
                               className="w-full h-full object-cover"
                               onError={(e) => {
-                                e.target.src = "https://via.placeholder.com/40"
+                                e.target.src = "https://via.placeholder.com/40?text=" + (request.restaurantName?.slice(0, 2) || "R").toUpperCase()
                               }}
                             />
                           </div>
@@ -675,14 +682,37 @@ export default function JoiningRequest() {
                   <span className="ml-3 text-slate-600">Loading details...</span>
                 </div>
               )}
-              {!loadingDetails && (restaurantDetails || selectedRequest) && (
+              {!loadingDetails && (restaurantDetails || selectedRequest) && (() => {
+                const r = restaurantDetails || selectedRequest
+                const profileImgUrl = typeof r?.profileImage === "string" ? r.profileImage : (r?.profileImage?.url || r?.profileImageUrl?.url || r?.restaurantImage)
+                const addressParts = [
+                  r?.addressLine1,
+                  r?.addressLine2,
+                  r?.area,
+                  r?.city,
+                  r?.landmark,
+                  r?.location?.addressLine1,
+                  r?.location?.addressLine2,
+                  r?.location?.area,
+                  r?.location?.city,
+                  r?.onboarding?.step1?.location?.addressLine1,
+                  r?.onboarding?.step1?.location?.area,
+                  r?.onboarding?.step1?.location?.city
+                ].filter(Boolean)
+                const hasAddress = addressParts.length > 0 || r?.location || r?.onboarding?.step1?.location
+                const openingTime = r?.openingTime || r?.deliveryTimings?.openingTime || r?.onboarding?.step2?.deliveryTimings?.openingTime
+                const closingTime = r?.closingTime || r?.deliveryTimings?.closingTime || r?.onboarding?.step2?.deliveryTimings?.closingTime
+                const approvalStatus = r?.status || (r?.isActive !== false ? "approved" : "pending")
+                const hasFlatDocs = r?.panNumber || r?.panImage || r?.fssaiNumber || r?.accountNumber
+                const menuImgList = Array.isArray(r?.menuImages) ? r.menuImages : (r?.onboarding?.step2?.menuImageUrls || [])
+                return (
                 <div className="space-y-6">
                   {/* Restaurant Basic Info */}
                   <div className="flex items-start gap-6 pb-6 border-b border-slate-200">
-                    <div className="w-24 h-24 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
+                    <div className="w-24 h-24 rounded-lg overflow-hidden bg-slate-100 shrink-0">
                       <img
-                        src={restaurantDetails?.profileImage?.url || restaurantDetails?.profileImageUrl?.url || selectedRequest?.restaurantImage || "https://via.placeholder.com/96"}
-                        alt={restaurantDetails?.name || selectedRequest?.restaurantName || "Restaurant"}
+                        src={profileImgUrl || "https://via.placeholder.com/96"}
+                        alt={r?.restaurantName || r?.name || "Restaurant"}
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           e.target.src = "https://via.placeholder.com/96"
@@ -691,26 +721,26 @@ export default function JoiningRequest() {
                     </div>
                     <div className="flex-1">
                       <h3 className="text-2xl font-bold text-slate-900 mb-2">
-                        {restaurantDetails?.name || selectedRequest?.restaurantName || "N/A"}
+                        {r?.restaurantName || r?.name || "N/A"}
                       </h3>
                       <div className="flex items-center gap-4 flex-wrap">
-                        {restaurantDetails?.rating && (
+                        {r?.rating != null && (
                           <div className="flex items-center gap-1">
                             <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
                             <span className="text-sm font-medium text-slate-700">
-                              {restaurantDetails.rating.toFixed(1)} ({restaurantDetails.totalRatings || 0} reviews)
+                              {Number(r.rating).toFixed(1)} ({(r.totalRatings || 0)} reviews)
                             </span>
                           </div>
                         )}
                         <div className="flex items-center gap-1 text-slate-600">
                           <Building2 className="w-4 h-4" />
-                          <span className="text-sm">{restaurantDetails?.restaurantId || restaurantDetails?._id || selectedRequest?._id || "N/A"}</span>
+                          <span className="text-sm">{r?.restaurantId || r?._id || "N/A"}</span>
                         </div>
-                        <div className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          restaurantDetails?.isActive !== false ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                          approvalStatus === "approved" ? "bg-green-100 text-green-700" : approvalStatus === "rejected" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"
                         }`}>
-                          {restaurantDetails?.isActive !== false ? "Active" : "Pending Approval"}
-                        </div>
+                          {approvalStatus === "approved" ? "Approved" : approvalStatus === "rejected" ? "Rejected" : "Pending Approval"}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -724,26 +754,22 @@ export default function JoiningRequest() {
                           <User className="w-5 h-5 text-slate-400" />
                           <div>
                             <p className="text-xs text-slate-500">Owner Name</p>
-                            <p className="text-sm font-medium text-slate-900">
-                              {restaurantDetails?.ownerName || selectedRequest?.ownerName || "N/A"}
-                            </p>
+                            <p className="text-sm font-medium text-slate-900">{r?.ownerName || "N/A"}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
                           <Phone className="w-5 h-5 text-slate-400" />
                           <div>
                             <p className="text-xs text-slate-500">Phone</p>
-                            <p className="text-sm font-medium text-slate-900">
-                              {restaurantDetails?.ownerPhone || restaurantDetails?.phone || selectedRequest?.ownerPhone || "N/A"}
-                            </p>
+                            <p className="text-sm font-medium text-slate-900">{r?.ownerPhone || r?.phone || "N/A"}</p>
                           </div>
                         </div>
-                        {(restaurantDetails?.ownerEmail || restaurantDetails?.email) && (
+                        {(r?.ownerEmail || r?.email) && (
                           <div className="flex items-center gap-3">
                             <Mail className="w-5 h-5 text-slate-400" />
                             <div>
                               <p className="text-xs text-slate-500">Email</p>
-                              <p className="text-sm font-medium text-slate-900">{restaurantDetails.ownerEmail || restaurantDetails.email}</p>
+                              <p className="text-sm font-medium text-slate-900">{r.ownerEmail || r.email}</p>
                             </div>
                           </div>
                         )}
@@ -754,29 +780,29 @@ export default function JoiningRequest() {
                     <div>
                       <h4 className="text-lg font-semibold text-slate-900 mb-4">Location & Contact</h4>
                       <div className="space-y-3">
-                        {(restaurantDetails?.location || restaurantDetails?.onboarding?.step1?.location) && (
+                        {(hasAddress || r?.zone) && (
                           <div className="flex items-start gap-3">
-                            <MapPin className="w-5 h-5 text-slate-400 mt-0.5" />
+                            <MapPin className="w-5 h-5 text-slate-400 mt-0.5 shrink-0" />
                             <div>
                               <p className="text-xs text-slate-500">Address</p>
                               <p className="text-sm font-medium text-slate-900">
-                                {restaurantDetails.location?.addressLine1 || restaurantDetails.onboarding?.step1?.location?.addressLine1 || ""}
-                                {restaurantDetails.location?.addressLine2 && `, ${restaurantDetails.location.addressLine2}`}
-                                {restaurantDetails.location?.area && `, ${restaurantDetails.location.area}`}
-                                {restaurantDetails.location?.city && `, ${restaurantDetails.location.city}`}
-                                {restaurantDetails.onboarding?.step1?.location?.area && `, ${restaurantDetails.onboarding.step1.location.area}`}
-                                {restaurantDetails.onboarding?.step1?.location?.city && `, ${restaurantDetails.onboarding.step1.location.city}`}
-                                {selectedRequest?.zone && !restaurantDetails?.location && !restaurantDetails?.onboarding?.step1?.location && selectedRequest.zone}
+                                {addressParts.length > 0
+                                  ? [r.addressLine1, r.addressLine2, r.area, r.city, r.landmark].filter(Boolean).join(", ")
+                                  : r?.location?.addressLine1
+                                    ? [r.location.addressLine1, r.location.addressLine2, r.location.area, r.location.city].filter(Boolean).join(", ")
+                                    : r?.onboarding?.step1?.location
+                                      ? [r.onboarding.step1.location.addressLine1, r.onboarding.step1.location.addressLine2, r.onboarding.step1.location.area, r.onboarding.step1.location.city].filter(Boolean).join(", ")
+                                      : r?.zone || "—"}
                               </p>
                             </div>
                           </div>
                         )}
-                        {(restaurantDetails?.primaryContactNumber || restaurantDetails?.phone) && (
+                        {(r?.primaryContactNumber || r?.phone) && (
                           <div className="flex items-center gap-3">
                             <Phone className="w-5 h-5 text-slate-400" />
                             <div>
                               <p className="text-xs text-slate-500">Primary Contact</p>
-                              <p className="text-sm font-medium text-slate-900">{restaurantDetails.primaryContactNumber || restaurantDetails.phone}</p>
+                              <p className="text-sm font-medium text-slate-900">{r.primaryContactNumber || r.phone}</p>
                             </div>
                           </div>
                         )}
@@ -792,8 +818,8 @@ export default function JoiningRequest() {
                         <div>
                           <p className="text-xs text-slate-500 mb-1">Cuisines</p>
                           <div className="flex flex-wrap gap-2">
-                            {restaurantDetails?.cuisines && Array.isArray(restaurantDetails.cuisines) && restaurantDetails.cuisines.length > 0 ? (
-                              restaurantDetails.cuisines.map((cuisine, idx) => (
+                            {r?.cuisines && Array.isArray(r.cuisines) && r.cuisines.length > 0 ? (
+                              r.cuisines.map((cuisine, idx) => (
                                 <span key={idx} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
                                   {cuisine}
                                 </span>
@@ -803,19 +829,17 @@ export default function JoiningRequest() {
                             )}
                           </div>
                         </div>
-                        {restaurantDetails?.offer && (
+                        {r?.offer && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Current Offer</p>
-                            <p className="text-sm font-medium text-green-600">{restaurantDetails.offer}</p>
+                            <p className="text-sm font-medium text-green-600">{r.offer}</p>
                           </div>
                         )}
-                        {restaurantDetails?.featuredDish && (
+                        {r?.featuredDish && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Featured Dish</p>
-                            <p className="text-sm font-medium text-slate-900">{restaurantDetails.featuredDish}</p>
-                            {restaurantDetails.featuredPrice && (
-                              <p className="text-xs text-green-600 mt-1">?{restaurantDetails.featuredPrice}</p>
-                            )}
+                            <p className="text-sm font-medium text-slate-900">{r.featuredDish}</p>
+                            {r.featuredPrice != null && <p className="text-xs text-green-600 mt-1">₹{r.featuredPrice}</p>}
                           </div>
                         )}
                       </div>
@@ -824,28 +848,28 @@ export default function JoiningRequest() {
                     <div>
                       <h4 className="text-lg font-semibold text-slate-900 mb-4">Timings & Status</h4>
                       <div className="space-y-3">
-                        {(restaurantDetails?.deliveryTimings || restaurantDetails?.onboarding?.step2?.deliveryTimings) && (
+                        {(openingTime || closingTime) && (
                           <div className="flex items-center gap-3">
                             <Clock className="w-5 h-5 text-slate-400" />
                             <div>
-                              <p className="text-xs text-slate-500">Delivery Timings</p>
+                              <p className="text-xs text-slate-500">Opening / Closing</p>
                               <p className="text-sm font-medium text-slate-900">
-                                {restaurantDetails.deliveryTimings?.openingTime || restaurantDetails.onboarding?.step2?.deliveryTimings?.openingTime || "N/A"} - {restaurantDetails.deliveryTimings?.closingTime || restaurantDetails.onboarding?.step2?.deliveryTimings?.closingTime || "N/A"}
+                                {openingTime || "—"} – {closingTime || "—"}
                               </p>
                             </div>
                           </div>
                         )}
-                        {(restaurantDetails?.estimatedDeliveryTime || restaurantDetails?.onboarding?.step4?.estimatedDeliveryTime) && (
+                        {r?.estimatedDeliveryTime && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Estimated Delivery Time</p>
-                            <p className="text-sm font-medium text-slate-900">{restaurantDetails.estimatedDeliveryTime || restaurantDetails.onboarding?.step4?.estimatedDeliveryTime}</p>
+                            <p className="text-sm font-medium text-slate-900">{r.estimatedDeliveryTime}</p>
                           </div>
                         )}
-                        {restaurantDetails?.openDays && Array.isArray(restaurantDetails.openDays) && restaurantDetails.openDays.length > 0 && (
+                        {r?.openDays && Array.isArray(r.openDays) && r.openDays.length > 0 && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Open Days</p>
                             <div className="flex flex-wrap gap-2">
-                              {restaurantDetails.openDays.map((day, idx) => (
+                              {r.openDays.map((day, idx) => (
                                 <span key={idx} className="px-2 py-1 bg-slate-100 text-slate-700 rounded text-xs font-medium capitalize">
                                   {day}
                                 </span>
@@ -854,47 +878,47 @@ export default function JoiningRequest() {
                           </div>
                         )}
                         <div>
-                          <p className="text-xs text-slate-500 mb-1">Status</p>
+                          <p className="text-xs text-slate-500 mb-1">Approval Status</p>
                           <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                            restaurantDetails?.isActive !== false ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
+                            approvalStatus === "approved" ? "bg-green-100 text-green-700" : approvalStatus === "rejected" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"
                           }`}>
-                            {restaurantDetails?.isActive !== false ? "Active" : "Pending Approval"}
+                            {approvalStatus === "approved" ? "Approved" : approvalStatus === "rejected" ? "Rejected" : "Pending"}
                           </span>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Registration Documents - PAN, GST, FSSAI, Bank */}
-                  {restaurantDetails?.onboarding?.step3 && (
+                  {/* Registration Documents – flat schema (PAN, GST, FSSAI, Bank) */}
+                  {(hasFlatDocs || r?.onboarding?.step3) && (
                     <div className="pt-6 border-t border-slate-200">
                       <h4 className="text-lg font-semibold text-slate-900 mb-4">Registration Documents</h4>
                       <div className="space-y-6">
-                        {/* PAN Details */}
-                        {restaurantDetails.onboarding.step3.pan && (
+                        {/* PAN – flat: panNumber, nameOnPan, panImage */}
+                        {(r.panNumber || r.panImage || r?.onboarding?.step3?.pan) && (
                           <div className="bg-slate-50 rounded-lg p-4">
                             <h5 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
                               <FileText className="w-4 h-4" />
                               PAN Details
                             </h5>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                              {restaurantDetails.onboarding.step3.pan.panNumber && (
+                              {(r.panNumber || r?.onboarding?.step3?.pan?.panNumber) && (
                                 <div>
                                   <p className="text-xs text-slate-500 mb-1">PAN Number</p>
-                                  <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step3.pan.panNumber}</p>
+                                  <p className="font-medium text-slate-900">{r.panNumber || r.onboarding?.step3?.pan?.panNumber}</p>
                                 </div>
                               )}
-                              {restaurantDetails.onboarding.step3.pan.nameOnPan && (
+                              {(r.nameOnPan || r?.onboarding?.step3?.pan?.nameOnPan) && (
                                 <div>
                                   <p className="text-xs text-slate-500 mb-1">Name on PAN</p>
-                                  <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step3.pan.nameOnPan}</p>
+                                  <p className="font-medium text-slate-900">{r.nameOnPan || r.onboarding?.step3?.pan?.nameOnPan}</p>
                                 </div>
                               )}
-                              {restaurantDetails.onboarding.step3.pan.image?.url && (
+                              {(typeof r.panImage === "string" ? r.panImage : r?.panImage?.url || r?.onboarding?.step3?.pan?.image?.url) && (
                                 <div className="md:col-span-2">
                                   <p className="text-xs text-slate-500 mb-2">PAN Document</p>
                                   <a
-                                    href={restaurantDetails.onboarding.step3.pan.image.url}
+                                    href={typeof r.panImage === "string" ? r.panImage : (r.panImage?.url || r.onboarding?.step3?.pan?.image?.url)}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700"
@@ -909,8 +933,8 @@ export default function JoiningRequest() {
                           </div>
                         )}
 
-                        {/* GST Details */}
-                        {restaurantDetails.onboarding.step3.gst && (
+                        {/* GST – flat: gstRegistered, gstNumber, gstLegalName, gstAddress, gstImage */}
+                        {(r.gstRegistered != null || r.gstNumber || r?.onboarding?.step3?.gst) && (
                           <div className="bg-slate-50 rounded-lg p-4">
                             <h5 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
                               <FileText className="w-4 h-4" />
@@ -920,32 +944,32 @@ export default function JoiningRequest() {
                               <div>
                                 <p className="text-xs text-slate-500 mb-1">GST Registered</p>
                                 <p className="font-medium text-slate-900">
-                                  {restaurantDetails.onboarding.step3.gst.isRegistered ? "Yes" : "No"}
+                                  {r.gstRegistered != null ? (r.gstRegistered ? "Yes" : "No") : (r?.onboarding?.step3?.gst?.isRegistered ? "Yes" : "No")}
                                 </p>
                               </div>
-                              {restaurantDetails.onboarding.step3.gst.gstNumber && (
+                              {(r.gstNumber || r?.onboarding?.step3?.gst?.gstNumber) && (
                                 <div>
                                   <p className="text-xs text-slate-500 mb-1">GST Number</p>
-                                  <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step3.gst.gstNumber}</p>
+                                  <p className="font-medium text-slate-900">{r.gstNumber || r.onboarding?.step3?.gst?.gstNumber}</p>
                                 </div>
                               )}
-                              {restaurantDetails.onboarding.step3.gst.legalName && (
+                              {(r.gstLegalName || r?.onboarding?.step3?.gst?.legalName) && (
                                 <div>
                                   <p className="text-xs text-slate-500 mb-1">Legal Name</p>
-                                  <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step3.gst.legalName}</p>
+                                  <p className="font-medium text-slate-900">{r.gstLegalName || r.onboarding?.step3?.gst?.legalName}</p>
                                 </div>
                               )}
-                              {restaurantDetails.onboarding.step3.gst.address && (
+                              {(r.gstAddress || r?.onboarding?.step3?.gst?.address) && (
                                 <div className="md:col-span-2">
                                   <p className="text-xs text-slate-500 mb-1">GST Address</p>
-                                  <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step3.gst.address}</p>
+                                  <p className="font-medium text-slate-900">{r.gstAddress || r.onboarding?.step3?.gst?.address}</p>
                                 </div>
                               )}
-                              {restaurantDetails.onboarding.step3.gst.image?.url && (
+                              {(typeof r.gstImage === "string" ? r.gstImage : r?.gstImage?.url || r?.onboarding?.step3?.gst?.image?.url) && (
                                 <div className="md:col-span-2">
                                   <p className="text-xs text-slate-500 mb-2">GST Document</p>
                                   <a
-                                    href={restaurantDetails.onboarding.step3.gst.image.url}
+                                    href={typeof r.gstImage === "string" ? r.gstImage : (r.gstImage?.url || r.onboarding?.step3?.gst?.image?.url)}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700"
@@ -960,25 +984,25 @@ export default function JoiningRequest() {
                           </div>
                         )}
 
-                        {/* FSSAI Details */}
-                        {restaurantDetails.onboarding.step3.fssai && (
+                        {/* FSSAI – flat: fssaiNumber, fssaiExpiry, fssaiImage */}
+                        {(r.fssaiNumber || r.fssaiExpiry || r?.onboarding?.step3?.fssai) && (
                           <div className="bg-slate-50 rounded-lg p-4">
                             <h5 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
                               <FileText className="w-4 h-4" />
                               FSSAI Details
                             </h5>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                              {restaurantDetails.onboarding.step3.fssai.registrationNumber && (
+                              {(r.fssaiNumber || r?.onboarding?.step3?.fssai?.registrationNumber) && (
                                 <div>
                                   <p className="text-xs text-slate-500 mb-1">FSSAI Registration Number</p>
-                                  <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step3.fssai.registrationNumber}</p>
+                                  <p className="font-medium text-slate-900">{r.fssaiNumber || r.onboarding?.step3?.fssai?.registrationNumber}</p>
                                 </div>
                               )}
-                              {restaurantDetails.onboarding.step3.fssai.expiryDate && (
+                              {(r.fssaiExpiry || r?.onboarding?.step3?.fssai?.expiryDate) && (
                                 <div>
                                   <p className="text-xs text-slate-500 mb-1">FSSAI Expiry Date</p>
                                   <p className="font-medium text-slate-900">
-                                    {new Date(restaurantDetails.onboarding.step3.fssai.expiryDate).toLocaleDateString('en-IN', {
+                                    {new Date(r.fssaiExpiry || r.onboarding?.step3?.fssai?.expiryDate).toLocaleDateString('en-IN', {
                                       year: 'numeric',
                                       month: 'long',
                                       day: 'numeric'
@@ -986,11 +1010,11 @@ export default function JoiningRequest() {
                                   </p>
                                 </div>
                               )}
-                              {restaurantDetails.onboarding.step3.fssai.image?.url && (
+                              {(typeof r.fssaiImage === "string" ? r.fssaiImage : r?.fssaiImage?.url || r?.onboarding?.step3?.fssai?.image?.url) && (
                                 <div className="md:col-span-2">
                                   <p className="text-xs text-slate-500 mb-2">FSSAI Document</p>
                                   <a
-                                    href={restaurantDetails.onboarding.step3.fssai.image.url}
+                                    href={typeof r.fssaiImage === "string" ? r.fssaiImage : (r.fssaiImage?.url || r.onboarding?.step3?.fssai?.image?.url)}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700"
@@ -1005,38 +1029,36 @@ export default function JoiningRequest() {
                           </div>
                         )}
 
-                        {/* Bank Details */}
-                        {restaurantDetails.onboarding.step3.bank && (
+                        {/* Bank – flat: accountNumber, ifscCode, accountHolderName, accountType */}
+                        {(r.accountNumber || r.ifscCode || r?.onboarding?.step3?.bank) && (
                           <div className="bg-slate-50 rounded-lg p-4">
                             <h5 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
                               <CreditCard className="w-4 h-4" />
                               Bank Details
                             </h5>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                              {restaurantDetails.onboarding.step3.bank.accountNumber && (
+                              {(r.accountNumber || r?.onboarding?.step3?.bank?.accountNumber) && (
                                 <div>
                                   <p className="text-xs text-slate-500 mb-1">Account Number</p>
-                                  <p className="font-medium text-slate-900">
-                                    {restaurantDetails.onboarding.step3.bank.accountNumber}
-                                  </p>
+                                  <p className="font-medium text-slate-900">{r.accountNumber || r.onboarding?.step3?.bank?.accountNumber}</p>
                                 </div>
                               )}
-                              {restaurantDetails.onboarding.step3.bank.ifscCode && (
+                              {(r.ifscCode || r?.onboarding?.step3?.bank?.ifscCode) && (
                                 <div>
                                   <p className="text-xs text-slate-500 mb-1">IFSC Code</p>
-                                  <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step3.bank.ifscCode}</p>
+                                  <p className="font-medium text-slate-900">{r.ifscCode || r.onboarding?.step3?.bank?.ifscCode}</p>
                                 </div>
                               )}
-                              {restaurantDetails.onboarding.step3.bank.accountHolderName && (
+                              {(r.accountHolderName || r?.onboarding?.step3?.bank?.accountHolderName) && (
                                 <div>
                                   <p className="text-xs text-slate-500 mb-1">Account Holder Name</p>
-                                  <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step3.bank.accountHolderName}</p>
+                                  <p className="font-medium text-slate-900">{r.accountHolderName || r.onboarding?.step3?.bank?.accountHolderName}</p>
                                 </div>
                               )}
-                              {restaurantDetails.onboarding.step3.bank.accountType && (
+                              {(r.accountType || r?.onboarding?.step3?.bank?.accountType) && (
                                 <div>
                                   <p className="text-xs text-slate-500 mb-1">Account Type</p>
-                                  <p className="font-medium text-slate-900 capitalize">{restaurantDetails.onboarding.step3.bank.accountType}</p>
+                                  <p className="font-medium text-slate-900 capitalize">{r.accountType || r.onboarding?.step3?.bank?.accountType}</p>
                                 </div>
                               )}
                             </div>
@@ -1047,12 +1069,12 @@ export default function JoiningRequest() {
                   )}
 
                   {/* Menu Images */}
-                  {(restaurantDetails?.menuImages || restaurantDetails?.onboarding?.step2?.menuImageUrls) && (
+                  {menuImgList.length > 0 && (
                     <div className="pt-6 border-t border-slate-200">
                       <h4 className="text-lg font-semibold text-slate-900 mb-4">Menu Images</h4>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        {(restaurantDetails.menuImages || restaurantDetails.onboarding?.step2?.menuImageUrls || []).map((menuImg, idx) => {
-                          const imgUrl = menuImg.url || menuImg
+                        {menuImgList.map((menuImg, idx) => {
+                          const imgUrl = typeof menuImg === "string" ? menuImg : (menuImg?.url || menuImg)
                           return imgUrl ? (
                             <a
                               key={idx}
@@ -1076,18 +1098,18 @@ export default function JoiningRequest() {
                     </div>
                   )}
 
-                  {/* Registration Information */}
-                  {(restaurantDetails?.createdAt || restaurantDetails?.restaurantId || restaurantDetails?.businessModel) && (
+                  {/* Registration & approval info */}
+                  {(r?.createdAt || r?.restaurantId || r?.businessModel || r?.approvedAt != null) && (
                     <div className="pt-6 border-t border-slate-200">
-                      <h4 className="text-lg font-semibold text-slate-900 mb-4">Registration Information</h4>
+                      <h4 className="text-lg font-semibold text-slate-900 mb-4">Registration & Approval</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                        {restaurantDetails.createdAt && (
+                        {r.createdAt && (
                           <div className="flex items-center gap-3">
                             <Calendar className="w-5 h-5 text-slate-400" />
                             <div>
                               <p className="text-xs text-slate-500 mb-1">Registration Date & Time</p>
                               <p className="font-medium text-slate-900">
-                                {new Date(restaurantDetails.createdAt).toLocaleString('en-IN', {
+                                {new Date(r.createdAt).toLocaleString('en-IN', {
                                   year: 'numeric',
                                   month: 'long',
                                   day: 'numeric',
@@ -1098,34 +1120,40 @@ export default function JoiningRequest() {
                             </div>
                           </div>
                         )}
-                        {restaurantDetails.restaurantId && (
+                        {r.restaurantId && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Restaurant ID</p>
-                            <p className="font-medium text-slate-900">{restaurantDetails.restaurantId}</p>
+                            <p className="font-medium text-slate-900">{r.restaurantId}</p>
                           </div>
                         )}
-                        {restaurantDetails.businessModel && (
+                        {r.approvedAt != null && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-1">Approved At</p>
+                            <p className="font-medium text-slate-900">{new Date(r.approvedAt).toLocaleString('en-IN')}</p>
+                          </div>
+                        )}
+                        {r.businessModel && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Business Model</p>
-                            <p className="font-medium text-slate-900">{restaurantDetails.businessModel}</p>
+                            <p className="font-medium text-slate-900">{r.businessModel}</p>
                           </div>
                         )}
-                        {restaurantDetails.phoneVerified !== undefined && (
+                        {r.phoneVerified !== undefined && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Phone Verified</p>
-                            <p className="font-medium text-slate-900">{restaurantDetails.phoneVerified ? "Yes" : "No"}</p>
+                            <p className="font-medium text-slate-900">{r.phoneVerified ? "Yes" : "No"}</p>
                           </div>
                         )}
-                        {restaurantDetails.signupMethod && (
+                        {r.signupMethod && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Signup Method</p>
-                            <p className="font-medium text-slate-900 capitalize">{restaurantDetails.signupMethod}</p>
+                            <p className="font-medium text-slate-900 capitalize">{r.signupMethod}</p>
                           </div>
                         )}
-                        {restaurantDetails.onboarding?.completedSteps !== undefined && (
+                        {r?.onboarding?.completedSteps != null && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Onboarding Steps Completed</p>
-                            <p className="font-medium text-slate-900">{restaurantDetails.onboarding.completedSteps} / 4</p>
+                            <p className="font-medium text-slate-900">{r.onboarding.completedSteps} / 4</p>
                           </div>
                         )}
                       </div>
@@ -1133,21 +1161,22 @@ export default function JoiningRequest() {
                   )}
 
                   {/* Rejection Reason (if rejected) */}
-                  {restaurantDetails?.rejectionReason && (
+                  {r?.rejectionReason && (
                     <div className="pt-6 border-t border-slate-200">
                       <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                         <h4 className="text-lg font-semibold text-red-900 mb-2">Rejection Reason</h4>
-                        <p className="text-sm text-red-800">{restaurantDetails.rejectionReason}</p>
-                        {restaurantDetails.rejectedAt && (
+                        <p className="text-sm text-red-800">{r.rejectionReason}</p>
+                        {r.rejectedAt && (
                           <p className="text-xs text-red-600 mt-2">
-                            Rejected on: {new Date(restaurantDetails.rejectedAt).toLocaleString('en-IN')}
+                            Rejected on: {new Date(r.rejectedAt).toLocaleString('en-IN')}
                           </p>
                         )}
                       </div>
                     </div>
                   )}
                 </div>
-              )}
+                )
+              })()}
               {!loadingDetails && !restaurantDetails && !selectedRequest && (
                 <div className="flex flex-col items-center justify-center py-20">
                   <p className="text-lg font-semibold text-slate-700 mb-2">No Details Available</p>

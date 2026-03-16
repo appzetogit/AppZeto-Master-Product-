@@ -145,21 +145,40 @@ export const requestDeliveryOtp = async (phone) => {
     return { otp };
 };
 
+const normalizePhoneForDelivery = (phone) => {
+    const digits = String(phone || '').replace(/\D/g, '');
+    return digits.slice(-10) || null;
+};
+
 export const verifyDeliveryOtpAndLogin = async (phone, otp) => {
     const result = await verifyOtp(phone, otp);
     if (!result.valid) {
         throw new AuthError(result.reason || 'OTP verification failed');
     }
 
-    const deliveryPartner = await FoodDeliveryPartner.findOne({ phone }).lean();
+    const normalized = normalizePhoneForDelivery(phone);
+    if (!normalized) {
+        return { needsRegistration: true, phone };
+    }
+
+    const deliveryPartner = await FoodDeliveryPartner.findOne({
+        $or: [
+            { phone: normalized },
+            { phone: { $regex: new RegExp(normalized + '$') } }
+        ]
+    }).lean();
+
     if (!deliveryPartner) {
-        // No partner yet – OTP is valid but registration must be completed first.
-        // Do NOT create any document here; frontend will redirect to registration form.
         return { needsRegistration: true, phone };
     }
 
     if (deliveryPartner.status && deliveryPartner.status !== 'approved') {
-        throw new AuthError('Your delivery account is pending admin approval.');
+        return {
+            pendingApproval: true,
+            message: deliveryPartner.status === 'rejected'
+                ? 'Your delivery account was not approved. Please contact support.'
+                : 'Your account is pending admin verification. You will be notified once approved.'
+        };
     }
 
     const payload = { userId: deliveryPartner._id.toString(), role: ROLES.DELIVERY_PARTNER };
@@ -202,9 +221,49 @@ export const getProfile = async (userId, role) => {
         case ROLES.RESTAURANT:
             profile = await FoodRestaurant.findById(id).lean();
             break;
-        case ROLES.DELIVERY_PARTNER:
-            profile = await FoodDeliveryPartner.findById(id).lean();
+        case ROLES.DELIVERY_PARTNER: {
+            const partner = await FoodDeliveryPartner.findById(id).lean();
+            if (!partner) break;
+            const deliveryId = partner._id
+                ? `DP-${partner._id.toString().slice(-8).toUpperCase()}`
+                : null;
+            profile = {
+                ...partner,
+                email: partner.email || null,
+                deliveryId,
+                status: partner.status === 'rejected' ? 'blocked' : partner.status,
+                profileImage: partner.profilePhoto ? { url: partner.profilePhoto } : null,
+                documents: {
+                    aadhar: (partner.aadharPhoto || partner.aadharNumber) ? {
+                        number: partner.aadharNumber || null,
+                        document: partner.aadharPhoto || null
+                    } : null,
+                    pan: (partner.panPhoto || partner.panNumber) ? {
+                        number: partner.panNumber || null,
+                        document: partner.panPhoto || null
+                    } : null,
+                    drivingLicense: partner.drivingLicensePhoto ? { document: partner.drivingLicensePhoto } : null,
+                    bankDetails: (partner.bankAccountHolderName || partner.bankAccountNumber || partner.bankIfscCode || partner.bankName) ? {
+                        accountHolderName: partner.bankAccountHolderName || null,
+                        accountNumber: partner.bankAccountNumber || null,
+                        ifscCode: partner.bankIfscCode || null,
+                        bankName: partner.bankName || null
+                    } : null
+                },
+                location: (partner.address || partner.city || partner.state) ? {
+                    addressLine1: partner.address,
+                    city: partner.city,
+                    state: partner.state
+                } : null,
+                vehicle: (partner.vehicleType || partner.vehicleName || partner.vehicleNumber) ? {
+                    type: partner.vehicleType,
+                    brand: partner.vehicleName,
+                    model: partner.vehicleName,
+                    number: partner.vehicleNumber
+                } : null
+            };
             break;
+        }
         default:
             throw new AuthError('Unknown role');
     }

@@ -12,6 +12,7 @@ const aadharRegex = /^[0-9]{12}$/;
 const deliveryRegisterSchema = z.object({
     name: z.string().min(1, 'Name is required'),
     phone: phoneSchema,
+    email: z.string().email().optional().or(z.literal('')),
     countryCode: z.string().optional(),
     address: z.string().optional(),
     city: z.string().optional(),
@@ -54,6 +55,28 @@ const deliveryProfileUpdateSchema = z.object({
 
 export const validateDeliveryProfileUpdateDto = (body) => {
     const result = deliveryProfileUpdateSchema.safeParse(body);
+    if (!result.success) {
+        throw new ValidationError(result.error.errors[0].message);
+    }
+    return result.data;
+};
+
+const bankDetailsSchema = z.object({
+    accountHolderName: z.string().min(1, 'Account holder name is required').optional().or(z.literal('')),
+    accountNumber: z.string().min(1, 'Account number is required').optional().or(z.literal('')),
+    ifscCode: z.string().min(1, 'IFSC code is required').optional().or(z.literal('')),
+    bankName: z.string().min(1, 'Bank name is required').optional().or(z.literal(''))
+});
+
+const bankDetailsUpdateSchema = z.object({
+    documents: z.object({
+        bankDetails: bankDetailsSchema.optional(),
+        pan: z.object({ number: z.string().optional() }).optional()
+    }).optional()
+}).optional();
+
+export const validateDeliveryBankDetailsDto = (body) => {
+    const result = bankDetailsUpdateSchema.safeParse(body);
     if (!result.success) {
         throw new ValidationError(result.error.errors[0].message);
     }

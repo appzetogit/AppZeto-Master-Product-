@@ -23,6 +23,7 @@ export default function DeliveryOTP() {
   const [name, setName] = useState("")
   const [nameError, setNameError] = useState("")
   const [verifiedOtp, setVerifiedOtp] = useState("")
+  const [pendingMessage, setPendingMessage] = useState("")
   const inputRefs = useRef([])
 
   useEffect(() => {
@@ -194,6 +195,14 @@ export default function DeliveryOTP() {
       debugLog("Delivery OTP Response:", response)
       const data = response?.data?.data || response?.data || {}
       debugLog("Parsed Delivery OTP Data:", data)
+
+      if (data.pendingApproval === true) {
+        sessionStorage.removeItem("deliveryAuthData")
+        setIsLoading(false)
+        setError("")
+        setPendingMessage(data.message || "Your account is pending admin verification. You will be notified once approved.")
+        return
+      }
 
       const needsRegistration = data.needsRegistration === true
 
@@ -464,6 +473,22 @@ export default function DeliveryOTP() {
             )}
           </div>
 
+          {/* Pending approval message – already registered, waiting for admin */}
+          {pendingMessage && (
+            <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 text-center space-y-3">
+              <p className="text-sm text-amber-800 font-medium">
+                {pendingMessage}
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate("/food/delivery/login", { replace: true })}
+                className="text-sm font-medium text-amber-800 hover:text-amber-900 underline"
+              >
+                Back to login
+              </button>
+            </div>
+          )}
+
           {/* Error message */}
           {error && (
             <p className="text-sm text-red-500 text-center">
@@ -472,7 +497,7 @@ export default function DeliveryOTP() {
           )}
 
           {/* OTP Input Fields */}
-          {!showNameInput && (
+          {!showNameInput && !pendingMessage && (
             <>
               <div className="flex justify-center gap-2">
                 {otp.map((digit, index) => (

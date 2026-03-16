@@ -1363,14 +1363,20 @@ export default function RestaurantsList() {
                   </div>
                 </div>
               )}
-              {!loadingDetails && !isEditingDetails && (restaurantDetails || selectedRestaurant) && (
+              {!loadingDetails && !isEditingDetails && (restaurantDetails || selectedRestaurant) && (() => {
+                const r = restaurantDetails || selectedRestaurant?.originalData || selectedRestaurant
+                const profileImgUrl = typeof r?.profileImage === "string" ? r.profileImage : (r?.profileImage?.url || r?.logo || r?.restaurantImage)
+                const hasFlatAddress = r?.addressLine1 || r?.area || r?.city
+                const flatAddress = [r?.addressLine1, r?.addressLine2, r?.area, r?.city, r?.landmark].filter(Boolean).join(", ")
+                const hasFlatDocs = r?.panNumber || r?.panImage || r?.fssaiNumber || r?.accountNumber
+                return (
                 <div className="space-y-10">
                   {/* Restaurant Basic Info */}
                   <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
-                    <div className="w-32 h-32 rounded-3xl overflow-hidden bg-slate-50 flex-shrink-0 shadow-inner group">
+                    <div className="w-32 h-32 rounded-3xl overflow-hidden bg-slate-50 shrink-0 shadow-inner group">
                       <img
-                        src={restaurantDetails?.profileImage?.url || restaurantDetails?.logo || selectedRestaurant?.logo || selectedRestaurant?.originalData?.profileImage?.url || "https://via.placeholder.com/128"}
-                        alt={restaurantDetails?.name || selectedRestaurant?.name || "Restaurant"}
+                        src={profileImgUrl || "https://via.placeholder.com/128"}
+                        alt={r?.restaurantName || r?.name || "Restaurant"}
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                         onError={(e) => {
                           e.target.src = "https://via.placeholder.com/128"
@@ -1380,29 +1386,29 @@ export default function RestaurantsList() {
                     <div className="flex-1 text-center md:text-left pt-2">
                       <div className="flex flex-col md:flex-row md:items-center gap-3 mb-4">
                         <h3 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-                          {restaurantDetails?.name || selectedRestaurant?.name || "N/A"}
+                          {r?.restaurantName || r?.name || "N/A"}
                         </h3>
                         <div className="flex items-center justify-center md:justify-start gap-2">
-                          <span className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${restaurantDetails?.isActive !== false ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                            {restaurantDetails?.isActive !== false ? 'Active' : 'Inactive'}
+                          <span className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${r?.isActive !== false ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            {r?.isActive !== false ? 'Active' : 'Inactive'}
                           </span>
                         </div>
                       </div>
                       <div className="flex items-center justify-center md:justify-start gap-6 flex-wrap">
-                        {(restaurantDetails?.ratings?.average || selectedRestaurant?.originalData?.ratings?.average) && (
+                        {(r?.ratings?.average != null) && (
                           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-50 rounded-xl">
                             <Star className="w-4 h-4 fill-yellow-400 text-yellow-500" />
                             <span className="text-sm font-bold text-yellow-700">
-                              {(restaurantDetails?.ratings?.average || selectedRestaurant?.originalData?.ratings?.average || 0).toFixed(1)}
+                              {(r.ratings?.average ?? 0).toFixed(1)}
                             </span>
                             <span className="text-xs text-yellow-600/70 ml-1 font-medium">
-                              ({(restaurantDetails?.ratings?.count || selectedRestaurant?.originalData?.ratings?.count || 0)} reviews)
+                              ({(r.ratings?.count ?? 0)} reviews)
                             </span>
                           </div>
                         )}
                         <div className="flex items-center gap-2 text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
                           <Building2 className="w-4 h-4" />
-                          <span className="text-xs font-bold tracking-wider">{formatRestaurantId(restaurantDetails?.restaurantId || restaurantDetails?._id || selectedRestaurant?.id || selectedRestaurant?._id)}</span>
+                          <span className="text-xs font-bold tracking-wider">{formatRestaurantId(r?.restaurantId || r?._id)}</span>
                         </div>
                       </div>
                     </div>
@@ -1423,7 +1429,7 @@ export default function RestaurantsList() {
                           <div>
                             <p className="text-[10px] text-blue-600 font-bold uppercase tracking-wider mb-0.5">Full Name</p>
                             <p className="text-base font-bold text-slate-800">
-                              {restaurantDetails?.ownerName || selectedRestaurant?.ownerName || selectedRestaurant?.originalData?.ownerName || "N/A"}
+                              {r?.ownerName || "N/A"}
                             </p>
                           </div>
                         </div>
@@ -1434,18 +1440,18 @@ export default function RestaurantsList() {
                           <div>
                             <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider mb-0.5">Contact Number</p>
                             <p className="text-base font-bold text-slate-800">
-                              {restaurantDetails?.ownerPhone || restaurantDetails?.phone || selectedRestaurant?.ownerPhone || selectedRestaurant?.originalData?.ownerPhone || selectedRestaurant?.originalData?.phone || "N/A"}
+                              {r?.ownerPhone || r?.phone || "N/A"}
                             </p>
                           </div>
                         </div>
-                        {restaurantDetails?.ownerEmail && (
+                        {(r?.ownerEmail || r?.email) && (
                           <div className="flex items-start gap-4 p-4 rounded-2xl bg-indigo-50/30 border border-indigo-100/30">
                             <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
                               <Mail className="w-5 h-5 text-indigo-600" />
                             </div>
                             <div>
                               <p className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider mb-0.5">Email Address</p>
-                              <p className="text-base font-bold text-slate-800">{restaurantDetails.ownerEmail}</p>
+                              <p className="text-base font-bold text-slate-800">{r.ownerEmail || r.email}</p>
                             </div>
                           </div>
                         )}
@@ -1474,13 +1480,13 @@ export default function RestaurantsList() {
                         )}
                       </div>
                       <div className="space-y-3">
-                        {!isEditingLocation && restaurantDetails?.location && (
+                        {!isEditingLocation && (r?.location || hasFlatAddress) && (
                           <div className="flex items-start gap-3">
                             <MapPin className="w-5 h-5 text-slate-400 mt-0.5" />
                             <div>
                               <p className="text-xs text-slate-500">Address</p>
                               <p className="text-sm font-medium text-slate-900">
-                                {formatLocationAddress(restaurantDetails.location, selectedRestaurant.zone)}
+                                {r?.location ? formatLocationAddress(r.location, selectedRestaurant?.zone) : flatAddress}
                               </p>
                             </div>
                           </div>
@@ -1490,21 +1496,21 @@ export default function RestaurantsList() {
                             Location editor is shown at the bottom of this details modal.
                           </p>
                         )}
-                        {restaurantDetails?.primaryContactNumber && (
+                        {(r?.primaryContactNumber || r?.phone) && (
                           <div className="flex items-center gap-3">
                             <Phone className="w-5 h-5 text-slate-400" />
                             <div>
                               <p className="text-xs text-slate-500">Primary Contact</p>
-                              <p className="text-sm font-medium text-slate-900">{restaurantDetails.primaryContactNumber}</p>
+                              <p className="text-sm font-medium text-slate-900">{r.primaryContactNumber || r.phone}</p>
                             </div>
                           </div>
                         )}
-                        {restaurantDetails?.email && (
+                        {(r?.email && !r?.ownerEmail) && (
                           <div className="flex items-center gap-3">
                             <Mail className="w-5 h-5 text-slate-400" />
                             <div>
                               <p className="text-xs text-slate-500">Restaurant Email</p>
-                              <p className="text-sm font-medium text-slate-900">{restaurantDetails.email}</p>
+                              <p className="text-sm font-medium text-slate-900">{r.email}</p>
                             </div>
                           </div>
                         )}
@@ -1520,23 +1526,23 @@ export default function RestaurantsList() {
                         <div>
                           <p className="text-xs text-slate-500 mb-1">Cuisines</p>
                           <div className="flex flex-wrap gap-2">
-                            {restaurantDetails?.cuisines && Array.isArray(restaurantDetails.cuisines) && restaurantDetails.cuisines.length > 0 ? (
-                              restaurantDetails.cuisines.map((cuisine, idx) => (
+                            {r?.cuisines && Array.isArray(r.cuisines) && r.cuisines.length > 0 ? (
+                              r.cuisines.map((cuisine, idx) => (
                                 <span key={idx} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
                                   {cuisine}
                                 </span>
                               ))
                             ) : (
                               <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
-                                {restaurantDetails?.cuisine || selectedRestaurant.cuisine || "N/A"}
+                                {r?.cuisine || "N/A"}
                               </span>
                             )}
                           </div>
                         </div>
-                        {restaurantDetails?.offer && (
+                        {r?.offer && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Current Offer</p>
-                            <p className="text-sm font-medium text-green-600">{restaurantDetails.offer}</p>
+                            <p className="text-sm font-medium text-green-600">{r.offer}</p>
                           </div>
                         )}
                       </div>
@@ -1545,31 +1551,41 @@ export default function RestaurantsList() {
                     <div>
                       <h4 className="text-lg font-semibold text-slate-900 mb-4">Timings & Status</h4>
                       <div className="space-y-3">
-                        {restaurantDetails?.deliveryTimings && (
+                        {(r?.openingTime || r?.closingTime || r?.deliveryTimings) && (
                           <div className="flex items-center gap-3">
                             <Clock className="w-5 h-5 text-slate-400" />
                             <div>
-                              <p className="text-xs text-slate-500">Delivery Timings</p>
+                              <p className="text-xs text-slate-500">Opening / Closing</p>
                               <p className="text-sm font-medium text-slate-900">
-                                {restaurantDetails.deliveryTimings.openingTime || "N/A"} - {restaurantDetails.deliveryTimings.closingTime || "N/A"}
+                                {r?.openingTime || r?.deliveryTimings?.openingTime || "N/A"} – {r?.closingTime || r?.deliveryTimings?.closingTime || "N/A"}
                               </p>
                             </div>
                           </div>
                         )}
-                        {restaurantDetails?.estimatedDeliveryTime && (
+                        {r?.estimatedDeliveryTime && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Estimated Delivery Time</p>
-                            <p className="text-sm font-medium text-slate-900">{restaurantDetails.estimatedDeliveryTime}</p>
+                            <p className="text-sm font-medium text-slate-900">{r.estimatedDeliveryTime}</p>
+                          </div>
+                        )}
+                        {r?.openDays && Array.isArray(r.openDays) && r.openDays.length > 0 && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-1">Open Days</p>
+                            <div className="flex flex-wrap gap-2">
+                              {r.openDays.map((day, idx) => (
+                                <span key={idx} className="px-2 py-1 bg-slate-100 text-slate-700 rounded text-xs font-medium capitalize">{day}</span>
+                              ))}
+                            </div>
                           </div>
                         )}
                         <div>
                           <p className="text-xs text-slate-500 mb-1">Status</p>
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getRestaurantAvailabilityStatus(restaurantDetails || selectedRestaurant?.originalData || selectedRestaurant).isOpen ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getRestaurantAvailabilityStatus(r).isOpen ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
                             }`}>
-                            {getRestaurantAvailabilityStatus(restaurantDetails || selectedRestaurant?.originalData || selectedRestaurant).isOpen ? "Online" : "Offline"}
+                            {getRestaurantAvailabilityStatus(r).isOpen ? "Online" : "Offline"}
                           </span>
                           <p className="mt-2 text-xs text-slate-500">
-                            Outlet: {(restaurantDetails?.isActive !== false) ? "Active" : "Inactive"}
+                            Outlet: {(r?.isActive !== false) ? "Active" : "Inactive"}
                           </p>
                         </div>
                       </div>
@@ -1577,17 +1593,17 @@ export default function RestaurantsList() {
                   </div>
 
                   {/* Registration Information */}
-                  {(restaurantDetails?.createdAt || restaurantDetails?.updatedAt) && (
+                  {(r?.createdAt || r?.updatedAt) && (
                     <div className="pt-6 border-t border-slate-200">
                       <h4 className="text-lg font-semibold text-slate-900 mb-4">Registration Information</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                        {restaurantDetails.createdAt && (
+                        {r.createdAt && (
                           <div className="flex items-center gap-3">
                             <Calendar className="w-5 h-5 text-slate-400" />
                             <div>
                               <p className="text-xs text-slate-500 mb-1">Registration Date & Time</p>
                               <p className="font-medium text-slate-900">
-                                {new Date(restaurantDetails.createdAt).toLocaleString('en-IN', {
+                                {new Date(r.createdAt).toLocaleString('en-IN', {
                                   year: 'numeric',
                                   month: 'long',
                                   day: 'numeric',
@@ -1598,13 +1614,13 @@ export default function RestaurantsList() {
                             </div>
                           </div>
                         )}
-                        {restaurantDetails.updatedAt && (
+                        {r.updatedAt && (
                           <div className="flex items-center gap-3">
                             <Calendar className="w-5 h-5 text-slate-400" />
                             <div>
                               <p className="text-xs text-slate-500 mb-1">Last Updated</p>
                               <p className="font-medium text-slate-900">
-                                {new Date(restaurantDetails.updatedAt).toLocaleString('en-IN', {
+                                {new Date(r.updatedAt).toLocaleString('en-IN', {
                                   year: 'numeric',
                                   month: 'long',
                                   day: 'numeric',
@@ -1615,68 +1631,63 @@ export default function RestaurantsList() {
                             </div>
                           </div>
                         )}
-                        {restaurantDetails.restaurantId && (
+                        {r.restaurantId && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Restaurant ID</p>
-                            <p className="font-medium text-slate-900">{formatRestaurantId(restaurantDetails.restaurantId)}</p>
+                            <p className="font-medium text-slate-900">{formatRestaurantId(r.restaurantId)}</p>
                           </div>
                         )}
-                        {restaurantDetails.slug && (
+                        {r.slug && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Slug</p>
-                            <p className="font-medium text-slate-900">{restaurantDetails.slug}</p>
+                            <p className="font-medium text-slate-900">{r.slug}</p>
                           </div>
                         )}
-                        {restaurantDetails.phoneVerified !== undefined && (
+                        {r.phoneVerified !== undefined && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Phone Verified</p>
-                            <p className="font-medium text-slate-900">{restaurantDetails.phoneVerified ? "Yes" : "No"}</p>
+                            <p className="font-medium text-slate-900">{r.phoneVerified ? "Yes" : "No"}</p>
                           </div>
                         )}
-                        {restaurantDetails.signupMethod && (
+                        {r.signupMethod && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Signup Method</p>
-                            <p className="font-medium text-slate-900 capitalize">{restaurantDetails.signupMethod}</p>
+                            <p className="font-medium text-slate-900 capitalize">{r.signupMethod}</p>
                           </div>
                         )}
                       </div>
                     </div>
                   )}
 
-                  {/* Registration Documents - PAN, GST, FSSAI, Bank */}
-                  {restaurantDetails?.onboarding?.step3 && (
+                  {/* Registration Documents - flat (PAN, GST, FSSAI, Bank) or onboarding.step3 */}
+                  {(hasFlatDocs || r?.onboarding?.step3) && (
                     <div className="pt-6 border-t border-slate-200">
                       <h4 className="text-lg font-semibold text-slate-900 mb-4">Registration Documents</h4>
                       <div className="space-y-6">
-                        {/* PAN Details */}
-                        {restaurantDetails.onboarding.step3.pan && (
+                        {/* PAN – flat or onboarding.step3 */}
+                        {(r.panNumber || r.panImage || r?.onboarding?.step3?.pan) && (
                           <div className="bg-slate-50 rounded-lg p-4">
                             <h5 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
                               <FileText className="w-4 h-4" />
                               PAN Details
                             </h5>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                              {restaurantDetails.onboarding.step3.pan.panNumber && (
+                              {(r.panNumber || r?.onboarding?.step3?.pan?.panNumber) && (
                                 <div>
                                   <p className="text-xs text-slate-500 mb-1">PAN Number</p>
-                                  <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step3.pan.panNumber}</p>
+                                  <p className="font-medium text-slate-900">{r.panNumber || r.onboarding?.step3?.pan?.panNumber}</p>
                                 </div>
                               )}
-                              {restaurantDetails.onboarding.step3.pan.nameOnPan && (
+                              {(r.nameOnPan || r?.onboarding?.step3?.pan?.nameOnPan) && (
                                 <div>
                                   <p className="text-xs text-slate-500 mb-1">Name on PAN</p>
-                                  <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step3.pan.nameOnPan}</p>
+                                  <p className="font-medium text-slate-900">{r.nameOnPan || r.onboarding?.step3?.pan?.nameOnPan}</p>
                                 </div>
                               )}
-                              {restaurantDetails.onboarding.step3.pan.image?.url && (
+                              {(typeof r.panImage === "string" ? r.panImage : r?.panImage?.url || r?.onboarding?.step3?.pan?.image?.url) && (
                                 <div className="md:col-span-2">
                                   <p className="text-xs text-slate-500 mb-2">PAN Document</p>
-                                  <a
-                                    href={restaurantDetails.onboarding.step3.pan.image.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700"
-                                  >
+                                  <a href={typeof r.panImage === "string" ? r.panImage : (r.panImage?.url || r.onboarding?.step3?.pan?.image?.url)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700">
                                     <ImageIcon className="w-4 h-4" />
                                     <span>View PAN Document</span>
                                     <ExternalLink className="w-3 h-3" />
@@ -1687,8 +1698,8 @@ export default function RestaurantsList() {
                           </div>
                         )}
 
-                        {/* GST Details */}
-                        {restaurantDetails.onboarding.step3.gst && (
+                        {/* GST – flat or onboarding.step3 */}
+                        {(r.gstRegistered != null || r.gstNumber || r?.onboarding?.step3?.gst) && (
                           <div className="bg-slate-50 rounded-lg p-4">
                             <h5 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
                               <FileText className="w-4 h-4" />
@@ -1698,36 +1709,31 @@ export default function RestaurantsList() {
                               <div>
                                 <p className="text-xs text-slate-500 mb-1">GST Registered</p>
                                 <p className="font-medium text-slate-900">
-                                  {restaurantDetails.onboarding.step3.gst.isRegistered ? "Yes" : "No"}
+                                  {r.gstRegistered != null ? (r.gstRegistered ? "Yes" : "No") : (r?.onboarding?.step3?.gst?.isRegistered ? "Yes" : "No")}
                                 </p>
                               </div>
-                              {restaurantDetails.onboarding.step3.gst.gstNumber && (
+                              {(r.gstNumber || r?.onboarding?.step3?.gst?.gstNumber) && (
                                 <div>
                                   <p className="text-xs text-slate-500 mb-1">GST Number</p>
-                                  <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step3.gst.gstNumber}</p>
+                                  <p className="font-medium text-slate-900">{r.gstNumber || r.onboarding?.step3?.gst?.gstNumber}</p>
                                 </div>
                               )}
-                              {restaurantDetails.onboarding.step3.gst.legalName && (
+                              {(r.gstLegalName || r?.onboarding?.step3?.gst?.legalName) && (
                                 <div>
                                   <p className="text-xs text-slate-500 mb-1">Legal Name</p>
-                                  <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step3.gst.legalName}</p>
+                                  <p className="font-medium text-slate-900">{r.gstLegalName || r.onboarding?.step3?.gst?.legalName}</p>
                                 </div>
                               )}
-                              {restaurantDetails.onboarding.step3.gst.address && (
+                              {(r.gstAddress || r?.onboarding?.step3?.gst?.address) && (
                                 <div>
                                   <p className="text-xs text-slate-500 mb-1">GST Address</p>
-                                  <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step3.gst.address}</p>
+                                  <p className="font-medium text-slate-900">{r.gstAddress || r.onboarding?.step3?.gst?.address}</p>
                                 </div>
                               )}
-                              {restaurantDetails.onboarding.step3.gst.image?.url && (
+                              {(typeof r.gstImage === "string" ? r.gstImage : r?.gstImage?.url || r?.onboarding?.step3?.gst?.image?.url) && (
                                 <div className="md:col-span-2">
                                   <p className="text-xs text-slate-500 mb-2">GST Document</p>
-                                  <a
-                                    href={restaurantDetails.onboarding.step3.gst.image.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700"
-                                  >
+                                  <a href={typeof r.gstImage === "string" ? r.gstImage : (r.gstImage?.url || r.onboarding?.step3?.gst?.image?.url)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700">
                                     <ImageIcon className="w-4 h-4" />
                                     <span>View GST Document</span>
                                     <ExternalLink className="w-3 h-3" />
@@ -1738,41 +1744,32 @@ export default function RestaurantsList() {
                           </div>
                         )}
 
-                        {/* FSSAI Details */}
-                        {restaurantDetails.onboarding.step3.fssai && (
+                        {/* FSSAI – flat or onboarding.step3 */}
+                        {(r.fssaiNumber || r.fssaiExpiry || r?.onboarding?.step3?.fssai) && (
                           <div className="bg-slate-50 rounded-lg p-4">
                             <h5 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
                               <FileText className="w-4 h-4" />
                               FSSAI Details
                             </h5>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                              {restaurantDetails.onboarding.step3.fssai.registrationNumber && (
+                              {(r.fssaiNumber || r?.onboarding?.step3?.fssai?.registrationNumber) && (
                                 <div>
                                   <p className="text-xs text-slate-500 mb-1">FSSAI Registration Number</p>
-                                  <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step3.fssai.registrationNumber}</p>
+                                  <p className="font-medium text-slate-900">{r.fssaiNumber || r.onboarding?.step3?.fssai?.registrationNumber}</p>
                                 </div>
                               )}
-                              {restaurantDetails.onboarding.step3.fssai.expiryDate && (
+                              {(r.fssaiExpiry || r?.onboarding?.step3?.fssai?.expiryDate) && (
                                 <div>
                                   <p className="text-xs text-slate-500 mb-1">FSSAI Expiry Date</p>
                                   <p className="font-medium text-slate-900">
-                                    {new Date(restaurantDetails.onboarding.step3.fssai.expiryDate).toLocaleDateString('en-IN', {
-                                      year: 'numeric',
-                                      month: 'long',
-                                      day: 'numeric'
-                                    })}
+                                    {new Date(r.fssaiExpiry || r.onboarding?.step3?.fssai?.expiryDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}
                                   </p>
                                 </div>
                               )}
-                              {restaurantDetails.onboarding.step3.fssai.image?.url && (
+                              {(typeof r.fssaiImage === "string" ? r.fssaiImage : r?.fssaiImage?.url || r?.onboarding?.step3?.fssai?.image?.url) && (
                                 <div className="md:col-span-2">
                                   <p className="text-xs text-slate-500 mb-2">FSSAI Document</p>
-                                  <a
-                                    href={restaurantDetails.onboarding.step3.fssai.image.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700"
-                                  >
+                                  <a href={typeof r.fssaiImage === "string" ? r.fssaiImage : (r.fssaiImage?.url || r.onboarding?.step3?.fssai?.image?.url)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700">
                                     <ImageIcon className="w-4 h-4" />
                                     <span>View FSSAI Document</span>
                                     <ExternalLink className="w-3 h-3" />
@@ -1783,38 +1780,36 @@ export default function RestaurantsList() {
                           </div>
                         )}
 
-                        {/* Bank Details */}
-                        {restaurantDetails.onboarding.step3.bank && (
+                        {/* Bank – flat or onboarding.step3 */}
+                        {(r.accountNumber || r.ifscCode || r?.onboarding?.step3?.bank) && (
                           <div className="bg-slate-50 rounded-lg p-4">
                             <h5 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
                               <CreditCard className="w-4 h-4" />
                               Bank Details
                             </h5>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                              {restaurantDetails.onboarding.step3.bank.accountNumber && (
+                              {(r.accountNumber || r?.onboarding?.step3?.bank?.accountNumber) && (
                                 <div>
                                   <p className="text-xs text-slate-500 mb-1">Account Number</p>
-                                  <p className="font-medium text-slate-900">
-                                    {restaurantDetails.onboarding.step3.bank.accountNumber}
-                                  </p>
+                                  <p className="font-medium text-slate-900">{r.accountNumber || r.onboarding?.step3?.bank?.accountNumber}</p>
                                 </div>
                               )}
-                              {restaurantDetails.onboarding.step3.bank.ifscCode && (
+                              {(r.ifscCode || r?.onboarding?.step3?.bank?.ifscCode) && (
                                 <div>
                                   <p className="text-xs text-slate-500 mb-1">IFSC Code</p>
-                                  <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step3.bank.ifscCode}</p>
+                                  <p className="font-medium text-slate-900">{r.ifscCode || r.onboarding?.step3?.bank?.ifscCode}</p>
                                 </div>
                               )}
-                              {restaurantDetails.onboarding.step3.bank.accountHolderName && (
+                              {(r.accountHolderName || r?.onboarding?.step3?.bank?.accountHolderName) && (
                                 <div>
                                   <p className="text-xs text-slate-500 mb-1">Account Holder Name</p>
-                                  <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step3.bank.accountHolderName}</p>
+                                  <p className="font-medium text-slate-900">{r.accountHolderName || r.onboarding?.step3?.bank?.accountHolderName}</p>
                                 </div>
                               )}
-                              {restaurantDetails.onboarding.step3.bank.accountType && (
+                              {(r.accountType || r?.onboarding?.step3?.bank?.accountType) && (
                                 <div>
                                   <p className="text-xs text-slate-500 mb-1">Account Type</p>
-                                  <p className="font-medium text-slate-900 capitalize">{restaurantDetails.onboarding.step3.bank.accountType}</p>
+                                  <p className="font-medium text-slate-900 capitalize">{r.accountType || r.onboarding?.step3?.bank?.accountType}</p>
                                 </div>
                               )}
                             </div>
@@ -1824,50 +1819,58 @@ export default function RestaurantsList() {
                     </div>
                   )}
 
+                  {/* Address at registration (flat) */}
+                  {hasFlatAddress && !r?.onboarding?.step1?.location && (
+                    <div className="pt-6 border-t border-slate-200">
+                      <h4 className="text-lg font-semibold text-slate-900 mb-4">Address (at registration)</h4>
+                      <p className="text-sm font-medium text-slate-900">{flatAddress}</p>
+                    </div>
+                  )}
+
                   {/* Onboarding Step 1 Details */}
-                  {restaurantDetails?.onboarding?.step1 && (
+                  {r?.onboarding?.step1 && (
                     <div className="pt-6 border-t border-slate-200">
                       <h4 className="text-lg font-semibold text-slate-900 mb-4">Registration Step 1 Details</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                        {restaurantDetails.onboarding.step1.restaurantName && (
+                        {r.onboarding.step1.restaurantName && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Restaurant Name (at registration)</p>
-                            <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step1.restaurantName}</p>
+                            <p className="font-medium text-slate-900">{r.onboarding.step1.restaurantName}</p>
                           </div>
                         )}
-                        {restaurantDetails.onboarding.step1.ownerName && (
+                        {r.onboarding.step1.ownerName && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Owner Name (at registration)</p>
-                            <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step1.ownerName}</p>
+                            <p className="font-medium text-slate-900">{r.onboarding.step1.ownerName}</p>
                           </div>
                         )}
-                        {restaurantDetails.onboarding.step1.ownerEmail && (
+                        {r.onboarding.step1.ownerEmail && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Owner Email (at registration)</p>
-                            <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step1.ownerEmail}</p>
+                            <p className="font-medium text-slate-900">{r.onboarding.step1.ownerEmail}</p>
                           </div>
                         )}
-                        {restaurantDetails.onboarding.step1.ownerPhone && (
+                        {r.onboarding.step1.ownerPhone && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Owner Phone (at registration)</p>
-                            <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step1.ownerPhone}</p>
+                            <p className="font-medium text-slate-900">{r.onboarding.step1.ownerPhone}</p>
                           </div>
                         )}
-                        {restaurantDetails.onboarding.step1.primaryContactNumber && (
+                        {r.onboarding.step1.primaryContactNumber && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Primary Contact (at registration)</p>
-                            <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step1.primaryContactNumber}</p>
+                            <p className="font-medium text-slate-900">{r.onboarding.step1.primaryContactNumber}</p>
                           </div>
                         )}
-                        {restaurantDetails.onboarding.step1.location && (
+                        {r.onboarding.step1.location && (
                           <div className="md:col-span-2">
                             <p className="text-xs text-slate-500 mb-1">Location (at registration)</p>
                             <p className="font-medium text-slate-900">
-                              {restaurantDetails.onboarding.step1.location.addressLine1 || ""}
-                              {restaurantDetails.onboarding.step1.location.addressLine2 && `, ${restaurantDetails.onboarding.step1.location.addressLine2}`}
-                              {restaurantDetails.onboarding.step1.location.area && `, ${restaurantDetails.onboarding.step1.location.area}`}
-                              {restaurantDetails.onboarding.step1.location.city && `, ${restaurantDetails.onboarding.step1.location.city}`}
-                              {restaurantDetails.onboarding.step1.location.landmark && `, ${restaurantDetails.onboarding.step1.location.landmark}`}
+                              {r.onboarding.step1.location.addressLine1 || ""}
+                              {r.onboarding.step1.location.addressLine2 && `, ${r.onboarding.step1.location.addressLine2}`}
+                              {r.onboarding.step1.location.area && `, ${r.onboarding.step1.location.area}`}
+                              {r.onboarding.step1.location.city && `, ${r.onboarding.step1.location.city}`}
+                              {r.onboarding.step1.location.landmark && `, ${r.onboarding.step1.location.landmark}`}
                             </p>
                           </div>
                         )}
@@ -1876,15 +1879,15 @@ export default function RestaurantsList() {
                   )}
 
                   {/* Onboarding Step 2 Details */}
-                  {restaurantDetails?.onboarding?.step2 && (
+                  {r?.onboarding?.step2 && (
                     <div className="pt-6 border-t border-slate-200">
                       <h4 className="text-lg font-semibold text-slate-900 mb-4">Registration Step 2 Details</h4>
                       <div className="space-y-4">
-                        {restaurantDetails.onboarding.step2.cuisines && Array.isArray(restaurantDetails.onboarding.step2.cuisines) && restaurantDetails.onboarding.step2.cuisines.length > 0 && (
+                        {r.onboarding.step2.cuisines && Array.isArray(r.onboarding.step2.cuisines) && r.onboarding.step2.cuisines.length > 0 && (
                           <div>
                             <p className="text-xs text-slate-500 mb-2">Cuisines (at registration)</p>
                             <div className="flex flex-wrap gap-2">
-                              {restaurantDetails.onboarding.step2.cuisines.map((cuisine, idx) => (
+                              {r.onboarding.step2.cuisines.map((cuisine, idx) => (
                                 <span key={idx} className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
                                   {cuisine}
                                 </span>
@@ -1892,23 +1895,23 @@ export default function RestaurantsList() {
                             </div>
                           </div>
                         )}
-                        {restaurantDetails.onboarding.step2.deliveryTimings && (
+                        {r.onboarding.step2.deliveryTimings && (
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                             <div>
                               <p className="text-xs text-slate-500 mb-1">Opening Time (at registration)</p>
-                              <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step2.deliveryTimings.openingTime || "N/A"}</p>
+                              <p className="font-medium text-slate-900">{r.onboarding.step2.deliveryTimings.openingTime || "N/A"}</p>
                             </div>
                             <div>
                               <p className="text-xs text-slate-500 mb-1">Closing Time (at registration)</p>
-                              <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step2.deliveryTimings.closingTime || "N/A"}</p>
+                              <p className="font-medium text-slate-900">{r.onboarding.step2.deliveryTimings.closingTime || "N/A"}</p>
                             </div>
                           </div>
                         )}
-                        {restaurantDetails.onboarding.step2.openDays && Array.isArray(restaurantDetails.onboarding.step2.openDays) && restaurantDetails.onboarding.step2.openDays.length > 0 && (
+                        {r.onboarding.step2.openDays && Array.isArray(r.onboarding.step2.openDays) && r.onboarding.step2.openDays.length > 0 && (
                           <div>
                             <p className="text-xs text-slate-500 mb-2">Open Days (at registration)</p>
                             <div className="flex flex-wrap gap-2">
-                              {restaurantDetails.onboarding.step2.openDays.map((day, idx) => (
+                              {r.onboarding.step2.openDays.map((day, idx) => (
                                 <span key={idx} className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm font-medium capitalize">
                                   {day}
                                 </span>
@@ -1916,17 +1919,17 @@ export default function RestaurantsList() {
                             </div>
                           </div>
                         )}
-                        {restaurantDetails.onboarding.step2.profileImageUrl?.url && (
+                        {r.onboarding.step2.profileImageUrl?.url && (
                           <div>
                             <p className="text-xs text-slate-500 mb-2">Profile Image (at registration)</p>
                             <a
-                              href={restaurantDetails.onboarding.step2.profileImageUrl.url}
+                              href={r.onboarding.step2.profileImageUrl.url}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-block"
                             >
                               <img
-                                src={restaurantDetails.onboarding.step2.profileImageUrl.url}
+                                src={r.onboarding.step2.profileImageUrl.url}
                                 alt="Profile"
                                 className="w-32 h-32 rounded-lg object-cover border border-slate-200 hover:border-blue-500 transition-colors"
                                 onError={(e) => {
@@ -1941,32 +1944,32 @@ export default function RestaurantsList() {
                   )}
 
                   {/* Onboarding Step 4 Details */}
-                  {restaurantDetails?.onboarding?.step4 && (
+                  {r?.onboarding?.step4 && (
                     <div className="pt-6 border-t border-slate-200">
                       <h4 className="text-lg font-semibold text-slate-900 mb-4">Registration Step 4 Details</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                        {restaurantDetails.onboarding.step4.estimatedDeliveryTime && (
+                        {r.onboarding.step4.estimatedDeliveryTime && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Estimated Delivery Time (at registration)</p>
-                            <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step4.estimatedDeliveryTime}</p>
+                            <p className="font-medium text-slate-900">{r.onboarding.step4.estimatedDeliveryTime}</p>
                           </div>
                         )}
-                        {restaurantDetails.onboarding.step4.distance && (
+                        {r.onboarding.step4.distance && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Distance (at registration)</p>
-                            <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step4.distance}</p>
+                            <p className="font-medium text-slate-900">{r.onboarding.step4.distance}</p>
                           </div>
                         )}
-                        {restaurantDetails.onboarding.step4.featuredDish && (
+                        {r.onboarding.step4.featuredDish && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Featured Dish (at registration)</p>
-                            <p className="font-medium text-slate-900">{restaurantDetails.onboarding.step4.featuredDish}</p>
+                            <p className="font-medium text-slate-900">{r.onboarding.step4.featuredDish}</p>
                           </div>
                         )}
-                        {restaurantDetails.onboarding.step4.offer && (
+                        {r.onboarding.step4.offer && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Offer (at registration)</p>
-                            <p className="font-medium text-green-600">{restaurantDetails.onboarding.step4.offer}</p>
+                            <p className="font-medium text-green-600">{r.onboarding.step4.offer}</p>
                           </div>
                         )}
                       </div>
@@ -1974,38 +1977,38 @@ export default function RestaurantsList() {
                   )}
 
                   {/* Additional Information */}
-                  {(restaurantDetails?.slug || restaurantDetails?.restaurantId || restaurantDetails?.phoneVerified !== undefined || restaurantDetails?.signupMethod) && (
+                  {(r?.slug || r?.restaurantId || r?.phoneVerified !== undefined || r?.signupMethod) && (
                     <div className="pt-6 border-t border-slate-200">
                       <h4 className="text-lg font-semibold text-slate-900 mb-4">Additional Information</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                        {restaurantDetails?.slug && (
+                        {r?.slug && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Slug</p>
-                            <p className="font-medium text-slate-900">{restaurantDetails.slug}</p>
+                            <p className="font-medium text-slate-900">{r.slug}</p>
                           </div>
                         )}
-                        {restaurantDetails?.restaurantId && (
+                        {r?.restaurantId && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Restaurant ID</p>
-                            <p className="font-medium text-slate-900">{formatRestaurantId(restaurantDetails.restaurantId)}</p>
+                            <p className="font-medium text-slate-900">{formatRestaurantId(r.restaurantId)}</p>
                           </div>
                         )}
-                        {restaurantDetails?.phoneVerified !== undefined && (
+                        {r?.phoneVerified !== undefined && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Phone Verified</p>
-                            <p className="font-medium text-slate-900">{restaurantDetails.phoneVerified ? "Yes" : "No"}</p>
+                            <p className="font-medium text-slate-900">{r.phoneVerified ? "Yes" : "No"}</p>
                           </div>
                         )}
-                        {restaurantDetails?.signupMethod && (
+                        {r?.signupMethod && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Signup Method</p>
-                            <p className="font-medium text-slate-900 capitalize">{restaurantDetails.signupMethod}</p>
+                            <p className="font-medium text-slate-900 capitalize">{r.signupMethod}</p>
                           </div>
                         )}
-                        {restaurantDetails?.onboarding?.completedSteps !== undefined && (
+                        {r?.onboarding?.completedSteps !== undefined && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Onboarding Steps Completed</p>
-                            <p className="font-medium text-slate-900">{restaurantDetails.onboarding.completedSteps} / 4</p>
+                            <p className="font-medium text-slate-900">{r.onboarding.completedSteps} / 4</p>
                           </div>
                         )}
                       </div>
@@ -2088,7 +2091,8 @@ export default function RestaurantsList() {
                     </div>
                   )}
                 </div>
-              )}
+                )
+              })()}
               {!loadingDetails && !restaurantDetails && !selectedRestaurant && (
                 <div className="flex flex-col items-center justify-center py-20">
                   <p className="text-lg font-semibold text-slate-700 mb-2">No Details Available</p>

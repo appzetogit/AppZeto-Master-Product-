@@ -553,17 +553,19 @@ availableCashLimit: deliveryman.availableCashLimit || 0,
                         {visibleColumns.name && (
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
-                              {dm.profileImage ? (
-                                <img 
-                                  src={dm.profileImage} 
-                                  alt={dm.name}
-                                  className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-                                />
-                              ) : (
-                                <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
-                                  <span className="text-sm">??</span>
-                                </div>
-                              )}
+                              <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center shrink-0 overflow-hidden">
+                                {(dm.profileImage?.url ?? dm.profilePhoto) ? (
+                                  <img
+                                    src={dm.profileImage?.url ?? dm.profilePhoto}
+                                    alt={dm.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <span className="text-sm font-medium text-slate-500">
+                                    {dm.name?.trim() ? dm.name.slice(0, 2).toUpperCase() : "?"}
+                                  </span>
+                                )}
+                              </div>
                               <div className="flex items-center gap-2">
                                 <span className="text-sm font-medium text-slate-900">{dm.name}</span>
                                 {dm.rating > 0 && (

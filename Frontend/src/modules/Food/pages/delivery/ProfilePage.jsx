@@ -167,10 +167,6 @@ export default function ProfilePage() {
   }, [])
 
   const handleLogout = async () => {
-    if (!window.confirm("Are you sure you want to logout?")) {
-      return
-    }
-
     try {
       // Call logout API to clear refresh token on server
       await deliveryAPI.logout()

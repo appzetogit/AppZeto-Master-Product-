@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react"
+import { useRef, useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import { ArrowLeft, Plus, Edit2, ChevronRight, FileText, CheckCircle, XCircle, Eye, X, Loader2, User } from "lucide-react"
+import { ArrowLeft, Plus, Edit2, Eye, X, Loader2, User, Camera } from "lucide-react"
 import BottomPopup from "@food/components/delivery/BottomPopup"
 import { toast } from "sonner"
 import { deliveryAPI } from "@food/api"
@@ -29,6 +29,15 @@ export default function ProfileDetails() {
   })
   const [bankDetailsErrors, setBankDetailsErrors] = useState({})
   const [isUpdatingBankDetails, setIsUpdatingBankDetails] = useState(false)
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
+  const fileInputRef = useRef(null)
+  const [uploadTarget, setUploadTarget] = useState(null) // 'profilePhoto' only for instant picker
+  const [showDocumentsEditPopup, setShowDocumentsEditPopup] = useState(false)
+  const [docEditFiles, setDocEditFiles] = useState({ aadharPhoto: null, panPhoto: null, drivingLicensePhoto: null })
+  const [isSubmittingDocs, setIsSubmittingDocs] = useState(false)
+  const aadharInputRef = useRef(null)
+  const panInputRef = useRef(null)
+  const drivingLicenseInputRef = useRef(null)
 
   // Note: All alternate phone related code has been removed
 
@@ -98,7 +107,7 @@ export default function ProfileDetails() {
           toast.error("Session expired. Please login again.")
           // Optionally redirect to login
           setTimeout(() => {
-            navigate("/delivery/sign-in", { replace: true })
+            navigate("/delivery/login", { replace: true })
           }, 2000)
         } else {
           toast.error(error?.response?.data?.message || "Failed to load profile data")
@@ -154,6 +163,149 @@ export default function ProfileDetails() {
 
   const profileImageUrl = profile?.profileImage?.url || profile?.documents?.photo || null
 
+  const refreshProfile = async () => {
+    const response = await deliveryAPI.getProfile()
+    if (response?.data?.success && response?.data?.data?.profile) {
+      setProfile(response.data.data.profile)
+    }
+  }
+
+  const clearDeliveryAuthLocal = () => {
+    try {
+      localStorage.removeItem("delivery_accessToken")
+      localStorage.removeItem("delivery_refreshToken")
+      localStorage.removeItem("delivery_authenticated")
+      localStorage.removeItem("delivery_user")
+    } catch (_) {}
+  }
+
+  const forceLogoutForReapproval = async () => {
+    toast.message("Documents updated. Verification required again — please wait for admin approval.")
+    try {
+      await deliveryAPI.logout()
+    } catch (_) {
+      // ignore
+    } finally {
+      clearDeliveryAuthLocal()
+      navigate("/delivery/login", { replace: true })
+    }
+  }
+
+  const hasFlutterCamera = () =>
+    typeof window !== "undefined" &&
+    window.flutter_inappwebview &&
+    typeof window.flutter_inappwebview.callHandler === "function"
+
+  const openPicker = (target) => {
+    setUploadTarget(target)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
+      fileInputRef.current.click()
+    }
+  }
+
+  const uploadViaFlutterCamera = async (target) => {
+    if (!hasFlutterCamera()) return false
+    try {
+      setIsUploadingImage(true)
+      const res = await window.flutter_inappwebview.callHandler("openCamera")
+      if (!res?.success || !res?.base64) return false
+
+      if (target !== "profilePhoto") {
+        toast.error("Camera upload is available for profile photo only.")
+        return false
+      }
+
+      const response = await deliveryAPI.updateProfilePhotoBase64({
+        success: true,
+        base64: res.base64,
+        mimeType: res.mimeType || "image/jpeg",
+        fileName: res.fileName || "camera.jpg",
+      })
+
+      if (response?.data?.success) {
+        toast.success("Profile photo updated")
+        await refreshProfile()
+        return true
+      }
+      toast.error(response?.data?.message || "Failed to update photo")
+      return false
+    } catch (e) {
+      debugError("Flutter camera upload failed:", e)
+      toast.error("Failed to open camera")
+      return false
+    } finally {
+      setIsUploadingImage(false)
+    }
+  }
+
+  const handleFileSelected = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file || !uploadTarget) return
+    // Only profile photo uses instant picker; documents use the Edit documents popup
+    if (uploadTarget !== "profilePhoto") return
+    try {
+      setIsUploadingImage(true)
+      const formData = new FormData()
+      formData.append(uploadTarget, file)
+      const response = await deliveryAPI.updateProfileMultipart(formData)
+      if (response?.data?.success) {
+        toast.success("Profile photo updated")
+        await refreshProfile()
+      } else {
+        toast.error(response?.data?.message || "Update failed")
+      }
+    } catch (error) {
+      debugError("Upload failed:", error)
+      toast.error(error?.response?.data?.message || "Update failed")
+    } finally {
+      setIsUploadingImage(false)
+      setUploadTarget(null)
+      if (fileInputRef.current) fileInputRef.current.value = ""
+    }
+  }
+
+  const handleDocEditFileChange = (field, file) => {
+    setDocEditFiles((prev) => ({ ...prev, [field]: file || null }))
+  }
+
+  const submitDocumentsEdit = async () => {
+    const hasAny = docEditFiles.aadharPhoto || docEditFiles.panPhoto || docEditFiles.drivingLicensePhoto
+    if (!hasAny) {
+      toast.error("Select at least one document to update")
+      return
+    }
+    try {
+      setIsSubmittingDocs(true)
+      const formData = new FormData()
+      if (docEditFiles.aadharPhoto) formData.append("aadharPhoto", docEditFiles.aadharPhoto)
+      if (docEditFiles.panPhoto) formData.append("panPhoto", docEditFiles.panPhoto)
+      if (docEditFiles.drivingLicensePhoto) formData.append("drivingLicensePhoto", docEditFiles.drivingLicensePhoto)
+      const response = await deliveryAPI.updateProfileMultipart(formData)
+      if (response?.data?.success) {
+        const requiresReapproval = Boolean(response?.data?.data?.requiresReapproval)
+        toast.success("Documents updated successfully")
+        setShowDocumentsEditPopup(false)
+        setDocEditFiles({ aadharPhoto: null, panPhoto: null, drivingLicensePhoto: null })
+        if (aadharInputRef.current) aadharInputRef.current.value = ""
+        if (panInputRef.current) panInputRef.current.value = ""
+        if (drivingLicenseInputRef.current) drivingLicenseInputRef.current.value = ""
+        if (requiresReapproval) {
+          await forceLogoutForReapproval()
+          return
+        }
+        await refreshProfile()
+      } else {
+        toast.error(response?.data?.message || "Update failed")
+      }
+    } catch (error) {
+      debugError("Documents update failed:", error)
+      toast.error(error?.response?.data?.message || "Update failed")
+    } finally {
+      setIsSubmittingDocs(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -193,7 +345,32 @@ export default function ProfileDetails() {
             </div>
           </div>
         )}
+
+        <button
+          disabled={isUploadingImage}
+          onClick={async () => {
+            const used = await uploadViaFlutterCamera("profilePhoto")
+            if (!used) openPicker("profilePhoto")
+          }}
+          className="absolute bottom-3 right-3 bg-black/80 text-white p-3 rounded-full shadow-lg hover:bg-black transition-colors disabled:opacity-60"
+          title="Update profile photo"
+        >
+          {isUploadingImage ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : (
+            <Camera className="w-5 h-5" />
+          )}
+        </button>
       </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={handleFileSelected}
+      />
 
       {/* Content */}
       <div className="px-4 py-6 space-y-6">
@@ -259,7 +436,19 @@ export default function ProfileDetails() {
 
         {/* Documents Section */}
         <div>
-          <h2 className="text-base font-medium text-gray-900 mb-3">Documents</h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base font-medium text-gray-900">Documents</h2>
+            <button
+              onClick={() => {
+                setDocEditFiles({ aadharPhoto: null, panPhoto: null, drivingLicensePhoto: null })
+                setShowDocumentsEditPopup(true)
+              }}
+              className="text-green-600 font-medium text-sm flex items-center gap-1 hover:text-green-700"
+            >
+              <Edit2 className="w-4 h-4" />
+              <span>Edit documents</span>
+            </button>
+          </div>
           <div className="bg-white rounded-lg shadow-sm divide-y divide-gray-200">
             {/* Aadhar Card */}
             <div className="p-4 flex items-center justify-between">
@@ -279,6 +468,7 @@ export default function ProfileDetails() {
                     setShowDocumentModal(true)
                   }}
                   className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                  title="View"
                 >
                   <Eye className="w-5 h-5 text-gray-600" />
                 </button>
@@ -303,6 +493,7 @@ export default function ProfileDetails() {
                     setShowDocumentModal(true)
                   }}
                   className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                  title="View"
                 >
                   <Eye className="w-5 h-5 text-gray-600" />
                 </button>
@@ -327,6 +518,7 @@ export default function ProfileDetails() {
                     setShowDocumentModal(true)
                   }}
                   className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                  title="View"
                 >
                   <Eye className="w-5 h-5 text-gray-600" />
                 </button>
@@ -334,6 +526,81 @@ export default function ProfileDetails() {
             </div>
           </div>
         </div>
+
+        {/* Edit documents popup – 1, 2 ya 3 docs select karke Update par hi upload + logout/reapproval */}
+        <BottomPopup
+          isOpen={showDocumentsEditPopup}
+          onClose={() => {
+            setShowDocumentsEditPopup(false)
+            setDocEditFiles({ aadharPhoto: null, panPhoto: null, drivingLicensePhoto: null })
+            if (aadharInputRef.current) aadharInputRef.current.value = ""
+            if (panInputRef.current) panInputRef.current.value = ""
+            if (drivingLicenseInputRef.current) drivingLicenseInputRef.current.value = ""
+          }}
+          title="Update documents"
+          showCloseButton={true}
+          closeOnBackdropClick={true}
+          maxHeight="85vh"
+        >
+          <div className="space-y-4 pb-4">
+            <p className="text-sm text-gray-600">
+              Select 1, 2 or all 3 documents to update. After you click Update, your account will go for admin verification and you will be logged out until approved.
+            </p>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Aadhar Card</label>
+              <input
+                ref={aadharInputRef}
+                type="file"
+                accept="image/*"
+                className="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-gray-100 file:text-gray-700"
+                onChange={(e) => handleDocEditFileChange("aadharPhoto", e.target.files?.[0])}
+              />
+              {docEditFiles.aadharPhoto && (
+                <p className="text-xs text-green-600 mt-1">{docEditFiles.aadharPhoto.name}</p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">PAN Card</label>
+              <input
+                ref={panInputRef}
+                type="file"
+                accept="image/*"
+                className="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-gray-100 file:text-gray-700"
+                onChange={(e) => handleDocEditFileChange("panPhoto", e.target.files?.[0])}
+              />
+              {docEditFiles.panPhoto && (
+                <p className="text-xs text-green-600 mt-1">{docEditFiles.panPhoto.name}</p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Driving License</label>
+              <input
+                ref={drivingLicenseInputRef}
+                type="file"
+                accept="image/*"
+                className="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-gray-100 file:text-gray-700"
+                onChange={(e) => handleDocEditFileChange("drivingLicensePhoto", e.target.files?.[0])}
+              />
+              {docEditFiles.drivingLicensePhoto && (
+                <p className="text-xs text-green-600 mt-1">{docEditFiles.drivingLicensePhoto.name}</p>
+              )}
+            </div>
+            <button
+              onClick={submitDocumentsEdit}
+              disabled={isSubmittingDocs || (!docEditFiles.aadharPhoto && !docEditFiles.panPhoto && !docEditFiles.drivingLicensePhoto)}
+              className="w-full py-3 rounded-lg font-medium text-white bg-black hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {isSubmittingDocs ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                "Update documents"
+              )}
+            </button>
+          </div>
+        </BottomPopup>
 
         {/* Personal Details Section */}
         <div>
@@ -481,20 +748,14 @@ export default function ProfileDetails() {
             onClick={async () => {
               if (vehicleInput.trim()) {
                 try {
-                  await deliveryAPI.updateProfile({
-                    vehicle: {
-                      ...profile?.vehicle,
-                      number: vehicleInput.trim()
-                    }
+                  await deliveryAPI.updateProfileDetails({
+                    vehicle: { number: vehicleInput.trim() }
                   })
                   setVehicleNumber(vehicleInput.trim())
                   setShowVehiclePopup(false)
                   toast.success("Vehicle number updated successfully")
                   // Refetch profile
-                  const response = await deliveryAPI.getProfile()
-                  if (response?.data?.success && response?.data?.data?.profile) {
-                    setProfile(response.data.data.profile)
-                  }
+                  await refreshProfile()
                 } catch (error) {
                   debugError("Error updating vehicle number:", error)
                   toast.error("Failed to update vehicle number")

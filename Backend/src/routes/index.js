@@ -4,7 +4,7 @@ import deliveryRoutes from '../modules/food/delivery/routes/delivery.routes.js';
 import restaurantRoutes from '../modules/food/restaurant/routes/restaurant.routes.js';
 import landingRoutes from '../modules/food/landing/routes/landing.routes.js';
 import uploadRoutes from '../modules/uploads/routes/upload.routes.js';
-import restaurantAdminRoutes from '../modules/zomato/admin/routes/restaurantAdmin.routes.js';
+import restaurantAdminRoutes from '../modules/food/admin/admin.routes.js';
 import { authMiddleware } from '../core/auth/auth.middleware.js';
 import { requireRoles } from '../core/roles/role.middleware.js';
 import { getQueuesController } from '../controllers/admin.controller.js';

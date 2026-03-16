@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-const zomatoLandingSettingsSchema = new mongoose.Schema(
+const foodLandingSettingsSchema = new mongoose.Schema(
     {
         exploreMoreHeading: {
             type: String,
@@ -8,7 +8,7 @@ const zomatoLandingSettingsSchema = new mongoose.Schema(
         },
         recommendedRestaurantIds: {
             type: [mongoose.Schema.Types.ObjectId],
-            ref: 'ZomatoRestaurant',
+            ref: 'FoodRestaurant',
             default: []
         },
         showHeroBanners: {
@@ -42,5 +42,5 @@ const zomatoLandingSettingsSchema = new mongoose.Schema(
     }
 );
 
-export const ZomatoLandingSettings = mongoose.model('ZomatoLandingSettings', zomatoLandingSettingsSchema);
+export const FoodLandingSettings = mongoose.model('FoodLandingSettings', foodLandingSettingsSchema);
 

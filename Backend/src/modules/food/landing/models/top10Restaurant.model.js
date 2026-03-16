@@ -1,10 +1,10 @@
 import mongoose from 'mongoose';
 
-const zomatoTop10RestaurantSchema = new mongoose.Schema(
+const foodTop10RestaurantSchema = new mongoose.Schema(
     {
         restaurantId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'ZomatoRestaurant',
+            ref: 'FoodRestaurant',
             required: true
         },
         rank: {
@@ -34,8 +34,8 @@ const zomatoTop10RestaurantSchema = new mongoose.Schema(
     }
 );
 
-zomatoTop10RestaurantSchema.index({ rank: 1 }, { unique: true });
-zomatoTop10RestaurantSchema.index({ restaurantId: 1 });
+foodTop10RestaurantSchema.index({ rank: 1 }, { unique: true });
+foodTop10RestaurantSchema.index({ restaurantId: 1 });
 
-export const ZomatoTop10Restaurant = mongoose.model('ZomatoTop10Restaurant', zomatoTop10RestaurantSchema);
+export const FoodTop10Restaurant = mongoose.model('FoodTop10Restaurant', foodTop10RestaurantSchema);
 

@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@food/components/ui/select"
-import { uploadAPI, api } from "@food/api"
+import { restaurantAPI } from "@food/api"
 import { MobileTimePicker } from "@mui/x-date-pickers/MobileTimePicker"
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider"
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns"
@@ -73,8 +73,15 @@ const isUploadableFile = (value) => {
   )
 }
 
+const normalizePhoneDigits = (value) => String(value || "").replace(/\D/g, "").slice(-15)
+
 const getVerifiedPhoneFromStoredRestaurant = () => {
   try {
+    const pending = localStorage.getItem("restaurant_pendingPhone")
+    if (pending && pending.trim()) {
+      return pending.trim()
+    }
+
     const storedUser = localStorage.getItem("restaurant_user")
     if (!storedUser) return ""
     const user = JSON.parse(storedUser)
@@ -774,9 +781,9 @@ export default function RestaurantOnboarding() {
 
   const handleUpload = async (file, folder) => {
     try {
-      const res = await uploadAPI.uploadMedia(file, { folder })
-      const d = res?.data?.data || res?.data
-      return { url: d.url, publicId: d.publicId }
+      // Uploading is done on final registration submit (multipart /register).
+      // Keep this method for backward compatibility in case other flows call it.
+      throw new Error("Image uploads are submitted during registration")
     } catch (err) {
       // Provide more informative error message for upload failures
       const errorMsg = err?.response?.data?.message || err?.response?.data?.error || err?.message || "Failed to upload image"
@@ -1096,261 +1103,86 @@ export default function RestaurantOnboarding() {
     setSaving(true)
     try {
       if (step === 1) {
-        const payload = {
-          step1,
-          completedSteps: 1,
-        }
-        await api.put("/restaurant/onboarding", payload)
         setStep(2)
       } else if (step === 2) {
-        const menuUploads = []
-        // Upload menu images if they are File objects
-        for (const file of step2.menuImages.filter((f) => isUploadableFile(f))) {
-          try {
-            const uploaded = await handleUpload(file, "appzeto/restaurant/menu")
-            // Verify upload was successful and has valid URL
-            if (!uploaded || !uploaded.url) {
-              throw new Error(`Failed to upload menu image: ${file.name}`)
-            }
-            menuUploads.push(uploaded)
-          } catch (uploadError) {
-            debugError('Menu image upload error:', uploadError)
-            throw new Error(`Failed to upload menu image: ${uploadError.message}`)
-          }
-        }
-        // If menuImages already have URLs (from previous save), include them
-        const existingMenuUrls = step2.menuImages.filter((img) => !isUploadableFile(img) && (img?.url || (typeof img === 'string' && img.startsWith('http'))))
-        const allMenuUrls = [...existingMenuUrls, ...menuUploads]
-
-        // Verify we have at least one menu image
-        if (allMenuUrls.length === 0) {
-          throw new Error('At least one menu image must be uploaded')
-        }
-
-        // Upload profile image if it's a File object
-        let profileUpload = null
-        if (isUploadableFile(step2.profileImage)) {
-          try {
-            profileUpload = await handleUpload(step2.profileImage, "appzeto/restaurant/profile")
-            // Verify upload was successful and has valid URL
-            if (!profileUpload || !profileUpload.url) {
-              throw new Error('Failed to upload profile image')
-            }
-          } catch (uploadError) {
-            debugError('Profile image upload error:', uploadError)
-            throw new Error(`Failed to upload profile image: ${uploadError.message}`)
-          }
-        } else if (step2.profileImage?.url) {
-          // If profileImage already has a URL (from previous save), use it
-          profileUpload = step2.profileImage
-        } else if (typeof step2.profileImage === 'string' && step2.profileImage.startsWith('http')) {
-          // If it's a direct URL string
-          profileUpload = { url: step2.profileImage }
-        }
-
-        // Verify profile image is present
-        if (!profileUpload || !profileUpload.url) {
-          throw new Error('Profile image must be uploaded')
-        }
-
-        const payload = {
-          step2: {
-            menuImageUrls: allMenuUrls.length > 0 ? allMenuUrls : [],
-            profileImageUrl: profileUpload,
-            cuisines: step2.cuisines || [],
-            deliveryTimings: {
-              openingTime: normalizeTimeValue(step2.openingTime),
-              closingTime: normalizeTimeValue(step2.closingTime),
-            },
-            openDays: step2.openDays || [],
-          },
-          completedSteps: 2,
-        }
-        debugLog('?? Step2 payload:', {
-          menuImageUrlsCount: payload.step2.menuImageUrls.length,
-          hasProfileImage: !!payload.step2.profileImageUrl,
-          cuisines: payload.step2.cuisines,
-          openDays: payload.step2.openDays,
-          deliveryTimings: payload.step2.deliveryTimings,
-        })
-
-        const response = await api.put("/restaurant/onboarding", payload)
-        debugLog('? Step2 response:', response?.data)
-
-        // Verify response is successful
-        if (!response || !response.data) {
-          throw new Error('Invalid response from server')
-        }
-
-        // After step2, also update restaurant schema with step2 data
-        // This ensures data is saved immediately, not just in onboarding subdocument
-        if (response?.data?.data?.restaurant) {
-          debugLog('? Step2 data saved and restaurant updated')
-        }
-
-        // Only proceed to step 3 if save was successful
-        if (response?.data?.data?.onboarding || response?.data?.data) {
-          debugLog('? Step2 completed successfully, moving to step 3')
-          setStep(3)
-        } else {
-          throw new Error('Failed to save step2 data')
-        }
+        setStep(3)
       } else if (step === 3) {
-        // Upload PAN image if it's a File object
-        let panImageUpload = null
-        if (isUploadableFile(step3.panImage)) {
-          try {
-            panImageUpload = await handleUpload(step3.panImage, "appzeto/restaurant/pan")
-            // Verify upload was successful and has valid URL
-            if (!panImageUpload || !panImageUpload.url) {
-              throw new Error('Failed to upload PAN image')
-            }
-          } catch (uploadError) {
-            debugError('PAN image upload error:', uploadError)
-            throw new Error(`Failed to upload PAN image: ${uploadError.message}`)
-          }
-        } else if (step3.panImage?.url) {
-          // If panImage already has a URL (from previous save), use it
-          panImageUpload = step3.panImage
-        } else if (typeof step3.panImage === 'string' && step3.panImage.startsWith('http')) {
-          // If it's a direct URL string
-          panImageUpload = { url: step3.panImage }
-        }
-
-        // Verify PAN image is present
-        if (!panImageUpload || !panImageUpload.url) {
-          throw new Error('PAN image must be uploaded')
-        }
-
-        // Upload GST image if it's a File object (only if GST registered)
-        let gstImageUpload = null
-        if (step3.gstRegistered) {
-          if (isUploadableFile(step3.gstImage)) {
-            try {
-              gstImageUpload = await handleUpload(step3.gstImage, "appzeto/restaurant/gst")
-              // Verify upload was successful and has valid URL
-              if (!gstImageUpload || !gstImageUpload.url) {
-                throw new Error('Failed to upload GST image')
-              }
-            } catch (uploadError) {
-              debugError('GST image upload error:', uploadError)
-              throw new Error(`Failed to upload GST image: ${uploadError.message}`)
-            }
-          } else if (step3.gstImage?.url) {
-            // If gstImage already has a URL (from previous save), use it
-            gstImageUpload = step3.gstImage
-          } else if (typeof step3.gstImage === 'string' && step3.gstImage.startsWith('http')) {
-            // If it's a direct URL string
-            gstImageUpload = { url: step3.gstImage }
-          }
-
-          // Verify GST image is present if GST registered
-          if (!gstImageUpload || !gstImageUpload.url) {
-            throw new Error('GST image must be uploaded when GST registered')
-          }
-        }
-
-        // Upload FSSAI image if it's a File object
-        let fssaiImageUpload = null
-        if (isUploadableFile(step3.fssaiImage)) {
-          try {
-            fssaiImageUpload = await handleUpload(step3.fssaiImage, "appzeto/restaurant/fssai")
-            // Verify upload was successful and has valid URL
-            if (!fssaiImageUpload || !fssaiImageUpload.url) {
-              throw new Error('Failed to upload FSSAI image')
-            }
-          } catch (uploadError) {
-            debugError('FSSAI image upload error:', uploadError)
-            throw new Error(`Failed to upload FSSAI image: ${uploadError.message}`)
-          }
-        } else if (step3.fssaiImage?.url) {
-          // If fssaiImage already has a URL (from previous save), use it
-          fssaiImageUpload = step3.fssaiImage
-        } else if (typeof step3.fssaiImage === 'string' && step3.fssaiImage.startsWith('http')) {
-          // If it's a direct URL string
-          fssaiImageUpload = { url: step3.fssaiImage }
-        }
-
-        // Verify FSSAI image is present
-        if (!fssaiImageUpload || !fssaiImageUpload.url) {
-          throw new Error('FSSAI image must be uploaded')
-        }
-
-        const payload = {
-          step3: {
-            pan: {
-              panNumber: step3.panNumber || "",
-              nameOnPan: step3.nameOnPan || "",
-              image: panImageUpload,
-            },
-            gst: {
-              isRegistered: step3.gstRegistered || false,
-              gstNumber: step3.gstNumber || "",
-              legalName: step3.gstLegalName || "",
-              address: step3.gstAddress || "",
-              image: gstImageUpload,
-            },
-            fssai: {
-              registrationNumber: step3.fssaiNumber || "",
-              expiryDate: step3.fssaiExpiry || null,
-              image: fssaiImageUpload,
-            },
-            bank: {
-              accountNumber: step3.accountNumber || "",
-              ifscCode: step3.ifscCode || "",
-              accountHolderName: step3.accountHolderName || "",
-              accountType: step3.accountType || "",
-            },
-          },
-          completedSteps: 3,
-        }
-        debugLog('?? Step3 payload:', {
-          hasPan: !!payload.step3.pan.panNumber,
-          hasGst: payload.step3.gst.isRegistered,
-          hasFssai: !!payload.step3.fssai.registrationNumber,
-          hasBank: !!payload.step3.bank.accountNumber,
-        })
-
-        const response = await api.put("/restaurant/onboarding", payload)
-        debugLog('? Step3 response:', response?.data)
-
-        if (response?.data?.data?.onboarding) {
-          debugLog('? Step3 data saved successfully')
-        }
         setStep(4)
       } else if (step === 4) {
-        debugLog('?? Submitting Step 4:', step4)
-        const payload = {
-          step4: {
-            estimatedDeliveryTime: step4.estimatedDeliveryTime,
-            featuredDish: step4.featuredDish,
-            featuredPrice: parseFloat(step4.featuredPrice) || 249,
-            offer: step4.offer,
-          },
-          completedSteps: 4,
-        }
-        debugLog('?? Step 4 payload:', payload)
-        const response = await api.put("/restaurant/onboarding", payload)
-        debugLog('? Step4 completed, response:', response?.data)
+        // Final submit: create restaurant in DB using backend multipart endpoint.
+        const formData = new FormData()
 
-        // Verify response is successful
-        if (!response || !response.data) {
-          throw new Error('Invalid response from server')
+        // Step 1
+        formData.append("restaurantName", step1.restaurantName || "")
+        formData.append("ownerName", step1.ownerName || "")
+        formData.append("ownerEmail", step1.ownerEmail || "")
+        formData.append("ownerPhone", normalizePhoneDigits(step1.ownerPhone))
+        formData.append("primaryContactNumber", normalizePhoneDigits(step1.primaryContactNumber))
+        formData.append("addressLine1", step1.location?.addressLine1 || "")
+        formData.append("addressLine2", step1.location?.addressLine2 || "")
+        formData.append("area", step1.location?.area || "")
+        formData.append("city", step1.location?.city || "")
+        formData.append("landmark", step1.location?.landmark || "")
+
+        // Step 2
+        formData.append("cuisines", (step2.cuisines || []).join(","))
+        formData.append("openingTime", normalizeTimeValue(step2.openingTime) || "")
+        formData.append("closingTime", normalizeTimeValue(step2.closingTime) || "")
+        formData.append("openDays", (step2.openDays || []).join(","))
+
+        const menuFiles = (step2.menuImages || []).filter((f) => isUploadableFile(f))
+        if (menuFiles.length === 0) {
+          throw new Error("At least one menu image must be uploaded")
         }
+        menuFiles.forEach((file) => formData.append("menuImages", file))
+
+        if (!isUploadableFile(step2.profileImage)) {
+          throw new Error("Restaurant profile image is required")
+        }
+        formData.append("profileImage", step2.profileImage)
+
+        // Step 3
+        formData.append("panNumber", step3.panNumber || "")
+        formData.append("nameOnPan", step3.nameOnPan || "")
+        if (!isUploadableFile(step3.panImage)) {
+          throw new Error("PAN image is required")
+        }
+        formData.append("panImage", step3.panImage)
+
+        formData.append("gstRegistered", step3.gstRegistered ? "true" : "false")
+        if (step3.gstRegistered) {
+          formData.append("gstNumber", step3.gstNumber || "")
+          formData.append("gstLegalName", step3.gstLegalName || "")
+          formData.append("gstAddress", step3.gstAddress || "")
+          if (!isUploadableFile(step3.gstImage)) {
+            throw new Error("GST image is required when GST registered")
+          }
+          formData.append("gstImage", step3.gstImage)
+        }
+
+        formData.append("fssaiNumber", step3.fssaiNumber || "")
+        formData.append("fssaiExpiry", step3.fssaiExpiry || "")
+        if (!isUploadableFile(step3.fssaiImage)) {
+          throw new Error("FSSAI image is required")
+        }
+        formData.append("fssaiImage", step3.fssaiImage)
+
+        formData.append("accountNumber", step3.accountNumber || "")
+        formData.append("ifscCode", (step3.ifscCode || "").toUpperCase())
+        formData.append("accountHolderName", step3.accountHolderName || "")
+        formData.append("accountType", step3.accountType || "")
+
+        await restaurantAPI.register(formData)
 
         // Clear localStorage when onboarding is complete
         clearOnboardingFromLocalStorage()
         clearOnboardingFileCache()
+        try {
+          localStorage.removeItem("restaurant_pendingPhone")
+        } catch {}
 
-        // Show success message briefly, then navigate
-        debugLog('? Onboarding completed successfully, redirecting to restaurant home...')
-
-        // Wait a moment to ensure data is saved, then navigate
-        setTimeout(() => {
-          // Navigate to restaurant home page after onboarding completion
-          debugLog('?? Navigating to restaurant home page...')
-          navigate("/restaurant", { replace: true })
-        }, 800)
+        toast.success("Registration submitted. Awaiting admin approval.", { duration: 4000 })
+        navigate("/food/restaurant/login", { replace: true })
       }
     } catch (err) {
       const msg =
@@ -1547,7 +1379,7 @@ export default function RestaurantOnboarding() {
               <div className="flex flex-col">
                 <span className="text-xs font-medium text-gray-900">Upload menu images</span>
                 <span className="text-[11px] text-gray-500">
-                  JPG, PNG, WebP ï You can select multiple files
+                  JPG, PNG, WebP ù You can select multiple files
                 </span>
               </div>
             </div>

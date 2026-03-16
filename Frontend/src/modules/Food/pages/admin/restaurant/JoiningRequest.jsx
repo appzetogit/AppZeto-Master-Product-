@@ -51,27 +51,12 @@ export default function JoiningRequest() {
       setLoading(true)
       setError(null)
 
-      const status = activeTab === "pending" ? "pending" : "rejected"
-      const response = await adminAPI.getRestaurantJoinRequests({
-        status,
-        search: searchQuery || undefined,
-        page: 1,
-        limit: 100
-      })
-
-      if (response.data && response.data.success && response.data.data) {
-        const requests = response.data.data.requests || []
-        if (activeTab === "pending") {
-          setPendingRequests(requests)
-        } else {
-          setRejectedRequests(requests)
-        }
+      const response = await adminAPI.getPendingRestaurants()
+      const list = response?.data?.data || []
+      if (activeTab === "pending") {
+        setPendingRequests(list.filter((r) => r.status === "pending"))
       } else {
-        if (activeTab === "pending") {
-          setPendingRequests([])
-        } else {
-          setRejectedRequests([])
-        }
+        setRejectedRequests(list.filter((r) => r.status === "rejected"))
       }
     } catch (err) {
       debugError("Error fetching restaurant requests:", err)

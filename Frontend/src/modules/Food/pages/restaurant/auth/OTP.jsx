@@ -3,7 +3,10 @@ import { useNavigate } from "react-router-dom"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@food/components/ui/button"
 import { restaurantAPI } from "@food/api"
-import { setAuthData as setRestaurantAuthData } from "@food/utils/auth"
+import {
+  setAuthData as setRestaurantAuthData,
+  setRestaurantPendingPhone,
+} from "@food/utils/auth"
 import { checkOnboardingStatus, isRestaurantOnboardingComplete } from "@food/utils/onboardingUtils"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -165,9 +168,24 @@ export default function RestaurantOTP() {
       const email = authData.method === "email" ? authData.email : null
       const purpose = authData.isSignUp ? "register" : "login"
 
-      // Backend: POST /auth/restaurant/verify-otp returns { accessToken, refreshToken, user } (user = restaurant doc)
       const response = await restaurantAPI.verifyOTP(phone, code, purpose, null, email)
       const data = response?.data?.data || response?.data
+
+      const needsRegistration = data?.needsRegistration === true
+      const normalizedPhone = data?.phone || phone
+
+      if (needsRegistration) {
+        // Phone is OTP-verified but no restaurant exists yet.
+        // Persist the phone so onboarding can pre-fill ownerPhone.
+        setRestaurantPendingPhone(normalizedPhone)
+
+        sessionStorage.removeItem("restaurantAuthData")
+        sessionStorage.removeItem("restaurantLoginPhone")
+
+        navigate("/food/restaurant/onboarding", { replace: true })
+        return
+      }
+
       const accessToken = data?.accessToken
       const refreshToken = data?.refreshToken ?? null
       const restaurant = data?.user ?? data?.restaurant

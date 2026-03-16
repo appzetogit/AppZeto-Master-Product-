@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-const zomatoExploreIconSchema = new mongoose.Schema(
+const foodExploreIconSchema = new mongoose.Schema(
     {
         label: {
             type: String,
@@ -39,7 +39,7 @@ const zomatoExploreIconSchema = new mongoose.Schema(
     }
 );
 
-zomatoExploreIconSchema.index({ isActive: 1, sortOrder: 1 });
+foodExploreIconSchema.index({ isActive: 1, sortOrder: 1 });
 
-export const ZomatoExploreIcon = mongoose.model('ZomatoExploreIcon', zomatoExploreIconSchema);
+export const FoodExploreIcon = mongoose.model('FoodExploreIcon', foodExploreIconSchema);
 

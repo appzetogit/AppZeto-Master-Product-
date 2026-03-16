@@ -105,6 +105,21 @@ const restaurantSchema = new mongoose.Schema(
         },
         fssaiImage: {
             type: String
+        },
+        status: {
+            type: String,
+            enum: ['pending', 'approved', 'rejected'],
+            default: 'pending'
+        },
+        approvedAt: {
+            type: Date
+        },
+        rejectedAt: {
+            type: Date
+        },
+        rejectionReason: {
+            type: String,
+            trim: true
         }
     },
     {
@@ -117,6 +132,7 @@ restaurantSchema.index({ ownerPhone: 1 });
 restaurantSchema.index({ restaurantName: 1 });
 restaurantSchema.index({ city: 1 });
 restaurantSchema.index({ restaurantName: 1, ownerPhone: 1 });
+restaurantSchema.index({ status: 1, createdAt: -1 });
 
-export const ZomatoRestaurant = mongoose.model('ZomatoRestaurant', restaurantSchema);
+export const FoodRestaurant = mongoose.model('FoodRestaurant', restaurantSchema);
 

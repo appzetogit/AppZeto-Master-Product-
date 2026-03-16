@@ -1,4 +1,4 @@
-import { ZomatoDeliveryPartner } from '../models/deliveryPartner.model.js';
+import { FoodDeliveryPartner } from '../../food/delivery/models/deliveryPartner.model.js';
 import { uploadImageBuffer } from '../../../../services/cloudinary.service.js';
 import { ValidationError } from '../../../../core/auth/errors.js';
 
@@ -6,7 +6,7 @@ export const registerDeliveryPartner = async (payload, files) => {
     const { name, phone, countryCode, address, city, state, vehicleType, vehicleName, vehicleNumber, panNumber, aadharNumber } =
         payload;
 
-    const existing = await ZomatoDeliveryPartner.findOne({ phone }).lean();
+    const existing = await FoodDeliveryPartner.findOne({ phone }).lean();
     if (existing) {
         throw new ValidationError('Delivery partner with this phone already exists');
     }
@@ -29,7 +29,7 @@ export const registerDeliveryPartner = async (payload, files) => {
         );
     }
 
-    const partner = await ZomatoDeliveryPartner.create({
+    const partner = await FoodDeliveryPartner.create({
         name,
         phone,
         countryCode,
@@ -49,7 +49,7 @@ export const registerDeliveryPartner = async (payload, files) => {
 };
 
 export const updateDeliveryPartnerProfile = async (userId, payload, files) => {
-    const partner = await ZomatoDeliveryPartner.findById(userId);
+    const partner = await FoodDeliveryPartner.findById(userId);
     if (!partner) {
         throw new ValidationError('Delivery partner not found');
     }
@@ -105,8 +105,8 @@ export const listDeliveryPartnerJoinRequests = async ({ status = 'pending', sear
 
     const skip = (Number(page) - 1) * Number(limit);
     const [items, total] = await Promise.all([
-        ZomatoDeliveryPartner.find(query).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)).lean(),
-        ZomatoDeliveryPartner.countDocuments(query)
+        FoodDeliveryPartner.find(query).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)).lean(),
+        FoodDeliveryPartner.countDocuments(query)
     ]);
 
     return { requests: items, total };

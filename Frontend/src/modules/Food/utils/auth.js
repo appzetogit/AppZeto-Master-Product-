@@ -159,9 +159,29 @@ export function clearRestaurantSessionCache() {
     "restaurant_hub_menu_active_tab",
     "restaurant_name",
     "restaurantName",
+    "restaurant_pendingPhone",
   ];
 
   keys.forEach((key) => localStorage.removeItem(key));
+}
+
+export function setRestaurantPendingPhone(phone) {
+  if (typeof localStorage === "undefined") return;
+  if (!phone) {
+    localStorage.removeItem("restaurant_pendingPhone");
+    return;
+  }
+  localStorage.setItem("restaurant_pendingPhone", phone);
+}
+
+export function getRestaurantPendingPhone() {
+  if (typeof localStorage === "undefined") return null;
+  return localStorage.getItem("restaurant_pendingPhone");
+}
+
+export function clearRestaurantPendingPhone() {
+  if (typeof localStorage === "undefined") return;
+  localStorage.removeItem("restaurant_pendingPhone");
 }
 
 /**

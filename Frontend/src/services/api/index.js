@@ -81,12 +81,12 @@ export const adminAPI = {
   getPendingRestaurants: () =>
     apiClient.get("/food/admin/restaurants/pending", { contextModule: "admin" }),
   approveRestaurant: (id) =>
-    apiClient.patch(`/v1/food/admin/restaurants/${id}/approve`, null, {
+    apiClient.patch(`/food/admin/restaurants/${id}/approve`, null, {
       contextModule: "admin",
     }),
   rejectRestaurant: (id, reason) =>
     apiClient.patch(
-      `/v1/food/admin/restaurants/${id}/reject`,
+      `/food/admin/restaurants/${id}/reject`,
       { reason },
       { contextModule: "admin" },
     ),

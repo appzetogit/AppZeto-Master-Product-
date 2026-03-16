@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom"
 import { ArrowLeft, Star, Clock, Bookmark, BadgePercent, Trophy, Loader2 } from "lucide-react"
 import { Button } from "@food/components/ui/button"
 import { Card, CardContent } from "@food/components/ui/card"
-import { heroBannerAPI } from "@food/api"
+import api from "@food/api"
 import { toast } from "sonner"
 
 // Import banner
@@ -20,20 +20,16 @@ export default function Top10() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  // Fetch Top 10 restaurants from API
+  // Fetch Top 10 restaurants from public API
   useEffect(() => {
     const fetchTop10Restaurants = async () => {
       try {
         setLoading(true)
         setError(null)
-        const response = await heroBannerAPI.getTop10Restaurants()
+        const response = await api.get('/food/hero-banners/top-10/public')
         const data = response?.data?.data
-
-        if (data && data.restaurants) {
-          setTop10Restaurants(data.restaurants)
-        } else {
-          setTop10Restaurants([])
-        }
+        const list = data?.restaurants ?? (Array.isArray(data) ? data : [])
+        setTop10Restaurants(list)
       } catch (err) {
         debugError('Error fetching Top 10 restaurants:', err)
         const errorMessage = err?.response?.data?.message || err?.message || 'Failed to load Top 10 restaurants'
@@ -119,7 +115,7 @@ export default function Top10() {
                 </div>
               ) : (
                 top10Restaurants.map((restaurant) => {
-                  const restaurantSlug = restaurant.slug || restaurant.name?.toLowerCase().replace(/\s+/g, "-") || ""
+                  const restaurantSlug = restaurant.slug || restaurant.restaurantName?.toLowerCase().replace(/\s+/g, "-") || ""
                   const restaurantId = restaurant._id || restaurant.restaurantId || restaurant.id
                   const isFavorite = favorites.has(restaurantId)
 
@@ -145,7 +141,7 @@ export default function Top10() {
                         <div className="relative h-44 sm:h-52 md:h-56 w-full overflow-hidden rounded-t-2xl">
                           <img
                             src={restaurantImage}
-                            alt={restaurant.name}
+                            alt={restaurant.restaurantName || restaurant.name}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                             onError={(e) => {
                               // Fallback to placeholder if image fails
@@ -174,7 +170,7 @@ export default function Top10() {
                           <div className="flex items-start justify-between gap-2 mb-2">
                             <div className="flex-1 min-w-0">
                               <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100 line-clamp-1">
-                                {restaurant.name}
+                                {restaurant.restaurantName || restaurant.name}
                               </h3>
                             </div>
                             <div className="flex-shrink-0 bg-green-600 text-white px-2 py-1 rounded-lg flex items-center gap-1">

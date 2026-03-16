@@ -523,10 +523,11 @@ export default function Home() {
         ai.label?.toLowerCase() === item.label?.toLowerCase()
       );
       if (apiItem) {
-        // API uses imageUrl, fallback uses image. Prefer API.
+        const href = apiItem.link ? (apiItem.link.startsWith('/') ? apiItem.link : `/${apiItem.link}`) : item.href;
         return {
           ...item,
-          image: normalizeImageUrl(apiItem.imageUrl || apiItem.image || "") || item.image
+          image: normalizeImageUrl(apiItem.imageUrl || apiItem.image || "") || item.image,
+          href
         };
       }
       return item;
@@ -627,13 +628,30 @@ export default function Home() {
     }
   }, [showVegModePopup])
 
-  // Old backend endpoint removed: keep UI stable with empty banners.
+  // Fetch hero banners from public API (no auth required)
   useEffect(() => {
+    let cancelled = false
     setLoadingBanners(true)
-    setHeroBannerImages([])
-    setHeroBannersData([])
-    setCurrentBannerIndex(0)
-    setLoadingBanners(false)
+    api.get('/food/hero-banners/public')
+      .then((response) => {
+        if (cancelled) return
+        const data = response?.data?.data
+        const list = Array.isArray(data?.banners) ? data.banners : (Array.isArray(data) ? data : [])
+        const images = list.map((b) => (b && typeof b.imageUrl === 'string' ? b.imageUrl : '')).filter(Boolean)
+        setHeroBannerImages(images)
+        setHeroBannersData(list)
+        setCurrentBannerIndex(0)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        debugError('Failed to fetch hero banners', err)
+        setHeroBannerImages([])
+        setHeroBannersData([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingBanners(false)
+      })
+    return () => { cancelled = true }
   }, [])
 
   // Old backend endpoint removed: keep UI stable with empty categories.
@@ -643,15 +661,36 @@ export default function Home() {
     setLoadingRealCategories(false)
   }, [])
 
-  // Old backend endpoint removed: keep UI stable with empty landing config.
+  // Fetch explore icons and landing settings from public APIs
   useEffect(() => {
+    let cancelled = false
     setLoadingLandingConfig(true)
-    setLandingCategories([])
-    setLandingExploreMore([])
-    setExploreMoreHeading("Explore More")
-    setRecommendedRestaurantIds([])
-    setRecommendedRestaurantsFromSettings([])
-    setLoadingLandingConfig(false)
+    Promise.all([
+      api.get('/food/explore-icons/public').catch(() => ({ data: { data: {} } })),
+      api.get('/food/landing/settings/public').catch(() => ({ data: { data: {} } }))
+    ]).then(([exploreRes, settingsRes]) => {
+      if (cancelled) return
+      const exploreData = exploreRes?.data?.data
+      const items = Array.isArray(exploreData?.items) ? exploreData.items : (Array.isArray(exploreData) ? exploreData : [])
+      setLandingExploreMore(items.map((it) => ({
+        ...it,
+        imageUrl: it.imageUrl || it.iconUrl,
+        label: it.label || it.name
+      })))
+      const settings = settingsRes?.data?.data || {}
+      setExploreMoreHeading(settings.exploreMoreHeading || 'Explore More')
+      setRecommendedRestaurantIds(settings.recommendedRestaurantIds || [])
+      setRecommendedRestaurantsFromSettings(settings.recommendedRestaurants || [])
+    }).catch(() => {
+      if (!cancelled) {
+        setLandingExploreMore([])
+        setExploreMoreHeading('Explore More')
+        setRecommendedRestaurantsFromSettings([])
+      }
+    }).finally(() => {
+      if (!cancelled) setLoadingLandingConfig(false)
+    })
+    return () => { cancelled = true }
   }, [])
 
   // Keep index within current banner bounds after admin updates/reloads.

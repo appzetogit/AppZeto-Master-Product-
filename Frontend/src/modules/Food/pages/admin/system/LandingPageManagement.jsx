@@ -1092,11 +1092,7 @@ export default function LandingPageManagement() {
     try {
       setRestaurantsLoading(true)
       setError(null)
-      // Use same api + getAuthConfig as rest of page so admin token is sent
-      const response = await api.get('/food/admin/restaurants', {
-        params: { limit: 1000 },
-        ...getAuthConfig()
-      })
+      const response = await adminAPI.getRestaurants({ limit: 1000 })
       const data = response?.data?.data
       if (response?.data?.success && data) {
         const raw = Array.isArray(data) ? data : (data.restaurants || [])

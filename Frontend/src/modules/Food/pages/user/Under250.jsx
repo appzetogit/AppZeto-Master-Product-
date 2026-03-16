@@ -141,11 +141,26 @@ export default function Under250() {
     return filtered
   }, [under250Restaurants, selectedSort, under30MinsFilter])
 
-  // Old backend endpoint removed: keep UI stable with no banner.
+  // Fetch under-250 banner from public API
   useEffect(() => {
+    let cancelled = false
     setLoadingBanner(true)
-    setBannerImage(null)
-    setLoadingBanner(false)
+    api.get('/food/hero-banners/under-250/public')
+      .then((res) => {
+        if (cancelled) return
+        const data = res?.data?.data
+        const list = Array.isArray(data?.banners) ? data.banners : (Array.isArray(data) ? data : [])
+        const first = list[0]
+        const img = first && typeof first.imageUrl === 'string' ? first.imageUrl : null
+        setBannerImage(img)
+      })
+      .catch(() => {
+        if (!cancelled) setBannerImage(null)
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingBanner(false)
+      })
+    return () => { cancelled = true }
   }, [])
 
   // Fetch restaurants with dishes under ?250 from backend

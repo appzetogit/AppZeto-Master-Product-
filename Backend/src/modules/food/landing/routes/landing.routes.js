@@ -42,6 +42,19 @@ import {
     getPublicGourmetController,
     getPublicLandingSettingsController
 } from '../controllers/publicLanding.controller.js';
+import {
+    listTop10Admin,
+    createTop10Admin,
+    deleteTop10Admin,
+    updateTop10OrderAdmin,
+    updateTop10RankAdmin,
+    toggleTop10StatusAdmin,
+    listGourmetAdmin,
+    createGourmetAdmin,
+    deleteGourmetAdmin,
+    updateGourmetOrderAdmin,
+    toggleGourmetStatusAdmin
+} from '../controllers/top10GourmetAdmin.controller.js';
 
 const router = express.Router();
 
@@ -93,6 +106,21 @@ router.patch(
     upload.single('image'),
     updateExploreMoreController
 );
+
+// Admin Top 10 (hero-banners)
+router.get('/hero-banners/top-10', listTop10Admin);
+router.post('/hero-banners/top-10', createTop10Admin);
+router.delete('/hero-banners/top-10/:id', deleteTop10Admin);
+router.patch('/hero-banners/top-10/:id/order', updateTop10OrderAdmin);
+router.patch('/hero-banners/top-10/:id/rank', updateTop10RankAdmin);
+router.patch('/hero-banners/top-10/:id/status', toggleTop10StatusAdmin);
+
+// Admin Gourmet (hero-banners)
+router.get('/hero-banners/gourmet', listGourmetAdmin);
+router.post('/hero-banners/gourmet', createGourmetAdmin);
+router.delete('/hero-banners/gourmet/:id', deleteGourmetAdmin);
+router.patch('/hero-banners/gourmet/:id/order', updateGourmetOrderAdmin);
+router.patch('/hero-banners/gourmet/:id/status', toggleGourmetStatusAdmin);
 
 // Public landing endpoints (Food user app)
 router.get('/hero-banners/public', getPublicHeroBannersController);

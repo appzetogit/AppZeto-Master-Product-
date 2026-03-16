@@ -6,7 +6,9 @@ export const requireRoles = (...allowedRoles) => {
             return sendError(res, 401, 'Not authenticated');
         }
 
-        if (!allowedRoles.includes(req.user.role)) {
+        const userRole = String(req.user.role).toUpperCase();
+        const allowedSet = new Set(allowedRoles.map((r) => String(r).toUpperCase()));
+        if (!allowedSet.has(userRole)) {
             return sendError(res, 403, 'Forbidden: insufficient permissions');
         }
 

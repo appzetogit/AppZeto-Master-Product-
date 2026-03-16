@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { Search, Download, ChevronDown, Eye, Settings, ArrowUpDown, Loader2, X, MapPin, Phone, Mail, Clock, Star, Building2, User, FileText, CreditCard, Calendar, Image as ImageIcon, ExternalLink, ShieldX, AlertTriangle, Trash2, Plus } from "lucide-react"
 import { adminAPI, restaurantAPI, locationAPI, uploadAPI } from "@food/api"
+import { clearModuleAuth } from "@food/utils/auth"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@food/components/ui/dropdown-menu"
 import { exportRestaurantsToPDF } from "@food/components/admin/restaurants/restaurantsExportUtils"
 import { getGoogleMapsApiKey } from "@food/utils/googleMapsApiKey"
@@ -115,32 +116,30 @@ export default function RestaurantsList() {
     return `REST${lastDigits}`
   }
 
-  // Fetch restaurants from backend API (AbortController prevents duplicate call in React Strict Mode)
+  // Fetch restaurants from backend API
   useEffect(() => {
-    const ac = new AbortController()
+    let cancelled = false
     const fetchRestaurants = async () => {
       try {
         setLoading(true)
         setError(null)
 
-        let response
-        try {
-          response = await adminAPI.getRestaurants({}, { signal: ac.signal })
-        } catch (adminErr) {
-          if (adminErr?.name === "AbortError") return
-          try {
-            debugLog("Admin restaurants endpoint not available, using fallback")
-            response = await restaurantAPI.getRestaurants()
-          } catch (fallbackErr) {
-            if (fallbackErr?.name === "AbortError") return
-            throw fallbackErr
-          }
-        }
+        const response = await adminAPI.getRestaurants({})
 
-        if (ac.signal.aborted) return
-        if (response.data && response.data.success && response.data.data) {
-          const restaurantsData = response.data.data.restaurants || response.data.data || []
-          const mappedRestaurants = restaurantsData.map((restaurant, index) => ({
+        if (cancelled) return
+
+        const body = response?.data
+        const data = body?.data
+        const rawList = Array.isArray(data?.restaurants)
+          ? data.restaurants
+          : Array.isArray(data)
+            ? data
+            : Array.isArray(body?.restaurants)
+              ? body.restaurants
+              : []
+
+        if (rawList.length > 0 || body?.success === true) {
+          const mappedRestaurants = rawList.map((restaurant, index) => ({
             id: restaurant._id || restaurant.id || index + 1,
             _id: restaurant._id,
             name: restaurant.name || restaurant.restaurantName || "N/A",
@@ -155,22 +154,33 @@ export default function RestaurantsList() {
             logo: typeof restaurant.profileImage === "string" ? restaurant.profileImage : (restaurant.profileImage?.url || restaurant.logo || PLACEHOLDER_40),
             originalData: restaurant,
           }))
-          setRestaurants(mappedRestaurants)
+          if (!cancelled) setRestaurants(mappedRestaurants)
         } else {
-          setRestaurants([])
+          if (!cancelled) setRestaurants([])
         }
       } catch (err) {
-        if (err?.name === "AbortError") return
+        if (cancelled) return
         debugError("Error fetching restaurants:", err)
-        setError(err.message || "Failed to fetch restaurants")
+        const status = err?.response?.status
+        const serverMessage = err?.response?.data?.message || err?.response?.data?.error
+        if (status === 401) {
+          setError(serverMessage || "Session expired or not logged in. Please log in as admin.")
+          setRestaurants([])
+          try {
+            clearModuleAuth("admin")
+          } catch (_) {}
+          navigate("/admin/login", { replace: true, state: { from: "/admin/food/restaurants" } })
+          return
+        }
+        setError(serverMessage || err.message || "Failed to fetch restaurants")
         setRestaurants([])
       } finally {
-        if (!ac.signal.aborted) setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
 
     fetchRestaurants()
-    return () => ac.abort()
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {
@@ -1040,7 +1050,14 @@ export default function RestaurantsList() {
             ) : error ? (
               <div className="flex flex-col items-center justify-center py-20">
                 <p className="text-lg font-semibold text-red-600 mb-1">Error Loading Data</p>
-                <p className="text-sm text-slate-500">{error}</p>
+                <p className="text-sm text-slate-500 mb-4">{error}</p>
+                <button
+                  type="button"
+                  onClick={() => navigate("/admin/login", { replace: true, state: { from: "/admin/food/restaurants" } })}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Log in as admin
+                </button>
               </div>
             ) : (
               <table className="w-full">

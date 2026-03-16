@@ -81,7 +81,7 @@ export const adminAPI = {
   getPendingRestaurants: () =>
     apiClient.get("/food/admin/restaurants/pending", { contextModule: "admin" }),
   approveRestaurant: (id) =>
-    apiClient.patch(`/food/admin/restaurants/${id}/approve`, null, {
+    apiClient.patch(`/food/admin/restaurants/${id}/approve`, {}, {
       contextModule: "admin",
     }),
   rejectRestaurant: (id, reason) =>
@@ -134,6 +134,21 @@ export const adminAPI = {
       contextModule: "admin",
       ...config,
     }),
+  /** List delivery zones. Query: limit, page, isActive, search */
+  getZones: (params = {}) =>
+    apiClient.get("/food/admin/zones", { params: { limit: 1000, ...params }, contextModule: "admin" }),
+  /** Get single zone by id */
+  getZoneById: (id) =>
+    apiClient.get(`/food/admin/zones/${id}`, { contextModule: "admin" }),
+  /** Create zone. Body: name, zoneName?, country?, unit?, coordinates, isActive? */
+  createZone: (body) =>
+    apiClient.post("/food/admin/zones", body ?? {}, { contextModule: "admin" }),
+  /** Update zone. Body: name?, zoneName?, country?, unit?, coordinates?, isActive? */
+  updateZone: (id, body) =>
+    apiClient.patch(`/food/admin/zones/${id}`, body ?? {}, { contextModule: "admin" }),
+  /** Delete zone */
+  deleteZone: (id) =>
+    apiClient.delete(`/food/admin/zones/${id}`, { contextModule: "admin" }),
 };
 
 /** Restaurant API - OTP login via new backend; no email/password. */

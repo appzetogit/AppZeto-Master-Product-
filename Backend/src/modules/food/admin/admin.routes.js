@@ -1,7 +1,9 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import { FoodRestaurant } from '../restaurant/models/restaurant.model.js';
 import { FoodDeliveryPartner } from '../delivery/models/deliveryPartner.model.js';
 import { DeliverySupportTicket } from '../delivery/models/supportTicket.model.js';
+import { FoodZone } from './models/zone.model.js';
 import { AuthError } from '../../../core/auth/errors.js';
 
 const router = express.Router();
@@ -73,24 +75,34 @@ router.get('/restaurants/pending', async (_req, res, next) => {
 router.patch('/restaurants/:id/approve', async (req, res, next) => {
     try {
         const { id } = req.params;
-        const restaurant = await FoodRestaurant.findById(id);
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid restaurant id'
+            });
+        }
+        const restaurant = await FoodRestaurant.findByIdAndUpdate(
+            id,
+            {
+                $set: {
+                    status: 'approved',
+                    approvedAt: new Date(),
+                    rejectedAt: undefined,
+                    rejectionReason: undefined
+                }
+            },
+            { new: true, runValidators: false }
+        ).lean();
         if (!restaurant) {
             return res.status(404).json({
                 success: false,
                 message: 'Restaurant not found'
             });
         }
-
-        restaurant.status = 'approved';
-        restaurant.approvedAt = new Date();
-        restaurant.rejectedAt = undefined;
-        restaurant.rejectionReason = undefined;
-        await restaurant.save();
-
         res.status(200).json({
             success: true,
             message: 'Restaurant approved successfully',
-            data: restaurant.toObject()
+            data: restaurant
         });
     } catch (error) {
         next(error);
@@ -101,24 +113,34 @@ router.patch('/restaurants/:id/reject', async (req, res, next) => {
     try {
         const { id } = req.params;
         const { reason } = req.body || {};
-
-        const restaurant = await FoodRestaurant.findById(id);
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid restaurant id'
+            });
+        }
+        const restaurant = await FoodRestaurant.findByIdAndUpdate(
+            id,
+            {
+                $set: {
+                    status: 'rejected',
+                    rejectedAt: new Date(),
+                    rejectionReason: typeof reason === 'string' ? reason.trim() : undefined,
+                    approvedAt: null
+                }
+            },
+            { new: true, runValidators: false }
+        ).lean();
         if (!restaurant) {
             return res.status(404).json({
                 success: false,
                 message: 'Restaurant not found'
             });
         }
-
-        restaurant.status = 'rejected';
-        restaurant.rejectedAt = new Date();
-        restaurant.rejectionReason = typeof reason === 'string' ? reason.trim() : undefined;
-        await restaurant.save();
-
         res.status(200).json({
             success: true,
             message: 'Restaurant rejected successfully',
-            data: restaurant.toObject()
+            data: restaurant
         });
     } catch (error) {
         next(error);
@@ -510,6 +532,171 @@ router.patch('/delivery/:id/reject', async (req, res, next) => {
             success: true,
             message: 'Delivery partner rejected successfully',
             data: partner.toObject()
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// ========== Zone CRUD (delivery zones for admin) ==========
+
+/** List zones. Query: limit, page, isActive, search */
+router.get('/zones', async (req, res, next) => {
+    try {
+        const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), 1000);
+        const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+        const skip = (page - 1) * limit;
+        const isActive = req.query.isActive;
+        const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+
+        const filter = {};
+        if (isActive !== undefined && isActive !== '') {
+            filter.isActive = isActive === 'true' || isActive === '1';
+        }
+        if (search) {
+            filter.$or = [
+                { name: { $regex: search, $options: 'i' } },
+                { zoneName: { $regex: search, $options: 'i' } },
+                { serviceLocation: { $regex: search, $options: 'i' } },
+                { country: { $regex: search, $options: 'i' } }
+            ];
+        }
+
+        const [zones, total] = await Promise.all([
+            FoodZone.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+            FoodZone.countDocuments(filter)
+        ]);
+
+        res.status(200).json({
+            success: true,
+            message: 'Zones fetched successfully',
+            data: { zones, total, page, limit }
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/** Get single zone by id */
+router.get('/zones/:id', async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const zone = await FoodZone.findById(id).lean();
+        if (!zone) {
+            return res.status(404).json({
+                success: false,
+                message: 'Zone not found'
+            });
+        }
+        res.status(200).json({
+            success: true,
+            message: 'Zone fetched successfully',
+            data: { zone }
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/** Create zone. Body: name, zoneName?, country?, unit?, coordinates, isActive? */
+router.post('/zones', async (req, res, next) => {
+    try {
+        const body = req.body || {};
+        const name = typeof body.name === 'string' ? body.name.trim() : (body.zoneName && body.zoneName.trim()) || '';
+        if (!name) {
+            return res.status(400).json({
+                success: false,
+                message: 'Zone name is required'
+            });
+        }
+        const coordinates = Array.isArray(body.coordinates) ? body.coordinates : [];
+        if (coordinates.length < 3) {
+            return res.status(400).json({
+                success: false,
+                message: 'At least 3 coordinates (polygon points) are required'
+            });
+        }
+
+        const normalized = coordinates.map((c) => ({
+            latitude: Number(c.latitude) || 0,
+            longitude: Number(c.longitude) || 0
+        }));
+
+        const zone = new FoodZone({
+            name,
+            zoneName: body.zoneName && body.zoneName.trim() ? body.zoneName.trim() : name,
+            country: (body.country && body.country.trim()) || 'India',
+            serviceLocation: (body.serviceLocation && body.serviceLocation.trim()) || name,
+            unit: body.unit === 'miles' ? 'miles' : 'kilometer',
+            coordinates: normalized,
+            isActive: body.isActive !== false
+        });
+        await zone.save();
+
+        res.status(201).json({
+            success: true,
+            message: 'Zone created successfully',
+            data: { zone: zone.toObject() }
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/** Update zone. Body: name?, zoneName?, country?, unit?, coordinates?, isActive? */
+router.patch('/zones/:id', async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const body = req.body || {};
+        const zone = await FoodZone.findById(id);
+        if (!zone) {
+            return res.status(404).json({
+                success: false,
+                message: 'Zone not found'
+            });
+        }
+
+        if (body.name !== undefined) zone.name = String(body.name).trim();
+        if (body.zoneName !== undefined) zone.zoneName = String(body.zoneName).trim();
+        if (body.country !== undefined) zone.country = String(body.country).trim();
+        if (body.serviceLocation !== undefined) zone.serviceLocation = String(body.serviceLocation).trim();
+        if (body.unit !== undefined) zone.unit = body.unit === 'miles' ? 'miles' : 'kilometer';
+        if (body.isActive !== undefined) zone.isActive = body.isActive !== false;
+        if (Array.isArray(body.coordinates) && body.coordinates.length >= 3) {
+            zone.coordinates = body.coordinates.map((c) => ({
+                latitude: Number(c.latitude) || 0,
+                longitude: Number(c.longitude) || 0
+            }));
+        }
+        if (zone.name) zone.serviceLocation = zone.serviceLocation || zone.name;
+
+        await zone.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Zone updated successfully',
+            data: { zone: zone.toObject() }
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/** Delete zone */
+router.delete('/zones/:id', async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const zone = await FoodZone.findByIdAndDelete(id);
+        if (!zone) {
+            return res.status(404).json({
+                success: false,
+                message: 'Zone not found'
+            });
+        }
+        res.status(200).json({
+            success: true,
+            message: 'Zone deleted successfully',
+            data: { id }
         });
     } catch (error) {
         next(error);

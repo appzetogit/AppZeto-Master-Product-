@@ -150,9 +150,12 @@ export default function LandingPageManagement() {
     fetchSettings()
   }, [])
 
-  // Fetch Top 10 and Gourmet when Explore More tab is active
+  // Fetch Top 10 and Gourmet when Explore More tab is active; refetch restaurants so dropdown is populated
   useEffect(() => {
     if (activeTab === 'explore-more') {
+      if (allRestaurants.length === 0) {
+        fetchAllRestaurants()
+      }
       if (exploreMoreSubTab === 'top-10') {
         fetchTop10Restaurants()
       } else if (exploreMoreSubTab === 'gourmet') {
@@ -168,7 +171,7 @@ export default function LandingPageManagement() {
     try {
       setBannersLoading(true)
       setError(null)
-      const response = await api.get('/hero-banners', getAuthConfig())
+      const response = await api.get('/food/hero-banners', getAuthConfig())
       if (response.data.success) {
         setBanners(response.data.data.banners || [])
       }
@@ -237,7 +240,7 @@ export default function LandingPageManagement() {
         })
       }
 
-      const response = await api.post('/hero-banners/multiple', formData, config)
+      const response = await api.post('/food/hero-banners/multiple', formData, config)
 
       if (response.data.success) {
         const uploadedBanners = response.data.data?.banners || []
@@ -288,7 +291,7 @@ export default function LandingPageManagement() {
       setBannersDeleting(id)
       setError(null)
       setSuccess(null)
-      const response = await api.delete(`/hero-banners/${id}`, getAuthConfig())
+      const response = await api.delete(`/food/hero-banners/${id}`, getAuthConfig())
       if (response.data.success) {
         setSuccess('Hero banner deleted successfully!')
         await fetchBanners()
@@ -305,7 +308,7 @@ export default function LandingPageManagement() {
     try {
       setError(null)
       setSuccess(null)
-      const response = await api.patch(`/hero-banners/${id}/status`, {}, getAuthConfig())
+      const response = await api.patch(`/food/hero-banners/${id}/status`, {}, getAuthConfig())
       if (response.data.success) {
         setSuccess(`Banner ${currentStatus ? 'deactivated' : 'activated'} successfully!`)
         await fetchBanners()
@@ -324,9 +327,9 @@ export default function LandingPageManagement() {
     if (!otherBanner && newOrder < 0) return
     try {
       setError(null)
-      await api.patch(`/hero-banners/${id}/order`, { order: newOrder }, getAuthConfig())
+      await api.patch(`/food/hero-banners/${id}/order`, { order: newOrder }, getAuthConfig())
       if (otherBanner) {
-        await api.patch(`/hero-banners/${otherBanner._id}/order`, { order: banner.order }, getAuthConfig())
+        await api.patch(`/food/hero-banners/${otherBanner._id}/order`, { order: banner.order }, getAuthConfig())
       }
       await fetchBanners()
     } catch (err) {
@@ -344,7 +347,7 @@ export default function LandingPageManagement() {
       setSuccess(null)
 
       const response = await api.patch(
-        `/hero-banners/${selectedBannerId}/link-restaurants`,
+        `/food/hero-banners/${selectedBannerId}/link-restaurants`,
         { restaurantIds: selectedRestaurantIds },
         getAuthConfig()
       )
@@ -416,7 +419,7 @@ export default function LandingPageManagement() {
     try {
       setCategoriesLoading(true)
       setError(null)
-      const response = await api.get('/hero-banners/landing/categories', getAuthConfig())
+      const response = await api.get('/food/hero-banners/landing/categories', getAuthConfig())
       if (response.data.success) {
         setCategories(response.data.data.categories || [])
       }
@@ -515,7 +518,7 @@ export default function LandingPageManagement() {
         formData.append('label', item.label.trim())
 
         try {
-          const response = await api.post('/hero-banners/landing/categories', formData, getAuthConfig({
+          const response = await api.post('/food/hero-banners/landing/categories', formData, getAuthConfig({
             headers: { 'Content-Type': 'multipart/form-data' },
           }))
           if (response.data.success) {
@@ -571,7 +574,7 @@ export default function LandingPageManagement() {
       setCategoriesDeleting(id)
       setError(null)
       setSuccess(null)
-      const response = await api.delete(`/hero-banners/landing/categories/${id}`, getAuthConfig())
+      const response = await api.delete(`/food/hero-banners/landing/categories/${id}`, getAuthConfig())
       if (response.data.success) {
         setSuccess('Category deleted successfully!')
         await fetchCategories()
@@ -588,7 +591,7 @@ export default function LandingPageManagement() {
     try {
       setError(null)
       setSuccess(null)
-      const response = await api.patch(`/hero-banners/landing/categories/${id}/status`, {}, getAuthConfig())
+      const response = await api.patch(`/food/hero-banners/landing/categories/${id}/status`, {}, getAuthConfig())
       if (response.data.success) {
         setSuccess(`Category ${currentStatus ? 'deactivated' : 'activated'} successfully!`)
         await fetchCategories()
@@ -607,9 +610,9 @@ export default function LandingPageManagement() {
     if (!otherCategory && newOrder < 0) return
     try {
       setError(null)
-      await api.patch(`/hero-banners/landing/categories/${id}/order`, { order: newOrder }, getAuthConfig())
+      await api.patch(`/food/hero-banners/landing/categories/${id}/order`, { order: newOrder }, getAuthConfig())
       if (otherCategory) {
-        await api.patch(`/hero-banners/landing/categories/${otherCategory._id}/order`, { order: category.order }, getAuthConfig())
+        await api.patch(`/food/hero-banners/landing/categories/${otherCategory._id}/order`, { order: category.order }, getAuthConfig())
       }
       await fetchCategories()
     } catch (err) {
@@ -622,7 +625,7 @@ export default function LandingPageManagement() {
     try {
       setExploreMoreLoading(true)
       setError(null)
-      const response = await api.get('/hero-banners/landing/explore-more', getAuthConfig())
+      const response = await api.get('/food/hero-banners/landing/explore-more', getAuthConfig())
       if (response.data.success) {
         setExploreMore(response.data.data.items || [])
       }
@@ -665,7 +668,7 @@ export default function LandingPageManagement() {
       formData.append('image', file)
       formData.append('label', exploreMoreLabel.trim())
       formData.append('link', exploreMoreLink.trim())
-      const response = await api.post('/hero-banners/landing/explore-more', formData, getAuthConfig({
+      const response = await api.post('/food/hero-banners/landing/explore-more', formData, getAuthConfig({
         headers: { 'Content-Type': 'multipart/form-data' },
       }))
       if (response.data.success) {
@@ -689,7 +692,7 @@ export default function LandingPageManagement() {
       setExploreMoreDeleting(id)
       setError(null)
       setSuccess(null)
-      const response = await api.delete(`/hero-banners/landing/explore-more/${id}`, getAuthConfig())
+      const response = await api.delete(`/food/hero-banners/landing/explore-more/${id}`, getAuthConfig())
       if (response.data.success) {
         setSuccess('Explore more item deleted successfully!')
         await fetchExploreMore()
@@ -706,7 +709,7 @@ export default function LandingPageManagement() {
     try {
       setError(null)
       setSuccess(null)
-      const response = await api.patch(`/hero-banners/landing/explore-more/${id}/status`, {}, getAuthConfig())
+      const response = await api.patch(`/food/hero-banners/landing/explore-more/${id}/status`, {}, getAuthConfig())
       if (response.data.success) {
         setSuccess(`Explore more item ${currentStatus ? 'deactivated' : 'activated'} successfully!`)
         await fetchExploreMore()
@@ -735,14 +738,14 @@ export default function LandingPageManagement() {
 
       if (existingItem) {
         // Update existing
-        res = await api.patch(`/hero-banners/landing/explore-more/${existingItem._id}`, formData, getAuthConfig({
+        res = await api.patch(`/food/hero-banners/landing/explore-more/${existingItem._id}`, formData, getAuthConfig({
           headers: { 'Content-Type': 'multipart/form-data' }
         }))
       } else {
         // Create new
         formData.append('label', label)
         formData.append('link', link)
-        res = await api.post('/hero-banners/landing/explore-more', formData, getAuthConfig({
+        res = await api.post('/food/hero-banners/landing/explore-more', formData, getAuthConfig({
           headers: { 'Content-Type': 'multipart/form-data' }
         }))
       }
@@ -768,9 +771,9 @@ export default function LandingPageManagement() {
     if (!otherItem && newOrder < 0) return
     try {
       setError(null)
-      await api.patch(`/hero-banners/landing/explore-more/${id}/order`, { order: newOrder }, getAuthConfig())
+      await api.patch(`/food/hero-banners/landing/explore-more/${id}/order`, { order: newOrder }, getAuthConfig())
       if (otherItem) {
-        await api.patch(`/hero-banners/landing/explore-more/${otherItem._id}/order`, { order: item.order }, getAuthConfig())
+        await api.patch(`/food/hero-banners/landing/explore-more/${otherItem._id}/order`, { order: item.order }, getAuthConfig())
       }
       await fetchExploreMore()
     } catch (err) {
@@ -783,7 +786,7 @@ export default function LandingPageManagement() {
     try {
       setUnder250BannersLoading(true)
       setError(null)
-      const response = await api.get('/hero-banners/under-250', getAuthConfig())
+      const response = await api.get('/food/hero-banners/under-250', getAuthConfig())
       if (response.data.success) {
         setUnder250Banners(response.data.data.banners || [])
       }
@@ -830,10 +833,11 @@ export default function LandingPageManagement() {
 
       const formData = new FormData()
       files.forEach((file) => {
-        formData.append('images', file)
+        // Backend expects field name "files" (upload.array('files'))
+        formData.append('files', file)
       })
 
-      const response = await api.post('/hero-banners/under-250/multiple', formData, getAuthConfig({
+      const response = await api.post('/food/hero-banners/under-250/multiple', formData, getAuthConfig({
         headers: { 'Content-Type': 'multipart/form-data' },
       }))
 
@@ -858,7 +862,7 @@ export default function LandingPageManagement() {
       setUnder250BannersDeleting(id)
       setError(null)
       setSuccess(null)
-      const response = await api.delete(`/hero-banners/under-250/${id}`, getAuthConfig())
+      const response = await api.delete(`/food/hero-banners/under-250/${id}`, getAuthConfig())
       if (response.data.success) {
         setSuccess('Under 250 banner deleted successfully!')
         await fetchUnder250Banners()
@@ -875,7 +879,7 @@ export default function LandingPageManagement() {
     try {
       setError(null)
       setSuccess(null)
-      const response = await api.patch(`/hero-banners/under-250/${id}/status`, {}, getAuthConfig())
+      const response = await api.patch(`/food/hero-banners/under-250/${id}/status`, {}, getAuthConfig())
       if (response.data.success) {
         setSuccess(`Banner ${currentStatus ? 'deactivated' : 'activated'} successfully!`)
         await fetchUnder250Banners()
@@ -894,9 +898,9 @@ export default function LandingPageManagement() {
     if (!otherBanner && newOrder < 0) return
     try {
       setError(null)
-      await api.patch(`/hero-banners/under-250/${id}/order`, { order: newOrder }, getAuthConfig())
+      await api.patch(`/food/hero-banners/under-250/${id}/order`, { order: newOrder }, getAuthConfig())
       if (otherBanner) {
-        await api.patch(`/hero-banners/under-250/${otherBanner._id}/order`, { order: banner.order }, getAuthConfig())
+        await api.patch(`/food/hero-banners/under-250/${otherBanner._id}/order`, { order: banner.order }, getAuthConfig())
       }
       await fetchUnder250Banners()
     } catch (err) {
@@ -909,7 +913,7 @@ export default function LandingPageManagement() {
     try {
       setDiningBannersLoading(true)
       setError(null)
-      const response = await api.get('/hero-banners/dining', getAuthConfig())
+      const response = await api.get('/food/hero-banners/dining', getAuthConfig())
       if (response.data.success) {
         setDiningBanners(response.data.data.banners || [])
       }
@@ -957,7 +961,7 @@ export default function LandingPageManagement() {
         formData.append('images', file)
       })
 
-      const response = await api.post('/hero-banners/dining/multiple', formData, getAuthConfig({
+      const response = await api.post('/food/hero-banners/dining/multiple', formData, getAuthConfig({
         headers: { 'Content-Type': 'multipart/form-data' },
       }))
 
@@ -981,7 +985,7 @@ export default function LandingPageManagement() {
       setDiningBannersDeleting(id)
       setError(null)
       setSuccess(null)
-      const response = await api.delete(`/hero-banners/dining/${id}`, getAuthConfig())
+      const response = await api.delete(`/food/hero-banners/dining/${id}`, getAuthConfig())
       if (response.data.success) {
         setSuccess('Dining banner deleted successfully!')
         await fetchDiningBanners()
@@ -998,7 +1002,7 @@ export default function LandingPageManagement() {
     try {
       setError(null)
       setSuccess(null)
-      const response = await api.patch(`/hero-banners/dining/${id}/status`, {}, getAuthConfig())
+      const response = await api.patch(`/food/hero-banners/dining/${id}/status`, {}, getAuthConfig())
       if (response.data.success) {
         setSuccess(`Banner ${currentStatus ? 'deactivated' : 'activated'} successfully!`)
         await fetchDiningBanners()
@@ -1017,9 +1021,9 @@ export default function LandingPageManagement() {
     if (!otherBanner && newOrder < 0) return
     try {
       setError(null)
-      await api.patch(`/hero-banners/dining/${id}/order`, { order: newOrder }, getAuthConfig())
+      await api.patch(`/food/hero-banners/dining/${id}/order`, { order: newOrder }, getAuthConfig())
       if (otherBanner) {
-        await api.patch(`/hero-banners/dining/${otherBanner._id}/order`, { order: banner.order }, getAuthConfig())
+        await api.patch(`/food/hero-banners/dining/${otherBanner._id}/order`, { order: banner.order }, getAuthConfig())
       }
       await fetchDiningBanners()
     } catch (err) {
@@ -1032,7 +1036,7 @@ export default function LandingPageManagement() {
     try {
       setSettingsLoading(true)
       setError(null)
-      const response = await api.get('/hero-banners/landing/settings', getAuthConfig())
+      const response = await api.get('/food/hero-banners/landing/settings', getAuthConfig())
       if (response.data.success) {
         const nextSettings = response.data.data.settings || {}
         setSettings({
@@ -1060,7 +1064,7 @@ export default function LandingPageManagement() {
       setSettingsSaving(true)
       setError(null)
       setSuccess(null)
-      const response = await api.patch('/hero-banners/landing/settings', {
+      const response = await api.patch('/food/hero-banners/landing/settings', {
         exploreMoreHeading: settings.exploreMoreHeading,
         recommendedRestaurantIds: Array.isArray(settings.recommendedRestaurantIds) ? settings.recommendedRestaurantIds : []
       }, getAuthConfig())
@@ -1088,9 +1092,18 @@ export default function LandingPageManagement() {
     try {
       setRestaurantsLoading(true)
       setError(null)
-      const response = await adminAPI.getRestaurants({ limit: 1000 })
-      if (response.data && response.data.success && response.data.data) {
-        const restaurants = response.data.data.restaurants || response.data.data || []
+      // Use same api + getAuthConfig as rest of page so admin token is sent
+      const response = await api.get('/food/admin/restaurants', {
+        params: { limit: 1000 },
+        ...getAuthConfig()
+      })
+      const data = response?.data?.data
+      if (response?.data?.success && data) {
+        const raw = Array.isArray(data) ? data : (data.restaurants || [])
+        const restaurants = raw.map((r) => ({
+          ...r,
+          name: r.name || r.restaurantName || ''
+        }))
         setAllRestaurants(restaurants)
       }
     } catch (err) {
@@ -1111,7 +1124,7 @@ export default function LandingPageManagement() {
     try {
       setTop10Loading(true)
       setError(null)
-      const response = await api.get('/hero-banners/top-10', getAuthConfig())
+      const response = await api.get('/food/hero-banners/top-10', getAuthConfig())
       if (response.data.success) {
         setTop10Restaurants(response.data.data.restaurants || [])
       }
@@ -1137,7 +1150,7 @@ export default function LandingPageManagement() {
     try {
       setError(null)
       setSuccess(null)
-      const response = await api.post('/hero-banners/top-10', {
+      const response = await api.post('/food/hero-banners/top-10', {
         restaurantId: selectedRestaurantTop10,
         rank: parseInt(selectedRank)
       }, getAuthConfig())
@@ -1159,7 +1172,7 @@ export default function LandingPageManagement() {
       setTop10Deleting(id)
       setError(null)
       setSuccess(null)
-      const response = await api.delete(`/hero-banners/top-10/${id}`, getAuthConfig())
+      const response = await api.delete(`/food/hero-banners/top-10/${id}`, getAuthConfig())
       if (response.data.success) {
         setSuccess('Restaurant removed from Top 10 successfully!')
         await fetchTop10Restaurants()
@@ -1180,9 +1193,9 @@ export default function LandingPageManagement() {
     if (!otherRestaurant && newOrder < 0) return
     try {
       setError(null)
-      await api.patch(`/hero-banners/top-10/${id}/order`, { order: newOrder }, getAuthConfig())
+      await api.patch(`/food/hero-banners/top-10/${id}/order`, { order: newOrder }, getAuthConfig())
       if (otherRestaurant) {
-        await api.patch(`/hero-banners/top-10/${otherRestaurant._id}/order`, { order: restaurant.order }, getAuthConfig())
+        await api.patch(`/food/hero-banners/top-10/${otherRestaurant._id}/order`, { order: restaurant.order }, getAuthConfig())
       }
       await fetchTop10Restaurants()
     } catch (err) {
@@ -1193,7 +1206,7 @@ export default function LandingPageManagement() {
   const handleTop10RankChange = async (id, newRank) => {
     try {
       setError(null)
-      await api.patch(`/hero-banners/top-10/${id}/rank`, { rank: parseInt(newRank) }, getAuthConfig())
+      await api.patch(`/food/hero-banners/top-10/${id}/rank`, { rank: parseInt(newRank) }, getAuthConfig())
       await fetchTop10Restaurants()
     } catch (err) {
       setErrorSafely('Failed to update Top 10 restaurant rank.')
@@ -1204,7 +1217,7 @@ export default function LandingPageManagement() {
     try {
       setError(null)
       setSuccess(null)
-      const response = await api.patch(`/hero-banners/top-10/${id}/status`, {}, getAuthConfig())
+      const response = await api.patch(`/food/hero-banners/top-10/${id}/status`, {}, getAuthConfig())
       if (response.data.success) {
         setSuccess(`Restaurant ${currentStatus ? 'deactivated' : 'activated'} successfully!`)
         await fetchTop10Restaurants()
@@ -1220,7 +1233,7 @@ export default function LandingPageManagement() {
     try {
       setGourmetLoading(true)
       setError(null)
-      const response = await api.get('/hero-banners/gourmet', getAuthConfig())
+      const response = await api.get('/food/hero-banners/gourmet', getAuthConfig())
       if (response.data.success) {
         setGourmetRestaurants(response.data.data.restaurants || [])
       }
@@ -1246,7 +1259,7 @@ export default function LandingPageManagement() {
     try {
       setError(null)
       setSuccess(null)
-      const response = await api.post('/hero-banners/gourmet', {
+      const response = await api.post('/food/hero-banners/gourmet', {
         restaurantId: selectedRestaurantGourmet
       }, getAuthConfig())
       if (response.data.success) {
@@ -1266,7 +1279,7 @@ export default function LandingPageManagement() {
       setGourmetDeleting(id)
       setError(null)
       setSuccess(null)
-      const response = await api.delete(`/hero-banners/gourmet/${id}`, getAuthConfig())
+      const response = await api.delete(`/food/hero-banners/gourmet/${id}`, getAuthConfig())
       if (response.data.success) {
         setSuccess('Restaurant removed from Gourmet successfully!')
         await fetchGourmetRestaurants()
@@ -1287,9 +1300,9 @@ export default function LandingPageManagement() {
     if (!otherRestaurant && newOrder < 0) return
     try {
       setError(null)
-      await api.patch(`/hero-banners/gourmet/${id}/order`, { order: newOrder }, getAuthConfig())
+      await api.patch(`/food/hero-banners/gourmet/${id}/order`, { order: newOrder }, getAuthConfig())
       if (otherRestaurant) {
-        await api.patch(`/hero-banners/gourmet/${otherRestaurant._id}/order`, { order: restaurant.order }, getAuthConfig())
+        await api.patch(`/food/hero-banners/gourmet/${otherRestaurant._id}/order`, { order: restaurant.order }, getAuthConfig())
       }
       await fetchGourmetRestaurants()
     } catch (err) {
@@ -1301,7 +1314,7 @@ export default function LandingPageManagement() {
     try {
       setError(null)
       setSuccess(null)
-      const response = await api.patch(`/hero-banners/gourmet/${id}/status`, {}, getAuthConfig())
+      const response = await api.patch(`/food/hero-banners/gourmet/${id}/status`, {}, getAuthConfig())
       if (response.data.success) {
         setSuccess(`Restaurant ${currentStatus ? 'deactivated' : 'activated'} successfully!`)
         await fetchGourmetRestaurants()

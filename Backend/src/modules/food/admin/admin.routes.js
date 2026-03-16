@@ -15,6 +15,44 @@ const requireAdmin = (req, _res, next) => {
 
 router.use(requireAdmin);
 
+/** List restaurants for admin (dropdowns, reports, etc.). Query: limit, page, status */
+router.get('/restaurants', async (req, res, next) => {
+    try {
+        const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), 1000);
+        const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+        const skip = (page - 1) * limit;
+        const status = req.query.status; // optional: pending, approved, rejected
+
+        const filter = {};
+        if (status && ['pending', 'approved', 'rejected'].includes(status)) {
+            filter.status = status;
+        }
+
+        const [restaurants, total] = await Promise.all([
+            FoodRestaurant.find(filter)
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .select('restaurantName area city profileImage status ownerName ownerPhone')
+                .lean(),
+            FoodRestaurant.countDocuments(filter)
+        ]);
+
+        res.status(200).json({
+            success: true,
+            message: 'Restaurants fetched successfully',
+            data: {
+                restaurants,
+                total,
+                page,
+                limit
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
 router.get('/restaurants/pending', async (_req, res, next) => {
     try {
         const pending = await FoodRestaurant.find({ status: 'pending' })

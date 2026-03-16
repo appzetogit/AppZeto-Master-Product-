@@ -18,8 +18,8 @@ router.get('/v1/health', (req, res) => {
 router.use('/v1/auth', authRoutes);
 router.use('/v1/food/delivery', deliveryRoutes);
 router.use('/v1/food/restaurant', restaurantRoutes);
-// Landing & hero-banners for Food user app (paths start with /hero-banners/...)
-router.use('/v1', landingRoutes);
+// Landing & hero-banners for Food user app (paths start with /food/hero-banners/...)
+router.use('/v1/food', landingRoutes);
 router.use('/v1/uploads', uploadRoutes);
 router.use('/v1/food/admin', authMiddleware, requireRoles('ADMIN'), restaurantAdminRoutes);
 

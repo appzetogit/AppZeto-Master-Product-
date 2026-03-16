@@ -11,7 +11,8 @@ import { ValidationError } from '../../../../core/auth/errors.js';
 export const listHeroBannersController = async (req, res, next) => {
     try {
         const data = await listHeroBanners();
-        return sendResponse(res, 200, 'Hero banners fetched successfully', data);
+        // Wrap in { banners } to match LandingPageManagement.jsx expectations
+        return sendResponse(res, 200, 'Hero banners fetched successfully', { banners: data });
     } catch (error) {
         next(error);
     }

@@ -79,21 +79,27 @@ export const adminAPI = {
   },
   // Restaurant approvals and join requests
   getPendingRestaurants: () =>
-    apiClient.get("/v1/food/admin/restaurants/pending", { contextModule: "admin" }),
+    apiClient.get("/food/admin/restaurants/pending", { contextModule: "admin" }),
   approveRestaurant: (id) =>
-    apiClient.patch(`/v1/food/admin/restaurants/${id}/approve`, null, {
+    apiClient.patch(`/food/admin/restaurants/${id}/approve`, null, {
       contextModule: "admin",
     }),
   rejectRestaurant: (id, reason) =>
     apiClient.patch(
-      `/v1/food/admin/restaurants/${id}/reject`,
+      `/food/admin/restaurants/${id}/reject`,
       { reason },
       { contextModule: "admin" },
     ),
   /** Delivery partner join requests for admin panel */
   getDeliveryPartnerJoinRequests: (params) =>
-    apiClient.get("/v1/food/delivery/admin/join-requests", {
+    apiClient.get("/food/delivery/admin/join-requests", {
       params,
+      contextModule: "admin",
+    }),
+  /** List restaurants for admin (Explore More dropdowns, reports, etc.). Requires admin auth. */
+  getRestaurants: (params = {}) =>
+    apiClient.get("/food/admin/restaurants", {
+      params: { limit: 1000, ...params },
       contextModule: "admin",
     }),
 };
@@ -120,13 +126,13 @@ export const restaurantAPI = {
     Promise.reject(new Error("Please use phone number and OTP to sign in.")),
   /**
    * Register a restaurant (multipart FormData).
-   * Backend: POST /v1/food/restaurant/register
+   * Backend: POST /v1/food/restaurant/register (path relative to baseURL /api/v1)
    */
   register: (formData) => {
     if (!formData || !(formData instanceof FormData)) {
       return Promise.reject(new Error("FormData is required"));
     }
-    return apiClient.post("/v1/food/restaurant/register", formData);
+    return apiClient.post("/food/restaurant/register", formData);
   },
 };
 
@@ -183,7 +189,7 @@ export const uploadAPI = {
       formData.append("folder", options.folder);
     }
 
-    return apiClient.post("/v1/uploads/image", formData, {
+    return apiClient.post("/uploads/image", formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
   },

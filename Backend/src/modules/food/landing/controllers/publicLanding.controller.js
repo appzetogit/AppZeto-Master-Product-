@@ -37,7 +37,8 @@ export const getPublicDiningBannersController = async (req, res, next) => {
 export const getPublicExploreIconsController = async (req, res, next) => {
     try {
         const docs = await FoodExploreIcon.find({ isActive: true }).sort({ sortOrder: 1, createdAt: -1 }).lean();
-        return sendResponse(res, 200, 'Explore icons fetched', docs);
+        const items = docs.map(({ targetPath, sortOrder, ...rest }) => ({ ...rest, link: targetPath, order: sortOrder }));
+        return sendResponse(res, 200, 'Explore icons fetched', items);
     } catch (error) {
         next(error);
     }

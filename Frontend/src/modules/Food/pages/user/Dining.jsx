@@ -89,7 +89,7 @@ export default function Dining() {
   useEffect(() => {
     const fetchDiningHeroBanner = async () => {
       try {
-        const response = await api.get('/hero-banners/dining/public')
+        const response = await api.get('/food/hero-banners/dining/public')
         if (response.data.success && response.data.data.banners && response.data.data.banners.length > 0) {
           setDiningHeroBanner(response.data.data.banners[0])
         } else {

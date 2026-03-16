@@ -277,6 +277,10 @@ export const useRestaurantNotifications = () => {
   }, []);
 
   useEffect(() => {
+    if (!API_BASE_URL || !String(API_BASE_URL).trim()) {
+      setIsConnected(false);
+      return;
+    }
     if (!restaurantId) {
       debugLog('? Waiting for restaurantId...');
       return;
@@ -353,11 +357,9 @@ export const useRestaurantNotifications = () => {
       }
       
       debugError('? CRITICAL: BLOCKING Socket.IO connection to localhost!');
-      debugError('?? This means VITE_API_BASE_URL was not set during build time');
+      debugError('Backend connectivity disabled (UI-only mode).');
       debugError('?? Current backendUrl:', backendUrl);
       debugError('?? Current API_BASE_URL:', API_BASE_URL);
-      debugError('?? VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL || 'NOT SET');
-      debugError('?? Environment mode:', import.meta.env.MODE);
       debugError('?? Frontend hostname:', frontendHost);
       debugError('?? Frontend protocol:', frontendProtocol);
       debugError('?? Is production build:', isProductionBuild);
@@ -365,12 +367,10 @@ export const useRestaurantNotifications = () => {
       debugError('?? Backend is localhost:', backendIsLocalhost);
       if (suggestedBackendUrl) {
         debugError('?? Suggested backend URL:', suggestedBackendUrl);
-        debugError('?? Fix: Rebuild frontend with: VITE_API_BASE_URL=' + suggestedBackendUrl + ' npm run build');
       } else {
-        debugError('?? Fix: Rebuild frontend with: VITE_API_BASE_URL=https://your-backend-domain.com/api npm run build');
+        debugError('?? Backend URL config is disabled in this build.');
       }
-      debugError('?? Note: Vite environment variables are embedded at BUILD TIME, not runtime');
-      debugError('?? You must rebuild and redeploy the frontend with correct VITE_API_BASE_URL');
+      debugError('?? Backend URL config is disabled in this build.');
       
       // Clean up any existing socket connection
       if (socketRef.current) {

@@ -3,8 +3,8 @@
  * Handles loading and updating business settings (favicon, title, logo)
  */
 
-import apiClient from "@food/api/axios.js";
-import { API_ENDPOINTS } from "@food/api/config.js";
+import apiClient from "@food/api/axios";
+import { API_ENDPOINTS } from "@food/api/config";
 
 let cachedSettings = null;
 

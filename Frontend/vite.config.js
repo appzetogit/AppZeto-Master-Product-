@@ -7,14 +7,18 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const foodSrc = path.resolve(__dirname, './src/modules/Food')
+const servicesApi = path.resolve(__dirname, './src/services/api')
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
-      // Quick-spicy-main food module alias — all @/... imports inside food module resolve here
+      // More specific first so @food/api/* resolves to services (no backend)
+      '@food/api/axios': path.resolve(servicesApi, 'axios.js'),
+      '@food/api/config': path.resolve(servicesApi, 'config.js'),
+      '@food/api': servicesApi,
       '@food': foodSrc,
+      '@': path.resolve(__dirname, './src'),
     },
     dedupe: ['react', 'react-dom', 'react-router-dom'],
   },

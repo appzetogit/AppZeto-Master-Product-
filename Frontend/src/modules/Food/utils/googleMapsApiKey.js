@@ -31,7 +31,7 @@ export async function getGoogleMapsApiKey() {
   apiKeyPromise = (async () => {
     const envFallbackKey = sanitizeApiKey(import.meta.env.VITE_GOOGLE_MAPS_API_KEY);
     try {
-      const { adminAPI } = await import('../api/index.js');
+      const { adminAPI } = await import('@food/api');
       const response = await adminAPI.getPublicEnvVariables();
 
       const dbKey = sanitizeApiKey(response?.data?.data?.VITE_GOOGLE_MAPS_API_KEY);

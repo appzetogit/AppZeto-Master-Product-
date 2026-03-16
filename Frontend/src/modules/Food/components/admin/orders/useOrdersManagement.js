@@ -72,6 +72,10 @@ const blobToDataUrl = (blob) =>
 const imageUrlToDataUrl = async (url) => {
   if (!url) return null
   if (url.startsWith("data:")) return url
+  // Do not fetch from backend - only external/same-origin assets allowed
+  const u = String(url).trim().toLowerCase()
+  if (u.startsWith("http://localhost") || u.startsWith("https://localhost") || u.startsWith("http://127.0.0.1")) return null
+  if (u.startsWith("/api")) return null
 
   try {
     const response = await fetch(url, { cache: "force-cache" })

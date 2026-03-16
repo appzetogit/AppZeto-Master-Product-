@@ -37,5 +37,5 @@ const userSchema = new mongoose.Schema(
 
 userSchema.index({ phone: 1 }, { unique: true });
 
-export const ZomatoUser = mongoose.model('ZomatoUser', userSchema);
+export const FoodUser = mongoose.model('FoodUser', userSchema);
 

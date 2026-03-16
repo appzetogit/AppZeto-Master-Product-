@@ -1,13 +1,13 @@
-import { ZomatoTop10Restaurant } from '../models/top10Restaurant.model.js';
-import { ZomatoRestaurant } from '../../restaurant/models/restaurant.model.js';
+import { FoodTop10Restaurant } from '../models/top10Restaurant.model.js';
+import { FoodRestaurant } from '../../restaurant/models/restaurant.model.js';
 
 export const getPublicTop10Restaurants = async () => {
-    const docs = await ZomatoTop10Restaurant.find({ isActive: true })
+    const docs = await FoodTop10Restaurant.find({ isActive: true })
         .sort({ rank: 1 })
         .lean();
 
     const restaurantIds = docs.map((d) => d.restaurantId);
-    const restaurants = await ZomatoRestaurant.find({ _id: { $in: restaurantIds } })
+    const restaurants = await FoodRestaurant.find({ _id: { $in: restaurantIds } })
         .select('restaurantName area city profileImage')
         .lean();
 

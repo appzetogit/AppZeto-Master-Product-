@@ -1,11 +1,11 @@
 import ms from 'ms';
-import { ZomatoUser } from '../users/user.model.js';
-import { ZomatoAdmin } from '../admin/admin.model.js';
-import { ZomatoRestaurant } from '../../modules/food/restaurant/models/restaurant.model.js';
-import { ZomatoDeliveryPartner } from '../../modules/food/delivery/models/deliveryPartner.model.js';
+import { FoodUser } from '../users/user.model.js';
+import { FoodAdmin } from '../admin/admin.model.js';
+import { FoodRestaurant } from '../../modules/food/restaurant/models/restaurant.model.js';
+import { FoodDeliveryPartner } from '../../modules/food/delivery/models/deliveryPartner.model.js';
 import { createOrUpdateOtp, verifyOtp } from '../otp/otp.service.js';
 import { signAccessToken, signRefreshToken } from './token.util.js';
-import { ZomatoRefreshToken } from '../refreshTokens/refreshToken.model.js';
+import { FoodRefreshToken } from '../refreshTokens/refreshToken.model.js';
 import { ValidationError, AuthError } from './errors.js';
 import { config } from '../../config/env.js';
 
@@ -29,9 +29,9 @@ export const verifyUserOtpAndLogin = async (phone, otp) => {
     }
 
     // Ensure user exists and mark as verified on successful OTP.
-    let userDoc = await ZomatoUser.findOne({ phone });
+    let userDoc = await FoodUser.findOne({ phone });
     if (!userDoc) {
-        userDoc = await ZomatoUser.create({ phone, isVerified: true });
+        userDoc = await FoodUser.create({ phone, isVerified: true });
     } else if (!userDoc.isVerified) {
         userDoc.isVerified = true;
         await userDoc.save();
@@ -46,7 +46,7 @@ export const verifyUserOtpAndLogin = async (phone, otp) => {
     const ttlMs = ms(config.jwtRefreshExpiresIn || '7d');
     const expiresAt = new Date(Date.now() + ttlMs);
 
-    await ZomatoRefreshToken.create({
+    await FoodRefreshToken.create({
         userId: user._id,
         token: refreshToken,
         expiresAt
@@ -60,7 +60,7 @@ export const adminLogin = async (email, password) => {
         throw new ValidationError('Email and password are required');
     }
 
-    const admin = await ZomatoAdmin.findOne({ email });
+    const admin = await FoodAdmin.findOne({ email });
     if (!admin) {
         throw new AuthError('Invalid credentials');
     }
@@ -78,7 +78,7 @@ export const adminLogin = async (email, password) => {
     const ttlMs = ms(config.jwtRefreshExpiresIn || '7d');
     const expiresAt = new Date(Date.now() + ttlMs);
 
-    await ZomatoRefreshToken.create({
+    await FoodRefreshToken.create({
         userId: admin._id,
         token: refreshToken,
         expiresAt
@@ -103,7 +103,7 @@ export const verifyRestaurantOtpAndLogin = async (phone, otp) => {
         throw new AuthError(result.reason || 'OTP verification failed');
     }
 
-    const restaurant = await ZomatoRestaurant.findOne({ ownerPhone: phone }).lean();
+    const restaurant = await FoodRestaurant.findOne({ ownerPhone: phone }).lean();
     if (!restaurant) {
         throw new AuthError('No restaurant found with this phone. Please complete onboarding first.');
     }
@@ -114,7 +114,7 @@ export const verifyRestaurantOtpAndLogin = async (phone, otp) => {
     const ttlMs = ms(config.jwtRefreshExpiresIn || '7d');
     const expiresAt = new Date(Date.now() + ttlMs);
 
-    await ZomatoRefreshToken.create({
+    await FoodRefreshToken.create({
         userId: restaurant._id,
         token: refreshToken,
         expiresAt
@@ -137,11 +137,11 @@ export const verifyDeliveryOtpAndLogin = async (phone, otp) => {
         throw new AuthError(result.reason || 'OTP verification failed');
     }
 
-    let deliveryPartner = await ZomatoDeliveryPartner.findOne({ phone }).lean();
+    let deliveryPartner = await FoodDeliveryPartner.findOne({ phone }).lean();
     let needsRegistration = false;
 
     if (!deliveryPartner) {
-        const created = await ZomatoDeliveryPartner.create({
+        const created = await FoodDeliveryPartner.create({
             phone,
             name: 'Pending',
             status: 'pending'
@@ -156,7 +156,7 @@ export const verifyDeliveryOtpAndLogin = async (phone, otp) => {
     const ttlMs = ms(config.jwtRefreshExpiresIn || '7d');
     const expiresAt = new Date(Date.now() + ttlMs);
 
-    await ZomatoRefreshToken.create({
+    await FoodRefreshToken.create({
         userId: deliveryPartner._id,
         token: refreshToken,
         expiresAt
@@ -169,7 +169,7 @@ export const logout = async (refreshToken) => {
     if (!refreshToken) {
         throw new ValidationError('Refresh token is required');
     }
-    const deleted = await ZomatoRefreshToken.deleteOne({ token: refreshToken });
+    const deleted = await FoodRefreshToken.deleteOne({ token: refreshToken });
     return { invalidated: deleted.deletedCount > 0 };
 };
 
@@ -182,16 +182,16 @@ export const getProfile = async (userId, role) => {
 
     switch (role) {
         case ROLES.USER:
-            profile = await ZomatoUser.findById(id).lean();
+            profile = await FoodUser.findById(id).lean();
             break;
         case ROLES.ADMIN:
-            profile = await ZomatoAdmin.findById(id).select('-password').lean();
+            profile = await FoodAdmin.findById(id).select('-password').lean();
             break;
         case ROLES.RESTAURANT:
-            profile = await ZomatoRestaurant.findById(id).lean();
+            profile = await FoodRestaurant.findById(id).lean();
             break;
         case ROLES.DELIVERY_PARTNER:
-            profile = await ZomatoDeliveryPartner.findById(id).lean();
+            profile = await FoodDeliveryPartner.findById(id).lean();
             break;
         default:
             throw new AuthError('Unknown role');
@@ -208,7 +208,7 @@ export const refreshAccessToken = async (token) => {
         throw new ValidationError('Refresh token is required');
     }
 
-    const stored = await ZomatoRefreshToken.findOne({ token }).lean();
+    const stored = await FoodRefreshToken.findOne({ token }).lean();
     if (!stored) {
         throw new AuthError('Invalid refresh token');
     }

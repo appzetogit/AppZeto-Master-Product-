@@ -1,15 +1,15 @@
 import { getPublicTop10Restaurants } from '../services/top10.service.js';
 import { getPublicGourmetRestaurants } from '../services/gourmet.service.js';
 import { getLandingSettings } from '../services/landingSettings.service.js';
-import { ZomatoHeroBanner } from '../models/heroBanner.model.js';
-import { ZomatoUnder250Banner } from '../models/under250Banner.model.js';
-import { ZomatoDiningBanner } from '../models/diningBanner.model.js';
-import { ZomatoExploreIcon } from '../models/exploreIcon.model.js';
+import { FoodHeroBanner } from '../models/heroBanner.model.js';
+import { FoodUnder250Banner } from '../models/under250Banner.model.js';
+import { FoodDiningBanner } from '../models/diningBanner.model.js';
+import { FoodExploreIcon } from '../models/exploreIcon.model.js';
 import { sendResponse } from '../../../../utils/response.js';
 
 export const getPublicHeroBannersController = async (req, res, next) => {
     try {
-        const docs = await ZomatoHeroBanner.find({ isActive: true }).sort({ sortOrder: 1, createdAt: -1 }).lean();
+        const docs = await FoodHeroBanner.find({ isActive: true }).sort({ sortOrder: 1, createdAt: -1 }).lean();
         return sendResponse(res, 200, 'Hero banners fetched', docs);
     } catch (error) {
         next(error);
@@ -18,7 +18,7 @@ export const getPublicHeroBannersController = async (req, res, next) => {
 
 export const getPublicUnder250BannersController = async (req, res, next) => {
     try {
-        const docs = await ZomatoUnder250Banner.find({ isActive: true }).sort({ sortOrder: 1, createdAt: -1 }).lean();
+        const docs = await FoodUnder250Banner.find({ isActive: true }).sort({ sortOrder: 1, createdAt: -1 }).lean();
         return sendResponse(res, 200, 'Under 250 banners fetched', docs);
     } catch (error) {
         next(error);
@@ -27,7 +27,7 @@ export const getPublicUnder250BannersController = async (req, res, next) => {
 
 export const getPublicDiningBannersController = async (req, res, next) => {
     try {
-        const docs = await ZomatoDiningBanner.find({ isActive: true }).sort({ sortOrder: 1, createdAt: -1 }).lean();
+        const docs = await FoodDiningBanner.find({ isActive: true }).sort({ sortOrder: 1, createdAt: -1 }).lean();
         return sendResponse(res, 200, 'Dining banners fetched', docs);
     } catch (error) {
         next(error);
@@ -36,7 +36,7 @@ export const getPublicDiningBannersController = async (req, res, next) => {
 
 export const getPublicExploreIconsController = async (req, res, next) => {
     try {
-        const docs = await ZomatoExploreIcon.find({ isActive: true }).sort({ sortOrder: 1, createdAt: -1 }).lean();
+        const docs = await FoodExploreIcon.find({ isActive: true }).sort({ sortOrder: 1, createdAt: -1 }).lean();
         return sendResponse(res, 200, 'Explore icons fetched', docs);
     } catch (error) {
         next(error);

@@ -18,6 +18,7 @@ import { validateRestaurantOtpVerifyDto } from '../../dtos/auth/restaurantOtpVer
 import { validateDeliveryOtpRequestDto } from '../../dtos/auth/deliveryOtpRequest.dto.js';
 import { validateDeliveryOtpVerifyDto } from '../../dtos/auth/deliveryOtpVerify.dto.js';
 import { validateLogoutDto } from '../../dtos/auth/logout.dto.js';
+import { validateRefreshTokenDto } from '../../dtos/auth/refreshToken.dto.js';
 import { sendResponse } from '../../utils/response.js';
 
 export const requestUserOtpController = async (req, res, next) => {
@@ -52,7 +53,7 @@ export const adminLoginController = async (req, res, next) => {
 
 export const refreshTokenController = async (req, res, next) => {
     try {
-        const { refreshToken } = req.body;
+        const { refreshToken } = validateRefreshTokenDto(req.body);
         const result = await refreshAccessToken(refreshToken);
         return sendResponse(res, 200, 'Access token refreshed', result);
     } catch (error) {

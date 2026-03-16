@@ -12,8 +12,11 @@ import {
     getMeController
 } from './auth.controller.js';
 import { authMiddleware } from './auth.middleware.js';
+import { authRateLimiter } from '../../middleware/rateLimit.js';
 
 const router = express.Router();
+
+router.use(authRateLimiter);
 
 // User OTP login
 router.post('/user/request-otp', requestUserOtpController);

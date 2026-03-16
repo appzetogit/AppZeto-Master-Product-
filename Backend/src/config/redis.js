@@ -19,9 +19,9 @@ export const createRedisClient = () => {
     });
 
     client.on('error', (err) => logger.error(`Redis Client Error: ${err.message}`));
-    client.on('connect', () => console.log('⏳ [REDIS] Connecting...'));
-    client.on('ready', () => console.log('🚀 [REDIS] Client Ready'));
-    client.on('end', () => console.log('🔌 [REDIS] Client Disconnected'));
+    client.on('connect', () => logger.info('Redis connecting...'));
+    client.on('ready', () => logger.info('Redis client ready'));
+    client.on('end', () => logger.warn('Redis client disconnected'));
 
     return client;
 };
@@ -60,4 +60,16 @@ export const connectRedis = async () => {
  */
 export const getRedisClient = () => {
     return redisClient;
+};
+
+/**
+ * Close Redis connection (e.g. graceful shutdown).
+ * @returns {Promise<void>}
+ */
+export const closeRedis = async () => {
+    if (redisClient) {
+        await redisClient.quit();
+        redisClient = null;
+        logger.info('Redis connection closed');
+    }
 };

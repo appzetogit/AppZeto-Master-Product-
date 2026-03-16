@@ -28,12 +28,13 @@ export const verifyUserOtpAndLogin = async (phone, otp) => {
         throw new AuthError(result.reason || 'OTP verification failed');
     }
 
-    let user = await User.findOne({ phone });
+    let user = await User.findOne({ phone }).lean();
     if (!user) {
-        user = await User.create({ phone });
+        const created = await User.create({ phone });
+        user = created.toObject();
     }
 
-    const payload = { userId: user._id.toString(), role: user.role };
+    const payload = { userId: user._id.toString(), role: user.role || 'USER' };
 
     const accessToken = signAccessToken(payload);
     const refreshToken = signRefreshToken(payload);
@@ -79,7 +80,9 @@ export const adminLogin = async (email, password) => {
         expiresAt
     });
 
-    return { accessToken, refreshToken, user: admin };
+    const userObj = admin.toObject();
+    delete userObj.password;
+    return { accessToken, refreshToken, user: userObj };
 };
 
 export const requestRestaurantOtp = async (phone) => {
@@ -96,7 +99,7 @@ export const verifyRestaurantOtpAndLogin = async (phone, otp) => {
         throw new AuthError(result.reason || 'OTP verification failed');
     }
 
-    const restaurant = await Restaurant.findOne({ ownerPhone: phone });
+    const restaurant = await Restaurant.findOne({ ownerPhone: phone }).lean();
     if (!restaurant) {
         throw new AuthError('No restaurant found with this phone. Please complete onboarding first.');
     }
@@ -130,7 +133,7 @@ export const verifyDeliveryOtpAndLogin = async (phone, otp) => {
         throw new AuthError(result.reason || 'OTP verification failed');
     }
 
-    const deliveryPartner = await DeliveryPartner.findOne({ phone });
+    const deliveryPartner = await DeliveryPartner.findOne({ phone }).lean();
     if (!deliveryPartner) {
         throw new AuthError('No delivery partner found with this phone. Please complete registration first.');
     }
@@ -193,18 +196,11 @@ export const refreshAccessToken = async (token) => {
         throw new ValidationError('Refresh token is required');
     }
 
-    const stored = await RefreshToken.findOne({ token });
+    const stored = await RefreshToken.findOne({ token }).lean();
     if (!stored) {
         throw new AuthError('Invalid refresh token');
     }
 
-    try {
-        const decoded = signRefreshToken ? null : null; // placeholder to keep linter happy
-    } catch {
-        // no-op
-    }
-
-    // We only trust stored token validity via TTL; simply decode again
     const jwt = await import('jsonwebtoken');
     let payload;
     try {

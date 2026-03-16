@@ -34,6 +34,8 @@ export const config = {
     // Rate limiting
     rateLimitWindowMinutes: Number(process.env.RATE_LIMIT_WINDOW || 15),
     rateLimitMaxRequests: Number(process.env.RATE_LIMIT_MAX || 100),
+    authRateLimitWindowMinutes: Number(process.env.AUTH_RATE_LIMIT_WINDOW || 15),
+    authRateLimitMax: Number(process.env.AUTH_RATE_LIMIT_MAX || 30),
 
     // Security
     bcryptSaltRounds: Number(process.env.BCRYPT_SALT_ROUNDS || 10),

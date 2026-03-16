@@ -116,6 +116,7 @@ const restaurantSchema = new mongoose.Schema(
 restaurantSchema.index({ ownerPhone: 1 });
 restaurantSchema.index({ restaurantName: 1 });
 restaurantSchema.index({ city: 1 });
+restaurantSchema.index({ restaurantName: 1, ownerPhone: 1 });
 
 export const Restaurant = mongoose.model('Restaurant', restaurantSchema);
 

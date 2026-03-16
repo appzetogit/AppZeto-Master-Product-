@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom"
 import UserLayout from "./UserLayout"
 import { Suspense, lazy } from "react"
 import Loader from "@food/components/Loader"
+import ProtectedRoute from "@food/components/ProtectedRoute"
 
 // Lazy Loading Pages
 
@@ -108,7 +109,14 @@ export default function UserRouter() {
           <Route path="dining/book/:slug" element={<TableBooking />} />
           <Route path="dining/book-confirmation" element={<TableBookingConfirmation />} />
           <Route path="dining/book-success" element={<TableBookingSuccess />} />
-          <Route path="bookings" element={<MyBookings />} />
+          <Route
+            path="bookings"
+            element={
+              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+                <MyBookings />
+              </ProtectedRoute>
+            }
+          />
           <Route path="under-250" element={<Under250 />} />
           <Route path="category/:category" element={<CategoryPage />} />
           <Route path="restaurants" element={<Restaurants />} />
@@ -120,11 +128,39 @@ export default function UserRouter() {
           <Route path="cart" element={<Cart />} />
           <Route path="cart/checkout" element={<Checkout />} />
 
-          {/* Orders - Now Public */}
-          <Route path="orders" element={<Orders />} />
-          <Route path="orders/:orderId" element={<OrderTracking />} />
-          <Route path="orders/:orderId/invoice" element={<OrderInvoice />} />
-          <Route path="orders/:orderId/details" element={<UserOrderDetails />} />
+          {/* Orders - Protected (require user auth) */}
+          <Route
+            path="orders"
+            element={
+              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+                <Orders />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="orders/:orderId"
+            element={
+              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+                <OrderTracking />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="orders/:orderId/invoice"
+            element={
+              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+                <OrderInvoice />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="orders/:orderId/details"
+            element={
+              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+                <UserOrderDetails />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Offers */}
           <Route path="offers" element={<Offers />} />
@@ -143,24 +179,122 @@ export default function UserRouter() {
           <Route path="gift-card" element={<GiftCards />} />
           <Route path="gift-card/checkout" element={<GiftCardCheckout />} />
 
-          {/* Profile - Now Public */}
-          <Route path="profile" element={<Profile />} />
-          <Route path="profile/edit" element={<EditProfile />} />
-          <Route path="profile/payments" element={<Payments />} />
-          <Route path="profile/payments/new" element={<AddPayment />} />
-          <Route path="profile/payments/:id/edit" element={<EditPayment />} />
-          <Route path="profile/favorites" element={<Favorites />} />
-          <Route path="profile/settings" element={<Settings />} />
-          <Route path="profile/coupons" element={<Coupons />} />
-          <Route path="profile/redeem-gold-coupon" element={<RedeemGoldCoupon />} />
-          <Route path="profile/about" element={<About />} />
+          {/* Profile - Protected (require user auth) */}
+          <Route
+            path="profile"
+            element={
+              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+                <Profile />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="profile/edit"
+            element={
+              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+                <EditProfile />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="profile/payments"
+            element={
+              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+                <Payments />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="profile/payments/new"
+            element={
+              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+                <AddPayment />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="profile/payments/:id/edit"
+            element={
+              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+                <EditPayment />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="profile/favorites"
+            element={
+              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+                <Favorites />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="profile/settings"
+            element={
+              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+                <Settings />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="profile/coupons"
+            element={
+              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+                <Coupons />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="profile/redeem-gold-coupon"
+            element={
+              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+                <RedeemGoldCoupon />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="profile/about"
+            element={
+              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+                <About />
+              </ProtectedRoute>
+            }
+          />
 
-          <Route path="profile/send-feedback" element={<SendFeedback />} />
-          <Route path="profile/report-safety-emergency" element={<ReportSafetyEmergency />} />
-          <Route path="profile/accessibility" element={<Accessibility />} />
-          <Route path="profile/logout" element={<Logout />} />
+          <Route
+            path="profile/send-feedback"
+            element={
+              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+                <SendFeedback />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="profile/report-safety-emergency"
+            element={
+              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+                <ReportSafetyEmergency />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="profile/accessibility"
+            element={
+              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+                <Accessibility />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="profile/logout"
+            element={
+              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+                <Logout />
+              </ProtectedRoute>
+            }
+          />
 
-          {/* Public Legal Policies */}
+          {/* Public Legal Policies (stay public) */}
           <Route path="profile/terms" element={<Terms />} />
           <Route path="profile/privacy" element={<Privacy />} />
           <Route path="profile/refund" element={<Refund />} />
@@ -176,14 +310,35 @@ export default function UserRouter() {
           <Route path="help" element={<Help />} />
           <Route path="help/orders/:orderId" element={<OrderHelp />} />
 
-          {/* Notifications - Now Public */}
-          <Route path="notifications" element={<Notifications />} />
+          {/* Notifications - Protected (user auth) */}
+          <Route
+            path="notifications"
+            element={
+              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+                <Notifications />
+              </ProtectedRoute>
+            }
+          />
 
-          {/* Wallet - Now Public */}
-          <Route path="wallet" element={<Wallet />} />
+          {/* Wallet - Protected (user auth) */}
+          <Route
+            path="wallet"
+            element={
+              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+                <Wallet />
+              </ProtectedRoute>
+            }
+          />
 
-          {/* Complaints - Now Public */}
-          <Route path="complaints/submit/:orderId" element={<SubmitComplaint />} />
+          {/* Complaints - Protected (user auth) */}
+          <Route
+            path="complaints/submit/:orderId"
+            element={
+              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+                <SubmitComplaint />
+              </ProtectedRoute>
+            }
+          />
         </Route>
       </Routes>
     </Suspense>

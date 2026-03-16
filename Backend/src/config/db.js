@@ -11,3 +11,12 @@ export const connectDB = async () => {
         process.exit(1);
     }
 };
+
+/**
+ * Close MongoDB connection (e.g. graceful shutdown).
+ * @returns {Promise<void>}
+ */
+export const disconnectDB = async () => {
+    await mongoose.connection.close();
+    logger.info('MongoDB connection closed');
+};

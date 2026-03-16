@@ -34,7 +34,7 @@ router.delete('/hero-banners/:id', authMiddleware, requireRoles('ADMIN'), delete
 router.patch('/hero-banners/:id/order', authMiddleware, requireRoles('ADMIN'), updateHeroBannerOrderController);
 router.patch('/hero-banners/:id/status', authMiddleware, requireRoles('ADMIN'), toggleHeroBannerStatusController);
 
-// Public landing endpoints (Zomato user app)
+// Public landing endpoints (Food user app)
 router.get('/hero-banners/public', getPublicHeroBannersController);
 router.get('/under-250-banners/public', getPublicUnder250BannersController);
 router.get('/dining-banners/public', getPublicDiningBannersController);
@@ -44,3 +44,4 @@ router.get('/hero-banners/gourmet/public', getPublicGourmetController);
 router.get('/landing/settings/public', getPublicLandingSettingsController);
 
 export default router;
+

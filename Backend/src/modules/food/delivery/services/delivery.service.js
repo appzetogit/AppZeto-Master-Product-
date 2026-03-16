@@ -1,4 +1,4 @@
-import { ZomatoDeliveryPartner } from '../models/deliveryPartner.model.js';
+import { FoodDeliveryPartner } from '../models/deliveryPartner.model.js';
 import { uploadImageBuffer } from '../../../../services/cloudinary.service.js';
 import { ValidationError } from '../../../../core/auth/errors.js';
 
@@ -6,7 +6,7 @@ export const registerDeliveryPartner = async (payload, files) => {
     const { name, phone, countryCode, address, city, state, vehicleType, vehicleName, vehicleNumber, panNumber, aadharNumber } =
         payload;
 
-    const existing = await ZomatoDeliveryPartner.findOne({ phone }).lean();
+    const existing = await FoodDeliveryPartner.findOne({ phone }).lean();
     if (existing) {
         throw new ValidationError('Delivery partner with this phone already exists');
     }
@@ -14,22 +14,22 @@ export const registerDeliveryPartner = async (payload, files) => {
     const images = {};
 
     if (files?.profilePhoto?.[0]) {
-        images.profilePhoto = await uploadImageBuffer(files.profilePhoto[0].buffer, 'zomato/delivery/profile');
+        images.profilePhoto = await uploadImageBuffer(files.profilePhoto[0].buffer, 'food/delivery/profile');
     }
     if (files?.aadharPhoto?.[0]) {
-        images.aadharPhoto = await uploadImageBuffer(files.aadharPhoto[0].buffer, 'zomato/delivery/aadhar');
+        images.aadharPhoto = await uploadImageBuffer(files.aadharPhoto[0].buffer, 'food/delivery/aadhar');
     }
     if (files?.panPhoto?.[0]) {
-        images.panPhoto = await uploadImageBuffer(files.panPhoto[0].buffer, 'zomato/delivery/pan');
+        images.panPhoto = await uploadImageBuffer(files.panPhoto[0].buffer, 'food/delivery/pan');
     }
     if (files?.drivingLicensePhoto?.[0]) {
         images.drivingLicensePhoto = await uploadImageBuffer(
             files.drivingLicensePhoto[0].buffer,
-            'zomato/delivery/license'
+            'food/delivery/license'
         );
     }
 
-    const partner = await ZomatoDeliveryPartner.create({
+    const partner = await FoodDeliveryPartner.create({
         name,
         phone,
         countryCode,
@@ -49,7 +49,7 @@ export const registerDeliveryPartner = async (payload, files) => {
 };
 
 export const updateDeliveryPartnerProfile = async (userId, payload, files) => {
-    const partner = await ZomatoDeliveryPartner.findById(userId);
+    const partner = await FoodDeliveryPartner.findById(userId);
     if (!partner) {
         throw new ValidationError('Delivery partner not found');
     }
@@ -71,18 +71,18 @@ export const updateDeliveryPartnerProfile = async (userId, payload, files) => {
     if (aadharNumber !== undefined) partner.aadharNumber = aadharNumber;
 
     if (files?.profilePhoto?.[0]) {
-        partner.profilePhoto = await uploadImageBuffer(files.profilePhoto[0].buffer, 'zomato/delivery/profile');
+        partner.profilePhoto = await uploadImageBuffer(files.profilePhoto[0].buffer, 'food/delivery/profile');
     }
     if (files?.aadharPhoto?.[0]) {
-        partner.aadharPhoto = await uploadImageBuffer(files.aadharPhoto[0].buffer, 'zomato/delivery/aadhar');
+        partner.aadharPhoto = await uploadImageBuffer(files.aadharPhoto[0].buffer, 'food/delivery/aadhar');
     }
     if (files?.panPhoto?.[0]) {
-        partner.panPhoto = await uploadImageBuffer(files.panPhoto[0].buffer, 'zomato/delivery/pan');
+        partner.panPhoto = await uploadImageBuffer(files.panPhoto[0].buffer, 'food/delivery/pan');
     }
     if (files?.drivingLicensePhoto?.[0]) {
         partner.drivingLicensePhoto = await uploadImageBuffer(
             files.drivingLicensePhoto[0].buffer,
-            'zomato/delivery/license'
+            'food/delivery/license'
         );
     }
 

@@ -26,7 +26,7 @@ const adminSchema = new mongoose.Schema(
         }
     },
     {
-        collection: 'zomato_admins',
+        collection: 'food_admins',
         timestamps: true
     }
 );
@@ -47,5 +47,5 @@ adminSchema.methods.comparePassword = function (candidatePassword) {
     return bcrypt.compare(candidatePassword, this.password);
 };
 
-export const ZomatoAdmin = mongoose.model('ZomatoAdmin', adminSchema);
+export const FoodAdmin = mongoose.model('FoodAdmin', adminSchema);
 

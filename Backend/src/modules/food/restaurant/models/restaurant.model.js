@@ -123,7 +123,7 @@ const restaurantSchema = new mongoose.Schema(
         }
     },
     {
-        collection: 'zomato_restaurants',
+        collection: 'food_restaurants',
         timestamps: true
     }
 );
@@ -134,5 +134,5 @@ restaurantSchema.index({ city: 1 });
 restaurantSchema.index({ restaurantName: 1, ownerPhone: 1 });
 restaurantSchema.index({ status: 1, createdAt: -1 });
 
-export const ZomatoRestaurant = mongoose.model('ZomatoRestaurant', restaurantSchema);
+export const FoodRestaurant = mongoose.model('FoodRestaurant', restaurantSchema);
 

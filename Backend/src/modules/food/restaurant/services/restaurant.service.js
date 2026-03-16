@@ -1,4 +1,4 @@
-import { ZomatoRestaurant } from '../models/restaurant.model.js';
+import { FoodRestaurant } from '../models/restaurant.model.js';
 import { uploadImageBuffer } from '../../../../services/cloudinary.service.js';
 import { ValidationError } from '../../../../core/auth/errors.js';
 
@@ -36,7 +36,7 @@ export const registerRestaurant = async (payload, files) => {
         throw new ValidationError('Owner phone is required to register a restaurant');
     }
 
-    const existing = await ZomatoRestaurant.findOne({ restaurantName, ownerPhone }).lean();
+    const existing = await FoodRestaurant.findOne({ restaurantName, ownerPhone }).lean();
     if (existing) {
         throw new ValidationError('Restaurant with this name and owner phone already exists');
     }
@@ -44,26 +44,26 @@ export const registerRestaurant = async (payload, files) => {
     const images = {};
 
     if (files?.profileImage?.[0]) {
-        images.profileImage = await uploadImageBuffer(files.profileImage[0].buffer, 'zomato/restaurants/profile');
+        images.profileImage = await uploadImageBuffer(files.profileImage[0].buffer, 'food/restaurants/profile');
     }
     if (files?.panImage?.[0]) {
-        images.panImage = await uploadImageBuffer(files.panImage[0].buffer, 'zomato/restaurants/pan');
+        images.panImage = await uploadImageBuffer(files.panImage[0].buffer, 'food/restaurants/pan');
     }
     if (files?.gstImage?.[0]) {
-        images.gstImage = await uploadImageBuffer(files.gstImage[0].buffer, 'zomato/restaurants/gst');
+        images.gstImage = await uploadImageBuffer(files.gstImage[0].buffer, 'food/restaurants/gst');
     }
     if (files?.fssaiImage?.[0]) {
-        images.fssaiImage = await uploadImageBuffer(files.fssaiImage[0].buffer, 'zomato/restaurants/fssai');
+        images.fssaiImage = await uploadImageBuffer(files.fssaiImage[0].buffer, 'food/restaurants/fssai');
     }
 
     let menuImages = [];
     if (files?.menuImages?.length) {
         menuImages = await Promise.all(
-            files.menuImages.map((file) => uploadImageBuffer(file.buffer, 'zomato/restaurants/menu'))
+            files.menuImages.map((file) => uploadImageBuffer(file.buffer, 'food/restaurants/menu'))
         );
     }
 
-    const restaurant = await ZomatoRestaurant.create({
+    const restaurant = await FoodRestaurant.create({
         restaurantName,
         ownerName,
         ownerEmail,

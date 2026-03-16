@@ -30,12 +30,12 @@ const userSchema = new mongoose.Schema(
         }
     },
     {
-        collection: 'zomato_users',
+        collection: 'food_users',
         timestamps: true
     }
 );
 
 userSchema.index({ phone: 1 }, { unique: true });
 
-export const ZomatoUser = mongoose.model('ZomatoUser', userSchema);
+export const FoodUser = mongoose.model('FoodUser', userSchema);
 

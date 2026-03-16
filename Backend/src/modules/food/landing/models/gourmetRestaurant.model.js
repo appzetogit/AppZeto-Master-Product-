@@ -1,10 +1,10 @@
 import mongoose from 'mongoose';
 
-const zomatoGourmetRestaurantSchema = new mongoose.Schema(
+const foodGourmetRestaurantSchema = new mongoose.Schema(
     {
         restaurantId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'ZomatoRestaurant',
+            ref: 'FoodRestaurant',
             required: true
         },
         tags: {
@@ -23,12 +23,13 @@ const zomatoGourmetRestaurantSchema = new mongoose.Schema(
         }
     },
     {
-        collection: 'zomato_gourmet_restaurants',
+        collection: 'food_gourmet_restaurants',
         timestamps: true
     }
 );
 
-zomatoGourmetRestaurantSchema.index({ restaurantId: 1 });
-zomatoGourmetRestaurantSchema.index({ isActive: 1, priority: 1 });
+foodGourmetRestaurantSchema.index({ restaurantId: 1 });
+foodGourmetRestaurantSchema.index({ isActive: 1, priority: 1 });
 
-export const ZomatoGourmetRestaurant = mongoose.model('ZomatoGourmetRestaurant', zomatoGourmetRestaurantSchema);
+export const FoodGourmetRestaurant = mongoose.model('FoodGourmetRestaurant', foodGourmetRestaurantSchema);
+

@@ -28,7 +28,7 @@ const otpSchema = new mongoose.Schema(
         }
     },
     {
-        collection: 'zomato_otps',
+        collection: 'food_otps',
         timestamps: true
     }
 );
@@ -37,5 +37,5 @@ const otpSchema = new mongoose.Schema(
 otpSchema.index({ phone: 1 });
 otpSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
-export const ZomatoOtp = mongoose.model('ZomatoOtp', otpSchema);
+export const FoodOtp = mongoose.model('FoodOtp', otpSchema);
 

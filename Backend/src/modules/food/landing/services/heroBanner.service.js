@@ -1,8 +1,8 @@
-import { ZomatoHeroBanner } from '../models/heroBanner.model.js';
+import { FoodHeroBanner } from '../models/heroBanner.model.js';
 import { v2 as cloudinary } from 'cloudinary';
 
 export const listHeroBanners = async () => {
-    return ZomatoHeroBanner.find().sort({ sortOrder: 1, createdAt: -1 }).lean();
+    return FoodHeroBanner.find().sort({ sortOrder: 1, createdAt: -1 }).lean();
 };
 
 export const createHeroBannersFromFiles = async (files, meta = {}) => {
@@ -16,7 +16,7 @@ export const createHeroBannersFromFiles = async (files, meta = {}) => {
         try {
             const uploadResult = await new Promise((resolve, reject) => {
                 const stream = cloudinary.uploader.upload_stream(
-                    { folder: 'zomato/hero-banners', resource_type: 'image' },
+                    { folder: 'food/hero-banners', resource_type: 'image' },
                     (error, result) => {
                         if (error) return reject(error);
                         return resolve(result);
@@ -25,7 +25,7 @@ export const createHeroBannersFromFiles = async (files, meta = {}) => {
                 stream.end(file.buffer);
             });
 
-            const banner = await ZomatoHeroBanner.create({
+            const banner = await FoodHeroBanner.create({
                 imageUrl: uploadResult.secure_url,
                 publicId: uploadResult.public_id,
                 title: meta.title,
@@ -46,7 +46,7 @@ export const createHeroBannersFromFiles = async (files, meta = {}) => {
 };
 
 export const deleteHeroBanner = async (id) => {
-    const doc = await ZomatoHeroBanner.findById(id);
+    const doc = await FoodHeroBanner.findById(id);
     if (!doc) {
         return { deleted: false };
     }
@@ -64,7 +64,7 @@ export const deleteHeroBanner = async (id) => {
 };
 
 export const updateHeroBannerOrder = async (id, sortOrder) => {
-    const updated = await ZomatoHeroBanner.findByIdAndUpdate(
+    const updated = await FoodHeroBanner.findByIdAndUpdate(
         id,
         { sortOrder },
         { new: true }
@@ -73,10 +73,11 @@ export const updateHeroBannerOrder = async (id, sortOrder) => {
 };
 
 export const toggleHeroBannerStatus = async (id, isActive) => {
-    const updated = await ZomatoHeroBanner.findByIdAndUpdate(
+    const updated = await FoodHeroBanner.findByIdAndUpdate(
         id,
         { isActive },
         { new: true }
     ).lean();
     return updated;
 };
+

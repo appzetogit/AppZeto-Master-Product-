@@ -62,12 +62,12 @@ const deliveryPartnerSchema = new mongoose.Schema(
         }
     },
     {
-        collection: 'zomato_delivery_partners',
+        collection: 'food_delivery_partners',
         timestamps: true
     }
 );
 
 // Indices are defined inline in the schema fields above (phone: { unique: true }, vehicleNumber: { unique: true, sparse: true })
 
-export const ZomatoDeliveryPartner = mongoose.model('ZomatoDeliveryPartner', deliveryPartnerSchema);
+export const FoodDeliveryPartner = mongoose.model('FoodDeliveryPartner', deliveryPartnerSchema);
 

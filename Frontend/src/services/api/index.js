@@ -79,14 +79,14 @@ export const adminAPI = {
   },
   // Restaurant approvals and join requests
   getPendingRestaurants: () =>
-    apiClient.get("/v1/zomato/admin/restaurants/pending", { contextModule: "admin" }),
+    apiClient.get("/v1/food/admin/restaurants/pending", { contextModule: "admin" }),
   approveRestaurant: (id) =>
-    apiClient.patch(`/v1/zomato/admin/restaurants/${id}/approve`, null, {
+    apiClient.patch(`/v1/food/admin/restaurants/${id}/approve`, null, {
       contextModule: "admin",
     }),
   rejectRestaurant: (id, reason) =>
     apiClient.patch(
-      `/v1/zomato/admin/restaurants/${id}/reject`,
+      `/v1/food/admin/restaurants/${id}/reject`,
       { reason },
       { contextModule: "admin" },
     ),
@@ -114,13 +114,13 @@ export const restaurantAPI = {
     Promise.reject(new Error("Please use phone number and OTP to sign in.")),
   /**
    * Register a restaurant (multipart FormData).
-   * Backend: POST /v1/zomato/restaurant/register
+   * Backend: POST /v1/food/restaurant/register
    */
   register: (formData) => {
     if (!formData || !(formData instanceof FormData)) {
       return Promise.reject(new Error("FormData is required"));
     }
-    return apiClient.post("/zomato/restaurant/register", formData);
+    return apiClient.post("/v1/food/restaurant/register", formData);
   },
 };
 
@@ -141,19 +141,19 @@ export const deliveryAPI = {
       (typeof localStorage !== "undefined" ? localStorage.getItem("delivery_refreshToken") : null);
     return authService.logout(token);
   },
-  /** POST /zomato/delivery/register – multipart FormData (new partner, no token). */
+  /** POST /v1/food/delivery/register – multipart FormData (new partner, no token). */
   register: (formData) => {
     if (!formData || !(formData instanceof FormData)) {
       return Promise.reject(new Error("FormData with details and document files is required"));
     }
-    return apiClient.post("/zomato/delivery/register", formData);
+    return apiClient.post("/v1/food/delivery/register", formData);
   },
-  /** PATCH /zomato/delivery/profile – complete profile after OTP (Bearer token required). */
+  /** PATCH /v1/food/delivery/profile – complete profile after OTP (Bearer token required). */
   completeProfile: (formData) => {
     if (!formData || !(formData instanceof FormData)) {
       return Promise.reject(new Error("FormData with details and document files is required"));
     }
-    return apiClient.patch("/zomato/delivery/profile", formData, { contextModule: "delivery" });
+    return apiClient.patch("/v1/food/delivery/profile", formData, { contextModule: "delivery" });
   },
 };
 
@@ -177,7 +177,7 @@ export const uploadAPI = {
       formData.append("folder", options.folder);
     }
 
-    return apiClient.post("/uploads/image", formData, {
+    return apiClient.post("/v1/uploads/image", formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
   },

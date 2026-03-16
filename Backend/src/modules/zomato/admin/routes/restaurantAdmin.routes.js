@@ -1,5 +1,5 @@
 import express from 'express';
-import { ZomatoRestaurant } from '../../restaurant/models/restaurant.model.js';
+import { FoodRestaurant } from '../../../food/restaurant/models/restaurant.model.js';
 import { AuthError } from '../../../../core/auth/errors.js';
 
 const router = express.Router();
@@ -15,10 +15,9 @@ const requireAdmin = (req, _res, next) => {
 
 router.use(requireAdmin);
 
-// GET /v1/zomato/admin/restaurants/pending
 router.get('/restaurants/pending', async (_req, res, next) => {
     try {
-        const pending = await ZomatoRestaurant.find({ status: 'pending' })
+        const pending = await FoodRestaurant.find({ status: 'pending' })
             .sort({ createdAt: -1 })
             .lean();
         res.status(200).json({
@@ -31,11 +30,10 @@ router.get('/restaurants/pending', async (_req, res, next) => {
     }
 });
 
-// PATCH /v1/zomato/admin/restaurants/:id/approve
 router.patch('/restaurants/:id/approve', async (req, res, next) => {
     try {
         const { id } = req.params;
-        const restaurant = await ZomatoRestaurant.findById(id);
+        const restaurant = await FoodRestaurant.findById(id);
         if (!restaurant) {
             return res.status(404).json({
                 success: false,
@@ -59,13 +57,12 @@ router.patch('/restaurants/:id/approve', async (req, res, next) => {
     }
 });
 
-// PATCH /v1/zomato/admin/restaurants/:id/reject
 router.patch('/restaurants/:id/reject', async (req, res, next) => {
     try {
         const { id } = req.params;
         const { reason } = req.body || {};
 
-        const restaurant = await ZomatoRestaurant.findById(id);
+        const restaurant = await FoodRestaurant.findById(id);
         if (!restaurant) {
             return res.status(404).json({
                 success: false,

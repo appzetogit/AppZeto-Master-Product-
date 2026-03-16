@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-const zomatoHeroBannerSchema = new mongoose.Schema(
+const foodHeroBannerSchema = new mongoose.Schema(
     {
         imageUrl: {
             type: String,
@@ -21,7 +21,7 @@ const zomatoHeroBannerSchema = new mongoose.Schema(
         },
         linkedRestaurantIds: {
             type: [mongoose.Schema.Types.ObjectId],
-            ref: 'ZomatoRestaurant',
+            ref: 'FoodRestaurant',
             default: []
         },
         sortOrder: {
@@ -36,11 +36,12 @@ const zomatoHeroBannerSchema = new mongoose.Schema(
         }
     },
     {
-        collection: 'zomato_hero_banners',
+        collection: 'food_hero_banners',
         timestamps: true
     }
 );
 
-zomatoHeroBannerSchema.index({ isActive: 1, sortOrder: 1 });
+foodHeroBannerSchema.index({ isActive: 1, sortOrder: 1 });
 
-export const ZomatoHeroBanner = mongoose.model('ZomatoHeroBanner', zomatoHeroBannerSchema);
+export const FoodHeroBanner = mongoose.model('FoodHeroBanner', foodHeroBannerSchema);
+

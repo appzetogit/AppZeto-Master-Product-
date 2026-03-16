@@ -109,7 +109,7 @@ export default function AuthCallback() {
   }, [navigate, searchParams])
 
   const handleRetry = () => {
-    navigate("/food/user/auth/login")
+    navigate("/user/auth/login")
   }
 
   const handleGoHome = () => {

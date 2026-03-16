@@ -204,7 +204,7 @@ export default function Profile() {
   const isComplete = profileCompletion === 100
   const referralCode = userProfile?.referralCode || ""
   const referralLink = referralCode
-    ? `${window.location.origin}/user/auth/sign-in?mode=signup&ref=${encodeURIComponent(referralCode)}`
+    ? `${window.location.origin}/user/auth/login?mode=signup&ref=${encodeURIComponent(referralCode)}`
     : ""
 
   const handleCopyReferral = async () => {
@@ -278,7 +278,7 @@ export default function Profile() {
       window.dispatchEvent(new Event("userAuthChanged"))
 
       // Navigate to sign in page
-      navigate("/user/auth/sign-in", { replace: true })
+      navigate("/user/auth/login", { replace: true })
     } catch (err) {
       // Even if there's an error, we should still clear local data and logout
       debugError("Error during logout:", err)
@@ -295,7 +295,7 @@ export default function Profile() {
       window.dispatchEvent(new Event("userAuthChanged"))
 
       // Still navigate to login page
-      navigate("/user/auth/sign-in", { replace: true })
+      navigate("/user/auth/login", { replace: true })
     } finally {
       setIsLoggingOut(false)
     }

@@ -112,7 +112,7 @@ export default function UserRouter() {
           <Route
             path="bookings"
             element={
-              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
                 <MyBookings />
               </ProtectedRoute>
             }
@@ -132,7 +132,7 @@ export default function UserRouter() {
           <Route
             path="orders"
             element={
-              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
                 <Orders />
               </ProtectedRoute>
             }
@@ -140,7 +140,7 @@ export default function UserRouter() {
           <Route
             path="orders/:orderId"
             element={
-              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
                 <OrderTracking />
               </ProtectedRoute>
             }
@@ -148,7 +148,7 @@ export default function UserRouter() {
           <Route
             path="orders/:orderId/invoice"
             element={
-              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
                 <OrderInvoice />
               </ProtectedRoute>
             }
@@ -156,7 +156,7 @@ export default function UserRouter() {
           <Route
             path="orders/:orderId/details"
             element={
-              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
                 <UserOrderDetails />
               </ProtectedRoute>
             }
@@ -183,7 +183,7 @@ export default function UserRouter() {
           <Route
             path="profile"
             element={
-              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
                 <Profile />
               </ProtectedRoute>
             }
@@ -191,7 +191,7 @@ export default function UserRouter() {
           <Route
             path="profile/edit"
             element={
-              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
                 <EditProfile />
               </ProtectedRoute>
             }
@@ -199,7 +199,7 @@ export default function UserRouter() {
           <Route
             path="profile/payments"
             element={
-              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
                 <Payments />
               </ProtectedRoute>
             }
@@ -207,7 +207,7 @@ export default function UserRouter() {
           <Route
             path="profile/payments/new"
             element={
-              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
                 <AddPayment />
               </ProtectedRoute>
             }
@@ -215,7 +215,7 @@ export default function UserRouter() {
           <Route
             path="profile/payments/:id/edit"
             element={
-              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
                 <EditPayment />
               </ProtectedRoute>
             }
@@ -223,7 +223,7 @@ export default function UserRouter() {
           <Route
             path="profile/favorites"
             element={
-              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
                 <Favorites />
               </ProtectedRoute>
             }
@@ -231,7 +231,7 @@ export default function UserRouter() {
           <Route
             path="profile/settings"
             element={
-              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
                 <Settings />
               </ProtectedRoute>
             }
@@ -239,7 +239,7 @@ export default function UserRouter() {
           <Route
             path="profile/coupons"
             element={
-              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
                 <Coupons />
               </ProtectedRoute>
             }
@@ -247,7 +247,7 @@ export default function UserRouter() {
           <Route
             path="profile/redeem-gold-coupon"
             element={
-              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
                 <RedeemGoldCoupon />
               </ProtectedRoute>
             }
@@ -255,7 +255,7 @@ export default function UserRouter() {
           <Route
             path="profile/about"
             element={
-              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
                 <About />
               </ProtectedRoute>
             }
@@ -264,7 +264,7 @@ export default function UserRouter() {
           <Route
             path="profile/send-feedback"
             element={
-              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
                 <SendFeedback />
               </ProtectedRoute>
             }
@@ -272,7 +272,7 @@ export default function UserRouter() {
           <Route
             path="profile/report-safety-emergency"
             element={
-              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
                 <ReportSafetyEmergency />
               </ProtectedRoute>
             }
@@ -280,7 +280,7 @@ export default function UserRouter() {
           <Route
             path="profile/accessibility"
             element={
-              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
                 <Accessibility />
               </ProtectedRoute>
             }
@@ -288,7 +288,7 @@ export default function UserRouter() {
           <Route
             path="profile/logout"
             element={
-              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
                 <Logout />
               </ProtectedRoute>
             }
@@ -301,9 +301,9 @@ export default function UserRouter() {
           <Route path="profile/shipping" element={<Shipping />} />
           <Route path="profile/cancellation" element={<Cancellation />} />
 
-          {/* Auth - Login lives in Food module at /food/user/auth/login */}
-          <Route path="auth/login" element={<SignIn />} />
-          <Route path="auth/sign-in" element={<Navigate to="/food/user/auth/login" replace />} />
+          {/* Auth - User login is centralized at /user/auth/login */}
+          <Route path="auth/login" element={<Navigate to="/user/auth/login" replace />} />
+          <Route path="auth/sign-in" element={<Navigate to="/user/auth/login" replace />} />
           <Route path="auth/otp" element={<OTP />} />
           <Route path="auth/callback" element={<AuthCallback />} />
 
@@ -315,7 +315,7 @@ export default function UserRouter() {
           <Route
             path="notifications"
             element={
-              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
                 <Notifications />
               </ProtectedRoute>
             }
@@ -325,7 +325,7 @@ export default function UserRouter() {
           <Route
             path="wallet"
             element={
-              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
                 <Wallet />
               </ProtectedRoute>
             }
@@ -335,7 +335,7 @@ export default function UserRouter() {
           <Route
             path="complaints/submit/:orderId"
             element={
-              <ProtectedRoute requiredRole="user" loginPath="/food/user/auth/login">
+              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
                 <SubmitComplaint />
               </ProtectedRoute>
             }

@@ -978,7 +978,7 @@ function RestaurantDetailsContent() {
     // Check authentication
     if (!isModuleAuthenticated('user')) {
       toast.error("Please login to add items to cart")
-      navigate('/user/auth/sign-in', { state: { from: location.pathname } })
+      navigate('/user/auth/login', { state: { from: location.pathname } })
       return
     }
 

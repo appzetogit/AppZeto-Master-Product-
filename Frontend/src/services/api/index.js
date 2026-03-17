@@ -207,6 +207,18 @@ export const adminAPI = {
   /** Delete zone */
   deleteZone: (id) =>
     apiClient.delete(`/food/admin/zones/${id}`, { contextModule: "admin" }),
+
+  /** Offers & Coupons (admin) */
+  getAllOffers: (params = {}) =>
+    apiClient.get("/food/admin/offers", { params, contextModule: "admin" }),
+  createAdminOffer: (body) =>
+    apiClient.post("/food/admin/offers", body ?? {}, { contextModule: "admin" }),
+  updateAdminOfferCartVisibility: (offerId, itemId, showInCart) =>
+    apiClient.patch(
+      `/food/admin/offers/${String(offerId)}/cart-visibility`,
+      { itemId: String(itemId), showInCart: Boolean(showInCart) },
+      { contextModule: "admin" }
+    ),
 };
 
 /** Restaurant API - OTP login via new backend; no email/password. */
@@ -290,6 +302,9 @@ export const restaurantAPI = {
   /** Public: get single approved restaurant by id or slug */
   getRestaurantById: (id, config = {}) =>
     apiClient.get(`/food/restaurant/restaurants/${String(id)}`, { ...config }),
+  /** Public: list coupons/offers created by admin */
+  getPublicOffers: (params = {}, config = {}) =>
+    apiClient.get("/food/restaurant/offers", { params, ...config }),
 };
 
 /** Single in-flight + short cache for restaurant /food/restaurant/current - prevents request storms. */

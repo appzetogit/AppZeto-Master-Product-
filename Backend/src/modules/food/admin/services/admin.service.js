@@ -6,6 +6,7 @@ import { DeliverySupportTicket } from '../../delivery/models/supportTicket.model
 import { FoodZone } from '../models/zone.model.js';
 import { FoodCategory } from '../models/category.model.js';
 import { FoodItem } from '../models/food.model.js';
+import { FoodOffer } from '../models/offer.model.js';
 
 // ----- Restaurants -----
 export async function getRestaurants(query) {
@@ -361,6 +362,78 @@ export async function rejectRestaurant(id, reason) {
         },
         { new: true, runValidators: false }
     ).lean();
+}
+
+// ----- Offers & Coupons -----
+export async function getAllOffers(_query = {}) {
+    const list = await FoodOffer.find({})
+        .sort({ createdAt: -1 })
+        .populate({ path: 'restaurantId', select: 'restaurantName' })
+        .lean();
+
+    const offers = list.map((o, index) => {
+        const restaurantName =
+            o.restaurantScope === 'selected'
+                ? (o.restaurantId?.restaurantName || 'Selected Restaurant')
+                : 'All Restaurants';
+
+        const discountPercentage = o.discountType === 'percentage' ? Number(o.discountValue) : 0;
+
+        // UI expects dish-level fields; for admin-created coupons we treat as "All Items".
+        const originalPrice = o.discountType === 'flat-price' ? Number(o.discountValue) : 0;
+        const discountedPrice = 0;
+
+        return {
+            sl: index + 1,
+            offerId: String(o._id),
+            dishId: 'all',
+            restaurantName,
+            dishName: 'All Items',
+            couponCode: o.couponCode,
+            customerGroup: o.customerScope === 'first-time' ? 'new' : 'all',
+            discountType: o.discountType,
+            discountPercentage,
+            originalPrice,
+            discountedPrice,
+            status: o.status || 'active',
+            showInCart: o.showInCart !== false,
+            endDate: o.endDate || null
+        };
+    });
+
+    return { offers };
+}
+
+export async function createAdminOffer(body) {
+    const existing = await FoodOffer.findOne({ couponCode: body.couponCode }).lean();
+    if (existing) {
+        throw new ValidationError('Coupon code already exists');
+    }
+
+    const doc = await FoodOffer.create({
+        couponCode: body.couponCode,
+        discountType: body.discountType,
+        discountValue: body.discountValue,
+        customerScope: body.customerScope,
+        restaurantScope: body.restaurantScope,
+        restaurantId: body.restaurantScope === 'selected' ? body.restaurantId : undefined,
+        endDate: body.endDate,
+        status: 'active',
+        showInCart: true
+    });
+    return doc.toObject();
+}
+
+export async function updateAdminOfferCartVisibility(offerId, itemId, showInCart) {
+    if (!offerId || !mongoose.Types.ObjectId.isValid(offerId)) return null;
+    // We currently store a single showInCart flag per coupon; itemId is kept for frontend compatibility.
+    if (!itemId) return null;
+    const updated = await FoodOffer.findByIdAndUpdate(
+        offerId,
+        { $set: { showInCart: Boolean(showInCart) } },
+        { new: true }
+    ).lean();
+    return updated;
 }
 
 // ----- Delivery join requests -----

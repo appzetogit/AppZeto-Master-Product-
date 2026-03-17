@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import * as adminService from '../services/admin.service.js';
 import { validateCategoryListQuery, validateCategoryUpsertDto } from '../validators/category.validator.js';
+import { validateCreateOfferDto, validateUpdateOfferCartVisibilityDto } from '../validators/offer.validator.js';
 
 // ----- Restaurants -----
 export async function getRestaurants(req, res, next) {
@@ -184,6 +185,43 @@ export async function toggleCategoryStatus(req, res, next) {
             return res.status(404).json({ success: false, message: 'Category not found' });
         }
         res.status(200).json({ success: true, message: 'Category status updated successfully', data: { category: updated } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// ----- Offers & Coupons -----
+export async function getAllOffers(req, res, next) {
+    try {
+        const data = await adminService.getAllOffers(req.query || {});
+        res.status(200).json({ success: true, message: 'Offers fetched successfully', data });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function createAdminOffer(req, res, next) {
+    try {
+        const body = validateCreateOfferDto(req.body || {});
+        const created = await adminService.createAdminOffer(body);
+        res.status(201).json({ success: true, message: 'Offer created successfully', data: { offer: created } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function updateAdminOfferCartVisibility(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid offer id' });
+        }
+        const body = validateUpdateOfferCartVisibilityDto(req.body || {});
+        const updated = await adminService.updateAdminOfferCartVisibility(id, body.itemId, body.showInCart);
+        if (!updated) {
+            return res.status(404).json({ success: false, message: 'Offer not found' });
+        }
+        res.status(200).json({ success: true, message: 'Offer updated successfully', data: { offer: updated } });
     } catch (error) {
         next(error);
     }

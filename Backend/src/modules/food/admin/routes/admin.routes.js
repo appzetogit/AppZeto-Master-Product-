@@ -37,6 +37,11 @@ router.post('/foods', adminController.createFood);
 router.patch('/foods/:id', adminController.updateFood);
 router.delete('/foods/:id', adminController.deleteFood);
 
+// ----- Offers & Coupons -----
+router.get('/offers', adminController.getAllOffers);
+router.post('/offers', adminController.createAdminOffer);
+router.patch('/offers/:id/cart-visibility', adminController.updateAdminOfferCartVisibility);
+
 // ----- Delivery -----
 router.get('/delivery/join-requests', adminController.getDeliveryJoinRequests);
 router.get('/delivery/wallets', adminController.getDeliveryWallets);

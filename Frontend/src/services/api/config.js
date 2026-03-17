@@ -1,9 +1,13 @@
 /**
- * API config placeholder (no backend).
- * Kept for import compatibility; no env or backend URLs.
+ * API config.
+ * - `axios.js` uses `VITE_API_BASE_URL` for real requests.
+ * - `API_BASE_URL` is used by UI (e.g. banners/debug) and should reflect the same value.
  */
 
-export const API_BASE_URL = "";
+export const API_BASE_URL =
+  typeof import.meta !== "undefined" && import.meta.env?.VITE_API_BASE_URL
+    ? String(import.meta.env.VITE_API_BASE_URL).replace(/\/$/, "")
+    : "";
 
 // Minimal shape so existing API_ENDPOINTS.* references do not break
 export const API_ENDPOINTS = {

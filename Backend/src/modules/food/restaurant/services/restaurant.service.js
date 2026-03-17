@@ -1,6 +1,7 @@
 import { FoodRestaurant } from '../models/restaurant.model.js';
 import { uploadImageBuffer } from '../../../../services/cloudinary.service.js';
 import { ValidationError } from '../../../../core/auth/errors.js';
+import { FoodOffer } from '../../admin/models/offer.model.js';
 
 const normalizeName = (value) =>
     String(value || '')
@@ -447,5 +448,53 @@ export const getApprovedRestaurantByIdOrSlug = async (idOrSlug) => {
         status: 'approved',
         restaurantNameNormalized
     }).lean();
+};
+
+export const listPublicOffers = async () => {
+    const now = new Date();
+    const filter = {
+        status: 'active',
+        $or: [{ endDate: { $exists: false } }, { endDate: null }, { endDate: { $gt: now } }]
+    };
+
+    const list = await FoodOffer.find(filter)
+        .sort({ createdAt: -1 })
+        .populate({ path: 'restaurantId', select: 'restaurantName restaurantNameNormalized profileImage estimatedDeliveryTime rating' })
+        .lean();
+
+    const allOffers = list.map((o) => {
+        const restaurant = o.restaurantId && typeof o.restaurantId === 'object' ? o.restaurantId : null;
+        const restaurantSlug = restaurant?.restaurantNameNormalized || undefined;
+        const restaurantName =
+            o.restaurantScope === 'selected'
+                ? (restaurant?.restaurantName || 'Selected Restaurant')
+                : 'All Restaurants';
+
+        const title =
+            o.discountType === 'percentage'
+                ? `${Number(o.discountValue) || 0}% OFF`
+                : `Flat ₹${Number(o.discountValue) || 0} OFF`;
+
+        return {
+            id: String(o._id),
+            offerId: String(o._id),
+            couponCode: o.couponCode,
+            title,
+            discountType: o.discountType,
+            discountValue: o.discountValue,
+            customerScope: o.customerScope,
+            restaurantScope: o.restaurantScope,
+            restaurantId: restaurant?._id ? String(restaurant._id) : (o.restaurantScope === 'selected' ? String(o.restaurantId) : null),
+            restaurantName,
+            restaurantSlug,
+            restaurantImage: restaurant?.profileImage || null,
+            deliveryTime: restaurant?.estimatedDeliveryTime || null,
+            restaurantRating: typeof restaurant?.rating === 'number' ? restaurant.rating : 0,
+            endDate: o.endDate || null,
+            showInCart: o.showInCart !== false
+        };
+    });
+
+    return { allOffers, groupedByOffer: {} };
 };
 

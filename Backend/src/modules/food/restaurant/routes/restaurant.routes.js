@@ -4,6 +4,7 @@ import {
     registerRestaurantController,
     listApprovedRestaurantsController,
     getApprovedRestaurantController,
+    listPublicOffersController,
     getCurrentRestaurantController,
     updateRestaurantProfileController,
     uploadRestaurantProfileImageController,
@@ -39,6 +40,7 @@ router.post('/register', uploadFields, registerRestaurantController);
 // Public: approved restaurants list (for user app)
 router.get('/restaurants', listApprovedRestaurantsController);
 router.get('/restaurants/:id', getApprovedRestaurantController);
+router.get('/offers', listPublicOffersController);
 
 // Restaurant dashboard/profile (Bearer token + RESTAURANT role)
 router.get('/current', authMiddleware, requireRestaurant, getCurrentRestaurantController);

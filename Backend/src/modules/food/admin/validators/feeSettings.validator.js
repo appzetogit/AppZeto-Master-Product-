@@ -8,17 +8,22 @@ const rangeSchema = z.object({
 });
 
 const feeSettingsUpsertSchema = z.object({
-    deliveryFee: z.number().min(0).optional(),
+    deliveryFee: z.number().min(0).nullable().optional(),
     deliveryFeeRanges: z.array(rangeSchema).optional(),
-    freeDeliveryThreshold: z.number().min(0).optional(),
-    platformFee: z.number().min(0).optional(),
-    gstRate: z.number().min(0).max(100).optional(),
+    freeDeliveryThreshold: z.number().min(0).nullable().optional(),
+    platformFee: z.number().min(0).nullable().optional(),
+    gstRate: z.number().min(0).max(100).nullable().optional(),
     isActive: z.boolean().optional()
 });
 
 export const validateFeeSettingsUpsertDto = (body) => {
     const normalized = {
-        deliveryFee: body?.deliveryFee !== undefined ? Number(body.deliveryFee) : undefined,
+        deliveryFee:
+            body?.deliveryFee === null
+                ? null
+                : body?.deliveryFee !== undefined
+                    ? Number(body.deliveryFee)
+                    : undefined,
         deliveryFeeRanges: Array.isArray(body?.deliveryFeeRanges)
             ? body.deliveryFeeRanges.map((r) => ({
                 min: Number(r?.min),
@@ -26,9 +31,16 @@ export const validateFeeSettingsUpsertDto = (body) => {
                 fee: Number(r?.fee)
             }))
             : undefined,
-        freeDeliveryThreshold: body?.freeDeliveryThreshold !== undefined ? Number(body.freeDeliveryThreshold) : undefined,
-        platformFee: body?.platformFee !== undefined ? Number(body.platformFee) : undefined,
-        gstRate: body?.gstRate !== undefined ? Number(body.gstRate) : undefined,
+        freeDeliveryThreshold:
+            body?.freeDeliveryThreshold === null
+                ? null
+                : body?.freeDeliveryThreshold !== undefined
+                    ? Number(body.freeDeliveryThreshold)
+                    : undefined,
+        platformFee:
+            body?.platformFee === null ? null : body?.platformFee !== undefined ? Number(body.platformFee) : undefined,
+        gstRate:
+            body?.gstRate === null ? null : body?.gstRate !== undefined ? Number(body.gstRate) : undefined,
         isActive: body?.isActive !== undefined ? Boolean(body.isActive) : undefined
     };
 

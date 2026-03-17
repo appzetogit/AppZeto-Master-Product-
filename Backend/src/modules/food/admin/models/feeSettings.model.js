@@ -11,11 +11,12 @@ const deliveryFeeRangeSchema = new mongoose.Schema(
 
 const feeSettingsSchema = new mongoose.Schema(
     {
-        deliveryFee: { type: Number, default: 25, min: 0 },
+        // No defaults here; admin must explicitly configure values.
+        deliveryFee: { type: Number, min: 0 },
         deliveryFeeRanges: { type: [deliveryFeeRangeSchema], default: [] },
-        freeDeliveryThreshold: { type: Number, default: 149, min: 0 },
-        platformFee: { type: Number, default: 5, min: 0 },
-        gstRate: { type: Number, default: 5, min: 0, max: 100 },
+        freeDeliveryThreshold: { type: Number, min: 0 },
+        platformFee: { type: Number, min: 0 },
+        gstRate: { type: Number, min: 0, max: 100 },
         isActive: { type: Boolean, default: true, index: true }
     },
     { collection: 'food_fee_settings', timestamps: true }

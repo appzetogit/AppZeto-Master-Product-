@@ -11,11 +11,11 @@ const debugError = (...args) => {}
 // Fee Settings Component - Range-based delivery fee configuration
 export default function FeeSettings() {
   const [feeSettings, setFeeSettings] = useState({
-    deliveryFee: 25,
+    deliveryFee: "",
     deliveryFeeRanges: [],
-    freeDeliveryThreshold: 149,
-    platformFee: 5,
-    gstRate: 5,
+    freeDeliveryThreshold: "",
+    platformFee: "",
+    gstRate: "",
   })
   const [loadingFeeSettings, setLoadingFeeSettings] = useState(false)
   const [savingFeeSettings, setSavingFeeSettings] = useState(false)
@@ -29,11 +29,20 @@ export default function FeeSettings() {
       const response = await adminAPI.getFeeSettings()
       if (response.data.success && response.data.data.feeSettings) {
         setFeeSettings({
-          deliveryFee: response.data.data.feeSettings.deliveryFee || 25,
+          deliveryFee: response.data.data.feeSettings.deliveryFee ?? "",
           deliveryFeeRanges: response.data.data.feeSettings.deliveryFeeRanges || [],
-          freeDeliveryThreshold: response.data.data.feeSettings.freeDeliveryThreshold || 149,
-          platformFee: response.data.data.feeSettings.platformFee || 5,
-          gstRate: response.data.data.feeSettings.gstRate || 5,
+          freeDeliveryThreshold: response.data.data.feeSettings.freeDeliveryThreshold ?? "",
+          platformFee: response.data.data.feeSettings.platformFee ?? "",
+          gstRate: response.data.data.feeSettings.gstRate ?? "",
+        })
+      } else if (response.data.success && response.data.data.feeSettings === null) {
+        // Not configured yet - keep empty fields (no defaults).
+        setFeeSettings({
+          deliveryFee: "",
+          deliveryFeeRanges: [],
+          freeDeliveryThreshold: "",
+          platformFee: "",
+          gstRate: "",
         })
       }
     } catch (error) {
@@ -54,11 +63,11 @@ export default function FeeSettings() {
     try {
       setSavingFeeSettings(true)
       const response = await adminAPI.createOrUpdateFeeSettings({
-        deliveryFee: Number(feeSettings.deliveryFee),
+        deliveryFee: feeSettings.deliveryFee === "" ? undefined : Number(feeSettings.deliveryFee),
         deliveryFeeRanges: feeSettings.deliveryFeeRanges,
-        freeDeliveryThreshold: Number(feeSettings.freeDeliveryThreshold),
-        platformFee: Number(feeSettings.platformFee),
-        gstRate: Number(feeSettings.gstRate),
+        freeDeliveryThreshold: feeSettings.freeDeliveryThreshold === "" ? undefined : Number(feeSettings.freeDeliveryThreshold),
+        platformFee: feeSettings.platformFee === "" ? undefined : Number(feeSettings.platformFee),
+        gstRate: feeSettings.gstRate === "" ? undefined : Number(feeSettings.gstRate),
         isActive: true,
       })
 
@@ -68,11 +77,11 @@ export default function FeeSettings() {
         const saved = response?.data?.data?.feeSettings
         if (saved) {
           setFeeSettings({
-            deliveryFee: saved.deliveryFee ?? 25,
+            deliveryFee: saved.deliveryFee ?? "",
             deliveryFeeRanges: saved.deliveryFeeRanges ?? [],
-            freeDeliveryThreshold: saved.freeDeliveryThreshold ?? 149,
-            platformFee: saved.platformFee ?? 5,
-            gstRate: saved.gstRate ?? 5,
+            freeDeliveryThreshold: saved.freeDeliveryThreshold ?? "",
+            platformFee: saved.platformFee ?? "",
+            gstRate: saved.gstRate ?? "",
           })
         }
       } else {

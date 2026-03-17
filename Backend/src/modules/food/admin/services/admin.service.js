@@ -257,10 +257,6 @@ export async function getDeliveryCommissionRules() {
 }
 
 export async function createDeliveryCommissionRule(body) {
-    const count = await FoodDeliveryCommissionRule.countDocuments({});
-    if (count >= 1) {
-        throw new ValidationError('Only one commission rule is allowed');
-    }
     const created = await FoodDeliveryCommissionRule.create({
         name: body.name || '',
         minDistance: body.minDistance,
@@ -309,39 +305,52 @@ export async function toggleDeliveryCommissionRuleStatus(id, status) {
 // ----- Fee Settings (admin) -----
 export async function getFeeSettings() {
     const doc = await FoodFeeSettings.findOne({ isActive: true }).sort({ createdAt: -1 }).lean();
-    const feeSettings = doc || {
-        deliveryFee: 25,
-        deliveryFeeRanges: [],
-        freeDeliveryThreshold: 149,
-        platformFee: 5,
-        gstRate: 5,
-        isActive: true
-    };
-    return { feeSettings };
+    // If not configured yet, return null so UI does not show defaults automatically.
+    return { feeSettings: doc || null };
 }
 
 export async function upsertFeeSettings(body) {
     // Single active doc pattern: keep only one active record.
     const existing = await FoodFeeSettings.findOne({ isActive: true }).sort({ createdAt: -1 });
     if (existing) {
-        if (body.deliveryFee !== undefined) existing.deliveryFee = body.deliveryFee;
-        if (body.deliveryFeeRanges !== undefined) existing.deliveryFeeRanges = body.deliveryFeeRanges;
-        if (body.freeDeliveryThreshold !== undefined) existing.freeDeliveryThreshold = body.freeDeliveryThreshold;
-        if (body.platformFee !== undefined) existing.platformFee = body.platformFee;
-        if (body.gstRate !== undefined) existing.gstRate = body.gstRate;
-        if (body.isActive !== undefined) existing.isActive = body.isActive;
-        await existing.save();
-        return existing.toObject();
+        const $set = {};
+        const $unset = {};
+
+        if (body.deliveryFee === null) $unset.deliveryFee = 1;
+        else if (body.deliveryFee !== undefined) $set.deliveryFee = body.deliveryFee;
+
+        if (body.deliveryFeeRanges !== undefined) $set.deliveryFeeRanges = body.deliveryFeeRanges;
+
+        if (body.freeDeliveryThreshold === null) $unset.freeDeliveryThreshold = 1;
+        else if (body.freeDeliveryThreshold !== undefined) $set.freeDeliveryThreshold = body.freeDeliveryThreshold;
+
+        if (body.platformFee === null) $unset.platformFee = 1;
+        else if (body.platformFee !== undefined) $set.platformFee = body.platformFee;
+
+        if (body.gstRate === null) $unset.gstRate = 1;
+        else if (body.gstRate !== undefined) $set.gstRate = body.gstRate;
+
+        if (body.isActive !== undefined) $set.isActive = body.isActive;
+
+        const update = {};
+        if (Object.keys($set).length) update.$set = $set;
+        if (Object.keys($unset).length) update.$unset = $unset;
+        if (!Object.keys(update).length) return existing.toObject();
+
+        const updated = await FoodFeeSettings.findByIdAndUpdate(existing._id, update, { new: true }).lean();
+        return updated;
     }
 
-    const created = await FoodFeeSettings.create({
-        deliveryFee: body.deliveryFee ?? 25,
+    const payload = {
         deliveryFeeRanges: body.deliveryFeeRanges ?? [],
-        freeDeliveryThreshold: body.freeDeliveryThreshold ?? 149,
-        platformFee: body.platformFee ?? 5,
-        gstRate: body.gstRate ?? 5,
         isActive: body.isActive !== false
-    });
+    };
+    if (body.deliveryFee !== undefined && body.deliveryFee !== null) payload.deliveryFee = body.deliveryFee;
+    if (body.freeDeliveryThreshold !== undefined && body.freeDeliveryThreshold !== null) payload.freeDeliveryThreshold = body.freeDeliveryThreshold;
+    if (body.platformFee !== undefined && body.platformFee !== null) payload.platformFee = body.platformFee;
+    if (body.gstRate !== undefined && body.gstRate !== null) payload.gstRate = body.gstRate;
+
+    const created = await FoodFeeSettings.create(payload);
     return created.toObject();
 }
 

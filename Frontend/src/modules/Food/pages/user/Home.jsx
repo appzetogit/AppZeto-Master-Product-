@@ -1024,6 +1024,12 @@ export default function Home() {
       // Build query parameters from filters
       const params = {}
 
+      // Always send user coordinates when available so backend can compute distance/sort.
+      if (Number.isFinite(location?.latitude) && Number.isFinite(location?.longitude)) {
+        params.lat = location.latitude
+        params.lng = location.longitude
+      }
+
       // Sort by
       if (filters.sortBy) {
         params.sortBy = filters.sortBy
@@ -1052,9 +1058,9 @@ export default function Home() {
 
       // Distance filters
       if (filters.activeFilters?.has('distance-under-1km')) {
-        params.maxDistance = 1.0
+        params.radiusKm = 1.0
       } else if (filters.activeFilters?.has('distance-under-2km')) {
-        params.maxDistance = 2.0
+        params.radiusKm = 2.0
       }
 
       // Price filters
@@ -1076,10 +1082,11 @@ export default function Home() {
         params.trusted = 'true'
       }
 
-      // Optional: Add zoneId if available (for sorting/filtering, but show all restaurants)
-      if (zoneId) {
-        params.zoneId = zoneId
-      }
+      // IMPORTANT:
+      // Do NOT send zoneId here by default.
+      // Backend treats zoneId as a hard filter (only restaurants in that zone / polygon),
+      // but homepage UX is "show all restaurants; optionally style out-of-zone".
+      // If in future you add an explicit "Show only my zone" toggle, then pass params.zoneId.
       // Avoid stale API cache in WebView after admin image updates.
       params._ts = Date.now()
       // Note: We show all restaurants regardless of zone, but apply grayscale styling if user is out of service

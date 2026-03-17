@@ -391,9 +391,10 @@ export default function HubMenu() {
             order: section.order !== undefined ? section.order : index,
           }))
           
-          await restaurantAPI.updateMenu({ sections: normalizedSections })
+          // Option A (single source of truth): menu snapshot saving is disabled.
+          // Keep UI state locally; menu is generated from food_items.
           lastSyncedMenuRef.current = serializeMenuSections(normalizedSections)
-          debugLog('? Menu saved successfully with', normalizedSections.length, 'sections')
+          debugLog('Menu snapshot saving disabled (food_items is source of truth).')
         } catch (error) {
           debugError('Error saving menu:', error)
           // Check if it's a network error (backend not running)
@@ -402,7 +403,7 @@ export default function HubMenu() {
             // Don't show error toast for network errors during auto-save to avoid spam
             // The user will see the error when they manually try to save
           } else {
-            toast.error('Failed to save menu changes')
+            // Snapshot saving disabled; no toast needed.
           }
         }
       }, 1000) // Debounce: save 1 second after last change

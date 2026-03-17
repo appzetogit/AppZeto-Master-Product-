@@ -20,6 +20,7 @@ import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns"
 import { determineStepToShow } from "@food/utils/onboardingUtils"
 import { toast } from "sonner"
 import { useCompanyName } from "@food/hooks/useCompanyName"
+import { getGoogleMapsApiKey } from "@food/utils/googleMapsApiKey"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -350,11 +351,16 @@ export default function RestaurantOnboarding() {
     ownerPhone: "",
     primaryContactNumber: "",
     location: {
+      formattedAddress: "",
       addressLine1: "",
       addressLine2: "",
       area: "",
       city: "",
+      state: "",
+      pincode: "",
       landmark: "",
+      latitude: "",
+      longitude: "",
     },
   })
 
@@ -393,6 +399,9 @@ export default function RestaurantOnboarding() {
     offer: "",
   })
   const previewUrlCacheRef = useRef(new Map())
+  const locationSearchInputRef = useRef(null)
+  const placesAutocompleteRef = useRef(null)
+  const mapsScriptLoadedRef = useRef(false)
   const menuImagesInputRef = useRef(null)
   const profileImageInputRef = useRef(null)
   const panImageInputRef = useRef(null)
@@ -573,11 +582,16 @@ export default function RestaurantOnboarding() {
           ownerPhone: localData.step1.ownerPhone || "",
           primaryContactNumber: localData.step1.primaryContactNumber || "",
           location: {
+            formattedAddress: localData.step1.location?.formattedAddress || "",
             addressLine1: localData.step1.location?.addressLine1 || "",
             addressLine2: localData.step1.location?.addressLine2 || "",
             area: localData.step1.location?.area || "",
             city: localData.step1.location?.city || "",
+            state: localData.step1.location?.state || "",
+            pincode: localData.step1.location?.pincode || "",
             landmark: localData.step1.location?.landmark || "",
+            latitude: localData.step1.location?.latitude ?? "",
+            longitude: localData.step1.location?.longitude ?? "",
           },
         })
       }
@@ -702,11 +716,16 @@ export default function RestaurantOnboarding() {
               ownerPhone: data.step1.ownerPhone || "",
               primaryContactNumber: data.step1.primaryContactNumber || "",
               location: {
+                formattedAddress: data.step1.location?.formattedAddress || "",
                 addressLine1: data.step1.location?.addressLine1 || "",
                 addressLine2: data.step1.location?.addressLine2 || "",
                 area: data.step1.location?.area || "",
                 city: data.step1.location?.city || "",
+                state: data.step1.location?.state || "",
+                pincode: data.step1.location?.pincode || "",
                 landmark: data.step1.location?.landmark || "",
+                latitude: data.step1.location?.latitude ?? "",
+                longitude: data.step1.location?.longitude ?? "",
               },
             }))
           }
@@ -1122,7 +1141,12 @@ export default function RestaurantOnboarding() {
         formData.append("addressLine2", step1.location?.addressLine2 || "")
         formData.append("area", step1.location?.area || "")
         formData.append("city", step1.location?.city || "")
+        formData.append("state", step1.location?.state || "")
+        formData.append("pincode", step1.location?.pincode || "")
         formData.append("landmark", step1.location?.landmark || "")
+        formData.append("formattedAddress", step1.location?.formattedAddress || "")
+        formData.append("latitude", String(step1.location?.latitude || ""))
+        formData.append("longitude", String(step1.location?.longitude || ""))
 
         // Step 2
         formData.append("cuisines", (step2.cuisines || []).join(","))
@@ -1295,6 +1319,18 @@ export default function RestaurantOnboarding() {
           <p className="text-sm text-gray-700">
             Add your restaurant's location for order pick-up.
           </p>
+          <div>
+            <Label className="text-xs text-gray-700">Search location</Label>
+            <Input
+              ref={locationSearchInputRef}
+              className="mt-1 bg-white text-sm text-black! dark:text-white! placeholder:text-gray-500 dark:placeholder:text-gray-400 caret-black dark:caret-white"
+              style={{ color: "#000", WebkitTextFillColor: "#000" }}
+              placeholder="Start typing your restaurant address..."
+            />
+            <p className="text-[11px] text-gray-500 mt-1">
+              Select a suggestion to auto-fill area/city/state/pincode and coordinates.
+            </p>
+          </div>
           <Input
             value={step1.location?.addressLine1 || ""}
             onChange={(e) =>
@@ -1350,6 +1386,30 @@ export default function RestaurantOnboarding() {
             className="bg-white text-sm"
             placeholder="City"
           />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input
+              value={step1.location?.state || ""}
+              onChange={(e) =>
+                setStep1({
+                  ...step1,
+                  location: { ...step1.location, state: e.target.value },
+                })
+              }
+              className="bg-white text-sm"
+              placeholder="State"
+            />
+            <Input
+              value={step1.location?.pincode || ""}
+              onChange={(e) =>
+                setStep1({
+                  ...step1,
+                  location: { ...step1.location, pincode: e.target.value },
+                })
+              }
+              className="bg-white text-sm"
+              placeholder="Pincode"
+            />
+          </div>
           <p className="text-[11px] text-gray-500 mt-1">
             Please ensure that this address is the same as mentioned on your FSSAI license.
           </p>
@@ -1357,6 +1417,117 @@ export default function RestaurantOnboarding() {
       </section>
     </div>
   )
+
+  // Initialize Google Places Autocomplete for Step 1 location search.
+  useEffect(() => {
+    if (step !== 1) return
+    if (!locationSearchInputRef.current) return
+
+    const loadMaps = async () => {
+      if (mapsScriptLoadedRef.current && window.google?.maps?.places?.Autocomplete) return true
+      if (window.google?.maps?.places?.Autocomplete) {
+        mapsScriptLoadedRef.current = true
+        return true
+      }
+      const apiKey = await getGoogleMapsApiKey()
+      if (!apiKey) return false
+
+      const existing = document.getElementById("restaurant-onboarding-maps-script")
+      if (existing) {
+        // Wait briefly for Places library to be available.
+        for (let i = 0; i < 30; i += 1) {
+          if (window.google?.maps?.places?.Autocomplete) {
+            mapsScriptLoadedRef.current = true
+            return true
+          }
+          await new Promise((r) => setTimeout(r, 100))
+        }
+        return false
+      }
+
+      await new Promise((resolve, reject) => {
+        const script = document.createElement("script")
+        script.id = "restaurant-onboarding-maps-script"
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&v=weekly`
+        script.async = true
+        script.defer = true
+        script.onload = resolve
+        script.onerror = reject
+        document.head.appendChild(script)
+      })
+      mapsScriptLoadedRef.current = true
+      return !!window.google?.maps?.places?.Autocomplete
+    }
+
+    const parsePlace = (place) => {
+      const formattedAddress = place?.formatted_address || ""
+      const comps = Array.isArray(place?.address_components) ? place.address_components : []
+      const get = (types) => comps.find((c) => types.some((t) => c.types?.includes(t)))?.long_name || ""
+      const area =
+        get(["sublocality_level_1", "sublocality", "neighborhood"]) ||
+        get(["locality"])
+      const city =
+        get(["locality"]) ||
+        get(["administrative_area_level_2"])
+      const state = get(["administrative_area_level_1"])
+      const pincode = get(["postal_code"])
+      const lat = place?.geometry?.location?.lat?.()
+      const lng = place?.geometry?.location?.lng?.()
+      return {
+        formattedAddress,
+        area,
+        city,
+        state,
+        pincode,
+        latitude: Number.isFinite(lat) ? Number(lat.toFixed(6)) : "",
+        longitude: Number.isFinite(lng) ? Number(lng.toFixed(6)) : "",
+      }
+    }
+
+    let cancelled = false
+    loadMaps()
+      .then((ok) => {
+        if (!ok || cancelled) return
+        if (!locationSearchInputRef.current) return
+        if (placesAutocompleteRef.current) return
+
+        placesAutocompleteRef.current = new window.google.maps.places.Autocomplete(
+          locationSearchInputRef.current,
+          {
+            fields: ["formatted_address", "address_components", "geometry"],
+            types: ["geocode"],
+            componentRestrictions: { country: "in" },
+          }
+        )
+
+        placesAutocompleteRef.current.addListener("place_changed", () => {
+          const place = placesAutocompleteRef.current.getPlace()
+          const parsed = parsePlace(place)
+          setStep1((prev) => ({
+            ...prev,
+            location: {
+              ...prev.location,
+              formattedAddress: parsed.formattedAddress || prev.location.formattedAddress,
+              addressLine1: prev.location.addressLine1 || parsed.formattedAddress || "",
+              area: parsed.area || prev.location.area,
+              city: parsed.city || prev.location.city,
+              state: parsed.state || prev.location.state,
+              pincode: parsed.pincode || prev.location.pincode,
+              latitude: parsed.latitude !== "" ? parsed.latitude : prev.location.latitude,
+              longitude: parsed.longitude !== "" ? parsed.longitude : prev.location.longitude,
+            },
+          }))
+        })
+      })
+      .catch((err) => {
+        debugWarn("Failed to load Google Places for onboarding:", err)
+      })
+
+    return () => {
+      cancelled = true
+      placesAutocompleteRef.current = null
+    }
+  }, [step])
 
   const renderStep2 = () => (
     <div className="space-y-6">
@@ -1379,7 +1550,7 @@ export default function RestaurantOnboarding() {
               <div className="flex flex-col">
                 <span className="text-xs font-medium text-gray-900">Upload menu images</span>
                 <span className="text-[11px] text-gray-500">
-                  JPG, PNG, WebP ù You can select multiple files
+                  JPG, PNG, WebP ? You can select multiple files
                 </span>
               </div>
             </div>

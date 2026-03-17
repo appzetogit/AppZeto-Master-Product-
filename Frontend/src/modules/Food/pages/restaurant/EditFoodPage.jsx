@@ -244,70 +244,40 @@ export default function EditFoodPage() {
         : null
     }
 
-    const nextSections = [...menuSections]
-
     if (isNewFood) {
-      const newItemId = `item-${Date.now()}-${Math.floor(Math.random() * 1000000)}`
-      const newItem = { ...foodDataToSave, id: newItemId }
-
-      let targetSectionIndex = nextSections.findIndex(
-        (section) => String(section?.name || "").toLowerCase() === String(newItem.category || "").toLowerCase(),
-      )
-
-      if (targetSectionIndex === -1) {
-        nextSections.push({
-          id: `section-${Date.now()}`,
-          name: newItem.category || "Varieties",
-          items: [],
-          subsections: [],
-        })
-        targetSectionIndex = nextSections.length - 1
-      }
-
-      if (!Array.isArray(nextSections[targetSectionIndex].items)) {
-        nextSections[targetSectionIndex].items = []
-      }
-      nextSections[targetSectionIndex].items.push(newItem)
-
       try {
-        await restaurantAPI.updateMenu({ sections: nextSections })
+        const res = await restaurantAPI.createFood({
+          ...foodDataToSave,
+          // Map UI category field into backend categoryName (single source of truth)
+          categoryName: foodDataToSave.category || foodDataToSave.categoryName,
+        })
+        const created = res?.data?.data?.food || res?.data?.food
         window.dispatchEvent(new CustomEvent("foodsChanged"))
-        window.dispatchEvent(new CustomEvent("foodAdded", { detail: { food: newItem } }))
-        navigate(`/restaurant/food/${newItem.id}`)
+        if (created) {
+          window.dispatchEvent(new CustomEvent("foodAdded", { detail: { food: created } }))
+          navigate(`/restaurant/food/${String(created._id || created.id)}`)
+        } else {
+          navigate(`/restaurant/hub-menu`)
+        }
       } catch {
         alert("Error saving food. Please try again.")
       }
       return
     }
 
-    const position = findItemInSections(nextSections, id)
-    if (!position) {
-      alert("Error saving food. Please try again.")
-      return
-    }
-
-    const targetCollection = position.inSubsection
-      ? nextSections[position.sectionIndex]?.subsections?.[position.subsectionIndex]?.items
-      : nextSections[position.sectionIndex]?.items
-
-    if (!Array.isArray(targetCollection) || !targetCollection[position.itemIndex]) {
-      alert("Error saving food. Please try again.")
-      return
-    }
-
-    const existing = targetCollection[position.itemIndex]
-    const updatedItem = {
-      ...existing,
-      ...foodDataToSave,
-      id: existing.id,
-    }
-    targetCollection[position.itemIndex] = updatedItem
-
     try {
-      await restaurantAPI.updateMenu({ sections: nextSections })
+      const res = await restaurantAPI.updateFood(String(id), {
+        ...foodDataToSave,
+        categoryName: foodDataToSave.category || foodDataToSave.categoryName,
+      })
+      const updated = res?.data?.data?.food || res?.data?.food
       window.dispatchEvent(new CustomEvent("foodsChanged"))
-      window.dispatchEvent(new CustomEvent("foodUpdated", { detail: { food: updatedItem } }))
-      navigate(`/restaurant/food/${updatedItem.id}`)
+      if (updated) {
+        window.dispatchEvent(new CustomEvent("foodUpdated", { detail: { food: updated } }))
+        navigate(`/restaurant/food/${String(updated._id || updated.id || id)}`)
+      } else {
+        navigate(`/restaurant/food/${String(id)}`)
+      }
     } catch {
       alert("Error saving food. Please try again.")
     }

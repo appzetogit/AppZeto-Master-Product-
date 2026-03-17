@@ -56,10 +56,12 @@ export default function RestaurantsList() {
   const [isEditingLocation, setIsEditingLocation] = useState(false)
   const [savingLocation, setSavingLocation] = useState(false)
   const [resolvingAddress, setResolvingAddress] = useState(false)
-  const [mapLoading, setMapLoading] = useState(false)
-  const [mapError, setMapError] = useState("")
+  const [locationEditError, setLocationEditError] = useState("")
+  const [zones, setZones] = useState([])
+  const [zonesLoading, setZonesLoading] = useState(false)
   const [availabilityTick, setAvailabilityTick] = useState(() => Date.now())
   const [locationForm, setLocationForm] = useState({
+    zoneId: "",
     latitude: "",
     longitude: "",
     formattedAddress: "",
@@ -71,9 +73,8 @@ export default function RestaurantsList() {
     landmark: "",
     pincode: "",
   })
-  const mapContainerRef = useRef(null)
-  const mapRef = useRef(null)
-  const markerRef = useRef(null)
+  const locationSearchInputRef = useRef(null)
+  const placesAutocompleteRef = useRef(null)
 
   // Format Restaurant ID to REST format (e.g., REST422829)
   const formatRestaurantId = (id) => {
@@ -138,6 +139,33 @@ export default function RestaurantsList() {
               ? body.restaurants
               : []
 
+        const zoneLabelFromRestaurant = (restaurant) => {
+          const zid = restaurant?.zoneId
+          const zoneName =
+            (typeof zid === "object" ? (zid?.name || zid?.zoneName) : "") ||
+            ""
+          if (zoneName) return zoneName
+
+          const zoneIdString =
+            typeof zid === "string"
+              ? zid
+              : (zid?._id || zid?.id || "")
+          if (zoneIdString && Array.isArray(zones) && zones.length > 0) {
+            const match = zones.find((z) => (z?._id || z?.id) === zoneIdString)
+            const label = match?.name || match?.zoneName
+            if (label) return label
+          }
+
+          return (
+            restaurant?.zone ||
+            restaurant?.location?.area ||
+            restaurant?.location?.city ||
+            restaurant?.area ||
+            restaurant?.city ||
+            "N/A"
+          )
+        }
+
         if (rawList.length > 0 || body?.success === true) {
           const mappedRestaurants = rawList.map((restaurant, index) => ({
             id: restaurant._id || restaurant.id || index + 1,
@@ -145,7 +173,7 @@ export default function RestaurantsList() {
             name: restaurant.name || restaurant.restaurantName || "N/A",
             ownerName: restaurant.ownerName || "N/A",
             ownerPhone: restaurant.ownerPhone || restaurant.phone || "N/A",
-            zone: restaurant.area || restaurant.city || restaurant.location?.area || restaurant.location?.city || restaurant.zone || "N/A",
+            zone: zoneLabelFromRestaurant(restaurant),
             cuisine: Array.isArray(restaurant.cuisines) && restaurant.cuisines.length > 0
               ? restaurant.cuisines[0]
               : (restaurant.cuisine || "N/A"),
@@ -332,10 +360,18 @@ export default function RestaurantsList() {
 
   const normalizeLocationFormFromRestaurant = (restaurant) => {
     const loc = getLocationFromRestaurant(restaurant)
-    const latitude = loc.latitude || (Array.isArray(loc.coordinates) ? loc.coordinates[1] : "")
-    const longitude = loc.longitude || (Array.isArray(loc.coordinates) ? loc.coordinates[0] : "")
+    const rawLat = loc.latitude ?? (Array.isArray(loc.coordinates) ? loc.coordinates[1] : "")
+    const rawLng = loc.longitude ?? (Array.isArray(loc.coordinates) ? loc.coordinates[0] : "")
+    const latNum = typeof rawLat === "number" ? rawLat : parseFloat(String(rawLat))
+    const lngNum = typeof rawLng === "number" ? rawLng : parseFloat(String(rawLng))
+    const hasValidNumbers = Number.isFinite(latNum) && Number.isFinite(lngNum)
+    // Guard against common "unset" coordinates (0,0 or near-zero) that render as blank ocean.
+    const looksUnset = hasValidNumbers && Math.abs(latNum) < 1 && Math.abs(lngNum) < 1
+    const latitude = (hasValidNumbers && !looksUnset) ? latNum : ""
+    const longitude = (hasValidNumbers && !looksUnset) ? lngNum : ""
 
     return {
+      zoneId: restaurant?.zoneId || restaurant?.location?.zoneId || "",
       latitude: latitude || "",
       longitude: longitude || "",
       formattedAddress: loc.formattedAddress || loc.address || "",
@@ -412,31 +448,39 @@ export default function RestaurantsList() {
   }
 
   const loadGoogleMapsScript = async () => {
-    if (window.google?.maps) return true
+    if (window.google?.maps?.places?.Autocomplete) return true
 
     const apiKey = await getGoogleMapsApiKey()
     if (!apiKey) {
-      setMapError("Google Maps API key is missing in Admin Environment Variables.")
+      setLocationEditError("Google Maps API key is missing in Admin Environment Variables.")
       return false
+    }
+
+    // Surface auth/key/billing/referrer issues instead of showing a blank map.
+    // Google invokes this global when the JS API loads but auth fails.
+    window.gm_authFailure = () => {
+      setLocationEditError(
+        "Google Maps authentication failed. Check: Maps JavaScript API enabled, billing enabled, and HTTP referrer restrictions allow this domain."
+      )
     }
 
     const existingScript = document.getElementById("admin-google-maps-script")
     if (existingScript) {
       await new Promise((resolve, reject) => {
-        if (window.google?.maps) {
+        if (window.google?.maps?.places?.Autocomplete) {
           resolve()
           return
         }
         existingScript.addEventListener("load", resolve, { once: true })
         existingScript.addEventListener("error", reject, { once: true })
       })
-      return !!window.google?.maps
+      return !!window.google?.maps?.places?.Autocomplete
     }
 
     await new Promise((resolve, reject) => {
       const script = document.createElement("script")
       script.id = "admin-google-maps-script"
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&v=weekly`
       script.async = true
       script.defer = true
       script.onload = resolve
@@ -444,70 +488,68 @@ export default function RestaurantsList() {
       document.head.appendChild(script)
     })
 
-    return !!window.google?.maps
+    return !!window.google?.maps?.places?.Autocomplete
   }
 
-  const initializeLocationMap = async (lat, lng) => {
-    if (!mapContainerRef.current) return
-
-    try {
-      setMapLoading(true)
-      setMapError("")
-      const loaded = await loadGoogleMapsScript()
-      if (!loaded || !window.google?.maps) {
-        setMapError("Unable to load Google Maps.")
-        return
-      }
-
-      const parsedLat = Number(lat)
-      const parsedLng = Number(lng)
-      const center = {
-        lat: Number.isFinite(parsedLat) ? parsedLat : 22.7196,
-        lng: Number.isFinite(parsedLng) ? parsedLng : 75.8577,
-      }
-
-      mapRef.current = new window.google.maps.Map(mapContainerRef.current, {
-        center,
-        zoom: 16,
-        mapTypeControl: false,
-        streetViewControl: false,
-        fullscreenControl: false,
-      })
-
-      markerRef.current = new window.google.maps.Marker({
-        position: center,
-        map: mapRef.current,
-        draggable: true,
-      })
-
-      markerRef.current.addListener("dragend", (event) => {
-        const nextLat = Number(event.latLng.lat().toFixed(6))
-        const nextLng = Number(event.latLng.lng().toFixed(6))
-        setLocationForm((prev) => ({
-          ...prev,
-          latitude: nextLat,
-          longitude: nextLng,
-        }))
-        reverseGeocodeLocation(nextLat, nextLng)
-      })
-
-      mapRef.current.addListener("click", (event) => {
-        const nextLat = Number(event.latLng.lat().toFixed(6))
-        const nextLng = Number(event.latLng.lng().toFixed(6))
-        markerRef.current?.setPosition({ lat: nextLat, lng: nextLng })
-        setLocationForm((prev) => ({
-          ...prev,
-          latitude: nextLat,
-          longitude: nextLng,
-        }))
-        reverseGeocodeLocation(nextLat, nextLng)
-      })
-    } catch (err) {
-      debugError("Error initializing location map:", err)
-      setMapError("Failed to initialize map. Please try again.")
-    } finally {
-      setMapLoading(false)
+  const initPlacesAutocomplete = async () => {
+    if (!locationSearchInputRef.current) return
+    if (placesAutocompleteRef.current) return
+    setLocationEditError("")
+    const loaded = await loadGoogleMapsScript()
+    if (!loaded || !window.google?.maps?.places?.Autocomplete) {
+      setLocationEditError("Unable to load Google Places Autocomplete.")
+      return
     }
+
+    placesAutocompleteRef.current = new window.google.maps.places.Autocomplete(
+      locationSearchInputRef.current,
+      {
+        fields: ["formatted_address", "address_components", "geometry"],
+        types: ["geocode"],
+        componentRestrictions: { country: "in" },
+      }
+    )
+
+    const parsePlace = (place) => {
+      const formattedAddress = place?.formatted_address || ""
+      const comps = Array.isArray(place?.address_components) ? place.address_components : []
+      const get = (types) => comps.find((c) => types.some((t) => c.types?.includes(t)))?.long_name || ""
+      const area =
+        get(["sublocality_level_1", "sublocality", "neighborhood"]) ||
+        get(["locality"])
+      const city =
+        get(["locality"]) ||
+        get(["administrative_area_level_2"])
+      const state = get(["administrative_area_level_1"])
+      const pincode = get(["postal_code"])
+      const lat = place?.geometry?.location?.lat?.()
+      const lng = place?.geometry?.location?.lng?.()
+      return {
+        formattedAddress,
+        area,
+        city,
+        state,
+        pincode,
+        latitude: Number.isFinite(lat) ? Number(lat.toFixed(6)) : "",
+        longitude: Number.isFinite(lng) ? Number(lng.toFixed(6)) : "",
+      }
+    }
+
+    placesAutocompleteRef.current.addListener("place_changed", () => {
+      const place = placesAutocompleteRef.current.getPlace()
+      const parsed = parsePlace(place)
+      setLocationForm((prev) => ({
+        ...prev,
+        formattedAddress: parsed.formattedAddress || prev.formattedAddress,
+        addressLine1: parsed.formattedAddress || prev.addressLine1,
+        area: parsed.area || prev.area,
+        city: parsed.city || prev.city,
+        state: parsed.state || prev.state,
+        pincode: parsed.pincode || prev.pincode,
+        latitude: parsed.latitude !== "" ? parsed.latitude : prev.latitude,
+        longitude: parsed.longitude !== "" ? parsed.longitude : prev.longitude,
+      }))
+    })
   }
 
   // Handle view restaurant details
@@ -570,14 +612,19 @@ export default function RestaurantsList() {
     const latitude = Number(locationForm.latitude)
     const longitude = Number(locationForm.longitude)
 
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-      alert("Please select a valid location on map")
+    if (!locationForm.zoneId) {
+      alert("Please select a zone")
+      return
+    }
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !locationForm.formattedAddress) {
+      alert("Please select a location from dropdown")
       return
     }
 
     try {
       setSavingLocation(true)
       const locationPayload = {
+        zoneId: locationForm.zoneId,
         latitude,
         longitude,
         coordinates: [longitude, latitude],
@@ -646,14 +693,22 @@ export default function RestaurantsList() {
     const sourceRestaurant = restaurantDetails || selectedRestaurant?.originalData || selectedRestaurant
     const initialForm = normalizeLocationFormFromRestaurant(sourceRestaurant)
     setLocationForm(initialForm)
-    initializeLocationMap(initialForm.latitude, initialForm.longitude)
+    setLocationEditError("")
+
+    setZonesLoading(true)
+    adminAPI.getZones({ limit: 1000 })
+      .then((res) => {
+        const list = res?.data?.data?.zones || res?.data?.data?.data?.zones || res?.data?.data?.zones || res?.data?.data || []
+        setZones(Array.isArray(list) ? list : [])
+      })
+      .catch(() => setZones([]))
+      .finally(() => setZonesLoading(false))
+
+    // Init dropdown autocomplete after mount.
+    requestAnimationFrame(() => initPlacesAutocomplete())
 
     return () => {
-      if (markerRef.current) {
-        markerRef.current.setMap(null)
-      }
-      markerRef.current = null
-      mapRef.current = null
+      placesAutocompleteRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditingLocation, selectedRestaurant, restaurantDetails?._id])
@@ -1119,7 +1174,7 @@ export default function RestaurantsList() {
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 flex items-center justify-center flex-shrink-0">
+                            <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 flex items-center justify-center shrink-0">
                               <img
                                 src={restaurant.logo}
                                 alt={restaurant.name}
@@ -1178,9 +1233,13 @@ export default function RestaurantsList() {
                               <Eye className="w-4 h-4" />
                             </button>
                             <button
-                              onClick={() => handleEditLocation(restaurant)}
+                              onClick={() => {
+                                const restaurantId = restaurant._id || restaurant.id || restaurant.restaurantId
+                                if (!restaurantId) return
+                                navigate(`/admin/food/restaurants/edit/${restaurantId}`)
+                              }}
                               className="p-1.5 rounded text-indigo-600 hover:bg-indigo-50 transition-colors"
-                              title="Edit Location"
+                              title="Edit Restaurant"
                             >
                               <Settings className="w-4 h-4" />
                             </button>
@@ -1216,7 +1275,7 @@ export default function RestaurantsList() {
       {/* Restaurant Details Modal */}
       {selectedRestaurant && (
         <div
-          className="fixed inset-0 bg-slate-900/10 backdrop-blur-md z-[100] flex items-center justify-center p-4 lg:p-8 transition-all duration-300"
+          className="fixed inset-0 bg-slate-900/10 backdrop-blur-md z-100 flex items-center justify-center p-4 lg:p-8 transition-all duration-300"
           onClick={closeDetailsModal}
         >
           <div
@@ -1483,11 +1542,15 @@ export default function RestaurantsList() {
                         <h4 className="text-lg font-semibold text-slate-900">Location & Contact</h4>
                         {!isEditingLocation ? (
                           <button
-                            onClick={() => setIsEditingLocation(true)}
+                            onClick={() => {
+                              const restaurantId = selectedRestaurant?._id || selectedRestaurant?.id || restaurantDetails?._id || restaurantDetails?.id
+                              if (!restaurantId) return
+                              navigate(`/admin/food/restaurants/edit/${restaurantId}`)
+                            }}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 text-xs font-semibold hover:bg-indigo-100 transition-colors"
                           >
                             <Settings className="w-3.5 h-3.5" />
-                            Edit Location
+                            Edit Restaurant
                           </button>
                         ) : (
                           <button
@@ -1663,7 +1726,7 @@ export default function RestaurantsList() {
                                   href={url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="relative aspect-[4/5] rounded-lg overflow-hidden border border-slate-200 bg-slate-50 hover:border-slate-300"
+                                  className="relative aspect-4/5 rounded-lg overflow-hidden border border-slate-200 bg-slate-50 hover:border-slate-300"
                                   title="Open menu image"
                                 >
                                   <img
@@ -2112,38 +2175,45 @@ export default function RestaurantsList() {
                       <h4 className="text-lg font-semibold text-slate-900 mb-4">Location Editor</h4>
                       <div className="space-y-3 border border-indigo-100 bg-indigo-50/40 rounded-xl p-4">
                         <p className="text-xs text-indigo-700 font-semibold">
-                          Pinpoint the exact restaurant location on map. This will be the address used everywhere.
+                          Update restaurant location using dropdown (accurate) + select service zone.
                         </p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-xs text-slate-500 mb-1">Latitude</label>
-                            <input
-                              type="number"
-                              step="any"
-                              value={locationForm.latitude}
-                              onChange={(e) => setLocationForm((prev) => ({ ...prev, latitude: e.target.value }))}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div className="md:col-span-2">
+                            <label className="block text-xs text-slate-600 mb-1 font-semibold">Service Zone*</label>
+                            <select
+                              value={locationForm.zoneId || ""}
+                              onChange={(e) => setLocationForm((prev) => ({ ...prev, zoneId: e.target.value }))}
                               className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm"
-                            />
+                            >
+                              <option value="">{zonesLoading ? "Loading zones..." : "Select a zone"}</option>
+                              {zones.map((z) => (
+                                <option key={z._id || z.id} value={z._id || z.id}>
+                                  {z.name || z.zoneName || z.serviceLocation || "Zone"}
+                                </option>
+                              ))}
+                            </select>
                           </div>
-                          <div>
-                            <label className="block text-xs text-slate-500 mb-1">Longitude</label>
+
+                          <div className="md:col-span-2">
+                            <label className="block text-xs text-slate-600 mb-1 font-semibold">Search location*</label>
                             <input
-                              type="number"
-                              step="any"
-                              value={locationForm.longitude}
-                              onChange={(e) => setLocationForm((prev) => ({ ...prev, longitude: e.target.value }))}
+                              ref={locationSearchInputRef}
+                              type="text"
                               className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm"
+                              placeholder="Start typing and choose from dropdown..."
                             />
+                            <p className="text-[11px] text-slate-500 mt-1">
+                              Select from dropdown to auto-fill address and coordinates.
+                            </p>
                           </div>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div className="sm:col-span-2">
+
+                          <div className="md:col-span-2">
                             <label className="block text-xs text-slate-500 mb-1">Formatted Address</label>
                             <input
                               type="text"
                               value={locationForm.formattedAddress}
-                              onChange={(e) => setLocationForm((prev) => ({ ...prev, formattedAddress: e.target.value }))}
-                              className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm"
+                              readOnly
+                              className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm"
                             />
                           </div>
                           <div>
@@ -2151,8 +2221,8 @@ export default function RestaurantsList() {
                             <input
                               type="text"
                               value={locationForm.area}
-                              onChange={(e) => setLocationForm((prev) => ({ ...prev, area: e.target.value }))}
-                              className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm"
+                              readOnly
+                              className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm"
                             />
                           </div>
                           <div>
@@ -2160,18 +2230,41 @@ export default function RestaurantsList() {
                             <input
                               type="text"
                               value={locationForm.city}
-                              onChange={(e) => setLocationForm((prev) => ({ ...prev, city: e.target.value }))}
+                              readOnly
+                              className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-slate-500 mb-1">State</label>
+                            <input
+                              type="text"
+                              value={locationForm.state}
+                              readOnly
+                              className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-slate-500 mb-1">Pincode</label>
+                            <input
+                              type="text"
+                              value={locationForm.pincode}
+                              readOnly
+                              className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm"
+                            />
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="block text-xs text-slate-500 mb-1">Landmark (optional)</label>
+                            <input
+                              type="text"
+                              value={locationForm.landmark}
+                              onChange={(e) => setLocationForm((prev) => ({ ...prev, landmark: e.target.value }))}
                               className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm"
                             />
                           </div>
                         </div>
-                        <div
-                          ref={mapContainerRef}
-                          className="w-full h-[460px] rounded-xl border border-slate-300 bg-slate-100"
-                        />
-                        {mapLoading && <p className="text-xs text-slate-500">Loading map...</p>}
+
                         {resolvingAddress && <p className="text-xs text-slate-500">Resolving address...</p>}
-                        {mapError && <p className="text-xs text-red-600">{mapError}</p>}
+                        {locationEditError && <p className="text-xs text-red-600">{locationEditError}</p>}
                         <button
                           onClick={handleSaveLocation}
                           disabled={savingLocation}

@@ -232,6 +232,15 @@ export const adminAPI = {
   /** Get single restaurant by id (full details for View Details modal). */
   getRestaurantById: (id) =>
     apiClient.get(`/food/admin/restaurants/${id}`, { contextModule: "admin" }),
+  /** Update restaurant basic details (admin). */
+  updateRestaurant: (id, body) =>
+    apiClient.patch(`/food/admin/restaurants/${String(id)}`, body ?? {}, { contextModule: "admin" }),
+  /** Update restaurant status (admin). Body: { status: boolean } */
+  updateRestaurantStatus: (id, status) =>
+    apiClient.patch(`/food/admin/restaurants/${String(id)}/status`, { status: status !== false }, { contextModule: "admin" }),
+  /** Update restaurant location (admin). Body includes lat/lng + address fields. */
+  updateRestaurantLocation: (id, body) =>
+    apiClient.patch(`/food/admin/restaurants/${String(id)}/location`, body ?? {}, { contextModule: "admin" }),
   /** Restaurant menu (admin) */
   getRestaurantMenuById: (id, config = {}) =>
     apiClient.get(`/food/admin/restaurants/${id}/menu`, {
@@ -291,6 +300,10 @@ export const adminAPI = {
   /** Delete zone */
   deleteZone: (id) =>
     apiClient.delete(`/food/admin/zones/${id}`, { contextModule: "admin" }),
+
+  /** Public env variables (safe subset). Used for runtime keys like Google Maps. */
+  getPublicEnvVariables: () =>
+    apiClient.get("/food/public/env"),
 
   /** Offers & Coupons (admin) */
   getAllOffers: (params = {}) =>
@@ -789,7 +802,13 @@ export const deliveryAPI = {
 
 export const userAPI = createStubAPI();
 export const locationAPI = createStubAPI();
-export const zoneAPI = createStubAPI();
+export const zoneAPI = {
+  /** Public: detect active service zone for a lat/lng point. */
+  detectZone: (lat, lng) =>
+    apiClient.get("/food/zones/detect", {
+      params: { lat, lng },
+    }),
+};
 export const uploadAPI = {
   /**
    * Upload a single image file to the backend (Cloudinary-backed).

@@ -167,36 +167,22 @@ export default function FoodDetailsPage() {
 
   // Handle stock update
   const handleUpdateStock = async () => {
-    const position = findItemInSections(menuSections, id)
-    if (!position) return
-
-    const nextSections = [...menuSections]
-    const targetCollection = position.inSubsection
-      ? nextSections[position.sectionIndex]?.subsections?.[position.subsectionIndex]?.items
-      : nextSections[position.sectionIndex]?.items
-
-    if (!Array.isArray(targetCollection) || !targetCollection[position.itemIndex]) return
-
-    const currentItem = targetCollection[position.itemIndex]
-    const updatedItem = {
-      ...currentItem,
-      stock: stockData.mainStock,
-      variations: Array.isArray(currentItem.variations)
-        ? currentItem.variations.map((variation) => {
-            const updatedVariation = stockData.variations.find(
-              (entry) => String(entry.id) === String(variation.id),
-            )
-            return updatedVariation ? { ...variation, stock: updatedVariation.stock } : variation
-          })
-        : [],
-    }
-
-    targetCollection[position.itemIndex] = updatedItem
-
     try {
-      await restaurantAPI.updateMenu({ sections: nextSections })
-      setMenuSections(nextSections)
-      const mapped = toFoodData(updatedItem, id)
+      const res = await restaurantAPI.updateFood(String(id), {
+        stock: stockData.mainStock,
+        variations: Array.isArray(foodData.variations)
+          ? foodData.variations.map((variation) => {
+              const updatedVariation = stockData.variations.find(
+                (entry) => String(entry.id) === String(variation.id),
+              )
+              return updatedVariation
+                ? { ...variation, stock: updatedVariation.stock }
+                : variation
+            })
+          : [],
+      })
+      const updated = res?.data?.data?.food || res?.data?.food
+      const mapped = toFoodData(updated || {}, id)
       setFoodData(mapped)
       setShowStockModal(false)
       window.dispatchEvent(new CustomEvent("foodsChanged"))

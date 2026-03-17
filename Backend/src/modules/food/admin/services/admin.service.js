@@ -32,7 +32,8 @@ export async function getRestaurants(query) {
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit)
-            .select('restaurantName area city profileImage status ownerName ownerPhone')
+            .select('restaurantName location area city profileImage status ownerName ownerPhone zoneId')
+            .populate('zoneId', 'name zoneName')
             .lean(),
         FoodRestaurant.countDocuments(filter)
     ]);
@@ -442,7 +443,10 @@ export async function upsertDeliveryEmergencyHelp(body = {}) {
 
 export async function getRestaurantById(id) {
     if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
-    return FoodRestaurant.findById(id).select('-__v').lean();
+    return FoodRestaurant.findById(id)
+        .select('-__v')
+        .populate('zoneId', 'name zoneName serviceLocation isActive')
+        .lean();
 }
 
 export async function getRestaurantMenuById(id) {

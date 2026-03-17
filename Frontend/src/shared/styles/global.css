@@ -150,3 +150,9 @@
 .custom-marker { background: transparent; border: none; }
 .touch-none { touch-action: none; }
 .touch-pan-x { touch-action: pan-x; }
+
+/* Google Places Autocomplete dropdown should overlay modals */
+.pac-container {
+  z-index: 99999 !important;
+  pointer-events: auto !important;
+}

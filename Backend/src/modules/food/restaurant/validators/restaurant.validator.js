@@ -20,7 +20,12 @@ const restaurantRegisterSchema = z.object({
     addressLine2: z.string().optional(),
     area: z.string().optional(),
     city: z.string().optional(),
+    state: z.string().optional(),
+    pincode: z.string().optional(),
     landmark: z.string().optional(),
+    formattedAddress: z.string().optional(),
+    latitude: z.string().optional(),
+    longitude: z.string().optional(),
     cuisines: z
         .string()
         .optional()

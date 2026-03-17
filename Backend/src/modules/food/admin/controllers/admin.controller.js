@@ -113,6 +113,54 @@ export async function updateRestaurantMenuById(req, res, next) {
     }
 }
 
+export async function updateRestaurantById(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid restaurant id' });
+        }
+        const updated = await adminService.updateRestaurantById(id, req.body || {});
+        if (!updated) {
+            return res.status(404).json({ success: false, message: 'Restaurant not found' });
+        }
+        res.status(200).json({ success: true, message: 'Restaurant updated successfully', data: { restaurant: updated } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function updateRestaurantStatus(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid restaurant id' });
+        }
+        const updated = await adminService.updateRestaurantStatus(id, req.body || {});
+        if (!updated) {
+            return res.status(404).json({ success: false, message: 'Restaurant not found' });
+        }
+        res.status(200).json({ success: true, message: 'Restaurant status updated successfully', data: { restaurant: updated } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function updateRestaurantLocation(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid restaurant id' });
+        }
+        const updated = await adminService.updateRestaurantLocation(id, req.body || {});
+        if (!updated) {
+            return res.status(404).json({ success: false, message: 'Restaurant not found' });
+        }
+        res.status(200).json({ success: true, message: 'Restaurant location updated successfully', data: { restaurant: updated } });
+    } catch (error) {
+        next(error);
+    }
+}
+
 // ----- Foods -----
 export async function getFoods(req, res, next) {
     try {

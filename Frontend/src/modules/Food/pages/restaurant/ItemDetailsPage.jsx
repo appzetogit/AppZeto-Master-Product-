@@ -604,11 +604,6 @@ export default function ItemDetailsPage() {
       debugLog('Total image URLs to save:', allImageUrls.length, allImageUrls)
       debugLog('==========================')
 
-      // Get current menu
-      const menuResponse = await restaurantAPI.getMenu()
-      let menu = menuResponse.data?.data?.menu
-      let sections = menu?.sections || []
-
       // Resolve categoryId from fetched categories (so FoodItem stores categoryId efficiently).
       const matchedCategory = Array.isArray(categories)
         ? categories.find((c) => String(c?.name || "") === String(category || ""))
@@ -652,179 +647,15 @@ export default function ItemDetailsPage() {
         })
       }
 
-      debugLog('Item ID for save:', itemId, 'From itemData:', itemData?.id, 'From URL:', id)
-
-      // If editing, remove item from its current location (in case category changed or it's in a subsection)
-      if (!isNewItem && itemId) {
-        const searchId = String(itemId).trim()
-        const urlId = String(id || '').trim()
-        let itemRemoved = false
-
-        for (let sectionIndex = 0; sectionIndex < sections.length; sectionIndex++) {
-          const section = sections[sectionIndex]
-
-          // Check items in section
-          if (section.items && Array.isArray(section.items)) {
-            const itemIndex = section.items.findIndex(item => {
-              const itemIdStr = String(item.id || item._id || '').trim()
-              // Try multiple ID formats
-              return itemIdStr === searchId || itemIdStr === urlId ||
-                String(item.id) === String(itemId) || String(item.id) === String(id)
-            })
-            if (itemIndex !== -1) {
-              section.items.splice(itemIndex, 1)
-              itemRemoved = true
-              debugLog(`Removed item from section: ${section.name}, item ID was: ${section.items[itemIndex]?.id}`)
-              break
-            }
-          }
-
-          // Check items in subsections
-          if (!itemRemoved && section.subsections && Array.isArray(section.subsections)) {
-            for (let subIndex = 0; subIndex < section.subsections.length; subIndex++) {
-              const subsection = section.subsections[subIndex]
-              if (subsection.items && Array.isArray(subsection.items)) {
-                const subItemIndex = subsection.items.findIndex(item => {
-                  const itemIdStr = String(item.id || item._id || '').trim()
-                  // Try multiple ID formats
-                  return itemIdStr === searchId || itemIdStr === urlId ||
-                    String(item.id) === String(itemId) || String(item.id) === String(id)
-                })
-                if (subItemIndex !== -1) {
-                  subsection.items.splice(subItemIndex, 1)
-                  itemRemoved = true
-                  debugLog(`Removed item from subsection: ${subsection.name} in section: ${section.name}`)
-                  break
-                }
-              }
-            }
-            if (itemRemoved) break
-          }
-        }
-
-        if (!itemRemoved && !isNewItem) {
-          debugWarn(`Item with ID ${itemId} (URL: ${id}) not found in menu for removal. It will be added as new.`)
-        }
-      }
-
-      // Find or create the category section
-      let targetSection = sections.find(s => s.name === category)
-      if (!targetSection) {
-        // Create new section for this category
-        targetSection = {
-          id: `section-${Date.now()}`,
-          name: category,
-          items: [],
-          subsections: [],
-          isEnabled: true,
-          order: sections.length
-        }
-        sections.push(targetSection)
-      }
-
-      // Ensure items array exists
-      if (!targetSection.items) {
-        targetSection.items = []
-      }
-
-      // Prepare nutrition data as strings (as per menu model)
-      const nutritionStrings = []
-
-      // Prepare item data according to menu model
-      const itemDataToSave = {
-        id: String(itemId), // Ensure ID is a string
-        name: itemName.trim(),
-        nameArabic: "",
-        image: allImageUrls.length > 0 ? allImageUrls[0] : "",
-        images: allImageUrls.length > 0 ? [allImageUrls[0]] : [],
-        category: category,
-        rating: itemData?.rating || 0.0,
-        reviews: itemData?.reviews || 0,
-        price: parseFloat(basePrice) || 0,
-        preparationTime: preparationTime || "",
-        stock: "Unlimited",
-        discount: null,
-        originalPrice: null,
-        foodType: foodType === "Egg" ? "Non-Veg" : foodType, // Menu model only supports Veg/Non-Veg
-        availabilityTimeStart: "12:01 AM",
-        availabilityTimeEnd: "11:57 PM",
-        description: itemDescription.trim(),
-        discountType: "Percent",
-        discountAmount: 0.0,
-        isAvailable: isInStock,
-        isRecommended: isRecommended,
-        variations: [],
-        tags: [],
-        nutrition: nutritionStrings,
-        allergies: [],
-        photoCount: allImageUrls.length > 0 ? 1 : 0,
-        approvalStatus: isNewItem ? 'pending' : (itemData?.approvalStatus || 'pending'),
-        // Additional fields for complete item details
-        subCategory: subCategory || "",
-        servesInfo: "",
-        itemSize: "",
-        itemSizeQuantity: "",
-        itemSizeUnit: "piece",
-        gst: parseFloat(gst) || 0,
-      }
-
-      // Add or update item in target section
-      // Since we already removed the item from its old location, we should always add it here
-      // But check if it somehow still exists (shouldn't happen, but safety check)
-      const existingItemIndex = targetSection.items.findIndex(item => {
-        const itemIdStr = String(item.id || item._id || '').trim()
-        return itemIdStr === String(itemId).trim()
-      })
-
-      if (existingItemIndex !== -1) {
-        // Update existing item (shouldn't happen if removal worked, but handle it)
-        debugLog(`Updating existing item at index ${existingItemIndex} in section: ${targetSection.name}`)
-        targetSection.items[existingItemIndex] = itemDataToSave
-      } else {
-        // Add new item (or re-add after removal)
-        debugLog(`Adding item to section: ${targetSection.name}`)
-        targetSection.items.push(itemDataToSave)
-      }
-
-      // Update menu with new sections
-      debugLog('=== SAVING ITEM DATA ===')
-      debugLog('Item ID:', itemId, 'Is new item:', isNewItem)
-      debugLog('Item name:', itemDataToSave.name)
-      debugLog('Images array type:', Array.isArray(itemDataToSave.images) ? 'Array' : typeof itemDataToSave.images)
-      debugLog('Images array:', itemDataToSave.images)
-      debugLog('Images count:', itemDataToSave.images?.length)
-      debugLog('PhotoCount:', itemDataToSave.photoCount)
-      debugLog('Full itemDataToSave:', JSON.stringify(itemDataToSave, null, 2))
-
-      // Verify sections structure
-      debugLog('Sections being sent:', sections.length, 'sections')
-      const itemSection = sections.find(s => s.items?.some(item => item.id === itemId))
-      if (itemSection) {
-        const itemInSection = itemSection.items.find(item => item.id === itemId)
-        if (itemInSection) {
-          debugLog('Item in section before API call - images:', itemInSection.images, 'count:', itemInSection.images?.length)
-        }
-      }
-
-      const updateResponse = await restaurantAPI.updateMenu({ sections })
-
-      if (updateResponse.data?.success) {
-        const imageCount = allImageUrls.length
-        toast.success(
-          isNewItem
-            ? `Item created successfully with ${imageCount} image(s)`
-            : `Item updated successfully with ${imageCount} image(s)`
-        )
-        // Small delay to ensure backend has processed the update
-        await new Promise(resolve => setTimeout(resolve, 300))
-        // Navigate back to HubMenu with replace to prevent back navigation issues
-        navigate("/restaurant/hub-menu", { replace: true })
-        // Trigger a page refresh event
-        window.dispatchEvent(new CustomEvent('foodsChanged'))
-      } else {
-        debugError('Update failed:', updateResponse.data)
-        toast.error(updateResponse.data?.message || "Failed to save item")
-      }
+      const imageCount = allImageUrls.length
+      toast.success(
+        isNewItem
+          ? `Item created successfully with ${imageCount} image(s)`
+          : `Item updated successfully with ${imageCount} image(s)`
+      )
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      navigate("/restaurant/hub-menu", { replace: true })
+      window.dispatchEvent(new CustomEvent('foodsChanged'))
     } catch (error) {
       debugError('Error saving menu:', error)
       if (error.code === 'ERR_NETWORK') {

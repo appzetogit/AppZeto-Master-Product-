@@ -1,6 +1,8 @@
 import { FoodRestaurant } from '../models/restaurant.model.js';
 import { uploadImageBuffer } from '../../../../services/cloudinary.service.js';
 import { ValidationError } from '../../../../core/auth/errors.js';
+import mongoose from 'mongoose';
+import { FoodZone } from '../../admin/models/zone.model.js';
 import { FoodOffer } from '../../admin/models/offer.model.js';
 
 const normalizeName = (value) =>
@@ -22,8 +24,18 @@ const toUrl = (v) => (v && (typeof v === 'string' ? v : v.url)) ? (typeof v === 
 
 const toRestaurantProfile = (doc) => {
     if (!doc) return null;
+    const loc = doc.location && typeof doc.location === 'object' ? doc.location : null;
     const location =
-        (doc.addressLine1 ||
+        (loc?.formattedAddress ||
+            loc?.address ||
+            loc?.addressLine1 ||
+            loc?.addressLine2 ||
+            loc?.area ||
+            loc?.city ||
+            loc?.state ||
+            loc?.pincode ||
+            loc?.landmark ||
+            doc.addressLine1 ||
             doc.addressLine2 ||
             doc.area ||
             doc.city ||
@@ -31,13 +43,19 @@ const toRestaurantProfile = (doc) => {
             doc.pincode ||
             doc.landmark)
             ? {
-                addressLine1: doc.addressLine1 || '',
-                addressLine2: doc.addressLine2 || '',
-                area: doc.area || '',
-                city: doc.city || '',
-                state: doc.state || '',
-                pincode: doc.pincode || '',
-                landmark: doc.landmark || ''
+                type: loc?.type || 'Point',
+                coordinates: Array.isArray(loc?.coordinates) ? loc.coordinates : undefined,
+                latitude: typeof loc?.latitude === 'number' ? loc.latitude : (Array.isArray(loc?.coordinates) ? loc.coordinates[1] : undefined),
+                longitude: typeof loc?.longitude === 'number' ? loc.longitude : (Array.isArray(loc?.coordinates) ? loc.coordinates[0] : undefined),
+                formattedAddress: loc?.formattedAddress || loc?.address || '',
+                address: loc?.address || loc?.formattedAddress || '',
+                addressLine1: loc?.addressLine1 || doc.addressLine1 || '',
+                addressLine2: loc?.addressLine2 || doc.addressLine2 || '',
+                area: loc?.area || doc.area || '',
+                city: loc?.city || doc.city || '',
+                state: loc?.state || doc.state || '',
+                pincode: loc?.pincode || doc.pincode || '',
+                landmark: loc?.landmark || doc.landmark || ''
             }
             : null;
 
@@ -71,6 +89,34 @@ const toRestaurantProfile = (doc) => {
     };
 };
 
+const toFiniteNumber = (value) => {
+    const n = typeof value === 'number' ? value : parseFloat(String(value));
+    return Number.isFinite(n) ? n : null;
+};
+
+const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const normalizeCuisine = (value) => String(value || '').trim().slice(0, 80);
+
+const parseSortBy = (value) => {
+    const v = String(value || '').trim();
+    const allowed = new Set(['nearest', 'rating', 'newest', 'deliveryTime']);
+    return allowed.has(v) ? v : null;
+};
+
+const zoneToPolygon = (zoneDoc) => {
+    const coords = Array.isArray(zoneDoc?.coordinates) ? zoneDoc.coordinates : [];
+    if (coords.length < 3) return null;
+    const ring = coords
+        .map((c) => [Number(c.longitude), Number(c.latitude)])
+        .filter((pair) => pair.every((n) => Number.isFinite(n)));
+    if (ring.length < 3) return null;
+    const first = ring[0];
+    const last = ring[ring.length - 1];
+    if (first[0] !== last[0] || first[1] !== last[1]) ring.push(first);
+    return { type: 'Polygon', coordinates: [ring] };
+};
+
 export const registerRestaurant = async (payload, files) => {
     const {
         restaurantName,
@@ -82,7 +128,12 @@ export const registerRestaurant = async (payload, files) => {
         addressLine2,
         area,
         city,
+        state,
+        pincode,
         landmark,
+        formattedAddress,
+        latitude,
+        longitude,
         cuisines,
         openingTime,
         closingTime,
@@ -138,6 +189,8 @@ export const registerRestaurant = async (payload, files) => {
     }
 
     try {
+        const latNum = toFiniteNumber(latitude);
+        const lngNum = toFiniteNumber(longitude);
         const restaurant = await FoodRestaurant.create({
             restaurantName,
             restaurantNameNormalized,
@@ -148,11 +201,22 @@ export const registerRestaurant = async (payload, files) => {
             ownerPhoneDigits,
             ownerPhoneLast10,
             primaryContactNumber,
-            addressLine1,
-            addressLine2,
-            area,
-            city,
-            landmark,
+            // Store unified location object (geo + address).
+            location: {
+                type: 'Point',
+                coordinates: latNum !== null && lngNum !== null ? [lngNum, latNum] : undefined,
+                latitude: latNum ?? undefined,
+                longitude: lngNum ?? undefined,
+                formattedAddress: typeof formattedAddress === 'string' ? formattedAddress.trim() : '',
+                address: typeof formattedAddress === 'string' ? formattedAddress.trim() : '',
+                addressLine1: addressLine1 || '',
+                addressLine2: addressLine2 || '',
+                area: area || '',
+                city: city || '',
+                state: state || '',
+                pincode: pincode || '',
+                landmark: landmark || ''
+            },
             cuisines: cuisines || [],
             openingTime,
             closingTime,
@@ -300,6 +364,13 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
         update.state = toStr(loc.state);
         update.pincode = toStr(loc.pincode);
         update.landmark = toStr(loc.landmark);
+
+        // Optional geo coords for server-side distance filtering.
+        const lat = toFiniteNumber(loc.latitude);
+        const lng = toFiniteNumber(loc.longitude);
+        if (lat !== null && lng !== null) {
+            update.location = { type: 'Point', coordinates: [lng, lat] };
+        }
     }
 
     if (body.menuImages !== undefined) {
@@ -385,44 +456,144 @@ export const listApprovedRestaurants = async (query = {}) => {
     const skip = (page - 1) * limit;
 
     const filter = { status: 'approved' };
+
     if (query.city && String(query.city).trim()) {
-        // Keep behavior but avoid catastrophic regex patterns.
         const city = String(query.city).trim().slice(0, 80);
-        filter.city = { $regex: city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
+        const rx = { $regex: escapeRegex(city), $options: 'i' };
+        filter.$and = [...(filter.$and || []), { $or: [{ 'location.city': rx }, { city: rx }] }];
+    }
+    if (query.area && String(query.area).trim()) {
+        const area = String(query.area).trim().slice(0, 80);
+        const rx = { $regex: escapeRegex(area), $options: 'i' };
+        filter.$and = [...(filter.$and || []), { $or: [{ 'location.area': rx }, { area: rx }] }];
+    }
+    if (query.cuisine && String(query.cuisine).trim()) {
+        const cuisine = normalizeCuisine(query.cuisine);
+        // cuisines is an array of strings.
+        filter.cuisines = { $in: [new RegExp(escapeRegex(cuisine), 'i')] };
+    }
+    if (query.hasOffers === 'true') {
+        filter.offer = { $exists: true, $ne: null, $ne: '' };
+    }
+    const minRating = toFiniteNumber(query.minRating);
+    if (minRating !== null) {
+        filter.rating = { $gte: Math.max(0, Math.min(5, minRating)) };
+    }
+    const maxDeliveryTime = toFiniteNumber(query.maxDeliveryTime);
+    if (maxDeliveryTime !== null) {
+        filter.estimatedDeliveryTimeMinutes = { $lte: Math.max(0, Math.round(maxDeliveryTime)) };
     }
     if (query.search && String(query.search).trim()) {
         const raw = String(query.search).trim().slice(0, 80);
-        const term = raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        // If it's a single character, skip multi-field regex scan (too expensive for little value).
+        const term = escapeRegex(raw);
         if (term.length >= 2) {
             filter.$or = [
                 { restaurantName: { $regex: term, $options: 'i' } },
                 { area: { $regex: term, $options: 'i' } },
                 { city: { $regex: term, $options: 'i' } },
+                { 'location.area': { $regex: term, $options: 'i' } },
+                { 'location.city': { $regex: term, $options: 'i' } },
                 { cuisines: { $in: [new RegExp(term, 'i')] } }
             ];
         }
     }
 
+    // Optional zone polygon filter (when restaurant.zoneId is not set yet).
+    const zoneIdRaw = String(query.zoneId || '').trim();
+    if (zoneIdRaw && mongoose.Types.ObjectId.isValid(zoneIdRaw)) {
+        // Try fast path (precomputed restaurant.zoneId).
+        filter.$or = [{ zoneId: new mongoose.Types.ObjectId(zoneIdRaw) }];
+        const zoneDoc = await FoodZone.findOne({ _id: zoneIdRaw, isActive: true }).lean();
+        const polygon = zoneToPolygon(zoneDoc);
+        if (polygon) {
+            filter.$or.push({ location: { $geoWithin: { $geometry: polygon } } });
+        }
+    }
+
+    const lat = toFiniteNumber(query.lat);
+    const lng = toFiniteNumber(query.lng);
+    // Accept both radiusKm (preferred) and maxDistance (legacy frontend param).
+    const radiusKm = toFiniteNumber(query.radiusKm) ?? toFiniteNumber(query.maxDistance);
+    const sortBy = parseSortBy(query.sortBy);
+
+    const projection = {
+        restaurantName: 1,
+        area: 1,
+        city: 1,
+        cuisines: 1,
+        profileImage: 1,
+        estimatedDeliveryTime: 1,
+        estimatedDeliveryTimeMinutes: 1,
+        offer: 1,
+        featuredDish: 1,
+        featuredPrice: 1,
+        rating: 1,
+        totalRatings: 1,
+        status: 1,
+        createdAt: 1,
+        location: 1
+    };
+
+    // Use $geoNear only when geo is explicitly needed (radius filter or nearest sorting).
+    // This avoids accidentally hiding restaurants that do not have coordinates yet.
+    const wantsGeo = (radiusKm !== null) || sortBy === 'nearest';
+    if (lat !== null && lng !== null && wantsGeo) {
+        const geoNear = {
+            $geoNear: {
+                near: { type: 'Point', coordinates: [lng, lat] },
+                distanceField: 'distanceMeters',
+                spherical: true,
+                query: filter
+            }
+        };
+        if (radiusKm !== null) {
+            geoNear.$geoNear.maxDistance = Math.max(0.1, radiusKm) * 1000;
+        }
+
+        const sortStage = (() => {
+            if (sortBy === 'rating') return { $sort: { rating: -1, distanceMeters: 1 } };
+            if (sortBy === 'newest') return { $sort: { createdAt: -1 } };
+            if (sortBy === 'deliveryTime') return { $sort: { estimatedDeliveryTimeMinutes: 1, distanceMeters: 1 } };
+            // nearest (default)
+            return { $sort: { distanceMeters: 1 } };
+        })();
+
+        const basePipeline = [
+            geoNear,
+            {
+                $addFields: {
+                    distanceInKm: { $round: [{ $divide: ['$distanceMeters', 1000] }, 2] }
+                }
+            },
+            sortStage
+        ];
+
+        const [pageDocs, totalDocs] = await Promise.all([
+            FoodRestaurant.aggregate([
+                ...basePipeline,
+                { $project: projection },
+                { $skip: skip },
+                { $limit: limit }
+            ]),
+            FoodRestaurant.aggregate([...basePipeline, { $count: 'count' }])
+        ]);
+
+        const total = totalDocs?.[0]?.count || 0;
+        return { restaurants: pageDocs, total, page, limit };
+    }
+
+    // Non-geo path: normal query + sort.
+    const sort =
+        sortBy === 'rating'
+            ? { rating: -1, createdAt: -1 }
+            : sortBy === 'deliveryTime'
+                ? { estimatedDeliveryTimeMinutes: 1, createdAt: -1 }
+                : { createdAt: -1 };
+
     const [restaurantsRaw, total] = await Promise.all([
         FoodRestaurant.find(filter)
-            .select(
-                [
-                    'restaurantName',
-                    'area',
-                    'city',
-                    'cuisines',
-                    'profileImage',
-                    'menuImages',
-                    'estimatedDeliveryTime',
-                    'offer',
-                    'featuredDish',
-                    'featuredPrice',
-                    'status',
-                    'createdAt'
-                ].join(' ')
-            )
-            .sort({ createdAt: -1 })
+            .select(Object.keys(projection).join(' '))
+            .sort(sort)
             .skip(skip)
             .limit(limit)
             .lean(),

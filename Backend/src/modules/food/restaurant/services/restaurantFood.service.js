@@ -29,9 +29,9 @@ export async function createRestaurantFood(restaurantId, body = {}) {
 
     const description = toStr(body.description);
     const image = toStr(body.image);
-    const preparationTime = toStr(body.preparationTime);
     const isAvailable = body.isAvailable !== false;
     const foodType = normalizeFoodType(body.foodType);
+    const preparationTime = toStr(body.preparationTime);
 
     const categoryId = toStr(body.categoryId);
     const categoryNameInput = toStr(body.categoryName);
@@ -92,9 +92,9 @@ export async function updateRestaurantFood(restaurantId, foodId, body = {}) {
         if (!Number.isFinite(price) || price < 0) throw new ValidationError('Price is invalid');
         update.price = price;
     }
-    if (body.preparationTime !== undefined) update.preparationTime = toStr(body.preparationTime);
     if (body.isAvailable !== undefined) update.isAvailable = body.isAvailable !== false;
     if (body.foodType !== undefined) update.foodType = normalizeFoodType(body.foodType);
+    if (body.preparationTime !== undefined) update.preparationTime = toStr(body.preparationTime);
 
     if (body.categoryId !== undefined || body.categoryName !== undefined) {
         const categoryId = toStr(body.categoryId);

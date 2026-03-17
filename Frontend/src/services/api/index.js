@@ -189,6 +189,17 @@ export const adminAPI = {
     apiClient.patch(`/food/admin/foods/${id}`, body ?? {}, { contextModule: "admin" }),
   deleteFood: (id) =>
     apiClient.delete(`/food/admin/foods/${id}`, { contextModule: "admin" }),
+  /** Food approval queue (pending foods created by restaurants) */
+  getPendingFoodApprovals: (params = {}) =>
+    apiClient.get("/food/admin/foods/pending-approvals", { params, contextModule: "admin" }),
+  approveFoodItem: (id) =>
+    apiClient.patch(`/food/admin/foods/${String(id)}/approve`, {}, { contextModule: "admin" }),
+  rejectFoodItem: (id, reason) =>
+    apiClient.patch(
+      `/food/admin/foods/${String(id)}/reject`,
+      { reason: String(reason || "").trim() },
+      { contextModule: "admin" }
+    ),
   /** Create restaurant (admin). Single API: POST /food/admin/restaurants. Body: JSON with image URLs. */
   createRestaurant: (body) =>
     apiClient.post("/food/admin/restaurants", body ?? {}, { contextModule: "admin" }),
@@ -376,6 +387,9 @@ export const restaurantAPI = {
   /** Public: get single approved restaurant by id or slug */
   getRestaurantById: (id, config = {}) =>
     apiClient.get(`/food/restaurant/restaurants/${String(id)}`, { ...config }),
+  /** Public: get approved menu by restaurant id or slug */
+  getMenuByRestaurantId: (id, config = {}) =>
+    apiClient.get(`/food/restaurant/restaurants/${String(id)}/menu`, { ...config }),
   /** Public: list coupons/offers created by admin */
   getPublicOffers: (params = {}, config = {}) =>
     apiClient.get("/food/restaurant/offers", { params, ...config }),

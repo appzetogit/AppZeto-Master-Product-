@@ -1,6 +1,7 @@
 import express from 'express';
 import { AuthError } from '../../../../core/auth/errors.js';
 import * as adminController from '../controllers/admin.controller.js';
+import * as foodApprovalController from '../controllers/foodApproval.controller.js';
 
 const router = express.Router();
 
@@ -36,6 +37,10 @@ router.get('/foods', adminController.getFoods);
 router.post('/foods', adminController.createFood);
 router.patch('/foods/:id', adminController.updateFood);
 router.delete('/foods/:id', adminController.deleteFood);
+// Food approval queue (pending items created by restaurants)
+router.get('/foods/pending-approvals', foodApprovalController.getPendingFoodApprovals);
+router.patch('/foods/:id/approve', foodApprovalController.approveFoodItemController);
+router.patch('/foods/:id/reject', foodApprovalController.rejectFoodItemController);
 
 // ----- Offers & Coupons -----
 router.get('/offers', adminController.getAllOffers);

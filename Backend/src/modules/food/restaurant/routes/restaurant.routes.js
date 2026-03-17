@@ -21,7 +21,7 @@ import {
     updateCategoryController,
     deleteCategoryController
 } from '../controllers/restaurantCategory.controller.js';
-import { getMenuController, updateMenuController } from '../controllers/restaurantMenu.controller.js';
+import { getMenuController, updateMenuController, getPublicRestaurantMenuController } from '../controllers/restaurantMenu.controller.js';
 import {
     createRestaurantFoodController,
     updateRestaurantFoodController
@@ -51,6 +51,7 @@ router.post('/register', uploadFields, registerRestaurantController);
 // Public: approved restaurants list (for user app)
 router.get('/restaurants', listApprovedRestaurantsController);
 router.get('/restaurants/:id', getApprovedRestaurantController);
+router.get('/restaurants/:id/menu', getPublicRestaurantMenuController);
 router.get('/offers', listPublicOffersController);
 
 // Restaurant dashboard/profile (Bearer token + RESTAURANT role)

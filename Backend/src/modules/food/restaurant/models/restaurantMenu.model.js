@@ -21,7 +21,5 @@ const restaurantMenuSchema = new mongoose.Schema(
     }
 );
 
-restaurantMenuSchema.index({ restaurantId: 1 });
-
 export const FoodRestaurantMenu = mongoose.model('FoodRestaurantMenu', restaurantMenuSchema);
 

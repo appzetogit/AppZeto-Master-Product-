@@ -404,7 +404,7 @@ export const listApprovedRestaurants = async (query = {}) => {
         }
     }
 
-    const [restaurants, total] = await Promise.all([
+    const [restaurantsRaw, total] = await Promise.all([
         FoodRestaurant.find(filter)
             .select(
                 [
@@ -413,6 +413,7 @@ export const listApprovedRestaurants = async (query = {}) => {
                     'city',
                     'cuisines',
                     'profileImage',
+                    'menuImages',
                     'estimatedDeliveryTime',
                     'offer',
                     'featuredDish',
@@ -427,6 +428,17 @@ export const listApprovedRestaurants = async (query = {}) => {
             .lean(),
         FoodRestaurant.countDocuments(filter)
     ]);
+
+    const restaurants = (restaurantsRaw || []).map((r) => ({
+        ...r,
+        // Frontend user app expects `name` and often checks `profileImage.url`
+        restaurantId: r._id,
+        id: r._id,
+        name: r.restaurantName || '',
+        profileImage: r.profileImage ? { url: r.profileImage } : null,
+        // Keep menuImages as an array for fallbacks; allow both string and {url} on client.
+        menuImages: Array.isArray(r.menuImages) ? r.menuImages : []
+    }));
 
     return { restaurants, total, page, limit };
 };

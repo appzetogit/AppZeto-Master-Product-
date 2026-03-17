@@ -62,7 +62,8 @@ export async function createRestaurantFood(restaurantId, body = {}) {
         isAvailable,
         preparationTime,
         // Restaurant-created items should go through approval flow.
-        approvalStatus: 'pending'
+        approvalStatus: 'pending',
+        requestedAt: new Date()
     });
 
     return doc.toObject();

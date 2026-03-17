@@ -609,21 +609,47 @@ export default function ItemDetailsPage() {
       let menu = menuResponse.data?.data?.menu
       let sections = menu?.sections || []
 
-      // Prepare item data according to menu model
-      // For editing, use the existing ID; for new items, generate a new ID
-      // Ensure we use the ID from itemData if available, otherwise use the URL param id
+      // Resolve categoryId from fetched categories (so FoodItem stores categoryId efficiently).
+      const matchedCategory = Array.isArray(categories)
+        ? categories.find((c) => String(c?.name || "") === String(category || ""))
+        : null
+      const categoryId = matchedCategory?.id || matchedCategory?._id || null
+
+      // Create/update FoodItem in DB (single call per explicit Save; no autosave spam)
       let itemId
       if (isNewItem) {
-        itemId = `item-${Date.now()}-${Math.random()}`
-      } else {
-        // Try to get ID from itemData first (most reliable), then from URL param
-        itemId = itemData?.id || id
+        const createRes = await restaurantAPI.createFood({
+          name: itemName.trim(),
+          description: itemDescription.trim(),
+          price: parseFloat(basePrice) || 0,
+          image: allImageUrls.length > 0 ? allImageUrls[0] : "",
+          foodType: foodType,
+          isAvailable: isInStock,
+          preparationTime: preparationTime || "",
+          categoryId: categoryId || undefined,
+          categoryName: category || "",
+        })
+        const created = createRes?.data?.data?.food || createRes?.data?.food
+        itemId = String(created?._id || created?.id || "")
         if (!itemId) {
-          debugWarn('No item ID found, generating new one')
-          itemId = `item-${Date.now()}-${Math.random()}`
+          throw new Error("Failed to create item in database")
         }
-        // Ensure ID is a string
-        itemId = String(itemId)
+      } else {
+        itemId = String(itemData?.id || id || "")
+        if (!itemId) {
+          throw new Error("Invalid item id")
+        }
+        await restaurantAPI.updateFood(itemId, {
+          name: itemName.trim(),
+          description: itemDescription.trim(),
+          price: parseFloat(basePrice) || 0,
+          image: allImageUrls.length > 0 ? allImageUrls[0] : "",
+          foodType: foodType,
+          isAvailable: isInStock,
+          preparationTime: preparationTime || "",
+          categoryId: categoryId || undefined,
+          categoryName: category || "",
+        })
       }
 
       debugLog('Item ID for save:', itemId, 'From itemData:', itemData?.id, 'From URL:', id)
@@ -732,6 +758,7 @@ export default function ItemDetailsPage() {
         nutrition: nutritionStrings,
         allergies: [],
         photoCount: allImageUrls.length > 0 ? 1 : 0,
+        approvalStatus: isNewItem ? 'pending' : (itemData?.approvalStatus || 'pending'),
         // Additional fields for complete item details
         subCategory: subCategory || "",
         servesInfo: "",

@@ -71,9 +71,30 @@ export default function RestaurantCommission() {
 
   // Fetch data on component mount
   useEffect(() => {
-    fetchCommissions()
-    fetchApprovedRestaurants()
+    // Single fast call to avoid multiple API requests on load
+    fetchBootstrap()
   }, [])
+
+  const fetchBootstrap = async () => {
+    try {
+      setLoading(true)
+      const response = await adminAPI.getRestaurantCommissionBootstrap()
+      const data = response?.data?.data
+      setCommissions(Array.isArray(data?.commissions) ? data.commissions : [])
+      setApprovedRestaurants(Array.isArray(data?.restaurants) ? data.restaurants : [])
+    } catch (error) {
+      debugError('Error fetching bootstrap:', error)
+      if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+        toast.error(`Cannot connect to backend server. Please ensure the backend is running on ${API_BASE_URL.replace('/api', '')}`)
+      } else {
+        toast.error(error.response?.data?.message || 'Failed to fetch commissions')
+      }
+      setCommissions([])
+      setApprovedRestaurants([])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const fetchCommissions = async () => {
     try {

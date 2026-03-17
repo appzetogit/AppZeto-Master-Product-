@@ -11,11 +11,11 @@ const debugError = (...args) => {}
 // Fee Settings Component - Range-based delivery fee configuration
 export default function FeeSettings() {
   const [feeSettings, setFeeSettings] = useState({
-    deliveryFee: 25,
+    deliveryFee: "",
     deliveryFeeRanges: [],
-    freeDeliveryThreshold: 149,
-    platformFee: 5,
-    gstRate: 5,
+    freeDeliveryThreshold: "",
+    platformFee: "",
+    gstRate: "",
   })
   const [loadingFeeSettings, setLoadingFeeSettings] = useState(false)
   const [savingFeeSettings, setSavingFeeSettings] = useState(false)
@@ -29,11 +29,20 @@ export default function FeeSettings() {
       const response = await adminAPI.getFeeSettings()
       if (response.data.success && response.data.data.feeSettings) {
         setFeeSettings({
-          deliveryFee: response.data.data.feeSettings.deliveryFee || 25,
+          deliveryFee: response.data.data.feeSettings.deliveryFee ?? "",
           deliveryFeeRanges: response.data.data.feeSettings.deliveryFeeRanges || [],
-          freeDeliveryThreshold: response.data.data.feeSettings.freeDeliveryThreshold || 149,
-          platformFee: response.data.data.feeSettings.platformFee || 5,
-          gstRate: response.data.data.feeSettings.gstRate || 5,
+          freeDeliveryThreshold: response.data.data.feeSettings.freeDeliveryThreshold ?? "",
+          platformFee: response.data.data.feeSettings.platformFee ?? "",
+          gstRate: response.data.data.feeSettings.gstRate ?? "",
+        })
+      } else if (response.data.success && response.data.data.feeSettings === null) {
+        // Not configured yet - keep empty fields (no defaults).
+        setFeeSettings({
+          deliveryFee: "",
+          deliveryFeeRanges: [],
+          freeDeliveryThreshold: "",
+          platformFee: "",
+          gstRate: "",
         })
       }
     } catch (error) {
@@ -54,17 +63,27 @@ export default function FeeSettings() {
     try {
       setSavingFeeSettings(true)
       const response = await adminAPI.createOrUpdateFeeSettings({
-        deliveryFee: Number(feeSettings.deliveryFee),
+        deliveryFee: feeSettings.deliveryFee === "" ? undefined : Number(feeSettings.deliveryFee),
         deliveryFeeRanges: feeSettings.deliveryFeeRanges,
-        freeDeliveryThreshold: Number(feeSettings.freeDeliveryThreshold),
-        platformFee: Number(feeSettings.platformFee),
-        gstRate: Number(feeSettings.gstRate),
+        freeDeliveryThreshold: feeSettings.freeDeliveryThreshold === "" ? undefined : Number(feeSettings.freeDeliveryThreshold),
+        platformFee: feeSettings.platformFee === "" ? undefined : Number(feeSettings.platformFee),
+        gstRate: feeSettings.gstRate === "" ? undefined : Number(feeSettings.gstRate),
         isActive: true,
       })
 
       if (response.data.success) {
         toast.success('Fee settings saved successfully')
-        fetchFeeSettings()
+        // Avoid an extra API call; update local state from response
+        const saved = response?.data?.data?.feeSettings
+        if (saved) {
+          setFeeSettings({
+            deliveryFee: saved.deliveryFee ?? "",
+            deliveryFeeRanges: saved.deliveryFeeRanges ?? [],
+            freeDeliveryThreshold: saved.freeDeliveryThreshold ?? "",
+            platformFee: saved.platformFee ?? "",
+            gstRate: saved.gstRate ?? "",
+          })
+        }
       } else {
         toast.error(response.data.message || 'Failed to save fee settings')
       }
@@ -367,6 +386,44 @@ export default function FeeSettings() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-slate-200 pt-6 mt-6">
+
+                {/* Default Delivery Fee (Fallback) */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Default Delivery Fee (?) <span className="text-slate-400 font-normal">(Optional)</span>
+                  </label>
+                  <input
+                    type="number"
+                    value={feeSettings.deliveryFee}
+                    onChange={(e) => setFeeSettings({ ...feeSettings, deliveryFee: e.target.value })}
+                    min="0"
+                    step="1"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                    placeholder="Leave empty to disable fallback"
+                  />
+                  <p className="text-xs text-slate-500">
+                    Used only when no delivery fee range matches and free delivery threshold is not met
+                  </p>
+                </div>
+
+                {/* Free Delivery Threshold */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Free Delivery Threshold (?)
+                  </label>
+                  <input
+                    type="number"
+                    value={feeSettings.freeDeliveryThreshold}
+                    onChange={(e) => setFeeSettings({ ...feeSettings, freeDeliveryThreshold: e.target.value })}
+                    min="0"
+                    step="1"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                    placeholder="149"
+                  />
+                  <p className="text-xs text-slate-500">
+                    Orders at or above this amount get free delivery
+                  </p>
+                </div>
 
                 {/* Platform Fee */}
                 <div className="space-y-2">

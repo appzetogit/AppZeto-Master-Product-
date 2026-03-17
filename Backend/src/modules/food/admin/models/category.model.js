@@ -14,7 +14,5 @@ const foodCategorySchema = new mongoose.Schema(
     }
 );
 
-foodCategorySchema.index({ name: 1 });
-
 export const FoodCategory = mongoose.model('FoodCategory', foodCategorySchema);
 

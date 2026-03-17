@@ -67,7 +67,21 @@ export default function Category() {
       
       const response = await adminAPI.getCategories(params)
       if (response.data.success) {
-        setCategories(response.data.data.categories || [])
+        const list =
+          response?.data?.data?.categories ||
+          response?.data?.categories ||
+          []
+        setCategories(
+          Array.isArray(list)
+            ? list.map((c) => ({
+                ...c,
+                id: String(c?.id || c?._id || ""),
+                _id: c?._id || c?.id,
+                status: c?.status !== undefined ? Boolean(c.status) : c?.isActive !== false,
+                isActive: c?.isActive !== undefined ? Boolean(c.isActive) : c?.status !== false,
+              }))
+            : []
+        )
       } else {
         toast.error(response.data.message || 'Failed to load categories')
         setCategories([])
@@ -139,13 +153,13 @@ export default function Category() {
 
   const handleToggleStatus = async (id) => {
     try {
-      const response = await adminAPI.toggleCategoryStatus(id)
+      const response = await adminAPI.toggleCategoryStatus(String(id))
       if (response.data.success) {
         toast.success('Category status updated successfully')
         // Update local state immediately for better UX
         setCategories(prevCategories =>
           prevCategories.map(cat =>
-            cat.id === id ? { ...cat, status: !cat.status } : cat
+            String(cat.id) === String(id) ? { ...cat, status: !cat.status } : cat
           )
         )
         // Refresh from server to ensure consistency
@@ -160,14 +174,14 @@ export default function Category() {
 
 
   const handleDelete = async (id) => {
-    const categoryName = categories.find(cat => cat.id === id)?.name || 'this category'
+    const categoryName = categories.find(cat => String(cat.id) === String(id))?.name || 'this category'
     if (window.confirm(`Are you sure you want to delete "${categoryName}"? This action cannot be undone.`)) {
       try {
-        const response = await adminAPI.deleteCategory(id)
+        const response = await adminAPI.deleteCategory(String(id))
         if (response.data.success) {
           toast.success('Category deleted successfully')
           // Remove from local state immediately for better UX
-          setCategories(prevCategories => prevCategories.filter(cat => cat.id !== id))
+          setCategories(prevCategories => prevCategories.filter(cat => String(cat.id) !== String(id)))
           // Refresh from server to ensure consistency
           setTimeout(() => fetchCategories(), 500)
         }

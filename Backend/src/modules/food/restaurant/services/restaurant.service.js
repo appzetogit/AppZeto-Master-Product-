@@ -3,6 +3,7 @@ import { uploadImageBuffer } from '../../../../services/cloudinary.service.js';
 import { ValidationError } from '../../../../core/auth/errors.js';
 import mongoose from 'mongoose';
 import { FoodZone } from '../../admin/models/zone.model.js';
+import { FoodOffer } from '../../admin/models/offer.model.js';
 
 const normalizeName = (value) =>
     String(value || '')
@@ -591,8 +592,41 @@ export const listApprovedRestaurants = async (query = {}) => {
 
     const [restaurants, total] = await Promise.all([
         FoodRestaurant.find(filter).select(Object.keys(projection).join(' ')).sort(sort).skip(skip).limit(limit).lean(),
+    const [restaurantsRaw, total] = await Promise.all([
+        FoodRestaurant.find(filter)
+            .select(
+                [
+                    'restaurantName',
+                    'area',
+                    'city',
+                    'cuisines',
+                    'profileImage',
+                    'menuImages',
+                    'estimatedDeliveryTime',
+                    'offer',
+                    'featuredDish',
+                    'featuredPrice',
+                    'status',
+                    'createdAt'
+                ].join(' ')
+            )
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean(),
         FoodRestaurant.countDocuments(filter)
     ]);
+
+    const restaurants = (restaurantsRaw || []).map((r) => ({
+        ...r,
+        // Frontend user app expects `name` and often checks `profileImage.url`
+        restaurantId: r._id,
+        id: r._id,
+        name: r.restaurantName || '',
+        profileImage: r.profileImage ? { url: r.profileImage } : null,
+        // Keep menuImages as an array for fallbacks; allow both string and {url} on client.
+        menuImages: Array.isArray(r.menuImages) ? r.menuImages : []
+    }));
 
     return { restaurants, total, page, limit };
 };
@@ -614,5 +648,53 @@ export const getApprovedRestaurantByIdOrSlug = async (idOrSlug) => {
         status: 'approved',
         restaurantNameNormalized
     }).lean();
+};
+
+export const listPublicOffers = async () => {
+    const now = new Date();
+    const filter = {
+        status: 'active',
+        $or: [{ endDate: { $exists: false } }, { endDate: null }, { endDate: { $gt: now } }]
+    };
+
+    const list = await FoodOffer.find(filter)
+        .sort({ createdAt: -1 })
+        .populate({ path: 'restaurantId', select: 'restaurantName restaurantNameNormalized profileImage estimatedDeliveryTime rating' })
+        .lean();
+
+    const allOffers = list.map((o) => {
+        const restaurant = o.restaurantId && typeof o.restaurantId === 'object' ? o.restaurantId : null;
+        const restaurantSlug = restaurant?.restaurantNameNormalized || undefined;
+        const restaurantName =
+            o.restaurantScope === 'selected'
+                ? (restaurant?.restaurantName || 'Selected Restaurant')
+                : 'All Restaurants';
+
+        const title =
+            o.discountType === 'percentage'
+                ? `${Number(o.discountValue) || 0}% OFF`
+                : `Flat ₹${Number(o.discountValue) || 0} OFF`;
+
+        return {
+            id: String(o._id),
+            offerId: String(o._id),
+            couponCode: o.couponCode,
+            title,
+            discountType: o.discountType,
+            discountValue: o.discountValue,
+            customerScope: o.customerScope,
+            restaurantScope: o.restaurantScope,
+            restaurantId: restaurant?._id ? String(restaurant._id) : (o.restaurantScope === 'selected' ? String(o.restaurantId) : null),
+            restaurantName,
+            restaurantSlug,
+            restaurantImage: restaurant?.profileImage || null,
+            deliveryTime: restaurant?.estimatedDeliveryTime || null,
+            restaurantRating: typeof restaurant?.rating === 'number' ? restaurant.rating : 0,
+            endDate: o.endDate || null,
+            showInCart: o.showInCart !== false
+        };
+    });
+
+    return { allOffers, groupedByOffer: {} };
 };
 

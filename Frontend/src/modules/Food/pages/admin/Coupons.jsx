@@ -55,7 +55,15 @@ export default function Coupons() {
       try {
         const response = await adminAPI.getRestaurants({ page: 1, limit: 200 })
         if (response?.data?.success) {
-          setRestaurants(response.data.data.restaurants || [])
+          const list = response?.data?.data?.restaurants || []
+          // Backend returns `restaurantName`; normalize to `name` for this dropdown without affecting other pages.
+          const normalized = Array.isArray(list)
+            ? list.map((r) => ({
+              ...r,
+              name: r?.name || r?.restaurantName || "",
+            }))
+            : []
+          setRestaurants(normalized)
         }
       } catch (err) {
         debugError("Error fetching restaurants:", err)

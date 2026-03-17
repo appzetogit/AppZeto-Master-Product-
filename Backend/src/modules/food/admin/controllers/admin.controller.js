@@ -1,6 +1,51 @@
 import mongoose from 'mongoose';
 import * as adminService from '../services/admin.service.js';
 import { validateCategoryListQuery, validateCategoryUpsertDto } from '../validators/category.validator.js';
+import { validateCreateOfferDto, validateUpdateOfferCartVisibilityDto } from '../validators/offer.validator.js';
+import { validateAddDeliveryBonusDto } from '../validators/deliveryBonus.validator.js';
+import { validateCheckCompletionsDto, validateEarningAddonHistoryActionDto, validateEarningAddonUpsertDto, validateToggleEarningAddonStatusDto } from '../validators/earningAddon.validator.js';
+import { validateDeliveryCommissionRuleDto, validateOptionalStatusDto, validateRestaurantCommissionUpsertDto } from '../validators/commission.validator.js';
+import { validateFeeSettingsUpsertDto } from '../validators/feeSettings.validator.js';
+import { validateDeliveryEmergencyHelpUpsertDto } from '../validators/deliveryEmergencyHelp.validator.js';
+
+// ----- Customers / Users -----
+export async function getCustomers(req, res, next) {
+    try {
+        const data = await adminService.getCustomers(req.query || {});
+        res.status(200).json({ success: true, message: 'Customers fetched successfully', data });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function getCustomerById(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid customer id' });
+        }
+        const customer = await adminService.getCustomerById(id);
+        if (!customer) return res.status(404).json({ success: false, message: 'Customer not found' });
+        res.status(200).json({ success: true, message: 'Customer fetched successfully', data: { user: customer, customer } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function updateCustomerStatus(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid customer id' });
+        }
+        const isActive = req.body?.isActive;
+        const updated = await adminService.updateCustomerStatus(id, isActive);
+        if (!updated) return res.status(404).json({ success: false, message: 'Customer not found' });
+        res.status(200).json({ success: true, message: 'Customer status updated successfully', data: { user: updated, customer: updated } });
+    } catch (error) {
+        next(error);
+    }
+}
 
 // ----- Restaurants -----
 export async function getRestaurants(req, res, next) {
@@ -237,6 +282,43 @@ export async function toggleCategoryStatus(req, res, next) {
     }
 }
 
+// ----- Offers & Coupons -----
+export async function getAllOffers(req, res, next) {
+    try {
+        const data = await adminService.getAllOffers(req.query || {});
+        res.status(200).json({ success: true, message: 'Offers fetched successfully', data });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function createAdminOffer(req, res, next) {
+    try {
+        const body = validateCreateOfferDto(req.body || {});
+        const created = await adminService.createAdminOffer(body);
+        res.status(201).json({ success: true, message: 'Offer created successfully', data: { offer: created } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function updateAdminOfferCartVisibility(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid offer id' });
+        }
+        const body = validateUpdateOfferCartVisibilityDto(req.body || {});
+        const updated = await adminService.updateAdminOfferCartVisibility(id, body.itemId, body.showInCart);
+        if (!updated) {
+            return res.status(404).json({ success: false, message: 'Offer not found' });
+        }
+        res.status(200).json({ success: true, message: 'Offer updated successfully', data: { offer: updated } });
+    } catch (error) {
+        next(error);
+    }
+}
+
 export async function getPendingRestaurants(req, res, next) {
     try {
         const pending = await adminService.getPendingRestaurants();
@@ -245,6 +327,375 @@ export async function getPendingRestaurants(req, res, next) {
             message: 'Pending restaurants fetched successfully',
             data: pending
         });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// ----- Delivery partner bonus (admin) -----
+export async function getDeliveryPartnerBonusTransactions(req, res, next) {
+    try {
+        const data = await adminService.getDeliveryPartnerBonusTransactions(req.query || {});
+        res.status(200).json({ success: true, message: 'Bonus transactions fetched successfully', data });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function addDeliveryPartnerBonus(req, res, next) {
+    try {
+        const body = validateAddDeliveryBonusDto(req.body || {});
+        const created = await adminService.addDeliveryPartnerBonus(body, req.user);
+        res.status(201).json({ success: true, message: 'Bonus added successfully', data: { transaction: created } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// ----- Earning Addon (admin) -----
+export async function getEarningAddons(req, res, next) {
+    try {
+        const data = await adminService.getEarningAddons();
+        res.status(200).json({ success: true, message: 'Earning addons fetched successfully', data });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function createEarningAddon(req, res, next) {
+    try {
+        const body = validateEarningAddonUpsertDto(req.body || {});
+        const created = await adminService.createEarningAddon(body);
+        res.status(201).json({ success: true, message: 'Earning addon created successfully', data: { earningAddon: created } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function updateEarningAddon(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid earning addon id' });
+        }
+        const body = validateEarningAddonUpsertDto(req.body || {});
+        const updated = await adminService.updateEarningAddon(id, body);
+        if (!updated) {
+            return res.status(404).json({ success: false, message: 'Earning addon not found' });
+        }
+        res.status(200).json({ success: true, message: 'Earning addon updated successfully', data: { earningAddon: updated } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function deleteEarningAddon(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid earning addon id' });
+        }
+        const result = await adminService.deleteEarningAddon(id);
+        if (!result) {
+            return res.status(404).json({ success: false, message: 'Earning addon not found' });
+        }
+        res.status(200).json({ success: true, message: 'Earning addon deleted successfully', data: result });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function toggleEarningAddonStatus(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid earning addon id' });
+        }
+        const { status } = validateToggleEarningAddonStatusDto(req.body || {});
+        const updated = await adminService.toggleEarningAddonStatus(id, status);
+        if (!updated) {
+            return res.status(404).json({ success: false, message: 'Earning addon not found' });
+        }
+        res.status(200).json({ success: true, message: 'Status updated successfully', data: { earningAddon: updated } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function getEarningAddonHistory(req, res, next) {
+    try {
+        const data = await adminService.getEarningAddonHistory(req.query || {});
+        res.status(200).json({ success: true, message: 'Earning addon history fetched successfully', data });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function creditEarningToWallet(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid history id' });
+        }
+        const { notes } = validateEarningAddonHistoryActionDto(req.body || {});
+        const updated = await adminService.creditEarningAddonHistory(id, notes);
+        if (!updated) {
+            return res.status(404).json({ success: false, message: 'History record not found' });
+        }
+        res.status(200).json({ success: true, message: 'Earning credited successfully', data: { history: updated } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function cancelEarningAddonHistory(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid history id' });
+        }
+        const { reason } = validateEarningAddonHistoryActionDto(req.body || {});
+        const updated = await adminService.cancelEarningAddonHistory(id, reason);
+        if (!updated) {
+            return res.status(404).json({ success: false, message: 'History record not found' });
+        }
+        res.status(200).json({ success: true, message: 'Earning cancelled successfully', data: { history: updated } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function checkEarningAddonCompletions(req, res, next) {
+    try {
+        const { deliveryPartnerId, force } = validateCheckCompletionsDto(req.body || {});
+        const data = await adminService.checkEarningAddonCompletions(deliveryPartnerId, force);
+        res.status(200).json({ success: true, message: 'Completion check done', data });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// ----- Restaurant Commission (admin) -----
+export async function getRestaurantCommissions(req, res, next) {
+    try {
+        const data = await adminService.getRestaurantCommissions();
+        res.status(200).json({ success: true, message: 'Restaurant commissions fetched successfully', data });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function getRestaurantCommissionBootstrap(req, res, next) {
+    try {
+        const data = await adminService.getRestaurantCommissionBootstrap();
+        res.status(200).json({ success: true, message: 'Restaurant commission bootstrap fetched successfully', data });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function getRestaurantCommissionById(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid commission id' });
+        }
+        const commission = await adminService.getRestaurantCommissionById(id);
+        if (!commission) {
+            return res.status(404).json({ success: false, message: 'Commission not found' });
+        }
+        res.status(200).json({ success: true, message: 'Commission fetched successfully', data: { commission } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function createRestaurantCommission(req, res, next) {
+    try {
+        const body = validateRestaurantCommissionUpsertDto(req.body || {});
+        const created = await adminService.createRestaurantCommission(body);
+        res.status(201).json({ success: true, message: 'Commission created successfully', data: { commission: created } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function updateRestaurantCommission(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid commission id' });
+        }
+        const body = validateRestaurantCommissionUpsertDto(req.body || {});
+        const updated = await adminService.updateRestaurantCommission(id, body);
+        if (!updated) {
+            return res.status(404).json({ success: false, message: 'Commission not found' });
+        }
+        res.status(200).json({ success: true, message: 'Commission updated successfully', data: { commission: updated } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function deleteRestaurantCommission(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid commission id' });
+        }
+        const result = await adminService.deleteRestaurantCommission(id);
+        if (!result) {
+            return res.status(404).json({ success: false, message: 'Commission not found' });
+        }
+        res.status(200).json({ success: true, message: 'Commission deleted successfully', data: result });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function toggleRestaurantCommissionStatus(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid commission id' });
+        }
+        const updated = await adminService.toggleRestaurantCommissionStatus(id);
+        if (!updated) {
+            return res.status(404).json({ success: false, message: 'Commission not found' });
+        }
+        res.status(200).json({ success: true, message: 'Status updated successfully', data: { commission: updated } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// ----- Delivery commission rules (admin) -----
+export async function getDeliveryCommissionRules(req, res, next) {
+    try {
+        const data = await adminService.getDeliveryCommissionRules();
+        res.status(200).json({ success: true, message: 'Commission rules fetched successfully', data });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function createDeliveryCommissionRule(req, res, next) {
+    try {
+        const body = validateDeliveryCommissionRuleDto(req.body || {});
+        const created = await adminService.createDeliveryCommissionRule(body);
+        res.status(201).json({ success: true, message: 'Commission rule created successfully', data: { commission: created } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function updateDeliveryCommissionRule(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid commission id' });
+        }
+        const body = validateDeliveryCommissionRuleDto(req.body || {});
+        const updated = await adminService.updateDeliveryCommissionRule(id, body);
+        if (!updated) {
+            return res.status(404).json({ success: false, message: 'Commission rule not found' });
+        }
+        res.status(200).json({ success: true, message: 'Commission rule updated successfully', data: { commission: updated } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function deleteDeliveryCommissionRule(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid commission id' });
+        }
+        const result = await adminService.deleteDeliveryCommissionRule(id);
+        if (!result) {
+            return res.status(404).json({ success: false, message: 'Commission rule not found' });
+        }
+        res.status(200).json({ success: true, message: 'Commission rule deleted successfully', data: result });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function toggleDeliveryCommissionRuleStatus(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid commission id' });
+        }
+        const { status } = validateOptionalStatusDto(req.body || {});
+        if (typeof status !== 'boolean') {
+            return res.status(400).json({ success: false, message: 'status is required' });
+        }
+        const updated = await adminService.toggleDeliveryCommissionRuleStatus(id, status);
+        if (!updated) {
+            return res.status(404).json({ success: false, message: 'Commission rule not found' });
+        }
+        res.status(200).json({ success: true, message: 'Status updated successfully', data: { commission: updated } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// ----- Fee Settings (admin) -----
+export async function getFeeSettings(req, res, next) {
+    try {
+        const data = await adminService.getFeeSettings();
+        res.status(200).json({ success: true, message: 'Fee settings fetched successfully', data });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function createOrUpdateFeeSettings(req, res, next) {
+    try {
+        const body = validateFeeSettingsUpsertDto(req.body || {});
+        const feeSettings = await adminService.upsertFeeSettings(body);
+        res.status(200).json({ success: true, message: 'Fee settings saved successfully', data: { feeSettings } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// ----- Delivery Cash Limit (admin) -----
+export async function getDeliveryCashLimit(req, res, next) {
+    try {
+        const data = await adminService.getDeliveryCashLimitSettings();
+        res.status(200).json({ success: true, message: 'Delivery cash limit fetched successfully', data });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function updateDeliveryCashLimit(req, res, next) {
+    try {
+        const data = await adminService.upsertDeliveryCashLimitSettings(req.body || {});
+        res.status(200).json({ success: true, message: 'Delivery cash limit updated successfully', data });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// ----- Delivery Emergency Help (admin) -----
+export async function getEmergencyHelp(req, res, next) {
+    try {
+        const data = await adminService.getDeliveryEmergencyHelp();
+        res.status(200).json({ success: true, message: 'Emergency help fetched successfully', data });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function createOrUpdateEmergencyHelp(req, res, next) {
+    try {
+        const body = validateDeliveryEmergencyHelpUpsertDto(req.body || {});
+        const data = await adminService.upsertDeliveryEmergencyHelp(body);
+        res.status(200).json({ success: true, message: 'Emergency help saved successfully', data });
     } catch (error) {
         next(error);
     }

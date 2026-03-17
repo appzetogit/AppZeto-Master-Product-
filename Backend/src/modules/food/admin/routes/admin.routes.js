@@ -1,6 +1,7 @@
 import express from 'express';
 import { AuthError } from '../../../../core/auth/errors.js';
 import * as adminController from '../controllers/admin.controller.js';
+import * as foodApprovalController from '../controllers/foodApproval.controller.js';
 
 const router = express.Router();
 
@@ -13,6 +14,11 @@ const requireAdmin = (req, _res, next) => {
 };
 
 router.use(requireAdmin);
+
+// ----- Customers -----
+router.get('/customers', adminController.getCustomers);
+router.get('/customers/:id', adminController.getCustomerById);
+router.patch('/customers/:id/status', adminController.updateCustomerStatus);
 
 // ----- Restaurants -----
 router.get('/restaurants', adminController.getRestaurants);
@@ -27,6 +33,15 @@ router.patch('/restaurants/:id/menu', adminController.updateRestaurantMenuById);
 router.patch('/restaurants/:id/approve', adminController.approveRestaurant);
 router.patch('/restaurants/:id/reject', adminController.rejectRestaurant);
 
+// ----- Restaurant Commission -----
+router.get('/restaurant-commissions/bootstrap', adminController.getRestaurantCommissionBootstrap);
+router.get('/restaurant-commissions', adminController.getRestaurantCommissions);
+router.post('/restaurant-commissions', adminController.createRestaurantCommission);
+router.get('/restaurant-commissions/:id', adminController.getRestaurantCommissionById);
+router.patch('/restaurant-commissions/:id', adminController.updateRestaurantCommission);
+router.delete('/restaurant-commissions/:id', adminController.deleteRestaurantCommission);
+router.patch('/restaurant-commissions/:id/toggle', adminController.toggleRestaurantCommissionStatus);
+
 // ----- Categories -----
 router.get('/categories', adminController.getCategories);
 router.post('/categories', adminController.createCategory);
@@ -39,10 +54,47 @@ router.get('/foods', adminController.getFoods);
 router.post('/foods', adminController.createFood);
 router.patch('/foods/:id', adminController.updateFood);
 router.delete('/foods/:id', adminController.deleteFood);
+// Food approval queue (pending items created by restaurants)
+router.get('/foods/pending-approvals', foodApprovalController.getPendingFoodApprovals);
+router.patch('/foods/:id/approve', foodApprovalController.approveFoodItemController);
+router.patch('/foods/:id/reject', foodApprovalController.rejectFoodItemController);
+
+// ----- Offers & Coupons -----
+router.get('/offers', adminController.getAllOffers);
+router.post('/offers', adminController.createAdminOffer);
+router.patch('/offers/:id/cart-visibility', adminController.updateAdminOfferCartVisibility);
+
+// ----- Fee Settings -----
+router.get('/fee-settings', adminController.getFeeSettings);
+router.put('/fee-settings', adminController.createOrUpdateFeeSettings);
+
+// ----- Delivery Cash Limit -----
+router.get('/delivery-cash-limit', adminController.getDeliveryCashLimit);
+router.patch('/delivery-cash-limit', adminController.updateDeliveryCashLimit);
+
+// ----- Delivery Emergency Help -----
+router.get('/delivery-emergency-help', adminController.getEmergencyHelp);
+router.put('/delivery-emergency-help', adminController.createOrUpdateEmergencyHelp);
 
 // ----- Delivery -----
 router.get('/delivery/join-requests', adminController.getDeliveryJoinRequests);
 router.get('/delivery/wallets', adminController.getDeliveryWallets);
+router.get('/delivery/bonus-transactions', adminController.getDeliveryPartnerBonusTransactions);
+router.post('/delivery/bonus', adminController.addDeliveryPartnerBonus);
+router.get('/delivery/commission-rules', adminController.getDeliveryCommissionRules);
+router.post('/delivery/commission-rules', adminController.createDeliveryCommissionRule);
+router.patch('/delivery/commission-rules/:id', adminController.updateDeliveryCommissionRule);
+router.delete('/delivery/commission-rules/:id', adminController.deleteDeliveryCommissionRule);
+router.patch('/delivery/commission-rules/:id/status', adminController.toggleDeliveryCommissionRuleStatus);
+router.get('/delivery/earning-addons', adminController.getEarningAddons);
+router.post('/delivery/earning-addons', adminController.createEarningAddon);
+router.patch('/delivery/earning-addons/:id', adminController.updateEarningAddon);
+router.delete('/delivery/earning-addons/:id', adminController.deleteEarningAddon);
+router.patch('/delivery/earning-addons/:id/status', adminController.toggleEarningAddonStatus);
+router.get('/delivery/earning-addon-history', adminController.getEarningAddonHistory);
+router.post('/delivery/earning-addon-history/:id/credit', adminController.creditEarningToWallet);
+router.post('/delivery/earning-addon-history/:id/cancel', adminController.cancelEarningAddonHistory);
+router.post('/delivery/earning-addon-completions/check', adminController.checkEarningAddonCompletions);
 router.get('/delivery/support-tickets/stats', adminController.getSupportTicketStats);
 router.get('/delivery/support-tickets', adminController.getSupportTickets);
 router.patch('/delivery/support-tickets/:id', adminController.updateSupportTicket);

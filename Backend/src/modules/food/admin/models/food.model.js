@@ -12,7 +12,11 @@ const foodSchema = new mongoose.Schema(
         foodType: { type: String, enum: ['Veg', 'Non-Veg'], default: 'Non-Veg' },
         isAvailable: { type: Boolean, default: true, index: true },
         preparationTime: { type: String, trim: true, default: '' },
-        approvalStatus: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'approved', index: true }
+        approvalStatus: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'approved', index: true },
+        rejectionReason: { type: String, trim: true, default: '' },
+        requestedAt: { type: Date },
+        approvedAt: { type: Date },
+        rejectedAt: { type: Date }
     },
     {
         collection: 'food_items',
@@ -21,6 +25,9 @@ const foodSchema = new mongoose.Schema(
 );
 
 foodSchema.index({ restaurantId: 1, createdAt: -1 });
+foodSchema.index({ approvalStatus: 1, createdAt: -1 });
+foodSchema.index({ approvalStatus: 1, requestedAt: -1 });
+foodSchema.index({ restaurantId: 1, approvalStatus: 1, createdAt: -1 });
 
 export const FoodItem = mongoose.model('FoodItem', foodSchema);
 

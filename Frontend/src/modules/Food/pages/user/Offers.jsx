@@ -147,7 +147,44 @@ export default function Offers() {
                 </div>
               </section>
             ))}
-          
+
+            {/* Coupon-style offers (admin created) */}
+            {Object.keys(groupedOffers).length === 0 && offers.length > 0 && (
+              <section className="space-y-4">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
+                  Available Coupons
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {offers.map((o) => (
+                    <Card key={o.id || o.offerId} className="border border-slate-200 shadow-sm">
+                      <CardContent className="p-4 space-y-2">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Coupon</p>
+                            <p className="text-lg font-extrabold text-slate-900 dark:text-slate-100 tracking-wide">
+                              {o.couponCode || "-"}
+                            </p>
+                          </div>
+                          <span className="px-2 py-1 rounded-md text-xs font-semibold bg-blue-600 text-white">
+                            {o.title || "Offer"}
+                          </span>
+                        </div>
+                        <p className="text-sm text-slate-700 dark:text-slate-300">
+                          <span className="font-semibold">Restaurant:</span>{" "}
+                          {o.restaurantName || "All Restaurants"}
+                        </p>
+                        {o.endDate && (
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Valid till: {new Date(o.endDate).toLocaleDateString()}
+                          </p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </section>
+            )}
+
             {offers.length === 0 && !loading && (
               <div className="text-center py-12">
                 <p className="text-gray-500 dark:text-gray-400">No offers available at the moment</p>

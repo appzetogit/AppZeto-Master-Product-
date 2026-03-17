@@ -5,7 +5,8 @@ import {
     getCurrentRestaurantProfile,
     updateRestaurantProfile,
     uploadRestaurantProfileImage,
-    uploadRestaurantMenuImage
+    uploadRestaurantMenuImage,
+    listPublicOffers
 } from '../services/restaurant.service.js';
 import { validateRestaurantRegisterDto } from '../validators/restaurant.validator.js';
 import { sendResponse } from '../../../../utils/response.js';
@@ -75,6 +76,15 @@ export const uploadRestaurantMenuImageController = async (req, res, next) => {
     try {
         const result = await uploadRestaurantMenuImage(req.file);
         return sendResponse(res, 200, 'Menu image uploaded successfully', result);
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const listPublicOffersController = async (req, res, next) => {
+    try {
+        const data = await listPublicOffers(req.query || {});
+        return sendResponse(res, 200, 'Offers fetched successfully', data);
     } catch (error) {
         next(error);
     }

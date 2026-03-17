@@ -132,30 +132,39 @@ function RestaurantDetailsContent() {
         let response = null
         let apiRestaurant = null
 
-        // Try dining API first
+        // Try dining API first (if available). If it doesn't return a valid restaurant,
+        // always fall back to restaurant API (important when diningAPI is stubbed).
         try {
           response = await diningAPI.getRestaurantBySlug(slug)
-          if (response.data && response.data.success && response.data.data) {
+          if (response?.data?.success && response?.data?.data) {
             apiRestaurant = response.data.data
             debugLog('? Found restaurant in dining API:', apiRestaurant)
+          } else {
+            debugLog('? Dining API returned no restaurant, falling back to restaurant API...')
           }
         } catch (diningError) {
-          // If dining API fails with 404, try restaurant API
-          if (diningError.response?.status === 404) {
+          // If dining API errors, we still fall back unless it's a hard network failure handled below.
+          if (diningError?.response?.status === 404) {
             debugLog('? Restaurant not found in dining API, trying restaurant API...')
+          } else {
+            debugWarn('? Dining API failed, trying restaurant API...', diningError?.message)
+          }
+        }
+
+        // Restaurant API fallback (works for both ObjectId and slug)
+        if (!apiRestaurant) {
+          try {
+            // First, try to get restaurant directly by slug/ID (no zoneId needed)
             try {
-              // First, try to get restaurant directly by slug (getRestaurantById supports both ID and slug)
-              // This doesn't require zoneId, so it works even if zone is not detected
-              try {
-                response = await restaurantAPI.getRestaurantById(slug)
-                if (response.data && response.data.success && response.data.data) {
-                  apiRestaurant = response.data.data
-                  debugLog('? Found restaurant in restaurant API by slug/ID:', apiRestaurant)
-                }
-              } catch (directLookupError) {
-                // If direct lookup fails, try searching by name.
-                // Fallback without zoneId so missing live location never blocks this page.
-                debugLog('? Direct lookup failed, trying search by name...')
+              response = await restaurantAPI.getRestaurantById(slug)
+              if (response?.data?.success && response?.data?.data) {
+                apiRestaurant = response.data.data
+                debugLog('? Found restaurant in restaurant API by slug/ID:', apiRestaurant)
+              }
+            } catch (directLookupError) {
+              // If direct lookup fails, try searching by name.
+              // Fallback without zoneId so missing live location never blocks this page.
+              debugLog('? Direct lookup failed, trying search by name...')
 
                 const searchVariants = zoneId
                   ? [{ limit: 100, zoneId: zoneId, _ts: Date.now() }, { limit: 100, _ts: Date.now() }]
@@ -187,16 +196,9 @@ function RestaurantDetailsContent() {
                     debugWarn('? Search fallback failed for params:', searchParams, searchError?.message)
                   }
                 }
-              }
-            } catch (restaurantError) {
-              debugError('? Restaurant not found in restaurant API either:', restaurantError)
-              // Only throw if we haven't found the restaurant yet
-              if (!apiRestaurant) {
-                throw diningError // Throw original error to show "Restaurant not found"
-              }
             }
-          } else {
-            throw diningError // Re-throw if it's not a 404
+          } catch (restaurantError) {
+            debugError('? Restaurant not found in restaurant API either:', restaurantError)
           }
         }
 
@@ -406,7 +408,12 @@ function RestaurantDetailsContent() {
           const transformedRestaurant = {
             id: actualRestaurant?.restaurantId || actualRestaurant?._id || actualRestaurant?.id || apiRestaurant?.restaurantId || apiRestaurant?._id || null,
             mongoId: actualRestaurant?._id || apiRestaurant?._id || null,
-            name: actualRestaurant?.name || apiRestaurant?.name || apiRestaurant?.restaurantName || "Unknown Restaurant",
+            name:
+              actualRestaurant?.name ||
+              actualRestaurant?.restaurantName ||
+              apiRestaurant?.name ||
+              apiRestaurant?.restaurantName ||
+              "Unknown Restaurant",
             cuisine: resolvedTopCategory,
             topCategory: resolvedTopCategory,
             rating: actualRestaurant?.rating || apiRestaurant?.rating || actualRestaurant?.averageRating || apiRestaurant?.averageRating || 4.5,

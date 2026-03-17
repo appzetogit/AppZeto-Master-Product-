@@ -2,6 +2,8 @@ import mongoose from 'mongoose';
 import * as adminService from '../services/admin.service.js';
 import { validateCategoryListQuery, validateCategoryUpsertDto } from '../validators/category.validator.js';
 import { validateCreateOfferDto, validateUpdateOfferCartVisibilityDto } from '../validators/offer.validator.js';
+import { validateAddDeliveryBonusDto } from '../validators/deliveryBonus.validator.js';
+import { validateCheckCompletionsDto, validateEarningAddonHistoryActionDto, validateEarningAddonUpsertDto, validateToggleEarningAddonStatusDto } from '../validators/earningAddon.validator.js';
 
 // ----- Restaurants -----
 export async function getRestaurants(req, res, next) {
@@ -235,6 +237,149 @@ export async function getPendingRestaurants(req, res, next) {
             message: 'Pending restaurants fetched successfully',
             data: pending
         });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// ----- Delivery partner bonus (admin) -----
+export async function getDeliveryPartnerBonusTransactions(req, res, next) {
+    try {
+        const data = await adminService.getDeliveryPartnerBonusTransactions(req.query || {});
+        res.status(200).json({ success: true, message: 'Bonus transactions fetched successfully', data });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function addDeliveryPartnerBonus(req, res, next) {
+    try {
+        const body = validateAddDeliveryBonusDto(req.body || {});
+        const created = await adminService.addDeliveryPartnerBonus(body, req.user);
+        res.status(201).json({ success: true, message: 'Bonus added successfully', data: { transaction: created } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// ----- Earning Addon (admin) -----
+export async function getEarningAddons(req, res, next) {
+    try {
+        const data = await adminService.getEarningAddons();
+        res.status(200).json({ success: true, message: 'Earning addons fetched successfully', data });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function createEarningAddon(req, res, next) {
+    try {
+        const body = validateEarningAddonUpsertDto(req.body || {});
+        const created = await adminService.createEarningAddon(body);
+        res.status(201).json({ success: true, message: 'Earning addon created successfully', data: { earningAddon: created } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function updateEarningAddon(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid earning addon id' });
+        }
+        const body = validateEarningAddonUpsertDto(req.body || {});
+        const updated = await adminService.updateEarningAddon(id, body);
+        if (!updated) {
+            return res.status(404).json({ success: false, message: 'Earning addon not found' });
+        }
+        res.status(200).json({ success: true, message: 'Earning addon updated successfully', data: { earningAddon: updated } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function deleteEarningAddon(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid earning addon id' });
+        }
+        const result = await adminService.deleteEarningAddon(id);
+        if (!result) {
+            return res.status(404).json({ success: false, message: 'Earning addon not found' });
+        }
+        res.status(200).json({ success: true, message: 'Earning addon deleted successfully', data: result });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function toggleEarningAddonStatus(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid earning addon id' });
+        }
+        const { status } = validateToggleEarningAddonStatusDto(req.body || {});
+        const updated = await adminService.toggleEarningAddonStatus(id, status);
+        if (!updated) {
+            return res.status(404).json({ success: false, message: 'Earning addon not found' });
+        }
+        res.status(200).json({ success: true, message: 'Status updated successfully', data: { earningAddon: updated } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function getEarningAddonHistory(req, res, next) {
+    try {
+        const data = await adminService.getEarningAddonHistory(req.query || {});
+        res.status(200).json({ success: true, message: 'Earning addon history fetched successfully', data });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function creditEarningToWallet(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid history id' });
+        }
+        const { notes } = validateEarningAddonHistoryActionDto(req.body || {});
+        const updated = await adminService.creditEarningAddonHistory(id, notes);
+        if (!updated) {
+            return res.status(404).json({ success: false, message: 'History record not found' });
+        }
+        res.status(200).json({ success: true, message: 'Earning credited successfully', data: { history: updated } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function cancelEarningAddonHistory(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid history id' });
+        }
+        const { reason } = validateEarningAddonHistoryActionDto(req.body || {});
+        const updated = await adminService.cancelEarningAddonHistory(id, reason);
+        if (!updated) {
+            return res.status(404).json({ success: false, message: 'History record not found' });
+        }
+        res.status(200).json({ success: true, message: 'Earning cancelled successfully', data: { history: updated } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function checkEarningAddonCompletions(req, res, next) {
+    try {
+        const { deliveryPartnerId, force } = validateCheckCompletionsDto(req.body || {});
+        const data = await adminService.checkEarningAddonCompletions(deliveryPartnerId, force);
+        res.status(200).json({ success: true, message: 'Completion check done', data });
     } catch (error) {
         next(error);
     }

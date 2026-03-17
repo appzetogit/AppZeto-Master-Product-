@@ -7,6 +7,9 @@ import { FoodZone } from '../models/zone.model.js';
 import { FoodCategory } from '../models/category.model.js';
 import { FoodItem } from '../models/food.model.js';
 import { FoodOffer } from '../models/offer.model.js';
+import { DeliveryBonusTransaction } from '../models/deliveryBonusTransaction.model.js';
+import { FoodEarningAddon } from '../models/earningAddon.model.js';
+import { FoodEarningAddonHistory } from '../models/earningAddonHistory.model.js';
 
 // ----- Restaurants -----
 export async function getRestaurants(query) {
@@ -629,6 +632,7 @@ export async function getDeliveryPartners(query) {
         name: doc.name || '',
         email: doc.email || '',
         phone: doc.phone || '',
+        deliveryId: doc._id ? `DP-${doc._id.toString().slice(-8).toUpperCase()}` : null,
         zone: doc.city || doc.state || doc.address || '',
         vehicleType: doc.vehicleType || '',
         status: doc.status,
@@ -645,6 +649,266 @@ export async function getDeliveryPartners(query) {
             pages: Math.ceil(total / limitNum) || 1
         }
     };
+}
+
+// ----- Delivery partner bonus (admin) -----
+function generateBonusTransactionId() {
+    const n = Date.now().toString(36).slice(-6).toUpperCase();
+    const r = Math.random().toString(36).slice(2, 6).toUpperCase();
+    return `BON-${n}${r}`;
+}
+
+export async function getDeliveryPartnerBonusTransactions(query = {}) {
+    const { page = 1, limit = 1000, search } = query;
+    const filter = {};
+
+    // For search (name/phone/email/transactionId) we do a two-step lookup to keep it simple.
+    if (search && typeof search === 'string' && search.trim()) {
+        const term = search.trim();
+        const partnerIds = await FoodDeliveryPartner.find({
+            $or: [
+                { name: { $regex: term, $options: 'i' } },
+                { phone: { $regex: term, $options: 'i' } },
+                { email: { $regex: term, $options: 'i' } }
+            ]
+        }).select('_id').lean();
+        filter.$or = [
+            { transactionId: { $regex: term, $options: 'i' } },
+            { deliveryPartnerId: { $in: partnerIds.map((p) => p._id) } }
+        ];
+    }
+
+    const skip = Math.max(0, (Number(page) || 1) - 1) * Math.max(1, Math.min(1000, Number(limit) || 100));
+    const limitNum = Math.max(1, Math.min(1000, Number(limit) || 100));
+
+    const [list, total] = await Promise.all([
+        DeliveryBonusTransaction.find(filter)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limitNum)
+            .populate({ path: 'deliveryPartnerId', select: 'name phone email' })
+            .lean(),
+        DeliveryBonusTransaction.countDocuments(filter)
+    ]);
+
+    const transactions = list.map((t, index) => {
+        const partner = t.deliveryPartnerId;
+        const partnerId = partner?._id ? String(partner._id) : null;
+        return {
+            sl: skip + index + 1,
+            transactionId: t.transactionId,
+            deliveryPartnerId: partnerId,
+            deliveryId: partnerId ? `DP-${partnerId.slice(-8).toUpperCase()}` : null,
+            deliveryman: partner?.name || '',
+            amount: t.amount,
+            bonus: t.amount, // legacy compatibility
+            reference: t.reference || '',
+            createdAt: t.createdAt
+        };
+    });
+
+    return {
+        transactions,
+        pagination: {
+            page: Number(page) || 1,
+            limit: limitNum,
+            total,
+            pages: Math.ceil(total / limitNum) || 1
+        }
+    };
+}
+
+export async function addDeliveryPartnerBonus(body, adminUser) {
+    const partner = await FoodDeliveryPartner.findById(body.deliveryPartnerId).lean();
+    if (!partner) {
+        throw new ValidationError('Delivery partner not found');
+    }
+    if (partner.status !== 'approved') {
+        throw new ValidationError('Delivery partner must be approved');
+    }
+
+    let transactionId = generateBonusTransactionId();
+    let exists = await DeliveryBonusTransaction.findOne({ transactionId }).lean();
+    while (exists) {
+        transactionId = generateBonusTransactionId();
+        exists = await DeliveryBonusTransaction.findOne({ transactionId }).lean();
+    }
+
+    const created = await DeliveryBonusTransaction.create({
+        deliveryPartnerId: body.deliveryPartnerId,
+        transactionId,
+        amount: body.amount,
+        reference: body.reference || '',
+        createdByAdminId: adminUser?._id
+    });
+
+    return created.toObject();
+}
+
+// ----- Earning Addon Offers (admin) -----
+export async function getEarningAddons() {
+    const list = await FoodEarningAddon.find({})
+        .sort({ createdAt: -1 })
+        .lean();
+
+    const now = Date.now();
+    const earningAddons = list.map((a) => {
+        const start = a.startDate ? new Date(a.startDate).getTime() : 0;
+        const end = a.endDate ? new Date(a.endDate).getTime() : 0;
+        const isValid = Boolean(a.status === 'active' && start && end && now >= start && now <= end);
+        const isExpired = Boolean(end && now > end);
+
+        return {
+            ...a,
+            isValid,
+            status: isExpired ? 'expired' : (a.status || 'inactive')
+        };
+    });
+
+    return { earningAddons };
+}
+
+export async function createEarningAddon(body) {
+    const created = await FoodEarningAddon.create({
+        title: body.title,
+        requiredOrders: body.requiredOrders,
+        earningAmount: body.earningAmount,
+        startDate: body.startDate,
+        endDate: body.endDate,
+        maxRedemptions: body.maxRedemptions ?? null,
+        status: 'active'
+    });
+    return created.toObject();
+}
+
+export async function updateEarningAddon(id, body) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+    const doc = await FoodEarningAddon.findById(id);
+    if (!doc) return null;
+    doc.title = body.title;
+    doc.requiredOrders = body.requiredOrders;
+    doc.earningAmount = body.earningAmount;
+    doc.startDate = body.startDate;
+    doc.endDate = body.endDate;
+    doc.maxRedemptions = body.maxRedemptions ?? null;
+    await doc.save();
+    return doc.toObject();
+}
+
+export async function deleteEarningAddon(id) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+    const deleted = await FoodEarningAddon.findByIdAndDelete(id).lean();
+    return deleted ? { id } : null;
+}
+
+export async function toggleEarningAddonStatus(id, status) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+    return FoodEarningAddon.findByIdAndUpdate(id, { $set: { status } }, { new: true }).lean();
+}
+
+// ----- Earning Addon History (admin) -----
+export async function getEarningAddonHistory(query = {}) {
+    const { page = 1, limit = 1000, search } = query;
+    const filter = {};
+
+    // Optional search by delivery partner name/phone/email or offer title.
+    // Keep it simple and fast: only apply when search is provided.
+    let partnerIds = null;
+    let offerIds = null;
+    if (search && typeof search === 'string' && search.trim()) {
+        const term = search.trim();
+        partnerIds = await FoodDeliveryPartner.find({
+            $or: [
+                { name: { $regex: term, $options: 'i' } },
+                { phone: { $regex: term, $options: 'i' } },
+                { email: { $regex: term, $options: 'i' } }
+            ]
+        }).select('_id').lean();
+        offerIds = await FoodEarningAddon.find({ title: { $regex: term, $options: 'i' } }).select('_id').lean();
+        filter.$or = [
+            { deliveryPartnerId: { $in: (partnerIds || []).map((p) => p._id) } },
+            { offerId: { $in: (offerIds || []).map((o) => o._id) } }
+        ];
+    }
+
+    const skip = Math.max(0, (Number(page) || 1) - 1) * Math.max(1, Math.min(1000, Number(limit) || 100));
+    const limitNum = Math.max(1, Math.min(1000, Number(limit) || 100));
+
+    const [list, total] = await Promise.all([
+        FoodEarningAddonHistory.find(filter)
+            .sort({ completedAt: -1, createdAt: -1 })
+            .skip(skip)
+            .limit(limitNum)
+            .populate({ path: 'deliveryPartnerId', select: 'name phone email' })
+            .populate({ path: 'offerId', select: 'title requiredOrders earningAmount' })
+            .lean(),
+        FoodEarningAddonHistory.countDocuments(filter)
+    ]);
+
+    const history = list.map((h, index) => {
+        const partner = h.deliveryPartnerId;
+        const offer = h.offerId;
+        const partnerId = partner?._id ? String(partner._id) : null;
+        return {
+            _id: h._id,
+            sl: skip + index + 1,
+            deliveryPartnerId: partnerId,
+            deliveryId: partnerId ? `DP-${partnerId.slice(-8).toUpperCase()}` : null,
+            deliveryman: partner?.name || '',
+            deliveryPhone: partner?.phone || 'N/A',
+            offerTitle: offer?.title || '',
+            ordersCompleted: h.ordersCompleted ?? 0,
+            ordersRequired: h.ordersRequired ?? offer?.requiredOrders ?? 0,
+            earningAmount: h.earningAmount ?? offer?.earningAmount ?? 0,
+            totalEarning: h.totalEarning ?? h.earningAmount ?? 0,
+            status: h.status || 'pending',
+            date: h.completedAt || h.createdAt,
+            completedAt: h.completedAt || h.createdAt
+        };
+    });
+
+    return {
+        history,
+        pagination: {
+            page: Number(page) || 1,
+            limit: limitNum,
+            total,
+            pages: Math.ceil(total / limitNum) || 1
+        }
+    };
+}
+
+export async function creditEarningAddonHistory(historyId, notes) {
+    if (!historyId || !mongoose.Types.ObjectId.isValid(historyId)) return null;
+    const doc = await FoodEarningAddonHistory.findById(historyId);
+    if (!doc) return null;
+    if (doc.status !== 'pending') return doc.toObject();
+    doc.status = 'credited';
+    doc.creditedAt = new Date();
+    doc.creditedNotes = typeof notes === 'string' ? notes.trim() : '';
+    await doc.save();
+    return doc.toObject();
+}
+
+export async function cancelEarningAddonHistory(historyId, reason) {
+    if (!historyId || !mongoose.Types.ObjectId.isValid(historyId)) return null;
+    const doc = await FoodEarningAddonHistory.findById(historyId);
+    if (!doc) return null;
+    if (doc.status !== 'pending') return doc.toObject();
+    doc.status = 'cancelled';
+    doc.cancelledAt = new Date();
+    doc.cancelReason = typeof reason === 'string' ? reason.trim() : '';
+    await doc.save();
+    return doc.toObject();
+}
+
+/**
+ * Completion checker (stub).
+ * Current codebase does not include an orders collection to compute real completions.
+ * We keep this endpoint so the UI can call it without errors, and it remains fast.
+ */
+export async function checkEarningAddonCompletions(_deliveryPartnerId, _force = false) {
+    return { completionsFound: 0 };
 }
 
 export async function getDeliveryPartnerById(id) {

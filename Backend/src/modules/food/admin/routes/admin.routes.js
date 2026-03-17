@@ -45,6 +45,17 @@ router.patch('/offers/:id/cart-visibility', adminController.updateAdminOfferCart
 // ----- Delivery -----
 router.get('/delivery/join-requests', adminController.getDeliveryJoinRequests);
 router.get('/delivery/wallets', adminController.getDeliveryWallets);
+router.get('/delivery/bonus-transactions', adminController.getDeliveryPartnerBonusTransactions);
+router.post('/delivery/bonus', adminController.addDeliveryPartnerBonus);
+router.get('/delivery/earning-addons', adminController.getEarningAddons);
+router.post('/delivery/earning-addons', adminController.createEarningAddon);
+router.patch('/delivery/earning-addons/:id', adminController.updateEarningAddon);
+router.delete('/delivery/earning-addons/:id', adminController.deleteEarningAddon);
+router.patch('/delivery/earning-addons/:id/status', adminController.toggleEarningAddonStatus);
+router.get('/delivery/earning-addon-history', adminController.getEarningAddonHistory);
+router.post('/delivery/earning-addon-history/:id/credit', adminController.creditEarningToWallet);
+router.post('/delivery/earning-addon-history/:id/cancel', adminController.cancelEarningAddonHistory);
+router.post('/delivery/earning-addon-completions/check', adminController.checkEarningAddonCompletions);
 router.get('/delivery/support-tickets/stats', adminController.getSupportTicketStats);
 router.get('/delivery/support-tickets', adminController.getSupportTickets);
 router.patch('/delivery/support-tickets/:id', adminController.updateSupportTicket);

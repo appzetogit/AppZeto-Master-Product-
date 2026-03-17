@@ -219,6 +219,54 @@ export const adminAPI = {
       { itemId: String(itemId), showInCart: Boolean(showInCart) },
       { contextModule: "admin" }
     ),
+
+  /** Delivery Partner Bonus (admin) */
+  getDeliveryPartnerBonusTransactions: (params = {}) =>
+    apiClient.get("/food/admin/delivery/bonus-transactions", { params, contextModule: "admin" }),
+  addDeliveryPartnerBonus: (deliveryPartnerId, amount, reference = "") =>
+    apiClient.post(
+      "/food/admin/delivery/bonus",
+      { deliveryPartnerId: String(deliveryPartnerId), amount: Number(amount), reference: String(reference || "") },
+      { contextModule: "admin" }
+    ),
+
+  /** Earning Addon Offers (admin) */
+  getEarningAddons: (params = {}) =>
+    apiClient.get("/food/admin/delivery/earning-addons", { params, contextModule: "admin" }),
+  createEarningAddon: (body) =>
+    apiClient.post("/food/admin/delivery/earning-addons", body ?? {}, { contextModule: "admin" }),
+  updateEarningAddon: (id, body) =>
+    apiClient.patch(`/food/admin/delivery/earning-addons/${String(id)}`, body ?? {}, { contextModule: "admin" }),
+  deleteEarningAddon: (id) =>
+    apiClient.delete(`/food/admin/delivery/earning-addons/${String(id)}`, { contextModule: "admin" }),
+  toggleEarningAddonStatus: (id, status) =>
+    apiClient.patch(
+      `/food/admin/delivery/earning-addons/${String(id)}/status`,
+      { status: String(status) },
+      { contextModule: "admin" }
+    ),
+
+  /** Earning Addon History (admin) */
+  getEarningAddonHistory: (params = {}) =>
+    apiClient.get("/food/admin/delivery/earning-addon-history", { params, contextModule: "admin" }),
+  creditEarningToWallet: (historyId, notes = "") =>
+    apiClient.post(
+      `/food/admin/delivery/earning-addon-history/${String(historyId)}/credit`,
+      { notes: String(notes || "") },
+      { contextModule: "admin" }
+    ),
+  cancelEarningAddonHistory: (historyId, reason = "") =>
+    apiClient.post(
+      `/food/admin/delivery/earning-addon-history/${String(historyId)}/cancel`,
+      { reason: String(reason || "") },
+      { contextModule: "admin" }
+    ),
+  checkEarningAddonCompletions: (deliveryPartnerId, force = false) =>
+    apiClient.post(
+      "/food/admin/delivery/earning-addon-completions/check",
+      { deliveryPartnerId: String(deliveryPartnerId), force: Boolean(force) },
+      { contextModule: "admin" }
+    ),
 };
 
 /** Restaurant API - OTP login via new backend; no email/password. */

@@ -19,11 +19,14 @@ export default function Category() {
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingCategory, setEditingCategory] = useState(null)
+  const [zones, setZones] = useState([])
+  const [zonesLoading, setZonesLoading] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
     image: "https://via.placeholder.com/40",
     status: true,
-    type: ""
+    type: "",
+    zoneId: "global",
   })
   const [selectedImageFile, setSelectedImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState(null)
@@ -46,6 +49,28 @@ export default function Category() {
     debugLog('Admin Token:', adminToken ? 'Present' : 'Missing')
     
     fetchCategories()
+  }, [])
+
+  // Fetch zones once (for zone-specific categories)
+  useEffect(() => {
+    let cancelled = false
+    setZonesLoading(true)
+    adminAPI.getZones({ limit: 1000 })
+      .then((res) => {
+        const list =
+          res?.data?.data?.zones ||
+          res?.data?.data?.data?.zones ||
+          res?.data?.data ||
+          []
+        if (!cancelled) setZones(Array.isArray(list) ? list : [])
+      })
+      .catch(() => {
+        if (!cancelled) setZones([])
+      })
+      .finally(() => {
+        if (!cancelled) setZonesLoading(false)
+      })
+    return () => { cancelled = true }
   }, [])
 
   // Debounced search
@@ -79,6 +104,7 @@ export default function Category() {
                 _id: c?._id || c?.id,
                 status: c?.status !== undefined ? Boolean(c.status) : c?.isActive !== false,
                 isActive: c?.isActive !== undefined ? Boolean(c.isActive) : c?.status !== false,
+                zoneId: c?.zoneId || null,
               }))
             : []
         )
@@ -195,11 +221,17 @@ export default function Category() {
 
   const handleEdit = (category) => {
     setEditingCategory(category)
+    const zid = category?.zoneId
+    const zoneIdValue =
+      typeof zid === "string"
+        ? zid
+        : (zid?._id || zid?.id || "")
     setFormData({
       name: category.name || "",
       image: category.image || "https://via.placeholder.com/40",
       status: category.status !== undefined ? category.status : true,
-      type: category.type || ""
+      type: category.type || "",
+      zoneId: zoneIdValue || "global",
     })
     setSelectedImageFile(null)
     setImagePreview(category.image || null)
@@ -212,7 +244,8 @@ export default function Category() {
       name: "",
       image: "https://via.placeholder.com/40",
       status: true,
-      type: ""
+      type: "",
+      zoneId: "global",
     })
     setSelectedImageFile(null)
     setImagePreview(null)
@@ -242,9 +275,16 @@ export default function Category() {
       doc.text(`Generated on: ${date}`, 14, 28)
       
       // Prepare table data
+      const zoneLabel = (z) => {
+        if (!z) return "Global"
+        if (typeof z === "string") return z
+        return z?.name || z?.zoneName || z?.serviceLocation || "Zone"
+      }
+
       const tableData = filteredCategories.map((category, index) => [
         category.sl || index + 1,
         category.name || 'N/A',
+        zoneLabel(category.zoneId),
         category.type || 'N/A',
         category.status ? 'Active' : 'Inactive',
         category.id || 'N/A'
@@ -253,7 +293,7 @@ export default function Category() {
       // Add table
       autoTable(doc, {
         startY: 35,
-        head: [['SL', 'Category Name', 'Type', 'Status', 'ID']],
+        head: [['SL', 'Category Name', 'Zone', 'Type', 'Status', 'ID']],
         body: tableData,
         theme: 'striped',
         headStyles: {
@@ -276,10 +316,11 @@ export default function Category() {
         },
         columnStyles: {
           0: { cellWidth: 20 }, // SL
-          1: { cellWidth: 70 }, // Category Name
-          2: { cellWidth: 50 }, // Type
-          3: { cellWidth: 40 }, // Status
-          4: { cellWidth: 50 }  // ID
+          1: { cellWidth: 55 }, // Category Name
+          2: { cellWidth: 40 }, // Zone
+          3: { cellWidth: 40 }, // Type
+          4: { cellWidth: 30 }, // Status
+          5: { cellWidth: 45 }  // ID
         }
       })
       
@@ -352,7 +393,8 @@ export default function Category() {
       name: "",
       image: "https://via.placeholder.com/40",
       status: true,
-      type: ""
+      type: "",
+      zoneId: "global",
     })
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
@@ -380,6 +422,7 @@ export default function Category() {
         type: formData.type,
         status: Boolean(formData.status),
         image: imageUrl || undefined,
+        zoneId: formData.zoneId || "global",
       }
 
       debugLog('Sending category data:', {
@@ -452,7 +495,7 @@ export default function Category() {
       {/* Header Section */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-lg bg-linear-to-br from-orange-400 to-orange-600 flex items-center justify-center">
             <div className="grid grid-cols-2 gap-0.5">
               <div className="w-2 h-2 bg-white rounded-sm"></div>
               <div className="w-2 h-2 bg-white rounded-sm"></div>
@@ -522,6 +565,9 @@ export default function Category() {
                   Title
                 </th>
                 <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
+                  Zone
+                </th>
+                <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
                   Type
                 </th>
                 <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
@@ -535,7 +581,7 @@ export default function Category() {
             <tbody className="bg-white divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-20 text-center">
+                  <td colSpan={7} className="px-6 py-20 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <Loader2 className="w-8 h-8 animate-spin text-blue-600 mb-2" />
                       <p className="text-sm text-slate-500">Loading categories...</p>
@@ -544,7 +590,7 @@ export default function Category() {
                 </tr>
               ) : filteredCategories.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-20 text-center">
+                  <td colSpan={7} className="px-6 py-20 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <p className="text-lg font-semibold text-slate-700 mb-1">No Data Found</p>
                       <p className="text-sm text-slate-500">No categories match your search</p>
@@ -574,6 +620,11 @@ export default function Category() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm font-medium text-slate-900">{category.name}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-sm font-medium text-slate-700">
+                        {category.zoneId?.name || category.zoneId?.zoneName || (category.zoneId ? 'Zone' : 'Global')}
+                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm font-medium text-slate-700">{category.type || 'N/A'}</span>
@@ -629,7 +680,7 @@ export default function Category() {
         createPortal(
           <AnimatePresence>
             {isModalOpen && (
-              <div className="fixed inset-0 z-[200]">
+              <div className="fixed inset-0 z-200">
                 {/* Backdrop */}
                 <div 
                   className="absolute inset-0 bg-black/50" 
@@ -658,6 +709,34 @@ export default function Category() {
                   
                   {/* Form */}
                   <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Zone *
+                      </label>
+                      <select
+                        value={formData.zoneId}
+                        onChange={(e) => setFormData({ ...formData, zoneId: e.target.value })}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      >
+                        <option value="global">Global (all zones)</option>
+                        {zonesLoading && (
+                          <option value="" disabled>Loading zones...</option>
+                        )}
+                        {zones.map((z) => {
+                          const id = String(z?._id || z?.id || "")
+                          const label = z?.name || z?.zoneName || z?.serviceLocation || id
+                          return (
+                            <option key={id} value={id}>
+                              {label}
+                            </option>
+                          )
+                        })}
+                      </select>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Pick a zone to make this category visible only there.
+                      </p>
+                    </div>
+
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-2">
                         Category Type *

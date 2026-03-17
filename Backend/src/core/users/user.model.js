@@ -1,5 +1,70 @@
 import mongoose from 'mongoose';
 
+const userAddressSchema = new mongoose.Schema(
+    {
+        label: {
+            type: String,
+            enum: ['Home', 'Office', 'Other'],
+            default: 'Home',
+            index: true
+        },
+        street: {
+            type: String,
+            required: true,
+            trim: true
+        },
+        additionalDetails: {
+            type: String,
+            default: '',
+            trim: true
+        },
+        city: {
+            type: String,
+            required: true,
+            trim: true
+        },
+        state: {
+            type: String,
+            required: true,
+            trim: true
+        },
+        zipCode: {
+            type: String,
+            default: '',
+            trim: true
+        },
+        phone: {
+            type: String,
+            default: '',
+            trim: true
+        },
+        location: {
+            type: {
+                type: String,
+                enum: ['Point'],
+                default: 'Point'
+            },
+            coordinates: {
+                // [lng, lat]
+                type: [Number],
+                default: undefined,
+                validate: {
+                    validator: (v) =>
+                        v === undefined ||
+                        (Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === 'number' && Number.isFinite(n))),
+                    message: 'location.coordinates must be [lng, lat]'
+                }
+            }
+        },
+        isDefault: {
+            type: Boolean,
+            default: false,
+            index: true
+        }
+    },
+    { _id: true, timestamps: true }
+);
+
 const userSchema = new mongoose.Schema(
     {
         phone: {
@@ -32,6 +97,10 @@ const userSchema = new mongoose.Schema(
         role: {
             type: String,
             default: 'USER'
+        },
+        addresses: {
+            type: [userAddressSchema],
+            default: []
         }
     },
     {
@@ -41,6 +110,7 @@ const userSchema = new mongoose.Schema(
 );
 
 userSchema.index({ phone: 1 }, { unique: true });
+userSchema.index({ 'addresses.location': '2dsphere' });
 
 export const FoodUser = mongoose.model('FoodUser', userSchema);
 

@@ -1606,23 +1606,24 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
 
       toast.loading("Getting your fresh location...", { id: "current-location" })
 
-      // Use Promise.race to get location within 2 seconds
+      // Use Promise.race to keep UI responsive, but don't fail too aggressively:
+      // geolocation + reverse geocode can legitimately take a few seconds on slow networks/devices.
       const locationPromise = requestLocation(true, true) // forceFresh = true, updateDB = true
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Location timeout")), 2000)
+        setTimeout(() => reject(new Error("Location timeout")), 10000)
       )
 
       let locationData
       try {
         locationData = await Promise.race([locationPromise, timeoutPromise])
       } catch (raceError) {
-        // If timeout, try to use cached location immediately
+        // If timeout, try to use cached location immediately (and don't show an error if we can proceed).
         const stored = localStorage.getItem("userLocation")
         if (stored) {
           try {
             const cachedLocation = JSON.parse(stored)
             if (cachedLocation?.latitude && cachedLocation?.longitude) {
-              debugLog("?? Using cached location (2s timeout):", cachedLocation)
+              debugLog("?? Using cached location (timeout):", cachedLocation)
               locationData = cachedLocation
             } else {
               throw new Error("Invalid cached location")
@@ -1656,6 +1657,7 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
       debugLog("?? Location accuracy:", locationData.accuracy ? `${locationData.accuracy}m` : "unknown")
       debugLog("?? Location timestamp:", locationData.timestamp || new Date().toISOString())
       setMapPosition([lat, lng])
+      toast.success("Location updated", { id: "current-location" })
 
       // Update Google Maps to new location
       if (googleMapRef.current && window.google && window.google.maps) {

@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@food/components/ui/select"
-import { restaurantAPI } from "@food/api"
+import { restaurantAPI, zoneAPI } from "@food/api"
 import { MobileTimePicker } from "@mui/x-date-pickers/MobileTimePicker"
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider"
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns"
@@ -343,6 +343,8 @@ export default function RestaurantOnboarding() {
   const [verifiedPhoneNumber, setVerifiedPhoneNumber] = useState("")
   const [keyboardInset, setKeyboardInset] = useState(0)
   const [isFssaiCalendarOpen, setIsFssaiCalendarOpen] = useState(false)
+  const [zones, setZones] = useState([])
+  const [zonesLoading, setZonesLoading] = useState(false)
 
   const [step1, setStep1] = useState({
     restaurantName: "",
@@ -350,6 +352,7 @@ export default function RestaurantOnboarding() {
     ownerEmail: "",
     ownerPhone: "",
     primaryContactNumber: "",
+    zoneId: "",
     location: {
       formattedAddress: "",
       addressLine1: "",
@@ -581,6 +584,7 @@ export default function RestaurantOnboarding() {
           ownerEmail: localData.step1.ownerEmail || "",
           ownerPhone: localData.step1.ownerPhone || "",
           primaryContactNumber: localData.step1.primaryContactNumber || "",
+          zoneId: localData.step1.zoneId || "",
           location: {
             formattedAddress: localData.step1.location?.formattedAddress || "",
             addressLine1: localData.step1.location?.addressLine1 || "",
@@ -831,6 +835,9 @@ export default function RestaurantOnboarding() {
     }
     if (!step1.primaryContactNumber?.trim()) {
       errors.push("Primary contact number is required")
+    }
+    if (!step1.zoneId?.trim()) {
+      errors.push("Service zone is required")
     }
     if (!step1.location?.area?.trim()) {
       errors.push("Area/Sector/Locality is required")
@@ -1137,6 +1144,7 @@ export default function RestaurantOnboarding() {
         formData.append("ownerEmail", step1.ownerEmail || "")
         formData.append("ownerPhone", normalizePhoneDigits(step1.ownerPhone))
         formData.append("primaryContactNumber", normalizePhoneDigits(step1.primaryContactNumber))
+        formData.append("zoneId", step1.zoneId || "")
         formData.append("addressLine1", step1.location?.addressLine1 || "")
         formData.append("addressLine2", step1.location?.addressLine2 || "")
         formData.append("area", step1.location?.area || "")
@@ -1319,6 +1327,29 @@ export default function RestaurantOnboarding() {
           <p className="text-sm text-gray-700">
             Add your restaurant's location for order pick-up.
           </p>
+          <div>
+            <Label className="text-xs text-gray-700">Service zone*</Label>
+            <select
+              value={step1.zoneId || ""}
+              onChange={(e) => setStep1({ ...step1, zoneId: e.target.value })}
+              className="mt-1 w-full h-9 rounded-md border border-input bg-white px-3 text-sm"
+              disabled={zonesLoading}
+            >
+              <option value="">{zonesLoading ? "Loading zones..." : "Select a zone"}</option>
+              {zones.map((z) => {
+                const id = String(z?._id || z?.id || "")
+                const label = z?.name || z?.zoneName || z?.serviceLocation || id
+                return (
+                  <option key={id} value={id}>
+                    {label}
+                  </option>
+                )
+              })}
+            </select>
+            <p className="text-[11px] text-gray-500 mt-1">
+              Choose the service zone where your restaurant will be available.
+            </p>
+          </div>
           <div>
             <Label className="text-xs text-gray-700">Search location</Label>
             <Input
@@ -1529,6 +1560,25 @@ export default function RestaurantOnboarding() {
     }
   }, [step])
 
+  // Load zones for onboarding dropdown (public endpoint).
+  useEffect(() => {
+    if (step !== 1) return
+    let cancelled = false
+    setZonesLoading(true)
+    zoneAPI.getPublicZones()
+      .then((res) => {
+        const list = res?.data?.data?.zones || res?.data?.zones || []
+        if (!cancelled) setZones(Array.isArray(list) ? list : [])
+      })
+      .catch(() => {
+        if (!cancelled) setZones([])
+      })
+      .finally(() => {
+        if (!cancelled) setZonesLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [step])
+
   const renderStep2 = () => (
     <div className="space-y-6">
       {/* Images section */}
@@ -1618,7 +1668,7 @@ export default function RestaurantOnboarding() {
                 return (
                   <div
                     key={idx}
-                    className="relative aspect-[4/5] rounded-md overflow-hidden bg-gray-100"
+                    className="relative aspect-4/5 rounded-md overflow-hidden bg-gray-100"
                   >
                     <div className="absolute top-1 right-1 z-30">
                       <button
@@ -1893,7 +1943,7 @@ export default function RestaurantOnboarding() {
             }
           />
           {step3.panImage && (
-            <div className="mt-3 relative aspect-[4/3] rounded-md overflow-hidden bg-gray-100">
+            <div className="mt-3 relative aspect-4/3 rounded-md overflow-hidden bg-gray-100">
               {getPreviewImageUrl(step3.panImage) ? (
                 <img
                   src={getPreviewImageUrl(step3.panImage)}
@@ -2002,7 +2052,7 @@ export default function RestaurantOnboarding() {
               }
             />
             {step3.gstImage && (
-              <div className="mt-3 relative aspect-[4/3] rounded-md overflow-hidden bg-gray-100">
+              <div className="mt-3 relative aspect-4/3 rounded-md overflow-hidden bg-gray-100">
                 {getPreviewImageUrl(step3.gstImage) ? (
                   <img
                     src={getPreviewImageUrl(step3.gstImage)}
@@ -2063,7 +2113,7 @@ export default function RestaurantOnboarding() {
                   <CalendarIcon className="w-4 h-4 text-gray-500" />
                 </button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 z-[100]" align="start">
+              <PopoverContent className="w-auto p-0 z-100" align="start">
                 <div className="bg-white rounded-md shadow-lg border border-gray-200">
                   <Calendar
                     mode="single"
@@ -2116,7 +2166,7 @@ export default function RestaurantOnboarding() {
           }
         />
         {step3.fssaiImage && (
-          <div className="mt-3 relative aspect-[4/3] rounded-md overflow-hidden bg-gray-100">
+          <div className="mt-3 relative aspect-4/3 rounded-md overflow-hidden bg-gray-100">
             {getPreviewImageUrl(step3.fssaiImage) ? (
               <img
                 src={getPreviewImageUrl(step3.fssaiImage)}

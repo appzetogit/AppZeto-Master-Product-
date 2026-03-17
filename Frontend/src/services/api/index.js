@@ -232,6 +232,10 @@ export const adminAPI = {
   getPublicEnvVariables: () =>
     apiClient.get("/food/public/env"),
 
+  /** Public categories (user app) - zone-aware */
+  getPublicCategories: (params = {}, config = {}) =>
+    apiClient.get("/food/restaurant/categories/public", { params: params ?? {}, ...config }),
+
   /** Offers & Coupons (admin) */
   getAllOffers: (params = {}) =>
     apiClient.get("/food/admin/offers", { params, contextModule: "admin" }),
@@ -592,7 +596,28 @@ export const deliveryAPI = {
     ),
 };
 
-export const userAPI = createStubAPI();
+export const userAPI = {
+  /** GET /food/user/addresses (Bearer USER) */
+  getAddresses: () => apiClient.get("/food/user/addresses", { contextModule: "user" }),
+  /** POST /food/user/addresses (Bearer USER) */
+  addAddress: (body) => apiClient.post("/food/user/addresses", body ?? {}, { contextModule: "user" }),
+  /** PATCH /food/user/addresses/:id (Bearer USER) */
+  updateAddress: (id, body) =>
+    apiClient.patch(`/food/user/addresses/${String(id)}`, body ?? {}, { contextModule: "user" }),
+  /** DELETE /food/user/addresses/:id (Bearer USER) */
+  deleteAddress: (id) =>
+    apiClient.delete(`/food/user/addresses/${String(id)}`, { contextModule: "user" }),
+  /** PATCH /food/user/addresses/:id/default (Bearer USER) */
+  setDefaultAddress: (id) =>
+    apiClient.patch(`/food/user/addresses/${String(id)}/default`, {}, { contextModule: "user" }),
+  /**
+   * Legacy UI compatibility: update "current user location".
+   * We already persist the user's selected location in localStorage in the UI.
+   * Keep this as a no-op success so existing flows don't break.
+   */
+  updateLocation: (_payload) =>
+    Promise.resolve({ data: { success: true, message: "Location saved (client)", data: null } }),
+};
 export const locationAPI = createStubAPI();
 export const zoneAPI = {
   /** Public: detect active service zone for a lat/lng point. */
@@ -600,6 +625,9 @@ export const zoneAPI = {
     apiClient.get("/food/zones/detect", {
       params: { lat, lng },
     }),
+  /** Public: list active zones (for onboarding dropdowns). */
+  getPublicZones: (params = {}, config = {}) =>
+    apiClient.get("/food/zones/public", { params: params ?? {}, ...config }),
 };
 export const uploadAPI = {
   /**

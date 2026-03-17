@@ -14,12 +14,25 @@ export async function listRestaurantCategories(query = {}) {
     const includeInactive = query.includeInactive === 'true' || query.includeInactive === '1';
     const withCounts = query.withCounts === 'true' || query.withCounts === '1';
     const compact = query.compact === 'true' || query.compact === '1';
+    const zoneIdRaw = typeof query.zoneId === 'string' ? query.zoneId.trim() : '';
 
     const filter = {};
     if (!includeInactive) filter.isActive = true;
     if (search) {
         const term = escapeRegex(search.slice(0, 80));
         filter.name = { $regex: term, $options: 'i' };
+    }
+    // Zone-aware listing:
+    // - if zoneId is provided: return categories for that zone + global categories (zoneId missing)
+    // - if zoneId is not provided: return only global categories (backward compatible default)
+    if (zoneIdRaw && mongoose.Types.ObjectId.isValid(zoneIdRaw)) {
+        filter.$or = [
+            { zoneId: new mongoose.Types.ObjectId(zoneIdRaw) },
+            { zoneId: { $exists: false } },
+            { zoneId: null }
+        ];
+    } else {
+        filter.$or = [{ zoneId: { $exists: false } }, { zoneId: null }];
     }
 
     const [list, total] = await Promise.all([
@@ -28,7 +41,7 @@ export async function listRestaurantCategories(query = {}) {
             .skip(skip)
             .limit(limit)
             // For item creation forms we only need id + name (fastest payload).
-            .select(compact ? 'name' : 'name image type isActive sortOrder createdAt updatedAt')
+            .select(compact ? 'name zoneId' : 'name image type zoneId isActive sortOrder createdAt updatedAt')
             .lean(),
         FoodCategory.countDocuments(filter)
     ]);
@@ -53,6 +66,7 @@ export async function listRestaurantCategories(query = {}) {
             type: c.type || '',
             isActive: c.isActive !== false,
             status: c.isActive !== false,
+            zoneId: c.zoneId || null,
             sortOrder: c.sortOrder || 0,
             itemCount: withCounts ? (countsById.get(String(c._id)) || 0) : undefined,
             createdAt: c.createdAt,

@@ -13,7 +13,7 @@ export const useCategoryData = (zoneId) => {
   const fetchCategories = useCallback(async () => {
     try {
       setLoadingCategories(true);
-      const response = await adminAPI.getPublicCategories();
+      const response = await adminAPI.getPublicCategories(zoneId ? { zoneId } : {});
       if (response.data?.success) {
         const cats = response.data.data.categories || [];
         const transformed = [
@@ -41,7 +41,7 @@ export const useCategoryData = (zoneId) => {
     } finally {
       setLoadingCategories(false);
     }
-  }, []);
+  }, [zoneId]);
 
   const fetchRestaurants = useCallback(async () => {
     try {

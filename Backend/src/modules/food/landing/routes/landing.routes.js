@@ -42,7 +42,7 @@ import {
     getPublicGourmetController,
     getPublicLandingSettingsController
 } from '../controllers/publicLanding.controller.js';
-import { detectZonePublicController } from '../controllers/zonePublic.controller.js';
+import { detectZonePublicController, listZonesPublicController } from '../controllers/zonePublic.controller.js';
 import { getPublicEnvController } from '../controllers/publicEnv.controller.js';
 import {
     listTop10Admin,
@@ -133,6 +133,7 @@ router.get('/hero-banners/top-10/public', getPublicTop10Controller);
 router.get('/hero-banners/gourmet/public', getPublicGourmetController);
 router.get('/landing/settings/public', getPublicLandingSettingsController);
 router.get('/zones/detect', detectZonePublicController);
+router.get('/zones/public', listZonesPublicController);
 router.get('/public/env', getPublicEnvController);
 // Admin landing settings (old paths used by admin UI)
 router.get('/hero-banners/landing/settings', getAdminLandingSettingsController);

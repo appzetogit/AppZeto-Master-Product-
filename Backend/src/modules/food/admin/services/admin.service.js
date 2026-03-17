@@ -481,12 +481,24 @@ export async function getCategories(query) {
         const term = String(query.search).trim();
         filter.$or = [{ name: { $regex: term, $options: 'i' } }];
     }
+    // Optional zone filter for admin list.
+    // - zoneId=global => only global categories (zoneId missing)
+    // - zoneId=<ObjectId> => only categories bound to that zone
+    if (query.zoneId && String(query.zoneId).trim()) {
+        const zid = String(query.zoneId).trim();
+        if (zid === 'global') {
+            filter.$or = [...(filter.$or || []), { zoneId: { $exists: false } }, { zoneId: null }];
+        } else if (mongoose.Types.ObjectId.isValid(zid)) {
+            filter.zoneId = new mongoose.Types.ObjectId(zid);
+        }
+    }
 
     const [list, total] = await Promise.all([
         FoodCategory.find(filter)
             .sort({ sortOrder: 1, createdAt: -1 })
             .skip(skip)
             .limit(limit)
+            .populate('zoneId', 'name zoneName isActive')
             .lean(),
         FoodCategory.countDocuments(filter)
     ]);
@@ -498,6 +510,7 @@ export async function getCategories(query) {
         type: c.type || '',
         status: c.isActive !== false,
         isActive: c.isActive !== false,
+        zoneId: c.zoneId || null,
         sortOrder: c.sortOrder || 0,
         createdAt: c.createdAt,
         updatedAt: c.updatedAt
@@ -513,6 +526,15 @@ export async function createCategory(body) {
         name,
         image: typeof body.image === 'string' ? body.image.trim() : '',
         type: typeof body.type === 'string' ? body.type.trim() : '',
+        zoneId:
+            body.zoneId && String(body.zoneId).trim()
+                ? (() => {
+                    const zid = String(body.zoneId).trim();
+                    if (zid === 'global') return undefined;
+                    if (!mongoose.Types.ObjectId.isValid(zid)) throw new ValidationError('Invalid zoneId');
+                    return new mongoose.Types.ObjectId(zid);
+                })()
+                : undefined,
         isActive: body.isActive !== false,
         sortOrder: Number.isFinite(Number(body.sortOrder)) ? Number(body.sortOrder) : 0
     });
@@ -527,6 +549,15 @@ export async function updateCategory(id, body) {
     if (body.name !== undefined) doc.name = String(body.name || '').trim();
     if (body.image !== undefined) doc.image = String(body.image || '').trim();
     if (body.type !== undefined) doc.type = String(body.type || '').trim();
+    if (body.zoneId !== undefined) {
+        const raw = String(body.zoneId || '').trim();
+        if (!raw || raw === 'global') {
+            doc.zoneId = undefined;
+        } else {
+            if (!mongoose.Types.ObjectId.isValid(raw)) throw new ValidationError('Invalid zoneId');
+            doc.zoneId = new mongoose.Types.ObjectId(raw);
+        }
+    }
     if (body.isActive !== undefined) doc.isActive = body.isActive !== false;
     if (body.sortOrder !== undefined) doc.sortOrder = Number(body.sortOrder) || 0;
     await doc.save();

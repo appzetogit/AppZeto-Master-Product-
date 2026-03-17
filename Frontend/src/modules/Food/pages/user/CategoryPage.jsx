@@ -151,7 +151,7 @@ export default function CategoryPage() {
     const fetchCategories = async () => {
       try {
         setLoadingCategories(true)
-        const response = await adminAPI.getPublicCategories()
+        const response = await adminAPI.getPublicCategories(zoneId ? { zoneId } : {})
 
         if (response.data && response.data.success && response.data.data && response.data.data.categories) {
           const categoriesArray = response.data.data.categories
@@ -196,7 +196,7 @@ export default function CategoryPage() {
     }
 
     fetchCategories()
-  }, [])
+  }, [zoneId])
 
   // Helper function to check if menu has dishes matching category keywords
   const checkCategoryInMenu = (menu, categoryId) => {

@@ -39,7 +39,7 @@ import { useLocation } from "@food/hooks/useLocation"
 import { useZone } from "@food/hooks/useZone"
 import quickSpicyLogo from "@food/assets/quicky-spicy-logo.png"
 import offerImage from "@food/assets/offerimage.png"
-import api, { restaurantAPI } from "@food/api"
+import api, { restaurantAPI, adminAPI } from "@food/api"
 import { API_BASE_URL } from "@food/api/config"
 import OptimizedImage from "@food/components/OptimizedImage"
 import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability"
@@ -654,13 +654,6 @@ export default function Home() {
     return () => { cancelled = true }
   }, [])
 
-  // Old backend endpoint removed: keep UI stable with empty categories.
-  useEffect(() => {
-    setLoadingRealCategories(true)
-    setRealCategories([])
-    setLoadingRealCategories(false)
-  }, [])
-
   // Fetch explore icons and landing settings from public APIs
   useEffect(() => {
     let cancelled = false
@@ -880,6 +873,40 @@ export default function Home() {
   const [showToast, setShowToast] = useState(false)
   const [showManageCollections, setShowManageCollections] = useState(false)
   const [selectedRestaurantSlug, setSelectedRestaurantSlug] = useState(null)
+
+  // Fetch categories (zone-aware) for the homepage category rail.
+  useEffect(() => {
+    let cancelled = false
+    const run = async () => {
+      try {
+        setLoadingRealCategories(true)
+        const res = await adminAPI.getPublicCategories(zoneId ? { zoneId } : {})
+        const list =
+          res?.data?.data?.categories ||
+          res?.data?.categories ||
+          []
+        const categories = Array.isArray(list)
+          ? list.map((cat, idx) => ({
+              id: String(cat?.id || cat?._id || cat?.slug || idx),
+              name: cat?.name || "",
+              slug: cat?.slug || String(cat?.name || "").toLowerCase().replace(/\s+/g, "-"),
+              image: cat?.image || foodImages[idx % foodImages.length] || foodImages[0],
+              type: cat?.type || "",
+            }))
+          : []
+        if (!cancelled) setRealCategories(categories)
+      } catch (err) {
+        debugWarn("Failed to fetch categories:", err)
+        if (!cancelled) setRealCategories([])
+      } finally {
+        if (!cancelled) setLoadingRealCategories(false)
+      }
+    }
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [zoneId])
 
   // Memoize cartCount to prevent recalculation on every render - use cart directly
   const cartCount = useMemo(() =>
@@ -1356,118 +1383,18 @@ export default function Home() {
     debugLog('?? Recalculated distances for all restaurants based on user location')
   }, [location?.latitude, location?.longitude])
 
-  // Build a union of menu categories across all restaurants.
+  // IMPORTANT:
+  // Homepage must NOT call /food/restaurant/restaurants/:id/menu for every restaurant (N+1 requests).
+  // That is expensive and triggers 429 rate limiting. Menus should load only on the restaurant details screen.
+  //
+  // For homepage filters (veg mode / categories), we fall back gracefully:
+  // - Menu categories: empty (UI can still show explore sections)
+  // - Veg mode: if we don't have per-restaurant diet meta, don't hide restaurants.
   useEffect(() => {
-    const fetchMenuCategories = async () => {
-      if (!Array.isArray(restaurantsData) || restaurantsData.length === 0) {
-        setMenuCategories([])
-        setRestaurantDietMeta({})
-        return
-      }
-
-      setLoadingMenuCategories(true)
-      try {
-        const categoryMap = new Map()
-        const menuResponses = await Promise.all(
-          restaurantsData.map(async (restaurant) => {
-            const id = restaurant?.restaurantId || restaurant?.id
-            if (!id) return { id: null, menu: null }
-            try {
-              const response = await restaurantAPI.getMenuByRestaurantId(id)
-              return {
-                id: String(id),
-                menu: response?.data?.data?.menu || null
-              }
-            } catch {
-              return {
-                id: String(id),
-                menu: null
-              }
-            }
-          })
-        )
-
-        const nextDietMeta = {}
-
-        menuResponses.forEach(({ id, menu }) => {
-          let hasVeg = false
-          let hasNonVeg = false
-          const sections = Array.isArray(menu?.sections) ? menu.sections : []
-          sections.forEach((section) => {
-            const sectionItems = Array.isArray(section?.items) ? section.items : []
-            sectionItems.forEach((item) => {
-              const foodType = String(item?.foodType || "").trim().toLowerCase()
-              if (foodType === "veg") hasVeg = true
-              if (foodType === "non-veg" || foodType === "non veg" || foodType === "nonveg") hasNonVeg = true
-            })
-
-            const subsections = Array.isArray(section?.subsections) ? section.subsections : []
-            subsections.forEach((subsection) => {
-              const subsectionItems = Array.isArray(subsection?.items) ? subsection.items : []
-              subsectionItems.forEach((item) => {
-                const foodType = String(item?.foodType || "").trim().toLowerCase()
-                if (foodType === "veg") hasVeg = true
-                if (foodType === "non-veg" || foodType === "non veg" || foodType === "nonveg") hasNonVeg = true
-              })
-            })
-
-            const categoryName = String(section?.name || "").trim()
-            if (!categoryName) return
-
-            const slug = slugifyCategory(categoryName)
-            if (!slug) return
-
-            let image = ""
-            if (Array.isArray(section?.items) && section.items.length > 0) {
-              image = normalizeImageUrl(section.items[0]?.image)
-            }
-            if (!image && Array.isArray(section?.subsections)) {
-              for (const subsection of section.subsections) {
-                if (Array.isArray(subsection?.items) && subsection.items.length > 0) {
-                  image = normalizeImageUrl(subsection.items[0]?.image)
-                  if (image) break
-                }
-              }
-            }
-
-            if (!categoryMap.has(slug)) {
-              categoryMap.set(slug, {
-                id: slug,
-                name: categoryName,
-                slug,
-                label: categoryName,
-                image: image || "",
-              })
-            } else if (image && !categoryMap.get(slug).image) {
-              categoryMap.get(slug).image = image
-            }
-          })
-
-          if (id) {
-            nextDietMeta[id] = {
-              hasVeg,
-              hasNonVeg,
-              isPureVeg: hasVeg && !hasNonVeg,
-            }
-          }
-        })
-
-        const categories = Array.from(categoryMap.values())
-          .sort((a, b) => a.name.localeCompare(b.name))
-          .map((category, index) => ({
-            ...category,
-            image: category.image || foodImages[index % foodImages.length] || foodImages[0],
-          }))
-
-        setMenuCategories(categories)
-        setRestaurantDietMeta(nextDietMeta)
-      } finally {
-        setLoadingMenuCategories(false)
-      }
-    }
-
-    fetchMenuCategories()
-  }, [restaurantsData, normalizeImageUrl, slugifyCategory])
+    setMenuCategories([])
+    setRestaurantDietMeta({})
+    setLoadingMenuCategories(false)
+  }, [restaurantsData])
 
   const matchesVegMode = useCallback((restaurant) => {
     if (!vegMode) return true

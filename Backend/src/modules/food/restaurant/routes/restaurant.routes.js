@@ -53,6 +53,8 @@ router.get('/restaurants', listApprovedRestaurantsController);
 router.get('/restaurants/:id', getApprovedRestaurantController);
 router.get('/restaurants/:id/menu', getPublicRestaurantMenuController);
 router.get('/offers', listPublicOffersController);
+// Public: categories list (zone-aware; returns zone categories + global)
+router.get('/categories/public', listCategoriesController);
 
 // Restaurant dashboard/profile (Bearer token + RESTAURANT role)
 router.get('/current', authMiddleware, requireRestaurant, getCurrentRestaurantController);

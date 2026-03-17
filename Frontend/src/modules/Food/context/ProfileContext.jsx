@@ -264,13 +264,21 @@ export function ProfileProvider({ children }) {
     }
   }, [])
 
-  const setDefaultAddress = useCallback((id) => {
+  const setDefaultAddress = useCallback(async (id) => {
+    // Optimistic UI update first
     setAddresses((prev) =>
       prev.map((addr) => ({
         ...addr,
         isDefault: String(getAddressId(addr)) === String(id),
       }))
     )
+
+    try {
+      await userAPI.setDefaultAddress(id)
+    } catch (error) {
+      debugError("Error setting default address:", error)
+      // Keep UI stable even if backend call fails
+    }
   }, [])
 
   const getDefaultAddress = useCallback(() => {

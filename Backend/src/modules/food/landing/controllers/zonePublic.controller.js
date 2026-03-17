@@ -54,3 +54,21 @@ export const detectZonePublicController = async (req, res, next) => {
     }
 };
 
+/** GET /zones/public - list active zones for onboarding/selects */
+export const listZonesPublicController = async (_req, res, next) => {
+    try {
+        const zones = await FoodZone.find({ isActive: true })
+            .select('name zoneName serviceLocation country unit isActive coordinates createdAt')
+            .sort({ createdAt: 1 })
+            .lean();
+
+        return res.status(200).json({
+            success: true,
+            message: 'Zones fetched successfully',
+            data: { zones }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+

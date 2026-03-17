@@ -11,7 +11,7 @@ import axios from "axios";
 // Prefer explicit env; fallback to local backend for dev convenience.
 const baseURL = typeof import.meta !== "undefined" && import.meta.env?.VITE_API_BASE_URL
   ? String(import.meta.env.VITE_API_BASE_URL).replace(/\/$/, "")
-  : "http://localhost:5000/api/v1";
+  : "http://localhost:5001/api/v1";
 
 const apiClient = axios.create({
   baseURL: baseURL || undefined,

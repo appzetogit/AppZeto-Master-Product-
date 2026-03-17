@@ -4,6 +4,43 @@ const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
+// ---- Cross-hook caching & in-flight de-dupe (module-level) ----
+// Multiple screens/components call useZone(location). Without shared caching,
+// we spam /food/zones/detect with the same coords.
+const ZONE_CACHE_TTL_MS = 30 * 1000
+const zoneCache = new Map() // key -> { ts, payload }
+const zoneInFlight = new Map() // key -> Promise<payload>
+
+const roundCoord = (v, digits = 5) => {
+  const n = Number(v)
+  if (!Number.isFinite(n)) return null
+  const p = 10 ** digits
+  return Math.round(n * p) / p
+}
+
+const zoneKeyFromCoords = (lat, lng) => {
+  const rLat = roundCoord(lat, 5)
+  const rLng = roundCoord(lng, 5)
+  if (rLat === null || rLng === null) return null
+  return `${rLat},${rLng}`
+}
+
+const applyZonePayload = (data, { setZoneId, setZone, setZoneStatus }) => {
+  if (data?.status === 'IN_SERVICE' && data.zoneId) {
+    setZoneId(data.zoneId)
+    setZone(data.zone || null)
+    setZoneStatus('IN_SERVICE')
+    localStorage.setItem('userZoneId', data.zoneId)
+    localStorage.setItem('userZone', JSON.stringify(data.zone))
+  } else {
+    setZoneId(null)
+    setZone(null)
+    setZoneStatus('OUT_OF_SERVICE')
+    localStorage.removeItem('userZoneId')
+    localStorage.removeItem('userZone')
+  }
+}
+
 
 /**
  * Hook to detect and manage user's zone based on location
@@ -16,6 +53,7 @@ export function useZone(location) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const prevCoordsRef = useRef({ latitude: null, longitude: null })
+  const debounceTimerRef = useRef(null)
 
   // Detect zone when location is available
   const detectZone = useCallback(async (lat, lng) => {
@@ -29,31 +67,37 @@ export function useZone(location) {
     try {
       setLoading(true)
       setError(null)
-      
-      const response = await zoneAPI.detectZone(lat, lng)
-      
-      if (response.data?.success) {
-        const data = response.data.data
-        
-        if (data.status === 'IN_SERVICE' && data.zoneId) {
-          setZoneId(data.zoneId)
-          setZone(data.zone)
-          setZoneStatus('IN_SERVICE')
-          
-          // Store in localStorage for persistence
-          localStorage.setItem('userZoneId', data.zoneId)
-          localStorage.setItem('userZone', JSON.stringify(data.zone))
-        } else {
-          // OUT_OF_SERVICE
-          setZoneId(null)
-          setZone(null)
-          setZoneStatus('OUT_OF_SERVICE')
-          localStorage.removeItem('userZoneId')
-          localStorage.removeItem('userZone')
+
+      const key = zoneKeyFromCoords(lat, lng)
+      const now = Date.now()
+      if (key) {
+        const cached = zoneCache.get(key)
+        if (cached && now - cached.ts < ZONE_CACHE_TTL_MS) {
+          applyZonePayload(cached.payload, { setZoneId, setZone, setZoneStatus })
+          return
         }
-      } else {
-        throw new Error(response.data?.message || 'Failed to detect zone')
       }
+
+      const promise = (() => {
+        if (key && zoneInFlight.has(key)) return zoneInFlight.get(key)
+        const p = zoneAPI
+          .detectZone(lat, lng)
+          .then((response) => {
+            if (!response?.data?.success) {
+              throw new Error(response?.data?.message || 'Failed to detect zone')
+            }
+            return response.data.data
+          })
+          .finally(() => {
+            if (key) zoneInFlight.delete(key)
+          })
+        if (key) zoneInFlight.set(key, p)
+        return p
+      })()
+
+      const data = await promise
+      if (key) zoneCache.set(key, { ts: now, payload: data })
+      applyZonePayload(data, { setZoneId, setZone, setZoneStatus })
     } catch (err) {
       debugError('Error detecting zone:', err)
       setError(err.response?.data?.message || err.message || 'Failed to detect zone')
@@ -78,8 +122,8 @@ export function useZone(location) {
 
   // Auto-detect zone when location changes
   useEffect(() => {
-    const lat = location?.latitude
-    const lng = location?.longitude
+    const lat = roundCoord(location?.latitude, 6)
+    const lng = roundCoord(location?.longitude, 6)
 
     // Check if coordinates have changed significantly (threshold: ~10 meters)
     const coordThreshold = 0.0001 // approximately 10 meters
@@ -93,7 +137,12 @@ export function useZone(location) {
       // Only detect zone if coordinates changed significantly
       if (coordsChanged) {
         prevCoordsRef.current = { latitude: lat, longitude: lng }
-        detectZone(lat, lng)
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current)
+        }
+        debounceTimerRef.current = setTimeout(() => {
+          detectZone(lat, lng)
+        }, 350)
       }
     } else {
       // Try to use cached zone if location not available
@@ -107,6 +156,12 @@ export function useZone(location) {
         setZoneStatus('OUT_OF_SERVICE')
         setZoneId(null)
         setZone(null)
+      }
+    }
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+        debounceTimerRef.current = null
       }
     }
   }, [location?.latitude, location?.longitude, detectZone])

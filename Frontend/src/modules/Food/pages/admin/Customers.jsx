@@ -88,45 +88,51 @@ export default function Customers() {
 
   // Fetch customers from API
   useEffect(() => {
+    let cancelled = false
     const fetchCustomers = async () => {
       try {
         setLoading(true)
         const params = {
-          limit: 1000, // Get all customers
-          offset: 0,
+          limit: 1000,
+          page: 1,
           ...(searchQuery && { search: searchQuery }),
           ...(filters.status && { status: filters.status }),
           ...(filters.joiningDate && { joiningDate: filters.joiningDate }),
           ...(filters.sortBy && { sortBy: filters.sortBy }),
+          ...(filters.chooseFirst && { chooseFirst: filters.chooseFirst }),
         }
 
-        const response = await adminAPI.getUsers(params)
-        const data = response?.data?.data || response?.data
+        const response = await adminAPI.getCustomers(params)
+        const data = response?.data?.data || response?.data?.data || response?.data
 
-        if (data?.users) {
-          setCustomers(data.users)
-          setTotalCustomers(data.total || data.users.length)
+        const list = data?.customers || data?.users || []
+        if (!cancelled && Array.isArray(list)) {
+          setCustomers(list)
+          setTotalCustomers(data?.total || list.length)
         } else {
-          setCustomers([])
-          setTotalCustomers(0)
+          if (!cancelled) {
+            setCustomers([])
+            setTotalCustomers(0)
+          }
         }
       } catch (error) {
         debugError('Error fetching customers:', error)
         toast.error('Failed to load customers')
-        setCustomers([])
-        setTotalCustomers(0)
+        if (!cancelled) {
+          setCustomers([])
+          setTotalCustomers(0)
+        }
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
 
-    fetchCustomers()
-
-    // Keep totals dynamic without requiring full page reload.
-    const intervalId = setInterval(fetchCustomers, 30000)
-
-    return () => clearInterval(intervalId)
-  }, [searchQuery, filters.status, filters.joiningDate, filters.sortBy])
+    const t = setTimeout(fetchCustomers, 250)
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+    }
+  }, [searchQuery, filters.status, filters.joiningDate, filters.sortBy, filters.chooseFirst])
 
   const handleToggleStatus = async (customerId) => {
     try {
@@ -142,7 +148,7 @@ export default function Customers() {
       ))
 
       // Call API to update user status
-      await adminAPI.updateUserStatus(customerId, newStatus)
+      await adminAPI.updateCustomerStatus(customerId, newStatus)
       toast.success(`User ${newStatus ? 'activated' : 'deactivated'} successfully`)
     } catch (error) {
       debugError('Error updating status:', error)
@@ -160,7 +166,7 @@ export default function Customers() {
       setShowUserDetails(true)
       setSelectedCustomer(customerId)
 
-      const response = await adminAPI.getUserById(customerId)
+      const response = await adminAPI.getCustomerById(customerId)
       const data = response?.data?.data || response?.data
 
       if (data?.user) {

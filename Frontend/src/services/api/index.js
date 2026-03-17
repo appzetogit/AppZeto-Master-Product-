@@ -189,15 +189,15 @@ export const adminAPI = {
     apiClient.patch(`/food/admin/foods/${id}`, body ?? {}, { contextModule: "admin" }),
   deleteFood: (id) =>
     apiClient.delete(`/food/admin/foods/${id}`, { contextModule: "admin" }),
-  /** Food approval queue (pending foods created by restaurants) */
-  getPendingFoodApprovals: (params = {}) =>
-    apiClient.get("/food/admin/foods/pending-approvals", { params, contextModule: "admin" }),
-  approveFoodItem: (id) =>
-    apiClient.patch(`/food/admin/foods/${String(id)}/approve`, {}, { contextModule: "admin" }),
-  rejectFoodItem: (id, reason) =>
+  /** Customers (admin) */
+  getCustomers: (params = {}) =>
+    apiClient.get("/food/admin/customers", { params, contextModule: "admin" }),
+  getCustomerById: (id) =>
+    apiClient.get(`/food/admin/customers/${String(id)}`, { contextModule: "admin" }),
+  updateCustomerStatus: (id, isActive) =>
     apiClient.patch(
-      `/food/admin/foods/${String(id)}/reject`,
-      { reason: String(reason || "").trim() },
+      `/food/admin/customers/${String(id)}/status`,
+      { isActive: isActive !== false },
       { contextModule: "admin" }
     ),
   /** Create restaurant (admin). Single API: POST /food/admin/restaurants. Body: JSON with image URLs. */
@@ -278,6 +278,58 @@ export const adminAPI = {
       { deliveryPartnerId: String(deliveryPartnerId), force: Boolean(force) },
       { contextModule: "admin" }
     ),
+
+  /** Restaurant Commission (admin) */
+  getRestaurantCommissionBootstrap: () =>
+    apiClient.get("/food/admin/restaurant-commissions/bootstrap", { contextModule: "admin" }),
+  getRestaurantCommissions: (params = {}) =>
+    apiClient.get("/food/admin/restaurant-commissions", { params, contextModule: "admin" }),
+  getRestaurantCommissionById: (id) =>
+    apiClient.get(`/food/admin/restaurant-commissions/${String(id)}`, { contextModule: "admin" }),
+  createRestaurantCommission: (body) =>
+    apiClient.post("/food/admin/restaurant-commissions", body ?? {}, { contextModule: "admin" }),
+  updateRestaurantCommission: (id, body) =>
+    apiClient.patch(`/food/admin/restaurant-commissions/${String(id)}`, body ?? {}, { contextModule: "admin" }),
+  deleteRestaurantCommission: (id) =>
+    apiClient.delete(`/food/admin/restaurant-commissions/${String(id)}`, { contextModule: "admin" }),
+  toggleRestaurantCommissionStatus: (id) =>
+    apiClient.patch(`/food/admin/restaurant-commissions/${String(id)}/toggle`, {}, { contextModule: "admin" }),
+  /** Backward-compatible alias used in UI */
+  getApprovedRestaurants: (params = {}) =>
+    apiClient.get("/food/admin/restaurants", { params: { status: "approved", limit: 1000, ...params }, contextModule: "admin" }),
+
+  /** Delivery Boy Commission Rules (admin) */
+  getCommissionRules: () =>
+    apiClient.get("/food/admin/delivery/commission-rules", { contextModule: "admin" }),
+  createCommissionRule: (body) =>
+    apiClient.post("/food/admin/delivery/commission-rules", body ?? {}, { contextModule: "admin" }),
+  updateCommissionRule: (id, body) =>
+    apiClient.patch(`/food/admin/delivery/commission-rules/${String(id)}`, body ?? {}, { contextModule: "admin" }),
+  deleteCommissionRule: (id) =>
+    apiClient.delete(`/food/admin/delivery/commission-rules/${String(id)}`, { contextModule: "admin" }),
+  toggleCommissionRuleStatus: (id, status) =>
+    apiClient.patch(
+      `/food/admin/delivery/commission-rules/${String(id)}/status`,
+      { status: Boolean(status) },
+      { contextModule: "admin" }
+    ),
+
+  /** Fee Settings (admin) */
+  getFeeSettings: () => apiClient.get("/food/admin/fee-settings", { contextModule: "admin" }),
+  createOrUpdateFeeSettings: (body) =>
+    apiClient.put("/food/admin/fee-settings", body ?? {}, { contextModule: "admin" }),
+
+  /** Delivery Cash Limit (admin) */
+  getDeliveryCashLimit: () =>
+    apiClient.get("/food/admin/delivery-cash-limit", { contextModule: "admin" }),
+  updateDeliveryCashLimit: (body) =>
+    apiClient.patch("/food/admin/delivery-cash-limit", body ?? {}, { contextModule: "admin" }),
+
+  /** Delivery Emergency Help (admin) */
+  getEmergencyHelp: () =>
+    apiClient.get("/food/admin/delivery-emergency-help", { contextModule: "admin" }),
+  createOrUpdateEmergencyHelp: (body) =>
+    apiClient.put("/food/admin/delivery-emergency-help", body ?? {}, { contextModule: "admin" }),
 };
 
 /** Restaurant API - OTP login via new backend; no email/password. */

@@ -22,6 +22,7 @@ export default function DeliveryBoyCommission() {
   const [formData, setFormData] = useState({
     name: "",
     minDistance: "",
+    maxDistance: "",
     commissionPerKm: "",
     basePayout: "",
   })
@@ -50,11 +51,10 @@ export default function DeliveryBoyCommission() {
   }, [commissions, searchQuery])
 
   const getDistanceSlabLabel = (commission) => {
-    if (commission.maxDistance === null || commission.maxDistance === undefined) {
-      return `0-${commission.minDistance} km`
-    }
-
-    return `${commission.minDistance}-${commission.maxDistance} km`
+    const min = Number(commission.minDistance) || 0
+    const max = commission.maxDistance === null || commission.maxDistance === undefined ? null : Number(commission.maxDistance)
+    if (max === null) return `${min}+ km`
+    return `${min}-${max} km`
   }
 
   // Calculate total commission for a given distance
@@ -63,10 +63,11 @@ export default function DeliveryBoyCommission() {
     if (distance < commission.minDistance) return 0
     if (commission.maxDistance !== null && distance > commission.maxDistance) return 0
     
-    // Calculate commission: base payout + (extra distance beyond minDistance ◊ commission per km)
-    const extraDistance = Math.max(0, distance - commission.minDistance)
-    const distanceCommission = extraDistance * commission.commissionPerKm
-    return commission.basePayout + distanceCommission
+    // For 0-x slab we usually want per-km on full distance; for other slabs apply per-km after minDistance
+    const min = Number(commission.minDistance) || 0
+    const extraDistance = Math.max(0, distance - min)
+    const kmForRate = min === 0 ? distance : extraDistance
+    return commission.basePayout + (kmForRate * commission.commissionPerKm)
   }
 
   // Calculate example commission for display (using mid-point of range)
@@ -157,12 +158,8 @@ export default function DeliveryBoyCommission() {
   }
 
   const handleAdd = () => {
-    if (commissions.length > 0) {
-      toast.error('Only one commission rule is allowed. Please edit the existing rule.')
-      return
-    }
     setSelectedCommission(null)
-    setFormData({ name: "", minDistance: "", commissionPerKm: "", basePayout: "" })
+    setFormData({ name: "", minDistance: "0", maxDistance: "", commissionPerKm: "", basePayout: "" })
     setFormErrors({})
     setIsAddEditOpen(true)
   }
@@ -171,7 +168,8 @@ export default function DeliveryBoyCommission() {
     setSelectedCommission(commission)
     setFormData({
       name: commission.name,
-minDistance: commission.minDistance?.toString?.() || "",
+      minDistance: commission.minDistance?.toString?.() || "",
+      maxDistance: commission.maxDistance === null || commission.maxDistance === undefined ? "" : String(commission.maxDistance),
       commissionPerKm: commission.commissionPerKm.toString(),
       basePayout: commission.basePayout.toString(),
     })
@@ -186,14 +184,6 @@ minDistance: commission.minDistance?.toString?.() || "",
 
   const confirmDelete = async () => {
     if (!selectedCommission) return
-    
-    // Prevent deletion if it's the only rule - always keep at least one rule
-    if (commissions.length <= 1) {
-      toast.error('Cannot delete the only commission rule. At least one rule must exist.')
-      setIsDeleteOpen(false)
-      setSelectedCommission(null)
-      return
-    }
     
     try {
       setDeleting(true)
@@ -215,6 +205,9 @@ minDistance: commission.minDistance?.toString?.() || "",
     if (!formData.minDistance.trim() || parseFloat(formData.minDistance) < 0) {
       errors.minDistance = "Minimum distance must be 0 or greater"
     }
+    if (formData.maxDistance !== "" && parseFloat(formData.maxDistance) < parseFloat(formData.minDistance || "0")) {
+      errors.maxDistance = "Max distance must be greater than or equal to min distance"
+    }
     if (!formData.commissionPerKm.trim() || parseFloat(formData.commissionPerKm) < 0) {
       errors.commissionPerKm = "Commission per km must be 0 or greater"
     }
@@ -232,10 +225,11 @@ minDistance: commission.minDistance?.toString?.() || "",
     try {
       setSaving(true)
       const minDistance = parseFloat(formData.minDistance)
+      const maxDistance = formData.maxDistance === "" ? null : parseFloat(formData.maxDistance)
       const commissionData = {
         name: formData.name.trim() || `Base (0-${minDistance} km)`,
         minDistance,
-        maxDistance: null,
+        maxDistance,
         commissionPerKm: parseFloat(formData.commissionPerKm),
         basePayout: parseFloat(formData.basePayout),
         status: selectedCommission ? selectedCommission.status : true,
@@ -264,13 +258,6 @@ minDistance: commission.minDistance?.toString?.() || "",
           toast.success('Commission rule updated successfully')
         }
       } else {
-        // Only allow one commission rule - check if one already exists
-        if (commissions.length > 0) {
-          toast.error('Only one commission rule is allowed. Please edit the existing rule instead.')
-          return
-        }
-        
-        // Create new commission (only if no existing rule)
         const response = await adminAPI.createCommissionRule(commissionData)
         let commission = null
         if (response?.data?.success && response?.data?.data?.commission) {
@@ -284,15 +271,15 @@ minDistance: commission.minDistance?.toString?.() || "",
         if (commission) {
           const newCommission = {
             ...commission,
-            sl: 1
+            sl: commissions.length + 1
           }
-          setCommissions([newCommission])
+          setCommissions([...commissions, newCommission])
           toast.success('Commission rule created successfully')
         }
       }
       
       setIsAddEditOpen(false)
-      setFormData({ name: "", minDistance: "", commissionPerKm: "", basePayout: "" })
+      setFormData({ name: "", minDistance: "0", maxDistance: "", commissionPerKm: "", basePayout: "" })
       setSelectedCommission(null)
     } catch (error) {
       debugError('Error saving commission rule:', error)
@@ -416,10 +403,9 @@ minDistance: commission.minDistance?.toString?.() || "",
           <div className="flex items-center gap-2">
               <button
                 onClick={handleAdd}
-                disabled={commissions.length > 0}
                 className="px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {commissions.length > 0 ? "Single Rule Only" : "Add Rule"}
+                Add Rule
               </button>
               <button 
                 onClick={() => setIsSettingsOpen(true)}
@@ -438,7 +424,7 @@ minDistance: commission.minDistance?.toString?.() || "",
                 <p className="font-semibold text-blue-900 mb-1">Fixed + Extra Distance Commission</p>
                 <p className="text-slate-600">
                   Commission is calculated as: <strong>Base payout for 0-{formulaMinDistance} km + Extra per km after {formulaMinDistance} km</strong>.
-                  Example: if base is ?25 and extra is ?5/km, then 6 km earns ?25 + (2 ◊ ?5) = ?35.
+                  Example: if base is ?25 and extra is ?5/km, then 6 km earns ?25 + (2 ù ?5) = ?35.
                 </p>
               </div>
             </div>
@@ -558,15 +544,13 @@ minDistance: commission.minDistance?.toString?.() || "",
                             >
                               <Edit className="w-4 h-4" />
                             </button>
-                            {commissions.length > 1 && (
-                              <button
-                                onClick={() => handleDelete(commission)}
-                                className="p-1.5 rounded text-red-600 hover:bg-red-50 transition-colors"
-                                title="Delete"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            )}
+                            <button
+                              onClick={() => handleDelete(commission)}
+                              className="p-1.5 rounded text-red-600 hover:bg-red-50 transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
                         </td>
                       )}
@@ -619,8 +603,25 @@ minDistance: commission.minDistance?.toString?.() || "",
               />
               {formErrors.minDistance && <p className="text-xs text-red-500 mt-1">{formErrors.minDistance}</p>}
             </div>
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Maximum Distance Slab (km) <span className="text-slate-400">(optional)</span>
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.maxDistance}
+                onChange={(e) => setFormData({ ...formData, maxDistance: e.target.value })}
+                className={`w-full px-4 py-2.5 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
+                  formErrors.maxDistance ? "border-red-500" : "border-slate-300"
+                }`}
+                placeholder="e.g., 3 (leave empty for ?)"
+              />
+              {formErrors.maxDistance && <p className="text-xs text-red-500 mt-1">{formErrors.maxDistance}</p>}
+            </div>
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-              Fixed distance slab: <strong>0-{formulaMinDistance} km</strong>
+              Distance slab: <strong>{formData.minDistance || 0}-{formData.maxDistance || "?"} km</strong>
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">
@@ -656,7 +657,7 @@ minDistance: commission.minDistance?.toString?.() || "",
               />
               {formErrors.basePayout && <p className="text-xs text-red-500 mt-1">{formErrors.basePayout}</p>}
               <p className="text-xs text-slate-500 mt-1">
-                Formula: Base payout + (max(0, distance - {formulaMinDistance}) ◊ extra per km)
+                Formula: Base payout + (max(0, distance - {formulaMinDistance}) ù extra per km)
               </p>
             </div>
           </div>

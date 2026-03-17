@@ -10,6 +10,12 @@ import { FoodOffer } from '../models/offer.model.js';
 import { DeliveryBonusTransaction } from '../models/deliveryBonusTransaction.model.js';
 import { FoodEarningAddon } from '../models/earningAddon.model.js';
 import { FoodEarningAddonHistory } from '../models/earningAddonHistory.model.js';
+import { FoodRestaurantCommission } from '../models/restaurantCommission.model.js';
+import { FoodDeliveryCommissionRule } from '../models/deliveryCommissionRule.model.js';
+import { FoodFeeSettings } from '../models/feeSettings.model.js';
+import { FoodUser } from '../../../../core/users/user.model.js';
+import { FoodDeliveryCashLimit } from '../models/deliveryCashLimit.model.js';
+import { FoodDeliveryEmergencyHelp } from '../models/deliveryEmergencyHelp.model.js';
 
 // ----- Restaurants -----
 export async function getRestaurants(query) {
@@ -31,6 +37,407 @@ export async function getRestaurants(query) {
         FoodRestaurant.countDocuments(filter)
     ]);
     return { restaurants, total, page, limit };
+}
+
+// ----- Customers / Users (admin) -----
+export async function getCustomers(query = {}) {
+    const limit = Math.min(Math.max(parseInt(query.limit, 10) || 50, 1), 1000);
+    const page = Math.max(parseInt(query.page, 10) || 1, 1);
+    const skip = (page - 1) * limit;
+
+    const filter = { role: 'USER' };
+
+    if (query.status) {
+        if (String(query.status) === 'active') filter.isActive = true;
+        if (String(query.status) === 'inactive') filter.isActive = false;
+    }
+
+    if (query.joiningDate && String(query.joiningDate).trim()) {
+        const d = new Date(String(query.joiningDate));
+        if (!Number.isNaN(d.getTime())) {
+            const start = new Date(d);
+            start.setHours(0, 0, 0, 0);
+            const end = new Date(d);
+            end.setHours(23, 59, 59, 999);
+            filter.createdAt = { $gte: start, $lte: end };
+        }
+    }
+
+    if (query.search && String(query.search).trim()) {
+        const raw = String(query.search).trim().slice(0, 80);
+        const term = raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        filter.$or = [
+            { name: { $regex: term, $options: 'i' } },
+            { email: { $regex: term, $options: 'i' } },
+            { phone: { $regex: term, $options: 'i' } }
+        ];
+    }
+
+    const sort = {};
+    const sortBy = String(query.sortBy || '').trim();
+    if (sortBy === 'name-asc') sort.name = 1;
+    else if (sortBy === 'name-desc') sort.name = -1;
+    else sort.createdAt = -1;
+
+    const [docs, total] = await Promise.all([
+        FoodUser.find(filter)
+            .sort(sort)
+            .skip(skip)
+            .limit(limit)
+            .select('name email phone countryCode isVerified isActive createdAt')
+            .lean(),
+        FoodUser.countDocuments(filter)
+    ]);
+
+    let customers = docs.map((u) => ({
+        id: u._id,
+        _id: u._id,
+        name: u.name || 'Unnamed',
+        email: u.email || '',
+        phone: u.phone || '',
+        countryCode: u.countryCode || '+91',
+        status: u.isActive !== false,
+        isActive: u.isActive !== false,
+        isVerified: u.isVerified === true,
+        totalOrder: 0,
+        totalOrderAmount: 0,
+        joiningDate: u.createdAt,
+        createdAt: u.createdAt
+    }));
+
+    const chooseFirst = parseInt(query.chooseFirst, 10);
+    if (Number.isFinite(chooseFirst) && chooseFirst > 0) {
+        customers = customers.slice(0, chooseFirst);
+    }
+
+    return { customers, total, page, limit };
+}
+
+export async function getCustomerById(id) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+    const u = await FoodUser.findById(id).select('-__v').lean();
+    if (!u) return null;
+    return {
+        id: u._id,
+        _id: u._id,
+        name: u.name || 'Unnamed',
+        email: u.email || '',
+        phone: u.phone || '',
+        countryCode: u.countryCode || '+91',
+        status: u.isActive !== false,
+        isActive: u.isActive !== false,
+        isVerified: u.isVerified === true,
+        joiningDate: u.createdAt,
+        createdAt: u.createdAt,
+        updatedAt: u.updatedAt
+    };
+}
+
+export async function updateCustomerStatus(id, isActive) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+    const updated = await FoodUser.findByIdAndUpdate(
+        id,
+        { $set: { isActive: Boolean(isActive) } },
+        { new: true }
+    ).lean();
+    return updated || null;
+}
+
+// ----- Restaurant Commission (admin) -----
+export async function getRestaurantCommissions() {
+    const list = await FoodRestaurantCommission.find({})
+        .sort({ createdAt: -1 })
+        .populate({ path: 'restaurantId', select: 'restaurantName' })
+        .lean();
+
+    const commissions = list.map((c, index) => ({
+        _id: c._id,
+        sl: index + 1,
+        restaurantId: c.restaurantId?._id ? String(c.restaurantId._id) : String(c.restaurantId),
+        restaurantName: c.restaurantId?.restaurantName || '',
+        restaurant: c.restaurantId?._id ? { _id: c.restaurantId._id, name: c.restaurantId.restaurantName } : null,
+        defaultCommission: c.defaultCommission || { type: 'percentage', value: 0 },
+        notes: c.notes || '',
+        status: c.status !== false
+    }));
+
+    return { commissions };
+}
+
+export async function getRestaurantCommissionBootstrap() {
+    const [commissionsData, restaurantsData] = await Promise.all([
+        getRestaurantCommissions(),
+        getRestaurants({ status: 'approved', limit: 1000, page: 1 })
+    ]);
+
+    const commissionByRestaurantId = new Set(
+        (commissionsData.commissions || []).map((c) => String(c.restaurantId))
+    );
+
+    const restaurants = (restaurantsData.restaurants || []).map((r) => ({
+        _id: r._id,
+        name: r.restaurantName || r.name || '',
+        restaurantId: r._id ? `REST${r._id.toString().slice(-6).padStart(6, '0')}` : '',
+        ownerName: r.ownerName || '',
+        hasCommissionSetup: commissionByRestaurantId.has(String(r._id))
+    }));
+
+    return { commissions: commissionsData.commissions || [], restaurants };
+}
+
+export async function getRestaurantCommissionById(id) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+    const doc = await FoodRestaurantCommission.findById(id)
+        .populate({ path: 'restaurantId', select: 'restaurantName' })
+        .lean();
+    if (!doc) return null;
+    return {
+        _id: doc._id,
+        restaurantId: doc.restaurantId?._id ? String(doc.restaurantId._id) : String(doc.restaurantId),
+        restaurant: doc.restaurantId?._id ? { _id: doc.restaurantId._id, name: doc.restaurantId.restaurantName } : null,
+        restaurantName: doc.restaurantId?.restaurantName || '',
+        defaultCommission: doc.defaultCommission || { type: 'percentage', value: 0 },
+        notes: doc.notes || '',
+        status: doc.status !== false
+    };
+}
+
+export async function createRestaurantCommission(body) {
+    const exists = await FoodRestaurantCommission.findOne({ restaurantId: body.restaurantId }).lean();
+    if (exists) {
+        throw new ValidationError('Commission already exists for this restaurant');
+    }
+    const created = await FoodRestaurantCommission.create({
+        restaurantId: body.restaurantId,
+        defaultCommission: body.defaultCommission,
+        notes: body.notes || '',
+        status: true
+    });
+    return created.toObject();
+}
+
+export async function updateRestaurantCommission(id, body) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+    const updated = await FoodRestaurantCommission.findByIdAndUpdate(
+        id,
+        { $set: { defaultCommission: body.defaultCommission, notes: body.notes || '' } },
+        { new: true }
+    ).lean();
+    return updated;
+}
+
+export async function deleteRestaurantCommission(id) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+    const deleted = await FoodRestaurantCommission.findByIdAndDelete(id).lean();
+    return deleted ? { id } : null;
+}
+
+export async function toggleRestaurantCommissionStatus(id) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+    const doc = await FoodRestaurantCommission.findById(id);
+    if (!doc) return null;
+    doc.status = !Boolean(doc.status);
+    await doc.save();
+    return doc.toObject();
+}
+
+// ----- Delivery Boy Commission Rule (admin) -----
+export async function getDeliveryCommissionRules() {
+    const list = await FoodDeliveryCommissionRule.find({}).sort({ createdAt: -1 }).lean();
+    const commissions = list.map((r, index) => ({
+        _id: r._id,
+        sl: index + 1,
+        name: r.name || '',
+        minDistance: r.minDistance,
+        maxDistance: r.maxDistance ?? null,
+        commissionPerKm: r.commissionPerKm,
+        basePayout: r.basePayout,
+        status: r.status !== false
+    }));
+    return { commissions };
+}
+
+export async function createDeliveryCommissionRule(body) {
+    const created = await FoodDeliveryCommissionRule.create({
+        name: body.name || '',
+        minDistance: body.minDistance,
+        maxDistance: body.maxDistance ?? null,
+        commissionPerKm: body.commissionPerKm,
+        basePayout: body.basePayout,
+        status: body.status ?? true
+    });
+    return created.toObject();
+}
+
+export async function updateDeliveryCommissionRule(id, body) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+    const updated = await FoodDeliveryCommissionRule.findByIdAndUpdate(
+        id,
+        {
+            $set: {
+                name: body.name || '',
+                minDistance: body.minDistance,
+                maxDistance: body.maxDistance ?? null,
+                commissionPerKm: body.commissionPerKm,
+                basePayout: body.basePayout
+            }
+        },
+        { new: true }
+    ).lean();
+    return updated;
+}
+
+export async function deleteDeliveryCommissionRule(id) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+    const deleted = await FoodDeliveryCommissionRule.findByIdAndDelete(id).lean();
+    return deleted ? { id } : null;
+}
+
+export async function toggleDeliveryCommissionRuleStatus(id, status) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+    const updated = await FoodDeliveryCommissionRule.findByIdAndUpdate(
+        id,
+        { $set: { status: Boolean(status) } },
+        { new: true }
+    ).lean();
+    return updated;
+}
+
+// ----- Fee Settings (admin) -----
+export async function getFeeSettings() {
+    const doc = await FoodFeeSettings.findOne({ isActive: true }).sort({ createdAt: -1 }).lean();
+    // If not configured yet, return null so UI does not show defaults automatically.
+    return { feeSettings: doc || null };
+}
+
+export async function upsertFeeSettings(body) {
+    // Single active doc pattern: keep only one active record.
+    const existing = await FoodFeeSettings.findOne({ isActive: true }).sort({ createdAt: -1 });
+    if (existing) {
+        const $set = {};
+        const $unset = {};
+
+        if (body.deliveryFee === null) $unset.deliveryFee = 1;
+        else if (body.deliveryFee !== undefined) $set.deliveryFee = body.deliveryFee;
+
+        if (body.deliveryFeeRanges !== undefined) $set.deliveryFeeRanges = body.deliveryFeeRanges;
+
+        if (body.freeDeliveryThreshold === null) $unset.freeDeliveryThreshold = 1;
+        else if (body.freeDeliveryThreshold !== undefined) $set.freeDeliveryThreshold = body.freeDeliveryThreshold;
+
+        if (body.platformFee === null) $unset.platformFee = 1;
+        else if (body.platformFee !== undefined) $set.platformFee = body.platformFee;
+
+        if (body.gstRate === null) $unset.gstRate = 1;
+        else if (body.gstRate !== undefined) $set.gstRate = body.gstRate;
+
+        if (body.isActive !== undefined) $set.isActive = body.isActive;
+
+        const update = {};
+        if (Object.keys($set).length) update.$set = $set;
+        if (Object.keys($unset).length) update.$unset = $unset;
+        if (!Object.keys(update).length) return existing.toObject();
+
+        const updated = await FoodFeeSettings.findByIdAndUpdate(existing._id, update, { new: true }).lean();
+        return updated;
+    }
+
+    const payload = {
+        deliveryFeeRanges: body.deliveryFeeRanges ?? [],
+        isActive: body.isActive !== false
+    };
+    if (body.deliveryFee !== undefined && body.deliveryFee !== null) payload.deliveryFee = body.deliveryFee;
+    if (body.freeDeliveryThreshold !== undefined && body.freeDeliveryThreshold !== null) payload.freeDeliveryThreshold = body.freeDeliveryThreshold;
+    if (body.platformFee !== undefined && body.platformFee !== null) payload.platformFee = body.platformFee;
+    if (body.gstRate !== undefined && body.gstRate !== null) payload.gstRate = body.gstRate;
+
+    const created = await FoodFeeSettings.create(payload);
+    return created.toObject();
+}
+
+// ----- Delivery Cash Limit (admin) -----
+export async function getDeliveryCashLimitSettings() {
+    const doc = await FoodDeliveryCashLimit.findOne({ isActive: true }).sort({ createdAt: -1 }).lean();
+    const settings = doc || { deliveryCashLimit: 0, deliveryWithdrawalLimit: 100, isActive: true };
+    return {
+        deliveryCashLimit: Number(settings.deliveryCashLimit) || 0,
+        deliveryWithdrawalLimit: Number(settings.deliveryWithdrawalLimit) || 100
+    };
+}
+
+export async function upsertDeliveryCashLimitSettings(body = {}) {
+    const existing = await FoodDeliveryCashLimit.findOne({ isActive: true }).sort({ createdAt: -1 });
+    const nextCashLimit = body.deliveryCashLimit;
+    const nextWithdrawalLimit = body.deliveryWithdrawalLimit;
+
+    if (existing) {
+        if (nextCashLimit !== undefined) existing.deliveryCashLimit = Math.max(0, Number(nextCashLimit) || 0);
+        if (nextWithdrawalLimit !== undefined) existing.deliveryWithdrawalLimit = Math.max(0, Number(nextWithdrawalLimit) || 0);
+        await existing.save();
+        return {
+            deliveryCashLimit: existing.deliveryCashLimit,
+            deliveryWithdrawalLimit: existing.deliveryWithdrawalLimit
+        };
+    }
+
+    const created = await FoodDeliveryCashLimit.create({
+        deliveryCashLimit: nextCashLimit !== undefined ? Math.max(0, Number(nextCashLimit) || 0) : 0,
+        deliveryWithdrawalLimit: nextWithdrawalLimit !== undefined ? Math.max(0, Number(nextWithdrawalLimit) || 0) : 100,
+        isActive: true
+    });
+
+    return {
+        deliveryCashLimit: created.deliveryCashLimit,
+        deliveryWithdrawalLimit: created.deliveryWithdrawalLimit
+    };
+}
+
+// ----- Delivery Emergency Help (admin) -----
+export async function getDeliveryEmergencyHelp() {
+    const doc = await FoodDeliveryEmergencyHelp.findOne({ isActive: true }).sort({ createdAt: -1 }).lean();
+    const data = doc || {
+        medicalEmergency: '',
+        accidentHelpline: '',
+        contactPolice: '',
+        insurance: '',
+        isActive: true
+    };
+    return {
+        medicalEmergency: data.medicalEmergency || '',
+        accidentHelpline: data.accidentHelpline || '',
+        contactPolice: data.contactPolice || '',
+        insurance: data.insurance || ''
+    };
+}
+
+export async function upsertDeliveryEmergencyHelp(body = {}) {
+    const existing = await FoodDeliveryEmergencyHelp.findOne({ isActive: true }).sort({ createdAt: -1 });
+    if (existing) {
+        if (body.medicalEmergency !== undefined) existing.medicalEmergency = String(body.medicalEmergency || '').trim();
+        if (body.accidentHelpline !== undefined) existing.accidentHelpline = String(body.accidentHelpline || '').trim();
+        if (body.contactPolice !== undefined) existing.contactPolice = String(body.contactPolice || '').trim();
+        if (body.insurance !== undefined) existing.insurance = String(body.insurance || '').trim();
+        await existing.save();
+        return {
+            medicalEmergency: existing.medicalEmergency || '',
+            accidentHelpline: existing.accidentHelpline || '',
+            contactPolice: existing.contactPolice || '',
+            insurance: existing.insurance || ''
+        };
+    }
+    const created = await FoodDeliveryEmergencyHelp.create({
+        medicalEmergency: String(body.medicalEmergency || '').trim(),
+        accidentHelpline: String(body.accidentHelpline || '').trim(),
+        contactPolice: String(body.contactPolice || '').trim(),
+        insurance: String(body.insurance || '').trim(),
+        isActive: true
+    });
+    return {
+        medicalEmergency: created.medicalEmergency || '',
+        accidentHelpline: created.accidentHelpline || '',
+        contactPolice: created.contactPolice || '',
+        insurance: created.insurance || ''
+    };
 }
 
 export async function getRestaurantById(id) {

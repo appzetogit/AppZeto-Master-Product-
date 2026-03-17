@@ -1,4 +1,12 @@
-import { registerRestaurant, listApprovedRestaurants, getApprovedRestaurantByIdOrSlug } from '../services/restaurant.service.js';
+import {
+    registerRestaurant,
+    listApprovedRestaurants,
+    getApprovedRestaurantByIdOrSlug,
+    getCurrentRestaurantProfile,
+    updateRestaurantProfile,
+    uploadRestaurantProfileImage,
+    uploadRestaurantMenuImage
+} from '../services/restaurant.service.js';
 import { validateRestaurantRegisterDto } from '../validators/restaurant.validator.js';
 import { sendResponse } from '../../../../utils/response.js';
 
@@ -28,6 +36,45 @@ export const getApprovedRestaurantController = async (req, res, next) => {
             return res.status(404).json({ success: false, message: 'Restaurant not found' });
         }
         return sendResponse(res, 200, 'Restaurant fetched successfully', { restaurant });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const getCurrentRestaurantController = async (req, res, next) => {
+    try {
+        const restaurantId = req.user?.userId;
+        const restaurant = await getCurrentRestaurantProfile(restaurantId);
+        return sendResponse(res, 200, 'Restaurant fetched successfully', { restaurant });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const updateRestaurantProfileController = async (req, res, next) => {
+    try {
+        const restaurantId = req.user?.userId;
+        const restaurant = await updateRestaurantProfile(restaurantId, req.body || {});
+        return sendResponse(res, 200, 'Restaurant updated successfully', { restaurant });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const uploadRestaurantProfileImageController = async (req, res, next) => {
+    try {
+        const restaurantId = req.user?.userId;
+        const result = await uploadRestaurantProfileImage(restaurantId, req.file);
+        return sendResponse(res, 200, 'Profile image uploaded successfully', result);
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const uploadRestaurantMenuImageController = async (req, res, next) => {
+    try {
+        const result = await uploadRestaurantMenuImage(req.file);
+        return sendResponse(res, 200, 'Menu image uploaded successfully', result);
     } catch (error) {
         next(error);
     }

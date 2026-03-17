@@ -1,25 +1,21 @@
 /**
  * Auth API – new backend (USER, ADMIN, RESTAURANT, DELIVERY).
- * User:  POST /auth/user/request-otp, verify-otp
- * Admin: POST /auth/admin/login
- * Restaurant: POST /auth/restaurant/request-otp, verify-otp
- * Delivery:   POST /auth/delivery/request-otp, verify-otp
- * Shared: POST /auth/refresh-token, /auth/logout; GET /auth/me
+ * Food-prefixed: POST /food/auth/...
  */
 
 import apiClient from "./axios.js";
 
 const AUTH = {
-  USER_REQUEST_OTP: "/auth/user/request-otp",
-  USER_VERIFY_OTP: "/auth/user/verify-otp",
-  ADMIN_LOGIN: "/auth/admin/login",
-  RESTAURANT_REQUEST_OTP: "/auth/restaurant/request-otp",
-  RESTAURANT_VERIFY_OTP: "/auth/restaurant/verify-otp",
-  DELIVERY_REQUEST_OTP: "/auth/delivery/request-otp",
-  DELIVERY_VERIFY_OTP: "/auth/delivery/verify-otp",
-  REFRESH_TOKEN: "/auth/refresh-token",
-  LOGOUT: "/auth/logout",
-  ME: "/auth/me",
+  USER_REQUEST_OTP: "/food/auth/user/request-otp",
+  USER_VERIFY_OTP: "/food/auth/user/verify-otp",
+  ADMIN_LOGIN: "/food/auth/admin/login",
+  RESTAURANT_REQUEST_OTP: "/food/auth/restaurant/request-otp",
+  RESTAURANT_VERIFY_OTP: "/food/auth/restaurant/verify-otp",
+  DELIVERY_REQUEST_OTP: "/food/auth/delivery/request-otp",
+  DELIVERY_VERIFY_OTP: "/food/auth/delivery/verify-otp",
+  REFRESH_TOKEN: "/food/auth/refresh-token",
+  LOGOUT: "/food/auth/logout",
+  ME: "/food/auth/me",
 };
 
 /**

@@ -2,6 +2,74 @@ import { FoodRestaurant } from '../models/restaurant.model.js';
 import { uploadImageBuffer } from '../../../../services/cloudinary.service.js';
 import { ValidationError } from '../../../../core/auth/errors.js';
 
+const normalizeName = (value) =>
+    String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/-/g, ' ')
+        .replace(/\s+/g, ' ');
+
+const normalizePhone = (value) => {
+    const digits = String(value || '').replace(/\D/g, '').slice(-15);
+    return {
+        digits: digits || '',
+        last10: digits ? digits.slice(-10) : ''
+    };
+};
+
+const toUrl = (v) => (v && (typeof v === 'string' ? v : v.url)) ? (typeof v === 'string' ? v : v.url) : '';
+
+const toRestaurantProfile = (doc) => {
+    if (!doc) return null;
+    const location =
+        (doc.addressLine1 ||
+            doc.addressLine2 ||
+            doc.area ||
+            doc.city ||
+            doc.state ||
+            doc.pincode ||
+            doc.landmark)
+            ? {
+                addressLine1: doc.addressLine1 || '',
+                addressLine2: doc.addressLine2 || '',
+                area: doc.area || '',
+                city: doc.city || '',
+                state: doc.state || '',
+                pincode: doc.pincode || '',
+                landmark: doc.landmark || ''
+            }
+            : null;
+
+    const menuImages = Array.isArray(doc.menuImages)
+        ? doc.menuImages.map((m) => toUrl(m)).filter(Boolean).map((url) => ({ url, publicId: null }))
+        : [];
+
+    return {
+        id: doc._id,
+        _id: doc._id,
+        restaurantId: doc.restaurantId || undefined,
+        name: doc.restaurantName || '',
+        restaurantName: doc.restaurantName || '',
+        cuisines: Array.isArray(doc.cuisines) ? doc.cuisines : [],
+        location,
+        ownerName: doc.ownerName || '',
+        ownerEmail: doc.ownerEmail || '',
+        ownerPhone: doc.ownerPhone || '',
+        primaryContactNumber: doc.primaryContactNumber || '',
+        profileImage: doc.profileImage ? { url: doc.profileImage } : null,
+        menuImages,
+        coverImages: [],
+        openingTime: doc.openingTime || null,
+        closingTime: doc.closingTime || null,
+        openDays: Array.isArray(doc.openDays) ? doc.openDays : [],
+        status: doc.status || null,
+        createdAt: doc.createdAt,
+        updatedAt: doc.updatedAt,
+        rating: typeof doc.rating === 'number' ? doc.rating : 0,
+        totalRatings: typeof doc.totalRatings === 'number' ? doc.totalRatings : 0
+    };
+};
+
 export const registerRestaurant = async (payload, files) => {
     const {
         restaurantName,
@@ -36,9 +104,14 @@ export const registerRestaurant = async (payload, files) => {
         throw new ValidationError('Owner phone is required to register a restaurant');
     }
 
-    const existing = await FoodRestaurant.findOne({ restaurantName, ownerPhone }).lean();
-    if (existing) {
-        throw new ValidationError('Restaurant with this name and owner phone already exists');
+    const { digits: ownerPhoneDigits, last10: ownerPhoneLast10 } = normalizePhone(ownerPhone);
+    if (!ownerPhoneLast10) {
+        throw new ValidationError('Owner phone is invalid');
+    }
+
+    const restaurantNameNormalized = normalizeName(restaurantName);
+    if (!restaurantNameNormalized) {
+        throw new ValidationError('Restaurant name is required to register a restaurant');
     }
 
     const images = {};
@@ -63,38 +136,246 @@ export const registerRestaurant = async (payload, files) => {
         );
     }
 
-    const restaurant = await FoodRestaurant.create({
-        restaurantName,
-        ownerName,
-        ownerEmail,
-        ownerPhone,
-        primaryContactNumber,
-        addressLine1,
-        addressLine2,
-        area,
-        city,
-        landmark,
-        cuisines: cuisines || [],
-        openingTime,
-        closingTime,
-        openDays: openDays || [],
-        panNumber,
-        nameOnPan,
-        gstRegistered,
-        gstNumber,
-        gstLegalName,
-        gstAddress,
-        fssaiNumber,
-        fssaiExpiry,
-        accountNumber,
-        ifscCode,
-        accountHolderName,
-        accountType,
-        menuImages,
-        ...images
-    });
+    try {
+        const restaurant = await FoodRestaurant.create({
+            restaurantName,
+            restaurantNameNormalized,
+            ownerName,
+            ownerEmail,
+            // Store phone in a consistent digits-only format to match OTP login flow.
+            ownerPhone: ownerPhoneDigits,
+            ownerPhoneDigits,
+            ownerPhoneLast10,
+            primaryContactNumber,
+            addressLine1,
+            addressLine2,
+            area,
+            city,
+            landmark,
+            cuisines: cuisines || [],
+            openingTime,
+            closingTime,
+            openDays: openDays || [],
+            panNumber,
+            nameOnPan,
+            gstRegistered,
+            gstNumber,
+            gstLegalName,
+            gstAddress,
+            fssaiNumber,
+            fssaiExpiry,
+            accountNumber,
+            ifscCode,
+            accountHolderName,
+            accountType,
+            menuImages,
+            ...images
+        });
 
-    return restaurant.toObject();
+        return restaurant.toObject();
+    } catch (err) {
+        // Handle uniqueness conflicts deterministically (race-safe).
+        if (err && (err.code === 11000 || err?.name === 'MongoServerError')) {
+            throw new ValidationError('Restaurant with this name and owner phone already exists');
+        }
+        throw err;
+    }
+};
+
+export const getCurrentRestaurantProfile = async (restaurantId) => {
+    if (!restaurantId) return null;
+    const doc = await FoodRestaurant.findById(restaurantId)
+        .select(
+            [
+                'restaurantName',
+                'cuisines',
+                'addressLine1',
+                'addressLine2',
+                'area',
+                'city',
+                'state',
+                'pincode',
+                'landmark',
+                'ownerName',
+                'ownerEmail',
+                'ownerPhone',
+                'primaryContactNumber',
+                'profileImage',
+                'menuImages',
+                'openingTime',
+                'closingTime',
+                'openDays',
+                'status',
+                'createdAt',
+                'updatedAt'
+            ].join(' ')
+        )
+        .lean();
+    return toRestaurantProfile(doc);
+};
+
+export const updateRestaurantProfile = async (restaurantId, body = {}) => {
+    if (!restaurantId) {
+        throw new ValidationError('Invalid restaurant id');
+    }
+
+    const update = {};
+
+    // Owner/contact fields (used by restaurant Contact Details screens)
+    if (body.ownerName !== undefined) {
+        const ownerName = String(body.ownerName || '').trim();
+        if (!ownerName) {
+            throw new ValidationError('Owner name cannot be empty');
+        }
+        if (ownerName.length > 120) {
+            throw new ValidationError('Owner name is too long');
+        }
+        update.ownerName = ownerName;
+    }
+
+    if (body.ownerEmail !== undefined) {
+        const ownerEmail = String(body.ownerEmail || '').trim().toLowerCase();
+        if (ownerEmail) {
+            const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!EMAIL_REGEX.test(ownerEmail)) {
+                throw new ValidationError('Owner email is invalid');
+            }
+            if (ownerEmail.length > 254) {
+                throw new ValidationError('Owner email is too long');
+            }
+            update.ownerEmail = ownerEmail;
+        } else {
+            update.ownerEmail = '';
+        }
+    }
+
+    // Note: UI keeps phone read-only, but we accept it safely and normalize if sent.
+    if (body.ownerPhone !== undefined) {
+        const { digits, last10 } = normalizePhone(body.ownerPhone);
+        if (!digits || digits.length < 8) {
+            throw new ValidationError('Owner phone is invalid');
+        }
+        update.ownerPhone = digits;
+        update.ownerPhoneDigits = digits;
+        update.ownerPhoneLast10 = last10 || undefined;
+    }
+
+    if (body.primaryContactNumber !== undefined) {
+        const { digits } = normalizePhone(body.primaryContactNumber);
+        update.primaryContactNumber = digits || String(body.primaryContactNumber || '').trim();
+    }
+
+    if (body.name !== undefined || body.restaurantName !== undefined) {
+        const raw = body.name !== undefined ? body.name : body.restaurantName;
+        const name = String(raw || '').trim();
+        if (!name) {
+            throw new ValidationError('Restaurant name cannot be empty');
+        }
+        update.restaurantName = name;
+        update.restaurantNameNormalized = normalizeName(name) || undefined;
+    }
+
+    if (body.cuisines !== undefined) {
+        if (!Array.isArray(body.cuisines)) {
+            throw new ValidationError('Cuisines must be an array of strings');
+        }
+        const cuisines = body.cuisines
+            .map((c) => String(c || '').trim())
+            .filter(Boolean)
+            .slice(0, 50);
+        update.cuisines = cuisines;
+    }
+
+    if (body.location !== undefined) {
+        const loc = body.location && typeof body.location === 'object' ? body.location : null;
+        if (!loc) {
+            throw new ValidationError('Location must be an object');
+        }
+        const toStr = (v) => (v != null ? String(v).trim() : '');
+        update.addressLine1 = toStr(loc.addressLine1);
+        update.addressLine2 = toStr(loc.addressLine2);
+        update.area = toStr(loc.area);
+        update.city = toStr(loc.city);
+        update.state = toStr(loc.state);
+        update.pincode = toStr(loc.pincode);
+        update.landmark = toStr(loc.landmark);
+    }
+
+    if (body.menuImages !== undefined) {
+        if (!Array.isArray(body.menuImages)) {
+            throw new ValidationError('menuImages must be an array');
+        }
+        const urls = body.menuImages
+            .map((m) => toUrl(m))
+            .filter(Boolean)
+            .slice(0, 20);
+        update.menuImages = urls;
+    }
+
+    if (!Object.keys(update).length) {
+        return getCurrentRestaurantProfile(restaurantId);
+    }
+
+    try {
+        const doc = await FoodRestaurant.findByIdAndUpdate(
+            restaurantId,
+            { $set: update },
+            {
+                new: true,
+                runValidators: true,
+                projection: [
+                    'restaurantName',
+                    'cuisines',
+                    'addressLine1',
+                    'addressLine2',
+                    'area',
+                    'city',
+                    'state',
+                    'pincode',
+                    'landmark',
+                    'ownerName',
+                    'ownerEmail',
+                    'ownerPhone',
+                    'primaryContactNumber',
+                    'profileImage',
+                    'menuImages',
+                    'openingTime',
+                    'closingTime',
+                    'openDays',
+                    'status',
+                    'createdAt',
+                    'updatedAt'
+                ].join(' ')
+            }
+        ).lean();
+        return toRestaurantProfile(doc);
+    } catch (err) {
+        if (err && err.code === 11000) {
+            throw new ValidationError('A restaurant with this name and phone already exists');
+        }
+        throw err;
+    }
+};
+
+export const uploadRestaurantProfileImage = async (restaurantId, file) => {
+    if (!restaurantId) throw new ValidationError('Invalid restaurant id');
+    if (!file?.buffer) throw new ValidationError('Image file is required');
+
+    const url = await uploadImageBuffer(file.buffer, 'food/restaurants/profile');
+    const doc = await FoodRestaurant.findByIdAndUpdate(
+        restaurantId,
+        { $set: { profileImage: url } },
+        { new: true, projection: 'profileImage restaurantName cuisines menuImages addressLine1 addressLine2 area city state pincode landmark ownerName ownerEmail ownerPhone primaryContactNumber openingTime closingTime openDays status createdAt updatedAt' }
+    ).lean();
+
+    if (!doc) throw new ValidationError('Restaurant not found');
+    return { profileImage: { url } };
+};
+
+export const uploadRestaurantMenuImage = async (file) => {
+    if (!file?.buffer) throw new ValidationError('Image file is required');
+    const url = await uploadImageBuffer(file.buffer, 'food/restaurants/menu');
+    return { menuImage: { url, publicId: null } };
 };
 
 export const listApprovedRestaurants = async (query = {}) => {
@@ -104,20 +385,41 @@ export const listApprovedRestaurants = async (query = {}) => {
 
     const filter = { status: 'approved' };
     if (query.city && String(query.city).trim()) {
-        filter.city = { $regex: String(query.city).trim(), $options: 'i' };
+        // Keep behavior but avoid catastrophic regex patterns.
+        const city = String(query.city).trim().slice(0, 80);
+        filter.city = { $regex: city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
     }
     if (query.search && String(query.search).trim()) {
-        const term = String(query.search).trim();
-        filter.$or = [
-            { restaurantName: { $regex: term, $options: 'i' } },
-            { area: { $regex: term, $options: 'i' } },
-            { city: { $regex: term, $options: 'i' } },
-            { cuisines: { $in: [new RegExp(term, 'i')] } }
-        ];
+        const raw = String(query.search).trim().slice(0, 80);
+        const term = raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // If it's a single character, skip multi-field regex scan (too expensive for little value).
+        if (term.length >= 2) {
+            filter.$or = [
+                { restaurantName: { $regex: term, $options: 'i' } },
+                { area: { $regex: term, $options: 'i' } },
+                { city: { $regex: term, $options: 'i' } },
+                { cuisines: { $in: [new RegExp(term, 'i')] } }
+            ];
+        }
     }
 
     const [restaurants, total] = await Promise.all([
         FoodRestaurant.find(filter)
+            .select(
+                [
+                    'restaurantName',
+                    'area',
+                    'city',
+                    'cuisines',
+                    'profileImage',
+                    'estimatedDeliveryTime',
+                    'offer',
+                    'featuredDish',
+                    'featuredPrice',
+                    'status',
+                    'createdAt'
+                ].join(' ')
+            )
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit)
@@ -137,11 +439,13 @@ export const getApprovedRestaurantByIdOrSlug = async (idOrSlug) => {
         return FoodRestaurant.findOne({ _id: value, status: 'approved' }).lean();
     }
 
-    // Slug path: "my-restaurant" -> "my restaurant" (case-insensitive exact match)
-    const name = value.replace(/-/g, ' ').trim();
+    // Slug path: use normalized field for index-friendly exact match.
+    const restaurantNameNormalized = normalizeName(value);
+    if (!restaurantNameNormalized) return null;
+
     return FoodRestaurant.findOne({
         status: 'approved',
-        restaurantName: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' }
+        restaurantNameNormalized
     }).lean();
 };
 

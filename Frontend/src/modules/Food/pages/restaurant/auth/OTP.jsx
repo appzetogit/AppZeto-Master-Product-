@@ -23,6 +23,7 @@ export default function RestaurantOTP() {
   const [contactInfo, setContactInfo] = useState("") // Can be phone or email
   const [focusedIndex, setFocusedIndex] = useState(null)
   const inputRefs = useRef([])
+  const hasSubmittedRef = useRef(false)
 
   useEffect(() => {
     // Get auth data from sessionStorage
@@ -90,7 +91,11 @@ export default function RestaurantOTP() {
 
     // Auto-submit when all 4 digits are entered
     if (newOtp.every((digit) => digit !== "") && newOtp.length === 4) {
-      handleVerify(newOtp.join(""))
+      // Auto-submit can race with manual Continue click; guard to avoid duplicate verify calls.
+      if (!hasSubmittedRef.current) {
+        hasSubmittedRef.current = true
+        handleVerify(newOtp.join(""))
+      }
     }
   }
 
@@ -150,8 +155,15 @@ export default function RestaurantOTP() {
   const handleVerify = async (otpValue = null) => {
     const code = otpValue || otp.join("")
 
+    // Prevent duplicate verify calls (OTP is single-use; backend deletes it on success)
+    if (hasSubmittedRef.current && !otpValue) {
+      // allow the already-triggered submission to complete
+      return
+    }
+
     if (code.length !== 4) {
       setError("Please enter the complete 4-digit code")
+      hasSubmittedRef.current = false
       return
     }
 
@@ -229,6 +241,7 @@ export default function RestaurantOTP() {
         "Invalid OTP. Please try again."
       setError(message)
       setOtp(["", "", "", ""])
+      hasSubmittedRef.current = false
       inputRefs.current[0]?.focus()
     } finally {
       setIsLoading(false)

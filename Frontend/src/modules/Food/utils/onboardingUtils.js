@@ -68,29 +68,86 @@ const isStepComplete = (stepData, stepNumber) => {
 const buildOnboardingLikeDataFromRestaurant = (restaurant) => {
   const onboarding = restaurant?.onboarding || {}
 
+  const openingTime =
+    restaurant?.openingTime ||
+    restaurant?.deliveryTimings?.openingTime ||
+    onboarding?.step2?.deliveryTimings?.openingTime
+  const closingTime =
+    restaurant?.closingTime ||
+    restaurant?.deliveryTimings?.closingTime ||
+    onboarding?.step2?.deliveryTimings?.closingTime
+
   return {
     completedSteps: onboarding.completedSteps,
     step1: onboarding.step1 || {
-      restaurantName: restaurant?.name,
+      restaurantName: restaurant?.restaurantName || restaurant?.name,
       ownerName: restaurant?.ownerName,
       ownerEmail: restaurant?.ownerEmail || restaurant?.email,
       ownerPhone: restaurant?.ownerPhone || restaurant?.phone,
       primaryContactNumber: restaurant?.primaryContactNumber,
-      location: restaurant?.location,
+      location:
+        restaurant?.location ||
+        (restaurant?.area || restaurant?.city || restaurant?.addressLine1
+          ? {
+              addressLine1: restaurant?.addressLine1,
+              addressLine2: restaurant?.addressLine2,
+              area: restaurant?.area,
+              city: restaurant?.city,
+              landmark: restaurant?.landmark,
+            }
+          : null),
     },
     step2: onboarding.step2 || {
       cuisines: restaurant?.cuisines,
-      deliveryTimings: restaurant?.deliveryTimings,
+      deliveryTimings:
+        restaurant?.deliveryTimings ||
+        (openingTime || closingTime ? { openingTime, closingTime } : null),
       openDays: restaurant?.openDays,
       menuImageUrls: restaurant?.menuImages,
       profileImageUrl: restaurant?.profileImage,
     },
-    step3: onboarding.step3 || null,
+    step3:
+      onboarding.step3 ||
+      (restaurant?.panNumber ||
+      restaurant?.fssaiNumber ||
+      restaurant?.accountNumber ||
+      restaurant?.ifscCode
+        ? {
+            pan: {
+              panNumber: restaurant?.panNumber,
+              nameOnPan: restaurant?.nameOnPan,
+              image: restaurant?.panImage,
+            },
+            gst: {
+              isRegistered: Boolean(restaurant?.gstRegistered),
+              gstNumber: restaurant?.gstNumber,
+              legalName: restaurant?.gstLegalName,
+              address: restaurant?.gstAddress,
+              image: restaurant?.gstImage,
+            },
+            fssai: {
+              registrationNumber: restaurant?.fssaiNumber,
+              expiryDate: restaurant?.fssaiExpiry,
+              image: restaurant?.fssaiImage,
+            },
+            bank: {
+              accountNumber: restaurant?.accountNumber,
+              ifscCode: restaurant?.ifscCode,
+              accountHolderName: restaurant?.accountHolderName,
+              accountType: restaurant?.accountType,
+            },
+          }
+        : null),
   }
 }
 
 export const isRestaurantOnboardingComplete = (restaurant) => {
   if (!restaurant) return false
+
+  // Approved restaurants should never be forced into onboarding again.
+  if (restaurant?.status === "approved") {
+    return true
+  }
 
   if (restaurant?.isActive === true) {
     return true

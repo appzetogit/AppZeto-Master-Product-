@@ -15,6 +15,10 @@ router.get('/v1/health', (req, res) => {
     res.status(200).json({ status: 'UP', message: 'Server is healthy' });
 });
 
+// Food-prefixed auth routes (preferred)
+router.use('/v1/food/auth', authRoutes);
+
+// Backward-compatible auth routes (legacy)
 router.use('/v1/auth', authRoutes);
 router.use('/v1/food/delivery', deliveryRoutes);
 router.use('/v1/food/restaurant', restaurantRoutes);

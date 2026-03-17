@@ -195,7 +195,49 @@ export const restaurantAPI = {
     return authService.verifyRestaurantOtp(phone, otp);
   },
   getMe: () => authService.getMe("restaurant"),
+  /** Restaurant dashboard: fetch current restaurant profile (deduped + short-cached). */
+  getCurrentRestaurant: () => getRestaurantCurrentOnce(),
+  /** Update restaurant profile fields (name/cuisines/location/menuImages). */
+  updateProfile: (body) =>
+    apiClient
+      .patch("/food/restaurant/profile", body ?? {}, { contextModule: "restaurant" })
+      .then((res) => {
+        // Keep cache coherent to avoid an immediate refetch storm.
+        restaurantCurrentCached = res;
+        restaurantCurrentCacheTime = Date.now();
+        return res;
+      }),
+  /** Upload and set restaurant profile image (multipart). Field name: file */
+  uploadProfileImage: (file) => {
+    if (!file) return Promise.reject(new Error("File is required"));
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiClient.post("/food/restaurant/profile/profile-image", formData, { contextModule: "restaurant" });
+  },
+  /** Upload a menu/cover image (multipart). Does not auto-attach; use updateProfile(menuImages) after. */
+  uploadMenuImage: (file) => {
+    if (!file) return Promise.reject(new Error("File is required"));
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiClient.post("/food/restaurant/profile/menu-image", formData, { contextModule: "restaurant" });
+  },
+  /** Add a staff/manager user (multipart FormData: name, role, phone|email, optional photo). */
+  addStaff: (formData) => {
+    if (!formData || !(formData instanceof FormData)) {
+      return Promise.reject(new Error("FormData is required"));
+    }
+    return apiClient.post("/food/restaurant/staff", formData, { contextModule: "restaurant" });
+  },
+  /** List staff/manager users */
+  getStaff: (params = {}) =>
+    apiClient.get("/food/restaurant/staff", { params, contextModule: "restaurant" }),
+  /** Remove a staff/manager user */
+  deleteStaff: (id) =>
+    apiClient.delete(`/food/restaurant/staff/${String(id)}`, { contextModule: "restaurant" }),
   logout: (refreshToken) => {
+    restaurantCurrentInFlight = null;
+    restaurantCurrentCached = null;
+    restaurantCurrentCacheTime = 0;
     const token =
       refreshToken ||
       (typeof localStorage !== "undefined" ? localStorage.getItem("restaurant_refreshToken") : null);
@@ -223,6 +265,32 @@ export const restaurantAPI = {
   /** Public: get single approved restaurant by id or slug */
   getRestaurantById: (id, config = {}) =>
     apiClient.get(`/food/restaurant/restaurants/${String(id)}`, { ...config }),
+};
+
+/** Single in-flight + short cache for restaurant /food/restaurant/current - prevents request storms. */
+let restaurantCurrentInFlight = null;
+let restaurantCurrentCached = null;
+let restaurantCurrentCacheTime = 0;
+const RESTAURANT_CURRENT_CACHE_MS = 3000;
+
+const getRestaurantCurrentOnce = () => {
+  const now = Date.now();
+  if (restaurantCurrentCached && now - restaurantCurrentCacheTime < RESTAURANT_CURRENT_CACHE_MS) {
+    return Promise.resolve(restaurantCurrentCached);
+  }
+  if (!restaurantCurrentInFlight) {
+    restaurantCurrentInFlight = apiClient
+      .get("/food/restaurant/current", { contextModule: "restaurant" })
+      .then((res) => {
+        restaurantCurrentCached = res;
+        restaurantCurrentCacheTime = Date.now();
+        return res;
+      })
+      .finally(() => {
+        restaurantCurrentInFlight = null;
+      });
+  }
+  return restaurantCurrentInFlight;
 };
 
 /** Single in-flight + short cache for delivery /auth/me - one call per page load / refresh. */

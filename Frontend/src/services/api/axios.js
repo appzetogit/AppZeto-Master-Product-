@@ -8,9 +8,10 @@
 
 import axios from "axios";
 
+// Prefer explicit env; fallback to local backend for dev convenience.
 const baseURL = typeof import.meta !== "undefined" && import.meta.env?.VITE_API_BASE_URL
   ? String(import.meta.env.VITE_API_BASE_URL).replace(/\/$/, "")
-  : "";
+  : "http://localhost:5000/api/v1";
 
 const apiClient = axios.create({
   baseURL: baseURL || undefined,
@@ -20,9 +21,9 @@ const apiClient = axios.create({
 
 function getModuleFromUrl(url = "") {
   const u = typeof url === "string" ? url : (url?.url || "");
-  if (u.includes("/auth/admin") || u.includes("admin/login")) return "admin";
-  if (u.includes("/auth/restaurant")) return "restaurant";
-  if (u.includes("/auth/delivery")) return "delivery";
+  if (u.includes("/food/auth/admin") || u.includes("/auth/admin") || u.includes("admin/login")) return "admin";
+  if (u.includes("/food/auth/restaurant") || u.includes("/auth/restaurant")) return "restaurant";
+  if (u.includes("/food/auth/delivery") || u.includes("/auth/delivery")) return "delivery";
   return "user";
 }
 
@@ -131,7 +132,7 @@ apiClient.interceptors.response.use(
 
     try {
       const { data } = await axios.post(
-        `${baseURL}/auth/refresh-token`,
+        `${baseURL}/food/auth/refresh-token`,
         { refreshToken },
         { headers: { "Content-Type": "application/json" }, timeout: 10000 }
       );

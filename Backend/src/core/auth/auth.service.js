@@ -107,7 +107,22 @@ export const verifyRestaurantOtpAndLogin = async (phone, otp) => {
         throw new AuthError(result.reason || 'OTP verification failed');
     }
 
-    const restaurant = await FoodRestaurant.findOne({ ownerPhone: phone }).lean();
+    // Restaurants may store ownerPhone with country code or formatting.
+    // Match by exact phone, last-10 digits, or suffix match to avoid false "needsRegistration".
+    const digits = String(phone || '').replace(/\D/g, '');
+    const last10 = digits.slice(-10);
+    const phoneCandidates = [phone, digits, last10].filter(Boolean);
+    const phoneOrFields = (field) => ([
+        { [field]: { $in: phoneCandidates } },
+        ...(last10 ? [{ [field]: { $regex: new RegExp(last10 + '$') } }] : [])
+    ]);
+
+    const restaurant = await FoodRestaurant.findOne({
+        $or: [
+            ...phoneOrFields('ownerPhone'),
+            ...phoneOrFields('primaryContactNumber')
+        ]
+    }).lean();
     if (!restaurant) {
         // Phone has been successfully verified, but no restaurant exists yet.
         // Frontend will use this to redirect into registration/onboarding.
@@ -223,7 +238,62 @@ export const getProfile = async (userId, role) => {
             profile = await FoodAdmin.findById(id).select('-password').lean();
             break;
         case ROLES.RESTAURANT:
-            profile = await FoodRestaurant.findById(id).lean();
+            {
+                const doc = await FoodRestaurant.findById(id).lean();
+                if (!doc) break;
+
+                const location =
+                    (doc.addressLine1 ||
+                        doc.addressLine2 ||
+                        doc.area ||
+                        doc.city ||
+                        doc.state ||
+                        doc.pincode ||
+                        doc.landmark)
+                        ? {
+                            addressLine1: doc.addressLine1 || '',
+                            addressLine2: doc.addressLine2 || '',
+                            area: doc.area || '',
+                            city: doc.city || '',
+                            state: doc.state || '',
+                            pincode: doc.pincode || '',
+                            landmark: doc.landmark || ''
+                        }
+                        : null;
+
+                const menuImages = Array.isArray(doc.menuImages)
+                    ? doc.menuImages
+                        .map((m) => (m && (typeof m === 'string' ? m : m.url)) || null)
+                        .filter(Boolean)
+                        .map((url) => ({ url, publicId: null }))
+                    : [];
+
+                profile = {
+                    id: doc._id,
+                    _id: doc._id,
+                    // Frontend expects "name" and "location" for restaurant screens.
+                    name: doc.restaurantName || '',
+                    restaurantName: doc.restaurantName || '',
+                    cuisines: Array.isArray(doc.cuisines) ? doc.cuisines : [],
+                    location,
+                    ownerName: doc.ownerName || '',
+                    ownerEmail: doc.ownerEmail || '',
+                    ownerPhone: doc.ownerPhone || '',
+                    primaryContactNumber: doc.primaryContactNumber || '',
+                    profileImage: doc.profileImage ? { url: doc.profileImage } : null,
+                    menuImages,
+                    coverImages: [],
+                    openingTime: doc.openingTime || null,
+                    closingTime: doc.closingTime || null,
+                    openDays: Array.isArray(doc.openDays) ? doc.openDays : [],
+                    status: doc.status || null,
+                    createdAt: doc.createdAt,
+                    updatedAt: doc.updatedAt,
+                    // These fields may not exist yet in DB, keep stable defaults for UI.
+                    rating: typeof doc.rating === 'number' ? doc.rating : 0,
+                    totalRatings: typeof doc.totalRatings === 'number' ? doc.totalRatings : 0
+                };
+            }
             break;
         case ROLES.DELIVERY_PARTNER: {
             const partner = await FoodDeliveryPartner.findById(id).lean();

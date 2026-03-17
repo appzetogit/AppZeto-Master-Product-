@@ -23,7 +23,7 @@ export default function DeliveryCashLimit() {
       const response = await adminAPI.getDeliveryCashLimit()
       const data = response?.data?.data || response?.data || {}
       const limit = data.deliveryCashLimit
-      const wl = data.deliveryWithdrawalLimit || 100
+      const wl = data.deliveryWithdrawalLimit ?? 100
       if (!isMountedRef.current) return
       setDeliveryCashLimit(limit !== undefined && limit !== null ? String(limit) : "")
       setDeliveryWithdrawalLimit(wl !== undefined && wl !== null ? String(wl) : "100")
@@ -48,10 +48,19 @@ export default function DeliveryCashLimit() {
       toast.error("Cash limit must be a number (>= 0)")
       return
     }
+    const withdrawalValue = Number(deliveryWithdrawalLimit)
+    if (!Number.isFinite(withdrawalValue) || withdrawalValue < 0) {
+      toast.error("Withdrawal limit must be a number (>= 0)")
+      return
+    }
 
     try {
       setSaving(true)
-      const response = await adminAPI.updateDeliveryCashLimit({ deliveryCashLimit: value })
+      // Send both fields to avoid unintentionally overwriting the other value
+      const response = await adminAPI.updateDeliveryCashLimit({
+        deliveryCashLimit: value,
+        deliveryWithdrawalLimit: withdrawalValue,
+      })
       const saved =
         response?.data?.data?.deliveryCashLimit ??
         response?.data?.deliveryCashLimit ??
@@ -73,10 +82,19 @@ export default function DeliveryCashLimit() {
       toast.error("Withdrawal limit must be a number (>= 0)")
       return
     }
+    const cashValue = Number(deliveryCashLimit)
+    if (!Number.isFinite(cashValue) || cashValue < 0) {
+      toast.error("Cash limit must be a number (>= 0)")
+      return
+    }
 
     try {
       setSavingWithdrawal(true)
-      const response = await adminAPI.updateDeliveryCashLimit({ deliveryWithdrawalLimit: value })
+      // Send both fields to avoid unintentionally overwriting the other value
+      const response = await adminAPI.updateDeliveryCashLimit({
+        deliveryCashLimit: cashValue,
+        deliveryWithdrawalLimit: value,
+      })
       const saved =
         response?.data?.data?.deliveryWithdrawalLimit ??
         response?.data?.deliveryWithdrawalLimit ??

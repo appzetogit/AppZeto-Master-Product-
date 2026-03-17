@@ -259,6 +259,32 @@ export const restaurantAPI = {
   /** Remove a staff/manager user */
   deleteStaff: (id) =>
     apiClient.delete(`/food/restaurant/staff/${String(id)}`, { contextModule: "restaurant" }),
+  /** Categories (restaurant dashboard) */
+  getCategories: (params = {}) =>
+    // Compact payload for item creation forms (id + name only).
+    apiClient.get("/food/restaurant/categories", { params: { compact: true, limit: 1000, ...params }, contextModule: "restaurant" }),
+  // For MenuCategoriesPage compatibility
+  getAllCategories: (params = {}) =>
+    apiClient.get("/food/restaurant/categories", {
+      params: { includeInactive: true, withCounts: true, limit: 1000, ...params },
+      contextModule: "restaurant",
+    }),
+  createCategory: (body) =>
+    apiClient.post("/food/restaurant/categories", body ?? {}, { contextModule: "restaurant" }),
+  updateCategory: (id, body) =>
+    apiClient.patch(`/food/restaurant/categories/${String(id)}`, body ?? {}, { contextModule: "restaurant" }),
+  deleteCategory: (id) =>
+    apiClient.delete(`/food/restaurant/categories/${String(id)}`, { contextModule: "restaurant" }),
+  /** Menu (restaurant dashboard) */
+  getMenu: (params = {}) =>
+    apiClient.get("/food/restaurant/menu", { params, contextModule: "restaurant" }),
+  updateMenu: (body) =>
+    apiClient.patch("/food/restaurant/menu", body ?? {}, { contextModule: "restaurant" }),
+  /** Foods (restaurant) - stored in food_items collection */
+  createFood: (body) =>
+    apiClient.post("/food/restaurant/foods", body ?? {}, { contextModule: "restaurant" }),
+  updateFood: (id, body) =>
+    apiClient.patch(`/food/restaurant/foods/${String(id)}`, body ?? {}, { contextModule: "restaurant" }),
   logout: (refreshToken) => {
     restaurantCurrentInFlight = null;
     restaurantCurrentCached = null;

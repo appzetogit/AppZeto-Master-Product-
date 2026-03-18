@@ -1,5 +1,6 @@
 import {
     listRestaurantCategories,
+    listPublicCategories,
     createRestaurantCategory,
     updateRestaurantCategory,
     deleteRestaurantCategory
@@ -13,6 +14,12 @@ export const listCategoriesController = async (req, res, next) => {
         // Default to restaurant's zone when caller doesn't pass zoneId.
         // This returns (zone categories + global categories) instead of only global.
         const query = { ...(req.query || {}) };
+        if (!restaurantId) {
+            // Public endpoint: no auth available. Return approved categories (zone-aware).
+            const data = await listPublicCategories(query);
+            return sendResponse(res, 200, 'Categories fetched successfully', data);
+        }
+
         if (!query.zoneId) {
             const r = await FoodRestaurant.findById(restaurantId).select('zoneId').lean();
             if (r?.zoneId) {

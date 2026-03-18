@@ -397,6 +397,8 @@ export default function Home() {
   const [restaurantDietMeta, setRestaurantDietMeta] = useState({});
   const [showAllCategoriesModal, setShowAllCategoriesModal] = useState(false);
   const [availabilityTick, setAvailabilityTick] = useState(Date.now());
+  const publicCategoriesCacheRef = useRef(new Map());
+  const publicCategoriesInFlightRef = useRef(new Map());
   const isHandlingSwitchOff = useRef(false);
   const heroShellRef = useRef(null);
   const stickyHeaderRef = useRef(null);
@@ -686,8 +688,8 @@ export default function Home() {
   }, [landingCategories, normalizeImageUrl, slugifyCategory]);
 
   const displayCategories = useMemo(() => {
-    if (menuCategories.length > 0) return menuCategories;
     if (realCategories.length > 0) return realCategories;
+    if (menuCategories.length > 0) return menuCategories;
     return normalizedLandingCategories;
   }, [menuCategories, realCategories, normalizedLandingCategories]);
 
@@ -1068,22 +1070,50 @@ export default function Home() {
   useEffect(() => {
     let cancelled = false
     const run = async () => {
+      const zoneKey = String(zoneId || "global")
       try {
+        // Dedupe repeated calls (StrictMode + zone settling). Cache per zoneKey and share in-flight request.
+        const cached = publicCategoriesCacheRef.current.get(zoneKey)
+        if (cached) {
+          if (!cancelled) setRealCategories(cached)
+          return
+        }
+
+        const inFlight = publicCategoriesInFlightRef.current.get(zoneKey)
+        if (inFlight) {
+          const categories = await inFlight
+          if (!cancelled) setRealCategories(categories)
+          return
+        }
+
         setLoadingRealCategories(true)
-        const res = await adminAPI.getPublicCategories(zoneId ? { zoneId } : {})
-        const list =
-          res?.data?.data?.categories ||
-          res?.data?.categories ||
-          []
-        const categories = Array.isArray(list)
-          ? list.map((cat, idx) => ({
-              id: String(cat?.id || cat?._id || cat?.slug || idx),
-              name: cat?.name || "",
-              slug: cat?.slug || String(cat?.name || "").toLowerCase().replace(/\s+/g, "-"),
-              image: cat?.image || foodImages[idx % foodImages.length] || foodImages[0],
-              type: cat?.type || "",
-            }))
-          : []
+        const promise = (async () => {
+          const res = await adminAPI.getPublicCategories(zoneId ? { zoneId } : {})
+          const list =
+            res?.data?.data?.categories ||
+            res?.data?.categories ||
+            []
+          const categories = Array.isArray(list)
+            ? list.map((cat, idx) => ({
+                id: String(cat?.id || cat?._id || cat?.slug || idx),
+                name: cat?.name || "",
+                slug: cat?.slug || String(cat?.name || "").toLowerCase().replace(/\s+/g, "-"),
+                image:
+                  normalizeImageUrl(cat?.image || cat?.imageUrl) ||
+                  foodImages[idx % foodImages.length] ||
+                  foodImages[0],
+                type: cat?.type || "",
+              }))
+            : []
+
+          publicCategoriesCacheRef.current.set(zoneKey, categories)
+          return categories
+        })()
+
+        publicCategoriesInFlightRef.current.set(zoneKey, promise)
+        const categories = await promise
+        publicCategoriesInFlightRef.current.delete(zoneKey)
+
         if (!cancelled) setRealCategories(categories)
       } catch (err) {
         debugWarn("Failed to fetch categories:", err)
@@ -1096,7 +1126,7 @@ export default function Home() {
     return () => {
       cancelled = true
     }
-  }, [zoneId])
+  }, [zoneId, normalizeImageUrl])
 
   // Memoize cartCount to prevent recalculation on every render - use cart directly
   const cartCount = useMemo(

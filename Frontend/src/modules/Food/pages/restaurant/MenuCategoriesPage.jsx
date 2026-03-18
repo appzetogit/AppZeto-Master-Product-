@@ -48,7 +48,12 @@ export default function MenuCategoriesPage() {
       setLoading(true)
       const response = await restaurantAPI.getAllCategories({ includePending: true })
       if (response.data.success) {
-        setCategories(response.data.data.categories || [])
+        const all = response.data.data.categories || []
+        // This page is for managing the restaurant's own categories only.
+        // Backend includePending=true ensures only this restaurant's pending categories are included,
+        // so filtering by restaurantId safely hides admin/global categories.
+        const own = all.filter((c) => Boolean(c?.restaurantId))
+        setCategories(own)
       }
     } catch (error) {
       debugError('Error fetching categories:', error)

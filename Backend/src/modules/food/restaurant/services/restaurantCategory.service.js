@@ -101,6 +101,61 @@ export async function listRestaurantCategories(restaurantId, query = {}) {
     return { categories, total, page, limit };
 }
 
+// Public categories listing (user app): approved + active, zone-aware, no auth required.
+export async function listPublicCategories(query = {}) {
+    const limit = Math.min(Math.max(parseInt(query.limit, 10) || 1000, 1), 1000);
+    const page = Math.max(parseInt(query.page, 10) || 1, 1);
+    const skip = (page - 1) * limit;
+
+    const search = typeof query.search === 'string' ? query.search.trim() : '';
+    const zoneIdRaw = typeof query.zoneId === 'string' ? query.zoneId.trim() : '';
+
+    const filter = { isActive: true };
+    // Only approved categories are visible publicly; treat missing isApproved as approved.
+    filter.$and = [{ isApproved: { $ne: false } }];
+
+    if (search) {
+        const term = escapeRegex(search.slice(0, 80));
+        filter.$and.push({ name: { $regex: term, $options: 'i' } });
+    }
+
+    if (zoneIdRaw && mongoose.Types.ObjectId.isValid(zoneIdRaw)) {
+        filter.$and.push({
+            $or: [
+                { zoneId: new mongoose.Types.ObjectId(zoneIdRaw) },
+                { zoneId: { $exists: false } },
+                { zoneId: null }
+            ]
+        });
+    } else {
+        filter.$and.push({ $or: [{ zoneId: { $exists: false } }, { zoneId: null }] });
+    }
+
+    const [list, total] = await Promise.all([
+        FoodCategory.find(filter)
+            .sort({ sortOrder: 1, createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .select('name image type zoneId sortOrder createdAt updatedAt')
+            .lean(),
+        FoodCategory.countDocuments(filter)
+    ]);
+
+    const categories = (list || []).map((c) => ({
+        _id: c._id,
+        id: c._id,
+        name: c.name,
+        image: c.image || '',
+        type: c.type || '',
+        zoneId: c.zoneId || null,
+        sortOrder: c.sortOrder || 0,
+        createdAt: c.createdAt,
+        updatedAt: c.updatedAt
+    }));
+
+    return { categories, total, page, limit };
+}
+
 export async function createRestaurantCategory(restaurantId, body = {}) {
     if (!restaurantId || !mongoose.Types.ObjectId.isValid(String(restaurantId))) {
         throw new ValidationError('Invalid restaurant id');

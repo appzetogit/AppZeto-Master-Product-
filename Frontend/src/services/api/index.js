@@ -586,6 +586,12 @@ export const restaurantAPI = {
   getMe: () => authService.getMe("restaurant"),
   /** Restaurant dashboard: fetch current restaurant profile (deduped + short-cached). */
   getCurrentRestaurant: () => getRestaurantCurrentOnce(),
+  /** Restaurant hub dashboard bootstrap. */
+  getToHubData: (config = {}) =>
+    apiClient.get("/food/restaurant/to-hub", {
+      contextModule: "restaurant",
+      ...config,
+    }),
   /** Update restaurant profile fields (name/cuisines/location/menuImages). */
   updateProfile: (body) =>
     apiClient
@@ -664,6 +670,16 @@ export const restaurantAPI = {
   getMenu: (params = {}) =>
     apiClient.get("/food/restaurant/menu", {
       params,
+      contextModule: "restaurant",
+    }),
+  /** Orders (restaurant dashboard) */
+  getOrders: (params = {}) =>
+    apiClient.get("/food/restaurant/orders", {
+      params: { limit: 50, page: 1, ...params },
+      contextModule: "restaurant",
+    }),
+  getOrderById: (orderId) =>
+    apiClient.get(`/food/restaurant/orders/${String(orderId)}`, {
       contextModule: "restaurant",
     }),
   updateMenu: (body) =>

@@ -6,6 +6,14 @@ const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
+const extractRestaurantPayload = (response) =>
+  response?.data?.data?.restaurant ||
+  response?.data?.restaurant ||
+  response?.data?.data?.user ||
+  response?.data?.user ||
+  response?.data?.data ||
+  null
+
 
 export default function RestaurantNavbar({
   restaurantName: propRestaurantName,
@@ -27,7 +35,7 @@ export default function RestaurantNavbar({
       try {
         setLoading(true)
         const response = await restaurantAPI.getCurrentRestaurant()
-        const data = response?.data?.data?.restaurant || response?.data?.restaurant
+        const data = extractRestaurantPayload(response)
         if (data) {
           setRestaurantData(data)
         }

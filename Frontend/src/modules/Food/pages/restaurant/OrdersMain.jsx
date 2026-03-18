@@ -21,6 +21,7 @@ const STORAGE_KEY = "restaurant_online_status"
 
 // Top filter tabs
 const filterTabs = [
+  { id: "all", label: "All" },
   { id: "preparing", label: "Preparing" },
   { id: "ready", label: "Ready" },
   { id: "out-for-delivery", label: "Out for delivery" },
@@ -29,6 +30,51 @@ const filterTabs = [
   { id: "completed", label: "Completed" },
   { id: "cancelled", label: "Cancelled" },
 ]
+
+const allOrdersStatusPriority = {
+  pending: 0,
+  confirmed: 1,
+  preparing: 2,
+  ready: 3,
+  out_for_delivery: 4,
+  scheduled: 5,
+  delivered: 6,
+  completed: 6,
+  cancelled: 7,
+}
+
+const getAllOrdersTimestamp = (order) =>
+  order?.cancelledAt ||
+  order?.deliveredAt ||
+  order?.updatedAt ||
+  order?.createdAt ||
+  new Date().toISOString()
+
+const transformOrderForList = (order) => ({
+  orderId: order.orderId || order._id,
+  mongoId: order._id,
+  status: order.status || 'pending',
+  customerName: order.userId?.name || 'Customer',
+  type: order.deliveryFleet === 'standard' ? 'Home Delivery' : 'Express Delivery',
+  tableOrToken: null,
+  timePlaced: new Date(getAllOrdersTimestamp(order)).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }),
+  eta: null,
+  itemsSummary: order.items?.map(item => `${item.quantity}x ${item.name}`).join(', ') || 'No items',
+  photoUrl: order.items?.[0]?.image || null,
+  photoAlt: order.items?.[0]?.name || 'Order',
+  paymentMethod: order.paymentMethod || order.payment?.method || null,
+  deliveryPartnerId: order.deliveryPartnerId || null,
+  preparingTimestamp: order.tracking?.preparing?.timestamp
+    ? new Date(order.tracking.preparing.timestamp)
+    : new Date(order.createdAt || Date.now()),
+  initialETA: order.estimatedDeliveryTime || 30,
+  sortTimestamp: new Date(getAllOrdersTimestamp(order)).getTime(),
+})
 
 // Completed Orders List Component
 function CompletedOrders({ onSelectOrder }) {
@@ -554,9 +600,152 @@ function TableBookings() {
 }
 
 
+function AllOrders({ onSelectOrder, onCancel }) {
+  const [orders, setOrders] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [currentTime, setCurrentTime] = useState(new Date())
+  const [markingReadyOrderIds, setMarkingReadyOrderIds] = useState({})
+
+  useEffect(() => {
+    let isMounted = true
+    let intervalId = null
+    let countdownIntervalId = null
+
+    const fetchOrders = async () => {
+      try {
+        const response = await restaurantAPI.getOrders()
+
+        if (!isMounted) return
+
+        if (response.data?.success && response.data.data?.orders) {
+          const transformedOrders = response.data.data.orders
+            .map(transformOrderForList)
+            .sort((a, b) => {
+              const priorityDiff =
+                (allOrdersStatusPriority[a.status] ?? 999) - (allOrdersStatusPriority[b.status] ?? 999)
+              if (priorityDiff !== 0) return priorityDiff
+              return b.sortTimestamp - a.sortTimestamp
+            })
+
+          setOrders(transformedOrders)
+        } else {
+          setOrders([])
+        }
+      } catch (error) {
+        if (!isMounted) return
+
+        if (error.code !== 'ERR_NETWORK' && error.response?.status !== 404 && error.response?.status !== 401) {
+          debugError('Error fetching all orders:', error)
+        }
+
+        setOrders([])
+      } finally {
+        if (isMounted) {
+          setLoading(false)
+        }
+      }
+    }
+
+    fetchOrders()
+    intervalId = setInterval(fetchOrders, 10000)
+    countdownIntervalId = setInterval(() => {
+      if (isMounted) {
+        setCurrentTime(new Date())
+      }
+    }, 1000)
+
+    return () => {
+      isMounted = false
+      if (intervalId) clearInterval(intervalId)
+      if (countdownIntervalId) clearInterval(countdownIntervalId)
+    }
+  }, [])
+
+  const handleMarkReady = async ({ orderId, mongoId }) => {
+    const orderKey = mongoId || orderId
+    if (!orderKey || markingReadyOrderIds[orderKey]) return
+
+    try {
+      setMarkingReadyOrderIds((prev) => ({ ...prev, [orderKey]: true }))
+      await restaurantAPI.markOrderReady(orderKey)
+      setOrders((prev) =>
+        prev.map((order) =>
+          (order.mongoId || order.orderId) === orderKey
+            ? { ...order, status: 'ready', eta: null, sortTimestamp: Date.now() }
+            : order
+        )
+      )
+      toast.success('Order marked as ready')
+    } catch (error) {
+      debugError('Error marking order as ready from All orders:', error)
+      toast.error(error.response?.data?.message || 'Failed to mark order as ready')
+    } finally {
+      setMarkingReadyOrderIds((prev) => ({ ...prev, [orderKey]: false }))
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="pt-4 pb-6">
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="text-base font-semibold text-black">All orders</h2>
+          <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
+        </div>
+        <div className="text-center py-8 text-gray-500 text-sm">Loading...</div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="pt-4 pb-6">
+      <div className="flex items-baseline justify-between mb-3">
+        <h2 className="text-base font-semibold text-black">All orders</h2>
+        <span className="text-xs text-gray-500">{orders.length} total</span>
+      </div>
+      {orders.length === 0 ? (
+        <div className="text-center py-8 text-gray-500 text-sm">
+          No orders found
+        </div>
+      ) : (
+        <div>
+          {orders.map((order) => {
+            const normalizedStatus = String(order.status || '').toLowerCase()
+            let etaDisplay = order.eta
+
+            if (normalizedStatus === 'preparing' && order.preparingTimestamp) {
+              const elapsedMs = currentTime - order.preparingTimestamp
+              const elapsedMinutes = Math.floor(elapsedMs / 60000)
+              const remainingMinutes = Math.max(0, order.initialETA - elapsedMinutes)
+
+              if (remainingMinutes <= 0) {
+                const remainingSeconds = Math.max(0, Math.floor((order.initialETA * 60) - (elapsedMs / 1000)))
+                etaDisplay = remainingSeconds > 0 ? `${remainingSeconds} secs` : '0 mins'
+              } else {
+                etaDisplay = `${remainingMinutes} mins`
+              }
+            }
+
+            return (
+              <OrderCard
+                key={order.orderId || order.mongoId}
+                {...order}
+                eta={etaDisplay}
+                onSelect={onSelectOrder}
+                onCancel={normalizedStatus === 'preparing' ? onCancel : undefined}
+                onMarkReady={normalizedStatus === 'preparing' ? handleMarkReady : undefined}
+                isMarkingReady={Boolean(markingReadyOrderIds[order.mongoId || order.orderId])}
+              />
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function OrdersMain() {
   const navigate = useNavigate()
-  const [activeFilter, setActiveFilter] = useState("preparing")
+  const [activeFilter, setActiveFilter] = useState("all")
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [isSheetOpen, setIsSheetOpen] = useState(false)
@@ -1365,6 +1554,8 @@ export default function OrdersMain() {
 
   const renderContent = () => {
     switch (activeFilter) {
+      case "all":
+        return <AllOrders onSelectOrder={handleSelectOrder} onCancel={handleCancelClick} />
       case "preparing":
         return <PreparingOrders onSelectOrder={handleSelectOrder} onCancel={handleCancelClick} />
       case "ready":
@@ -1830,7 +2021,7 @@ export default function OrdersMain() {
                         onTouchCancel={handleAcceptSwipeEnd}
                         disabled={isAcceptingOrder}
                       >
-                        <span className="text-lg font-bold">›</span>
+                        <span className="text-lg font-bold">â€º</span>
                       </motion.button>
                     </div>
 
@@ -2055,7 +2246,7 @@ export default function OrdersMain() {
                   <p className="text-[11px] text-gray-500 mt-1">
                     {selectedOrder.type}
                     {selectedOrder.tableOrToken
-                      ? ` • ${selectedOrder.tableOrToken}`
+                      ? ` â€¢ ${selectedOrder.tableOrToken}`
                       : ""}
                   </p>
                 </div>
@@ -2304,7 +2495,7 @@ function OrderCard({
             <div className="flex flex-col gap-1">
               <p className="text-[11px] text-gray-500">
                 {type}
-                {tableOrToken ? ` • ${tableOrToken}` : ""}
+                {tableOrToken ? ` â€¢ ${tableOrToken}` : ""}
               </p>
               {/* Delivery Assignment Status - Only show for preparing orders */}
               {isPreparing && (

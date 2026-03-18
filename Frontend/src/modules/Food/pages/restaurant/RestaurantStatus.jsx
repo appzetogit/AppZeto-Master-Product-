@@ -18,6 +18,16 @@ const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
+const RESTAURANT_ONLINE_STATUS_KEY = "restaurant_online_status"
+
+const persistRestaurantOnlineStatus = (isOnline) => {
+  try {
+    localStorage.setItem(RESTAURANT_ONLINE_STATUS_KEY, JSON.stringify(Boolean(isOnline)))
+  } catch (error) {
+    debugError("Error persisting restaurant online status:", error)
+  }
+}
+
 
 export default function RestaurantStatus() {
   const navigate = useNavigate()
@@ -165,12 +175,14 @@ export default function RestaurantStatus() {
         const restaurant = response?.data?.data?.restaurant || response?.data?.restaurant
         if (restaurant?.isAcceptingOrders !== undefined) {
           setDeliveryStatus(restaurant.isAcceptingOrders)
+          persistRestaurantOnlineStatus(restaurant.isAcceptingOrders)
           // Dispatch event to update navbar
           window.dispatchEvent(new CustomEvent('restaurantStatusChanged', { 
             detail: { isOnline: restaurant.isAcceptingOrders } 
           }))
         } else {
           setDeliveryStatus(false)
+          persistRestaurantOnlineStatus(false)
           window.dispatchEvent(new CustomEvent('restaurantStatusChanged', { 
             detail: { isOnline: false } 
           }))
@@ -181,6 +193,7 @@ export default function RestaurantStatus() {
           debugError("Error loading delivery status:", error)
         }
         setDeliveryStatus(false)
+        persistRestaurantOnlineStatus(false)
         window.dispatchEvent(new CustomEvent('restaurantStatusChanged', { 
           detail: { isOnline: false } 
         }))
@@ -210,10 +223,12 @@ export default function RestaurantStatus() {
       try {
         await restaurantAPI.updateAcceptingOrders(checked)
         debugLog('? Delivery status updated in backend:', checked)
+        persistRestaurantOnlineStatus(checked)
       } catch (apiError) {
         debugError('Error updating delivery status in backend:', apiError)
         // Revert local toggle if backend fails.
         setDeliveryStatus((prev) => !prev)
+        persistRestaurantOnlineStatus(!checked)
         return
       }
       

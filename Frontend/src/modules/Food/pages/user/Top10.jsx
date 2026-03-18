@@ -5,6 +5,8 @@ import { Button } from "@food/components/ui/button"
 import { Card, CardContent } from "@food/components/ui/card"
 import api from "@food/api"
 import { toast } from "sonner"
+import { API_BASE_URL } from "@food/api/config"
+import OptimizedImage from "@food/components/OptimizedImage"
 
 // Import banner
 import top10Banner from "@food/assets/top10pagebanner.png"
@@ -19,6 +21,17 @@ export default function Top10() {
   const [top10Restaurants, setTop10Restaurants] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+
+  const backendOrigin = (API_BASE_URL || "").replace(/\/api\/v1\/?$/, "")
+
+  const resolveImageUrl = (url) => {
+    if (typeof url !== "string") return ""
+    const trimmed = url.trim()
+    if (!trimmed) return ""
+    if (/^(https?:|\/\/|data:|blob:)/i.test(trimmed)) return trimmed
+    if (!backendOrigin) return trimmed
+    return `${backendOrigin.replace(/\/$/, "")}${trimmed.startsWith("/") ? trimmed : `/${trimmed}`}`
+  }
 
   // Fetch Top 10 restaurants from public API
   useEffect(() => {
@@ -128,26 +141,33 @@ export default function Top10() {
                     ? restaurant.menuImages.map(img => img.url || img).filter(Boolean)
                     : []
 
-                  const restaurantImage = coverImages.length > 0
-                    ? coverImages[0]
-                    : (menuImages.length > 0
-                      ? menuImages[0]
-                      : (restaurant.profileImage?.url || restaurant.image || "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&h=600&fit=crop"))
+                  const rawRestaurantImage =
+                    coverImages.length > 0
+                      ? coverImages[0]
+                      : (menuImages.length > 0
+                        ? menuImages[0]
+                        : (restaurant.profileImage?.url || restaurant.profileImage || restaurant.image || ""))
+
+                  const restaurantImage = resolveImageUrl(rawRestaurantImage)
 
                   return (
                     <Link key={restaurantId} to={`/user/restaurants/${restaurantSlug}`}>
                       <Card className="overflow-hidden cursor-pointer border-0 group bg-white dark:bg-[#1a1a1a] shadow-md hover:shadow-xl transition-all duration-300 py-0 rounded-2xl mb-4">
                         {/* Image Section */}
                         <div className="relative h-44 sm:h-52 md:h-56 w-full overflow-hidden rounded-t-2xl">
-                          <img
-                            src={restaurantImage}
-                            alt={restaurant.restaurantName || restaurant.name}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                            onError={(e) => {
-                              // Fallback to placeholder if image fails
-                              e.target.src = "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&h=600&fit=crop"
-                            }}
-                          />
+                          {restaurantImage ? (
+                            <OptimizedImage
+                              src={restaurantImage}
+                              alt={restaurant.restaurantName || restaurant.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center">
+                              <span className="text-slate-600 dark:text-slate-300 text-sm font-semibold">
+                                No image
+                              </span>
+                            </div>
+                          )}
 
                           {/* Bookmark Icon - Top Right */}
                           <Button

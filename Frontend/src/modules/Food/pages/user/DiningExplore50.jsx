@@ -21,7 +21,7 @@ const popularRestaurants = [
     distance: "2.9 km",
     cuisine: "Continental",
     price: "₹1500 for two",
-    image: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&h=600&fit=crop",
+    image: "",
     offer: "Flat 30% OFF + 3 more",
     deliveryTime: "30-35 mins",
     featuredDish: "Pasta",
@@ -91,7 +91,7 @@ const popularRestaurants = [
     distance: "3.8 km",
     cuisine: "Continental",
     price: "₹2200 for two",
-    image: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&h=600&fit=crop",
+    image: "",
     offer: "Flat 25% OFF + 2 more",
     deliveryTime: "35-40 mins",
     featuredDish: "Steak",
@@ -361,8 +361,8 @@ export default function DiningExplore50() {
                           alt={restaurant.name}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                           onError={(e) => {
-                            e.target.src = "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&h=600&fit=crop"
-                          }} nav
+                            e.currentTarget.style.display = "none"
+                          }}
                         />
 
                         {/* Featured Dish Badge - Top Left */}

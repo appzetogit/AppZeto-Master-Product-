@@ -135,9 +135,12 @@ export default function MyBookings() {
                         <div key={booking._id} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-start gap-4">
                             <div className="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 bg-slate-100">
                                 <img
-                                    src={booking.restaurant?.image || booking.restaurant?.profileImage?.url || "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=200&q=80"}
+                                    src={booking.restaurant?.image || booking.restaurant?.profileImage?.url || ""}
                                     className="w-full h-full object-cover"
                                     alt={booking.restaurant?.name}
+                                    onError={(e) => {
+                                        e.currentTarget.style.display = 'none'
+                                    }}
                                 />
                             </div>
                             <div className="flex-1 min-w-0">

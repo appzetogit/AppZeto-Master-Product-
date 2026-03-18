@@ -80,7 +80,7 @@ export default function DiningCategory() {
                 restaurant.menuImages?.[0] ||
                 restaurant.profileImage?.url ||
                 restaurant.profileImage ||
-                "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&h=900&fit=crop",
+                "",
               address: formatAddress(restaurant),
               cuisine:
                 Array.isArray(restaurant.cuisines) && restaurant.cuisines.length > 0
@@ -207,7 +207,7 @@ export default function DiningCategory() {
                         alt={restaurant.name}
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                         onError={(event) => {
-                          event.currentTarget.src = "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&h=900&fit=crop"
+                          event.currentTarget.style.display = "none"
                         }}
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />

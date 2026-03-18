@@ -1,0 +1,228 @@
+import { sendResponse } from '../../../utils/response.js';
+import * as orderService from './order.service.js';
+import {
+    validateCalculateOrderDto,
+    validateCreateOrderDto,
+    validateVerifyPaymentDto,
+    validateCancelOrderDto,
+    validateOrderStatusDto,
+    validateAssignDeliveryDto,
+    validateDispatchSettingsDto
+} from './order.validator.js';
+
+export async function calculateOrderController(req, res, next) {
+    try {
+        const userId = req.user?.userId;
+        const dto = validateCalculateOrderDto(req.body);
+        const result = await orderService.calculateOrder(userId, dto);
+        return sendResponse(res, 200, 'Pricing calculated', result);
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function createOrderController(req, res, next) {
+    try {
+        const userId = req.user?.userId;
+        const dto = validateCreateOrderDto(req.body);
+        const result = await orderService.createOrder(userId, dto);
+        return sendResponse(res, 201, 'Order placed successfully', result);
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function verifyPaymentController(req, res, next) {
+    try {
+        const userId = req.user?.userId;
+        const dto = validateVerifyPaymentDto(req.body);
+        const result = await orderService.verifyPayment(userId, dto);
+        return sendResponse(res, 200, 'Payment verified', result);
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function listOrdersUserController(req, res, next) {
+    try {
+        const userId = req.user?.userId;
+        const result = await orderService.listOrdersUser(userId, req.query);
+        return sendResponse(res, 200, 'Orders retrieved', result);
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function getOrderByIdUserController(req, res, next) {
+    try {
+        const userId = req.user?.userId;
+        const orderId = req.params.orderId;
+        const order = await orderService.getOrderById(orderId, { userId });
+        return sendResponse(res, 200, 'Order retrieved', { order });
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function cancelOrderController(req, res, next) {
+    try {
+        const userId = req.user?.userId;
+        const orderId = req.params.orderId;
+        const dto = validateCancelOrderDto(req.body);
+        const order = await orderService.cancelOrder(orderId, userId, dto.reason);
+        return sendResponse(res, 200, 'Order cancelled', { order });
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function getDispatchSettingsController(req, res, next) {
+    try {
+        const result = await orderService.getDispatchSettings();
+        return sendResponse(res, 200, 'Dispatch settings retrieved', result);
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function updateDispatchSettingsController(req, res, next) {
+    try {
+        const adminId = req.user?.userId;
+        const dto = validateDispatchSettingsDto(req.body);
+        const result = await orderService.updateDispatchSettings(dto.dispatchMode, adminId);
+        return sendResponse(res, 200, 'Dispatch settings updated', result);
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function listOrdersRestaurantController(req, res, next) {
+    try {
+        const restaurantId = req.user?.userId;
+        const result = await orderService.listOrdersRestaurant(restaurantId, req.query);
+        return sendResponse(res, 200, 'Orders retrieved', result);
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function updateOrderStatusRestaurantController(req, res, next) {
+    try {
+        const restaurantId = req.user?.userId;
+        const orderId = req.params.orderId;
+        const dto = validateOrderStatusDto(req.body);
+        const order = await orderService.updateOrderStatusRestaurant(orderId, restaurantId, dto.orderStatus);
+        return sendResponse(res, 200, 'Order status updated', { order });
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function listOrdersAvailableDeliveryController(req, res, next) {
+    try {
+        const deliveryPartnerId = req.user?.userId;
+        const result = await orderService.listOrdersAvailableDelivery(deliveryPartnerId, req.query);
+        return sendResponse(res, 200, 'Orders retrieved', result);
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function acceptOrderDeliveryController(req, res, next) {
+    try {
+        const deliveryPartnerId = req.user?.userId;
+        const orderId = req.params.orderId;
+        const order = await orderService.acceptOrderDelivery(orderId, deliveryPartnerId);
+        return sendResponse(res, 200, 'Order accepted', { order });
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function rejectOrderDeliveryController(req, res, next) {
+    try {
+        const deliveryPartnerId = req.user?.userId;
+        const orderId = req.params.orderId;
+        const order = await orderService.rejectOrderDelivery(orderId, deliveryPartnerId);
+        return sendResponse(res, 200, 'Order rejected', { order });
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function updateOrderStatusDeliveryController(req, res, next) {
+    try {
+        const deliveryPartnerId = req.user?.userId;
+        const orderId = req.params.orderId;
+        const dto = validateOrderStatusDto(req.body);
+        const order = await orderService.updateOrderStatusDelivery(orderId, deliveryPartnerId, dto.orderStatus);
+        return sendResponse(res, 200, 'Order status updated', { order });
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function createCollectQrController(req, res, next) {
+    try {
+        const deliveryPartnerId = req.user?.userId;
+        const orderId = req.params.orderId;
+        const customerInfo = req.body || {};
+        const result = await orderService.createCollectQr(orderId, deliveryPartnerId, customerInfo);
+        return sendResponse(res, 200, 'QR created', result);
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function getOrderByIdDeliveryController(req, res, next) {
+    try {
+        const deliveryPartnerId = req.user?.userId;
+        const orderId = req.params.orderId;
+        const order = await orderService.getOrderById(orderId, { deliveryPartnerId });
+        return sendResponse(res, 200, 'Order retrieved', { order });
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function getPaymentStatusController(req, res, next) {
+    try {
+        const deliveryPartnerId = req.user?.userId;
+        const orderId = req.params.orderId;
+        const result = await orderService.getPaymentStatus(orderId, deliveryPartnerId);
+        return sendResponse(res, 200, 'Payment status retrieved', result);
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function listOrdersAdminController(req, res, next) {
+    try {
+        const result = await orderService.listOrdersAdmin(req.query);
+        return sendResponse(res, 200, 'Orders retrieved', result);
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function getOrderByIdAdminController(req, res, next) {
+    try {
+        const orderId = req.params.orderId;
+        const order = await orderService.getOrderById(orderId, { admin: true });
+        return sendResponse(res, 200, 'Order retrieved', { order });
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function assignDeliveryPartnerController(req, res, next) {
+    try {
+        const adminId = req.user?.userId;
+        const orderId = req.params.orderId;
+        const dto = validateAssignDeliveryDto(req.body);
+        const order = await orderService.assignDeliveryPartnerAdmin(orderId, dto.deliveryPartnerId, adminId);
+        return sendResponse(res, 200, 'Delivery partner assigned', { order });
+    } catch (err) {
+        next(err);
+    }
+}

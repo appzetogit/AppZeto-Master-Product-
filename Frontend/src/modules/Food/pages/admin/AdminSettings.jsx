@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from "@food/components/ui/card";
 import { toast } from "sonner";
-import { Lock, Eye, EyeOff, Save, Loader2, Shield, User, Mail } from "lucide-react";
+import { Lock, Eye, EyeOff, Save, Loader2, Shield, User, Mail, Truck } from "lucide-react";
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -59,6 +59,38 @@ export default function AdminSettings() {
     load();
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await adminAPI.getDispatchSettings();
+        const mode = res?.data?.data?.dispatchMode ?? res?.data?.dispatchMode ?? "manual";
+        if (!cancelled) setDispatchMode(mode);
+      } catch (_) {
+        if (!cancelled) setDispatchMode("manual");
+      } finally {
+        if (!cancelled) setDispatchLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleDispatchModeChange = async (mode) => {
+    if (dispatchSaving || mode === dispatchMode) return;
+    try {
+      setDispatchSaving(true);
+      await adminAPI.updateDispatchSettings(mode);
+      setDispatchMode(mode);
+      toast.success(mode === "auto" ? "Auto-assign enabled" : "Manual assign enabled");
+    } catch (e) {
+      debugError("Dispatch settings update failed:", e);
+      toast.error(e?.response?.data?.message || "Failed to update");
+    } finally {
+      setDispatchSaving(false);
+    }
+  };
 
   const handlePasswordChange = (field, value) => {
     setPasswordForm((prev) => ({
@@ -333,6 +365,57 @@ export default function AdminSettings() {
               </Button>
             </div>
           </form>
+        </CardContent>
+      </Card>
+
+      {/* Dispatch mode: auto vs manual assign */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Truck className="w-5 h-5 text-neutral-700" />
+            <CardTitle>Order dispatch</CardTitle>
+          </div>
+          <CardDescription>
+            Choose how delivery partners are assigned to orders. Auto: nearest online partner is assigned when order is placed. Manual: admin assigns from the orders page.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {dispatchLoading ? (
+            <div className="flex items-center gap-2 text-neutral-500">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Loading...
+            </div>
+          ) : (
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={() => handleDispatchModeChange("auto")}
+                disabled={dispatchSaving}
+                className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                  dispatchMode === "auto"
+                    ? "bg-neutral-900 text-white border-neutral-900"
+                    : "bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50"
+                }`}
+              >
+                Auto-assign
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDispatchModeChange("manual")}
+                disabled={dispatchSaving}
+                className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                  dispatchMode === "manual"
+                    ? "bg-neutral-900 text-white border-neutral-900"
+                    : "bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50"
+                }`}
+              >
+                Manual
+              </button>
+              {dispatchSaving && (
+                <Loader2 className="w-4 h-4 animate-spin text-neutral-500" />
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -32,6 +32,7 @@ import {
     createRestaurantFoodController,
     updateRestaurantFoodController
 } from '../controllers/restaurantFood.controller.js';
+import * as orderController from '../../orders/order.controller.js';
 import { authMiddleware } from '../../../../core/auth/auth.middleware.js';
 import { sendError } from '../../../../utils/response.js';
 
@@ -102,6 +103,10 @@ router.patch('/menu', authMiddleware, requireRestaurant, updateMenuController);
 // Foods (restaurant creates/updates items -> stored in food_items collection)
 router.post('/foods', authMiddleware, requireRestaurant, createRestaurantFoodController);
 router.patch('/foods/:id', authMiddleware, requireRestaurant, updateRestaurantFoodController);
+
+// Orders (restaurant dashboard)
+router.get('/orders', authMiddleware, requireRestaurant, orderController.listOrdersRestaurantController);
+router.patch('/orders/:orderId/status', authMiddleware, requireRestaurant, orderController.updateOrderStatusRestaurantController);
 
 export default router;
 

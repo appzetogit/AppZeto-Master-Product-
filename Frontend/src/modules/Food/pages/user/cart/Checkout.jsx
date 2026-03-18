@@ -13,14 +13,12 @@ import { Badge } from "@food/components/ui/badge"
 import { useCart } from "@food/context/CartContext"
 import { useProfile } from "@food/context/ProfileContext"
 import { useOrders } from "@food/context/OrdersContext"
-import { useLocationSelector } from "@food/components/user/UserLayout"
 
 export default function Checkout() {
   const navigate = useNavigate()
   const { cart, clearCart } = useCart()
   const { getDefaultAddress, getDefaultPaymentMethod, setDefaultAddress, addresses, paymentMethods } = useProfile()
   const { createOrder } = useOrders()
-  const { openLocationSelector } = useLocationSelector()
   const getAddressId = (address) => address?.id || address?._id || ""
   const [selectedAddressId, setSelectedAddressId] = useState(getAddressId(getDefaultAddress()))
   const [selectedPayment, setSelectedPayment] = useState(getDefaultPaymentMethod()?.id || "")
@@ -83,7 +81,7 @@ export default function Checkout() {
 
   if (cart.length === 0) {
     return (
-      <AnimatedPage className="min-h-screen bg-gradient-to-b from-orange-50/30 via-white to-orange-50/20 p-4">
+      <AnimatedPage className="min-h-screen bg-linear-to-b from-orange-50/30 via-white to-orange-50/20 p-4">
         <div className="max-w-4xl mx-auto space-y-6">
           <Card>
             <CardHeader>
@@ -104,7 +102,7 @@ export default function Checkout() {
   }
 
   return (
-    <AnimatedPage className="min-h-screen bg-gradient-to-b from-orange-50/30 via-white to-orange-50/20 dark:from-[#0a0a0a] dark:via-[#1a1a1a] dark:to-[#0a0a0a] p-4 sm:p-6 md:p-8">
+    <AnimatedPage className="min-h-screen bg-linear-to-b from-orange-50/30 via-white to-orange-50/20 dark:from-[#0a0a0a] dark:via-[#1a1a1a] dark:to-[#0a0a0a] p-4 sm:p-6 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6 md:space-y-8">
         <ScrollReveal>
           <div className="flex items-center gap-4 mb-6 md:mb-8">
@@ -171,7 +169,13 @@ export default function Checkout() {
                   ) : (
                     <div className="text-center py-8">
                       <p className="text-muted-foreground mb-4">No addresses saved</p>
-                      <Button onClick={openLocationSelector}>Add Address</Button>
+                      <Button
+                        onClick={() =>
+                          navigate("/user/cart/select-address", { state: { from: "/user/cart/checkout" } })
+                        }
+                      >
+                        Add Address
+                      </Button>
                     </div>
                   )}
                 </CardContent>

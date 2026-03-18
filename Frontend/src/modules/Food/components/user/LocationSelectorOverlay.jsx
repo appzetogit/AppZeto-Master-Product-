@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from "react"
-import { ChevronLeft, Search, ChevronRight, Plus, MapPin, MoreHorizontal, Navigation, Home, Building2, Briefcase, Phone, X, Crosshair } from "lucide-react"
+import { useMemo, useState, useEffect, useRef } from "react"
+import { ChevronLeft, ChevronRight, Plus, MapPin, MoreHorizontal, Navigation, Home, Building2, Briefcase, Phone, X, Crosshair } from "lucide-react"
 import { Button } from "@food/components/ui/button"
 import { Input } from "@food/components/ui/input"
 import { Label } from "@food/components/ui/label"
@@ -47,8 +47,6 @@ const getAddressIcon = (address) => {
 }
 
 export default function LocationSelectorOverlay({ isOpen, onClose }) {
-  const inputRef = useRef(null)
-  const [searchValue, setSearchValue] = useState("")
   const { location, loading, requestLocation } = useGeoLocation()
   const { addresses = [], addAddress, updateAddress, setDefaultAddress, userProfile } = useProfile()
   const [showAddressForm, setShowAddressForm] = useState(false)
@@ -74,10 +72,91 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
   const lastUserLocationRef = useRef(null) // Last user location for tracking
   const locationUpdateTimeoutRef = useRef(null) // Timeout for location updates
   const [currentAddress, setCurrentAddress] = useState("")
+  const [addressAutocompleteValue, setAddressAutocompleteValue] = useState("")
+  const [keywordAddressSuggestions, setKeywordAddressSuggestions] = useState([])
+  const [isKeywordSearching, setIsKeywordSearching] = useState(false)
+  const [lockMapToAutocomplete, setLockMapToAutocomplete] = useState(true)
   const [GOOGLE_MAPS_API_KEY, setGOOGLE_MAPS_API_KEY] = useState(null)
   const ENABLE_GOOGLE_GEOCODING = import.meta.env.VITE_ENABLE_GOOGLE_GEOCODING === "true"
   const ENABLE_GOOGLE_PLACES = import.meta.env.VITE_ENABLE_GOOGLE_PLACES === "true"
   const getAddressId = (address) => address?.id || address?._id || null
+
+  const addressAutocompleteSuggestions = useMemo(() => {
+    const q = String(addressAutocompleteValue || "").trim().toLowerCase()
+    if (!q) return []
+    const list = Array.isArray(addresses) ? addresses : []
+    return list
+      .map((addr) => {
+        const text = [
+          addr?.label,
+          addr?.additionalDetails,
+          addr?.street,
+          addr?.city,
+          addr?.state,
+          addr?.zipCode,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+        return { addr, text }
+      })
+      .filter((x) => x.text.includes(q))
+      .slice(0, 6)
+      .map((x) => x.addr)
+  }, [addresses, addressAutocompleteValue])
+
+  useEffect(() => {
+    if (!showAddressForm) return
+    const q = String(addressAutocompleteValue || "").trim()
+    if (q.length < 3) {
+      setKeywordAddressSuggestions([])
+      setIsKeywordSearching(false)
+      return
+    }
+
+    const t = setTimeout(async () => {
+      try {
+        setIsKeywordSearching(true)
+        // Reference point for "nearest" sorting.
+        // Prefer currently selected map position, fallback to live location, then Indore default.
+        const refLat = Number.isFinite(mapPosition?.[0]) ? Number(mapPosition[0]) : (location?.latitude ?? 22.7196)
+        const refLng = Number.isFinite(mapPosition?.[1]) ? Number(mapPosition[1]) : (location?.longitude ?? 75.8577)
+
+        const url =
+          `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=10&q=${encodeURIComponent(q)}`
+        const res = await fetch(url, {
+          headers: {
+            Accept: "application/json",
+          },
+        })
+        const json = await res.json()
+        const list = Array.isArray(json) ? json : []
+        const mapped = list.map((r) => ({
+          id: r.place_id || r.osm_id || `${r.lat},${r.lon}`,
+          display: r.display_name || "",
+          lat: Number(r.lat),
+          lng: Number(r.lon),
+          address: r.address || {},
+        }))
+        const withDistance = mapped
+          .filter((x) => Number.isFinite(x.lat) && Number.isFinite(x.lng))
+          .map((x) => ({
+            ...x,
+            distanceMeters: calculateDistance(refLat, refLng, x.lat, x.lng),
+          }))
+          .sort((a, b) => (a.distanceMeters ?? Infinity) - (b.distanceMeters ?? Infinity))
+          .slice(0, 4)
+
+        setKeywordAddressSuggestions(withDistance)
+      } catch (e) {
+        setKeywordAddressSuggestions([])
+      } finally {
+        setIsKeywordSearching(false)
+      }
+    }, 350)
+
+    return () => clearTimeout(t)
+  }, [addressAutocompleteValue, showAddressForm, location?.latitude, location?.longitude, mapPosition])
 
   // Load Google Maps API key from backend
   useEffect(() => {
@@ -382,12 +461,26 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
           zoomControl: true,
           mapTypeControl: false,
           streetViewControl: false,
-          fullscreenControl: false
+          fullscreenControl: false,
+          draggable: !lockMapToAutocomplete,
+          clickableIcons: false,
+          gestureHandling: lockMapToAutocomplete ? "none" : "auto",
+          // Hide basemap "tiles" (roads/labels/POIs) for pin-only UI.
+          // This keeps the map container usable for centering/pin placement without showing the full map details.
+          styles: [
+            { featureType: "all", elementType: "labels", stylers: [{ visibility: "off" }] },
+            { featureType: "administrative", elementType: "geometry", stylers: [{ visibility: "off" }] },
+            { featureType: "poi", elementType: "all", stylers: [{ visibility: "off" }] },
+            { featureType: "road", elementType: "all", stylers: [{ visibility: "off" }] },
+            { featureType: "transit", elementType: "all", stylers: [{ visibility: "off" }] },
+            { featureType: "water", elementType: "all", stylers: [{ visibility: "off" }] },
+            { featureType: "landscape", elementType: "all", stylers: [{ color: "#f3f4f6" }] },
+          ],
         })
 
         googleMapRef.current = map
 
-        // Create Green Marker (draggable for address selection)
+        // Create Green Marker (locked to autocomplete selection)
         const greenMarker = new google.maps.Marker({
           position: initialLocation,
           map: map,
@@ -396,20 +489,13 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
             scaledSize: new google.maps.Size(40, 40),
             anchor: new google.maps.Point(20, 40)
           },
-          draggable: true,
-          title: "Drag to select location"
+          draggable: false,
+          title: "Selected location"
         })
 
         greenMarkerRef.current = greenMarker
 
-        // Handle marker drag - update address
-        google.maps.event.addListener(greenMarker, 'dragend', function () {
-          const newPos = greenMarker.getPosition()
-          const newLat = newPos.lat()
-          const newLng = newPos.lng()
-          setMapPosition([newLat, newLng])
-          handleMapMoveEnd(newLat, newLng)
-        })
+        // Note: marker drag disabled; location updates only via autocomplete selection.
 
         // Function to create/update blue dot and accuracy circle
         const createBlueDotWithCircle = (position, accuracyValue) => {
@@ -531,11 +617,11 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
               (position) => {
                 if (!isMounted) return
                 createBlueDotWithCircle(position, position.coords.accuracy)
-                handleMapMoveEnd(initialLocation.lat, initialLocation.lng)
+                // Do not auto-update address from map on load when locked
               },
               (error) => {
                 debugWarn("Geolocation getCurrentPosition error:", error)
-                handleMapMoveEnd(initialLocation.lat, initialLocation.lng)
+                // Do not auto-update address from map on load when locked
               },
               {
                 enableHighAccuracy: true,
@@ -572,7 +658,7 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
             watchPositionIdRef.current = watchId
           } else {
             debugWarn("Geolocation not supported")
-            handleMapMoveEnd(initialLocation.lat, initialLocation.lng)
+            // Do not auto-update address from map on load when locked
           }
         })
 
@@ -613,12 +699,6 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
       }
     }
   }, [showAddressForm, GOOGLE_MAPS_API_KEY, location?.latitude, location?.longitude])
-
-  useEffect(() => {
-    if (isOpen && inputRef.current) {
-      setTimeout(() => inputRef.current?.focus(), 100)
-    }
-  }, [isOpen])
 
   useEffect(() => {
     const handleEscape = (e) => {
@@ -1923,6 +2003,10 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
 
   const handleCancelAddressForm = () => {
     setShowAddressForm(false)
+    setAddressAutocompleteValue("")
+    setKeywordAddressSuggestions([])
+    setIsKeywordSearching(false)
+    setLockMapToAutocomplete(true)
     setAddressFormData({
       street: "",
       city: "",
@@ -2068,19 +2152,6 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
           </div>
         </div>
 
-        {/* Search Bar */}
-        <div className="flex-shrink-0 bg-white dark:bg-[#1a1a1a] px-4 py-3 border-b border-gray-100 dark:border-gray-800">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-green-600 z-10" />
-            <Input
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-              placeholder="Search for area, street name..."
-              className="pl-12 pr-4 h-12 w-full bg-gray-50 dark:bg-[#2a2a2a] border-gray-200 dark:border-gray-700 focus:border-green-600 dark:focus:border-green-600 rounded-xl"
-            />
-          </div>
-        </div>
-
         {/* Map Section - Google Maps */}
         <div className="flex-shrink-0 relative" style={{ height: '35vh', minHeight: '250px' }}>
           {/* Google Maps Container */}
@@ -2134,22 +2205,125 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
         {/* Form Section - Scrollable */}
         <div className="flex-1 overflow-y-auto bg-white dark:bg-[#0a0a0a] min-h-0 overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
           <div className="px-4 py-4 space-y-4 pb-48">
-            {/* Delivery Details */}
+            {/* Autocomplete address selection */}
             <div>
               <Label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 block">
-                Delivery details
+                Address (Autocomplete)
               </Label>
-              <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-700 rounded-lg p-3 flex items-center gap-3">
-                <MapPin className="h-5 w-5 text-green-600 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                    {loadingAddress ? "Locating..." : (currentAddress || addressFormData.city && addressFormData.state
-                      ? `${addressFormData.city}, ${addressFormData.state}`
-                      : "Select location on map")}
-                  </p>
-                </div>
-                <ChevronRight className="h-5 w-5 text-gray-400 flex-shrink-0" />
+              <div className="relative">
+                <Input
+                  value={addressAutocompleteValue}
+                  onChange={(e) => setAddressAutocompleteValue(e.target.value)}
+                  placeholder="Type a keyword (area, street, landmark)..."
+                  className="bg-white dark:bg-[#1a1a1a] border-gray-200 dark:border-gray-700"
+                />
+
+                {addressAutocompleteValue.trim().length > 0 &&
+                  (keywordAddressSuggestions.length > 0 || addressAutocompleteSuggestions.length > 0) && (
+                  <div className="absolute z-50 left-0 right-0 mt-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1a1a1a] shadow-xl overflow-hidden">
+                    {isKeywordSearching && (
+                      <div className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">
+                        Searching…
+                      </div>
+                    )}
+
+                    {keywordAddressSuggestions.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={async () => {
+                          const latitude = p.lat
+                          const longitude = p.lng
+
+                          setAddressAutocompleteValue(p.display || "")
+                          setKeywordAddressSuggestions([])
+
+                          // Pre-fill fields from keyword search response (best-effort)
+                          const a = p.address || {}
+                          const city = a.city || a.town || a.village || a.county || ""
+                          const state = a.state || ""
+                          const zipCode = a.postcode || ""
+                          const street =
+                            a.road ||
+                            a.neighbourhood ||
+                            a.suburb ||
+                            a.hamlet ||
+                            (String(p.display || "").split(",")[0] || "").trim()
+
+                          setCurrentAddress(p.display || "")
+                          setAddressFormData((prev) => ({
+                            ...prev,
+                            street: street || prev.street,
+                            city: city || prev.city,
+                            state: state || prev.state,
+                            zipCode: zipCode || prev.zipCode,
+                          }))
+
+                          // Move map + marker, then run reverse-geocode handler for consistency
+                          setMapPosition([latitude, longitude])
+                          if (googleMapRef.current && window.google && window.google.maps) {
+                            try {
+                              googleMapRef.current.panTo({ lat: latitude, lng: longitude })
+                              googleMapRef.current.setZoom(17)
+                              if (greenMarkerRef.current) {
+                                greenMarkerRef.current.setPosition({ lat: latitude, lng: longitude })
+                              }
+                            } catch {}
+                          }
+                          try {
+                            await handleMapMoveEnd(latitude, longitude)
+                          } catch {}
+                        }}
+                        className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-b border-gray-100 dark:border-gray-800 last:border-b-0"
+                      >
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                          {p.display}
+                        </p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400 truncate">
+                          {p.address?.city || p.address?.town || p.address?.village || p.address?.state || " "}
+                        </p>
+                      </button>
+                    ))}
+
+                    {/* Fallback: saved addresses matching the keyword */}
+                    {keywordAddressSuggestions.length === 0 &&
+                      addressAutocompleteSuggestions.map((addr) => {
+                        const id = getAddressId(addr) || `${addr?.label}-${addr?.street}-${addr?.city}`
+                        const title = addr?.label || "Saved address"
+                        const subtitle = [
+                          addr?.additionalDetails,
+                          addr?.street,
+                          addr?.city,
+                          addr?.state,
+                          addr?.zipCode,
+                        ]
+                          .filter(Boolean)
+                          .join(", ")
+                        return (
+                          <button
+                            key={id}
+                            type="button"
+                            onClick={() => {
+                              setAddressAutocompleteValue("")
+                              handleSelectSavedAddress(addr)
+                            }}
+                            className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-b border-gray-100 dark:border-gray-800 last:border-b-0"
+                          >
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                              {title}
+                            </p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400 truncate">
+                              {subtitle}
+                            </p>
+                          </button>
+                        )
+                      })}
+                  </div>
+                )}
               </div>
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                Search by keyword to get address suggestions; selecting one will pin it on the map.
+              </p>
             </div>
 
             {/* Address Details */}
@@ -2291,20 +2465,6 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
             </Button>
             <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Select a location</h1>
           </div>
-        </div>
-      </div>
-
-      {/* Search Bar */}
-      <div className="flex-shrink-0 bg-white dark:bg-[#1a1a1a] px-4 sm:px-6 lg:px-8 py-3 max-w-7xl mx-auto w-full">
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-primary-orange z-10" />
-          <Input
-            ref={inputRef}
-            value={searchValue}
-            onChange={(e) => setSearchValue(e.target.value)}
-            placeholder="Search for area, street name..."
-            className="pl-12 pr-4 h-12 w-full bg-gray-50 dark:bg-[#2a2a2a] border-gray-200 dark:border-gray-700 focus:border-primary-orange dark:focus:border-primary-orange rounded-xl text-base dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400"
-          />
         </div>
       </div>
 

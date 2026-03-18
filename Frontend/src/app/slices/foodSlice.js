@@ -22,6 +22,11 @@ const initialState = {
     list: [],
     activeOrderId: null,
   },
+  // Zone & address (minimize zone/address API calls; home/cart/checkout read from here)
+  zoneId: null,
+  selectedAddressId: null,
+  // Order tracking cache: { [orderId]: { order, tracking } } – Firebase listener updates this
+  orderTrackingByOrderId: {},
 }
 
 const foodSlice = createSlice({
@@ -75,6 +80,22 @@ const foodSlice = createSlice({
       state.orders.activeOrderId = action.payload ?? null
     },
 
+    setZoneId(state, action) {
+      state.zoneId = action.payload ?? null
+    },
+    setSelectedAddressId(state, action) {
+      state.selectedAddressId = action.payload ?? null
+    },
+    setOrderTracking(state, action) {
+      const { orderId, order, tracking } = action.payload || {}
+      if (!orderId) return
+      state.orderTrackingByOrderId[orderId] = { order, tracking }
+    },
+    clearOrderTracking(state, action) {
+      const orderId = action.payload
+      if (orderId) delete state.orderTrackingByOrderId[orderId]
+    },
+
     // Reset entire food slice (e.g. on logout)
     resetFood(state) {
       state.cart.items = []
@@ -82,6 +103,9 @@ const foodSlice = createSlice({
       state.restaurants.selectedRestaurantId = null
       state.orders.list = []
       state.orders.activeOrderId = null
+      state.zoneId = null
+      state.selectedAddressId = null
+      state.orderTrackingByOrderId = {}
     },
   },
 })
@@ -95,6 +119,10 @@ export const {
   setSelectedRestaurant,
   setOrdersList,
   setActiveOrderId,
+  setZoneId,
+  setSelectedAddressId,
+  setOrderTracking,
+  clearOrderTracking,
   resetFood,
 } = foodSlice.actions
 export default foodSlice.reducer

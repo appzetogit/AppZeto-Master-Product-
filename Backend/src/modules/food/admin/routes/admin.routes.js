@@ -2,6 +2,7 @@ import express from 'express';
 import { AuthError } from '../../../../core/auth/errors.js';
 import * as adminController from '../controllers/admin.controller.js';
 import * as foodApprovalController from '../controllers/foodApproval.controller.js';
+import * as orderController from '../../orders/order.controller.js';
 
 const router = express.Router();
 
@@ -109,5 +110,12 @@ router.get('/zones/:id', adminController.getZoneById);
 router.post('/zones', adminController.createZone);
 router.patch('/zones/:id', adminController.updateZone);
 router.delete('/zones/:id', adminController.deleteZone);
+
+// ----- Orders & Dispatch Settings -----
+router.get('/orders', orderController.listOrdersAdminController);
+router.get('/orders/:orderId', orderController.getOrderByIdAdminController);
+router.patch('/orders/:orderId/assign-delivery', orderController.assignDeliveryPartnerController);
+router.get('/settings/dispatch', orderController.getDispatchSettingsController);
+router.patch('/settings/dispatch', orderController.updateDispatchSettingsController);
 
 export default router;

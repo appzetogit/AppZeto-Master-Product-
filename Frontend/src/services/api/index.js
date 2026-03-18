@@ -293,6 +293,18 @@ export const adminAPI = {
       { isActive: isActive !== false },
       { contextModule: "admin" },
     ),
+  /** Orders (admin) – list, get by id, assign delivery partner */
+  getOrders: (params = {}) =>
+    apiClient.get("/food/admin/orders", { params: { limit: 50, page: 1, ...params }, contextModule: "admin" }),
+  getOrderById: (orderId) =>
+    apiClient.get(`/food/admin/orders/${String(orderId)}`, { contextModule: "admin" }),
+  assignDeliveryPartner: (orderId, deliveryPartnerId) =>
+    apiClient.patch(`/food/admin/orders/${String(orderId)}/assign-delivery`, { deliveryPartnerId: String(deliveryPartnerId) }, { contextModule: "admin" }),
+  /** Dispatch settings – auto vs manual assign (global) */
+  getDispatchSettings: () =>
+    apiClient.get("/food/admin/settings/dispatch", { contextModule: "admin" }),
+  updateDispatchSettings: (dispatchMode) =>
+    apiClient.patch("/food/admin/settings/dispatch", { dispatchMode }, { contextModule: "admin" }),
   /** Create restaurant (admin). Single API: POST /food/admin/restaurants. Body: JSON with image URLs. */
   createRestaurant: (body) =>
     apiClient.post("/food/admin/restaurants", body ?? {}, {
@@ -904,7 +916,21 @@ export const uploadAPI = {
     });
   },
 };
-export const orderAPI = createStubAPI();
+/** Order API (user app – Bearer USER token). Minimal calls: single create/verify, list/details cached by caller. */
+export const orderAPI = {
+  calculateOrder: (payload) =>
+    apiClient.post("/food/orders/calculate", payload ?? {}, { contextModule: "user" }),
+  createOrder: (payload) =>
+    apiClient.post("/food/orders", payload ?? {}, { contextModule: "user" }),
+  verifyPayment: (body) =>
+    apiClient.post("/food/orders/verify-payment", body ?? {}, { contextModule: "user" }),
+  getOrders: (params = {}) =>
+    apiClient.get("/food/orders", { params: { limit: 20, page: 1, ...params }, contextModule: "user" }),
+  getOrderDetails: (orderId) =>
+    apiClient.get(`/food/orders/${String(orderId)}`, { contextModule: "user" }),
+  cancelOrder: (orderId, body = {}) =>
+    apiClient.patch(`/food/orders/${String(orderId)}/cancel`, body ?? {}, { contextModule: "user" }),
+};
 export const diningAPI = createStubAPI();
 export const heroBannerAPI = createStubAPI();
 export const publicAPI = createStubAPI();

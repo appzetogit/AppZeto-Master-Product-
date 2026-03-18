@@ -69,7 +69,6 @@ const Privacy = lazy(() => import("@food/pages/user/profile/Privacy"))
 const Refund = lazy(() => import("@food/pages/user/profile/Refund"))
 const Shipping = lazy(() => import("@food/pages/user/profile/Shipping"))
 const Cancellation = lazy(() => import("@food/pages/user/profile/Cancellation"))
-const SendFeedback = lazy(() => import("@food/pages/user/profile/SendFeedback"))
 const ReportSafetyEmergency = lazy(() => import("@food/pages/user/profile/ReportSafetyEmergency"))
 const Accessibility = lazy(() => import("@food/pages/user/profile/Accessibility"))
 const Logout = lazy(() => import("@food/pages/user/profile/Logout"))
@@ -254,14 +253,6 @@ export default function UserRouter() {
             }
           />
 
-          <Route
-            path="profile/send-feedback"
-            element={
-              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
-                <SendFeedback />
-              </ProtectedRoute>
-            }
-          />
           <Route
             path="profile/report-safety-emergency"
             element={

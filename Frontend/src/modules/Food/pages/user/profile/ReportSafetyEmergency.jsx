@@ -7,6 +7,13 @@ import { Textarea } from "@food/components/ui/textarea"
 import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 import { userAPI } from "@food/api"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@food/components/ui/dialog"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -18,6 +25,8 @@ export default function ReportSafetyEmergency() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [history, setHistory] = useState([])
+  const [selectedHistoryItem, setSelectedHistoryItem] = useState(null)
+  const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false)
 
   const fetchHistory = async () => {
     try {
@@ -56,6 +65,18 @@ export default function ReportSafetyEmergency() {
     return <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${cls}`}>{label}</span>
   }
 
+  const getPriorityPill = (priority) => {
+    const map = {
+      low: "bg-gray-100 text-gray-700",
+      medium: "bg-yellow-100 text-yellow-700",
+      high: "bg-orange-100 text-orange-700",
+      critical: "bg-red-100 text-red-700 font-bold",
+    }
+    const cls = map[String(priority)] || map.medium
+    const label = String(priority || "medium").replace(/^\w/, (c) => c.toUpperCase())
+    return <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${cls}`}>{label}</span>
+  }
+
   const formatDateTime = (iso) => {
     try {
       const d = new Date(iso)
@@ -91,6 +112,11 @@ export default function ReportSafetyEmergency() {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  const handleOpenHistoryDetails = (item) => {
+    setSelectedHistoryItem(item)
+    setIsHistoryDialogOpen(true)
   }
 
   return (
@@ -230,9 +256,11 @@ export default function ReportSafetyEmergency() {
                 ) : (
                   <div className="mt-4 space-y-3">
                     {historySorted.map((item) => (
-                      <div
+                      <button
+                        type="button"
                         key={item?._id || item?.id || `${item?.createdAt}-${item?.message?.slice?.(0, 12)}`}
-                        className="rounded-xl border border-gray-200 dark:border-gray-800 p-3 md:p-4 bg-gray-50 dark:bg-[#101010]"
+                        onClick={() => handleOpenHistoryDetails(item)}
+                        className="w-full text-left rounded-xl border border-gray-200 dark:border-gray-800 p-3 md:p-4 bg-gray-50 dark:bg-[#101010] hover:bg-gray-100 dark:hover:bg-[#141414] transition-colors"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
@@ -247,12 +275,63 @@ export default function ReportSafetyEmergency() {
                             {getStatusPill(item?.status)}
                           </div>
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 )}
               </CardContent>
             </Card>
+
+            {/* History Details Dialog */}
+            <Dialog open={isHistoryDialogOpen} onOpenChange={setIsHistoryDialogOpen}>
+              <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-red-600" />
+                    Report Details
+                  </DialogTitle>
+                  <DialogDescription>
+                    Full details of your safety emergency report.
+                  </DialogDescription>
+                </DialogHeader>
+
+                {selectedHistoryItem && (
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {getStatusPill(selectedHistoryItem?.status)}
+                      {selectedHistoryItem?.priority ? getPriorityPill(selectedHistoryItem?.priority) : null}
+                      {selectedHistoryItem?.createdAt ? (
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {formatDateTime(selectedHistoryItem.createdAt)}
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <div className="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-[#0f0f0f] p-4">
+                      <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap leading-relaxed">
+                        {selectedHistoryItem?.message || "—"}
+                      </p>
+                    </div>
+
+                    {selectedHistoryItem?.adminResponse && (
+                      <div className="rounded-lg border border-emerald-200 dark:border-emerald-900/40 bg-emerald-50/60 dark:bg-emerald-900/10 p-4">
+                        <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider mb-2">
+                          Admin response
+                        </p>
+                        <p className="text-sm text-emerald-900 dark:text-emerald-100 whitespace-pre-wrap leading-relaxed">
+                          {selectedHistoryItem.adminResponse}
+                        </p>
+                        {selectedHistoryItem?.respondedAt && (
+                          <p className="text-xs text-emerald-700/80 dark:text-emerald-300/80 mt-2">
+                            Responded at: {formatDateTime(selectedHistoryItem.respondedAt)}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
           </>
         ) : (
           /* Success State */

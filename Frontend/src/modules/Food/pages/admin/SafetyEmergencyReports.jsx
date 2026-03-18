@@ -14,6 +14,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@food/components/ui/dropdown-menu"
 const debugLog = (...args) => {}
@@ -107,10 +111,6 @@ export default function SafetyEmergencyReports() {
   }
 
   const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this safety emergency report?')) {
-      return
-    }
-
     try {
       const response = await adminAPI.deleteSafetyEmergencyReport(id)
       
@@ -270,12 +270,6 @@ export default function SafetyEmergencyReports() {
                 </th>
                 <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
                   <div className="flex items-center gap-2">
-                    <span>Report</span>
-                    <ArrowUpDown className="w-3 h-3 text-slate-400 cursor-pointer hover:text-slate-600" />
-                  </div>
-                </th>
-                <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
-                  <div className="flex items-center gap-2">
                     <span>Priority</span>
                     <ArrowUpDown className="w-3 h-3 text-slate-400 cursor-pointer hover:text-slate-600" />
                   </div>
@@ -297,7 +291,7 @@ export default function SafetyEmergencyReports() {
             <tbody className="bg-white divide-y divide-slate-100">
               {filteredReports.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-20">
+                  <td colSpan={6} className="px-6 py-20">
                     <div className="flex flex-col items-center justify-center">
                       <div className="relative mb-6">
                         <div className="w-32 h-32 bg-gradient-to-br from-slate-100 to-slate-200 rounded-2xl flex items-center justify-center shadow-inner">
@@ -333,11 +327,6 @@ export default function SafetyEmergencyReports() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm text-slate-700">{report.userEmail}</span>
                     </td>
-                    <td className="px-6 py-4 max-w-md">
-                      <span className="text-sm text-slate-700 line-clamp-2">
-                        {report.message}
-                      </span>
-                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {getPriorityBadge(report.priority)}
                     </td>
@@ -351,21 +340,62 @@ export default function SafetyEmergencyReports() {
                             <Settings className="w-4 h-4" />
                           </button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
+                        <DropdownMenuContent
+                          align="end"
+                          side="bottom"
+                          sideOffset={8}
+                          collisionPadding={12}
+                          className="max-h-[70vh] overflow-y-auto"
+                        >
                           <DropdownMenuItem onClick={() => handleViewReport(report)}>
                             <Eye className="w-4 h-4 mr-2" />
                             View Details
                           </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => handleUpdateStatus(report._id, report.status === 'unread' ? 'read' : 'unread')}
-                          >
-                            Mark as {report.status === 'unread' ? 'Read' : 'Unread'}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => handleUpdatePriority(report._id, report.priority === 'critical' ? 'high' : 'critical')}
-                          >
-                            Set Priority: {report.priority === 'critical' ? 'High' : 'Critical'}
-                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger>
+                              Update status
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuSubContent
+                              sideOffset={8}
+                              collisionPadding={12}
+                              className="max-h-[60vh] overflow-y-auto"
+                            >
+                              {["unread", "read", "urgent", "resolved"].map((status) => (
+                                <DropdownMenuItem
+                                  key={`status-${status}`}
+                                  onClick={() => handleUpdateStatus(report._id, status)}
+                                  className={report.status === status ? "font-semibold" : undefined}
+                                >
+                                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuSubContent>
+                          </DropdownMenuSub>
+
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger>
+                              Update priority
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuSubContent
+                              sideOffset={8}
+                              collisionPadding={12}
+                              className="max-h-[60vh] overflow-y-auto"
+                            >
+                              {["low", "medium", "high", "critical"].map((priority) => (
+                                <DropdownMenuItem
+                                  key={`priority-${priority}`}
+                                  onClick={() => handleUpdatePriority(report._id, priority)}
+                                  className={report.priority === priority ? "font-semibold" : undefined}
+                                >
+                                  {priority.charAt(0).toUpperCase() + priority.slice(1)}
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuSubContent>
+                          </DropdownMenuSub>
+
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem 
                             onClick={() => handleDelete(report._id)}
                             className="text-red-600"

@@ -23,6 +23,7 @@ export default function DeliveryBoyCommission() {
     name: "",
     minDistance: "",
     maxDistance: "",
+    maxDistanceUnlimited: false,
     commissionPerKm: "",
     basePayout: "",
   })
@@ -159,17 +160,19 @@ export default function DeliveryBoyCommission() {
 
   const handleAdd = () => {
     setSelectedCommission(null)
-    setFormData({ name: "", minDistance: "0", maxDistance: "", commissionPerKm: "", basePayout: "" })
+    setFormData({ name: "", minDistance: "0", maxDistance: "", maxDistanceUnlimited: false, commissionPerKm: "", basePayout: "" })
     setFormErrors({})
     setIsAddEditOpen(true)
   }
 
   const handleEdit = (commission) => {
     setSelectedCommission(commission)
+    const isUnlimited = commission.maxDistance === null || commission.maxDistance === undefined
     setFormData({
       name: commission.name,
       minDistance: commission.minDistance?.toString?.() || "",
-      maxDistance: commission.maxDistance === null || commission.maxDistance === undefined ? "" : String(commission.maxDistance),
+      maxDistance: isUnlimited ? "" : String(commission.maxDistance),
+      maxDistanceUnlimited: isUnlimited,
       commissionPerKm: commission.commissionPerKm.toString(),
       basePayout: commission.basePayout.toString(),
     })
@@ -205,7 +208,7 @@ export default function DeliveryBoyCommission() {
     if (!formData.minDistance.trim() || parseFloat(formData.minDistance) < 0) {
       errors.minDistance = "Minimum distance must be 0 or greater"
     }
-    if (formData.maxDistance !== "" && parseFloat(formData.maxDistance) < parseFloat(formData.minDistance || "0")) {
+    if (!formData.maxDistanceUnlimited && formData.maxDistance !== "" && parseFloat(formData.maxDistance) < parseFloat(formData.minDistance || "0")) {
       errors.maxDistance = "Max distance must be greater than or equal to min distance"
     }
     if (!formData.commissionPerKm.trim() || parseFloat(formData.commissionPerKm) < 0) {
@@ -225,7 +228,7 @@ export default function DeliveryBoyCommission() {
     try {
       setSaving(true)
       const minDistance = parseFloat(formData.minDistance)
-      const maxDistance = formData.maxDistance === "" ? null : parseFloat(formData.maxDistance)
+      const maxDistance = formData.maxDistanceUnlimited || formData.maxDistance === "" ? null : parseFloat(formData.maxDistance)
       const commissionData = {
         name: formData.name.trim() || `Base (0-${minDistance} km)`,
         minDistance,
@@ -424,7 +427,7 @@ export default function DeliveryBoyCommission() {
                 <p className="font-semibold text-blue-900 mb-1">Fixed + Extra Distance Commission</p>
                 <p className="text-slate-600">
                   Commission is calculated as: <strong>Base payout for 0-{formulaMinDistance} km + Extra per km after {formulaMinDistance} km</strong>.
-                  Example: if base is ?25 and extra is ?5/km, then 6 km earns ?25 + (2 ù ?5) = ?35.
+                  Example: if base is ?25 and extra is ?5/km, then 6 km earns ?25 + (2 ? ?5) = ?35.
                 </p>
               </div>
             </div>
@@ -607,21 +610,52 @@ export default function DeliveryBoyCommission() {
               <label className="block text-sm font-semibold text-slate-700 mb-2">
                 Maximum Distance Slab (km) <span className="text-slate-400">(optional)</span>
               </label>
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <label className="flex items-center gap-2 text-sm text-slate-700 select-none">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(formData.maxDistanceUnlimited)}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        maxDistanceUnlimited: e.target.checked,
+                        maxDistance: e.target.checked ? "" : formData.maxDistance,
+                      })
+                    }
+                  />
+                  Unlimited
+                </label>
+                <span className="text-xs text-slate-500">
+                  If unlimited, this rule applies for {formData.minDistance || 0}+ km
+                </span>
+              </div>
               <input
                 type="number"
                 step="0.01"
                 min="0"
                 value={formData.maxDistance}
-                onChange={(e) => setFormData({ ...formData, maxDistance: e.target.value })}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    maxDistanceUnlimited: false,
+                    maxDistance: e.target.value,
+                  })
+                }
+                disabled={Boolean(formData.maxDistanceUnlimited)}
                 className={`w-full px-4 py-2.5 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
                   formErrors.maxDistance ? "border-red-500" : "border-slate-300"
                 }`}
-                placeholder="e.g., 3 (leave empty for ?)"
+                placeholder="e.g., 3 (or enable Unlimited)"
               />
               {formErrors.maxDistance && <p className="text-xs text-red-500 mt-1">{formErrors.maxDistance}</p>}
             </div>
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-              Distance slab: <strong>{formData.minDistance || 0}-{formData.maxDistance || "?"} km</strong>
+              Distance slab:{" "}
+              <strong>
+                {formData.maxDistanceUnlimited || !formData.maxDistance
+                  ? `${formData.minDistance || 0}+ km`
+                  : `${formData.minDistance || 0}-${formData.maxDistance} km`}
+              </strong>
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">
@@ -657,7 +691,7 @@ export default function DeliveryBoyCommission() {
               />
               {formErrors.basePayout && <p className="text-xs text-red-500 mt-1">{formErrors.basePayout}</p>}
               <p className="text-xs text-slate-500 mt-1">
-                Formula: Base payout + (max(0, distance - {formulaMinDistance}) ù extra per km)
+                Formula: Base payout + (max(0, distance - {formulaMinDistance}) ? extra per km)
               </p>
             </div>
           </div>

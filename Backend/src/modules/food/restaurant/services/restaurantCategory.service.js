@@ -5,7 +5,10 @@ import { FoodItem } from '../../admin/models/food.model.js';
 
 const escapeRegex = (s) => String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-export async function listRestaurantCategories(query = {}) {
+export async function listRestaurantCategories(restaurantId, query = {}) {
+    if (!restaurantId || !mongoose.Types.ObjectId.isValid(String(restaurantId))) {
+        throw new ValidationError('Invalid restaurant id');
+    }
     const limit = Math.min(Math.max(parseInt(query.limit, 10) || 1000, 1), 1000);
     const page = Math.max(parseInt(query.page, 10) || 1, 1);
     const skip = (page - 1) * limit;
@@ -14,25 +17,36 @@ export async function listRestaurantCategories(query = {}) {
     const includeInactive = query.includeInactive === 'true' || query.includeInactive === '1';
     const withCounts = query.withCounts === 'true' || query.withCounts === '1';
     const compact = query.compact === 'true' || query.compact === '1';
+    const includePending = query.includePending === 'true' || query.includePending === '1';
     const zoneIdRaw = typeof query.zoneId === 'string' ? query.zoneId.trim() : '';
 
     const filter = {};
     if (!includeInactive) filter.isActive = true;
+    // Only approved categories are globally visible.
+    // Optionally include this restaurant's own pending categories for management screens.
+    // Treat missing isApproved as approved (backward compatible for existing admin-created categories).
+    const baseOr = [{ isApproved: { $ne: false } }];
+    if (includePending) {
+        baseOr.push({ restaurantId: new mongoose.Types.ObjectId(String(restaurantId)) });
+    }
+    filter.$and = [{ $or: baseOr }];
     if (search) {
         const term = escapeRegex(search.slice(0, 80));
-        filter.name = { $regex: term, $options: 'i' };
+        filter.$and.push({ name: { $regex: term, $options: 'i' } });
     }
     // Zone-aware listing:
     // - if zoneId is provided: return categories for that zone + global categories (zoneId missing)
     // - if zoneId is not provided: return only global categories (backward compatible default)
     if (zoneIdRaw && mongoose.Types.ObjectId.isValid(zoneIdRaw)) {
-        filter.$or = [
+        filter.$and.push({
+            $or: [
             { zoneId: new mongoose.Types.ObjectId(zoneIdRaw) },
             { zoneId: { $exists: false } },
             { zoneId: null }
-        ];
+            ]
+        });
     } else {
-        filter.$or = [{ zoneId: { $exists: false } }, { zoneId: null }];
+        filter.$and.push({ $or: [{ zoneId: { $exists: false } }, { zoneId: null }] });
     }
 
     const [list, total] = await Promise.all([
@@ -41,7 +55,11 @@ export async function listRestaurantCategories(query = {}) {
             .skip(skip)
             .limit(limit)
             // For item creation forms we only need id + name (fastest payload).
-            .select(compact ? 'name zoneId' : 'name image type zoneId isActive sortOrder createdAt updatedAt')
+            .select(
+                compact
+                    ? 'name zoneId isApproved restaurantId'
+                    : 'name image type zoneId isActive sortOrder createdAt updatedAt isApproved restaurantId'
+            )
             .lean(),
         FoodCategory.countDocuments(filter)
     ]);
@@ -57,7 +75,12 @@ export async function listRestaurantCategories(query = {}) {
     }
 
     const categories = compact
-        ? list.map((c) => ({ _id: c._id, id: c._id, name: c.name }))
+        ? list.map((c) => ({
+            _id: c._id,
+            id: c._id,
+            name: c.name,
+            isApproved: c.isApproved !== false
+        }))
         : list.map((c) => ({
             _id: c._id,
             id: c._id,
@@ -66,6 +89,8 @@ export async function listRestaurantCategories(query = {}) {
             type: c.type || '',
             isActive: c.isActive !== false,
             status: c.isActive !== false,
+            isApproved: c.isApproved !== false,
+            restaurantId: c.restaurantId || null,
             zoneId: c.zoneId || null,
             sortOrder: c.sortOrder || 0,
             itemCount: withCounts ? (countsById.get(String(c._id)) || 0) : undefined,
@@ -76,17 +101,33 @@ export async function listRestaurantCategories(query = {}) {
     return { categories, total, page, limit };
 }
 
-export async function createRestaurantCategory(body = {}) {
+export async function createRestaurantCategory(restaurantId, body = {}) {
+    if (!restaurantId || !mongoose.Types.ObjectId.isValid(String(restaurantId))) {
+        throw new ValidationError('Invalid restaurant id');
+    }
+
     const name = typeof body.name === 'string' ? body.name.trim() : '';
     if (!name) throw new ValidationError('Category name is required');
     if (name.length > 200) throw new ValidationError('Category name is too long');
+
+    // Prevent duplicates against already-approved categories (global).
+    const exact = `^${escapeRegex(name)}$`;
+    const existsApproved = await FoodCategory.findOne({
+        name: { $regex: exact, $options: 'i' },
+        isApproved: { $ne: false }
+    }).select('_id').lean();
+    if (existsApproved?._id) {
+        throw new ValidationError('Category already exists');
+    }
 
     const doc = new FoodCategory({
         name,
         image: typeof body.image === 'string' ? body.image.trim() : '',
         type: typeof body.type === 'string' ? body.type.trim() : '',
         isActive: body.isActive !== false,
-        sortOrder: Number.isFinite(Number(body.sortOrder)) ? Number(body.sortOrder) : 0
+        sortOrder: Number.isFinite(Number(body.sortOrder)) ? Number(body.sortOrder) : 0,
+        restaurantId: new mongoose.Types.ObjectId(String(restaurantId)),
+        isApproved: false
     });
     await doc.save();
     return doc.toObject();

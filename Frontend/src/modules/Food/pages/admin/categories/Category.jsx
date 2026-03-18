@@ -17,6 +17,7 @@ export default function Category() {
   const [searchQuery, setSearchQuery] = useState("")
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
+  const [showPendingOnly, setShowPendingOnly] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingCategory, setEditingCategory] = useState(null)
   const [zones, setZones] = useState([])
@@ -79,7 +80,7 @@ export default function Category() {
       fetchCategories()
     }, 500)
     return () => clearTimeout(timeoutId)
-  }, [searchQuery])
+  }, [searchQuery, showPendingOnly])
 
   // Filters removed (UI + state). Keep only search + CRUD.
 
@@ -89,6 +90,7 @@ export default function Category() {
       setLoading(true)
       const params = {}
       if (searchQuery) params.search = searchQuery
+      if (showPendingOnly) params.isApproved = false
       
       const response = await adminAPI.getCategories(params)
       if (response.data.success) {
@@ -105,6 +107,8 @@ export default function Category() {
                 status: c?.status !== undefined ? Boolean(c.status) : c?.isActive !== false,
                 isActive: c?.isActive !== undefined ? Boolean(c.isActive) : c?.status !== false,
                 zoneId: c?.zoneId || null,
+                isApproved: c?.isApproved !== false,
+                restaurant: c?.restaurant || null,
               }))
             : []
         )
@@ -195,6 +199,28 @@ export default function Category() {
       debugError('Error toggling status:', error)
       const errorMessage = error.response?.data?.message || 'Failed to update category status'
       toast.error(errorMessage)
+    }
+  }
+
+  const handleApprove = async (id) => {
+    try {
+      const response = await adminAPI.approveCategory(String(id))
+      if (response?.data?.success) {
+        toast.success('Category approved successfully')
+        setCategories(prev =>
+          prev.map(cat =>
+            String(cat.id) === String(id) ? { ...cat, isApproved: true } : cat
+          )
+        )
+        if (showPendingOnly) {
+          setTimeout(() => fetchCategories(), 300)
+        }
+      } else {
+        toast.error(response?.data?.message || 'Failed to approve category')
+      }
+    } catch (error) {
+      debugError('Error approving category:', error)
+      toast.error(error.response?.data?.message || 'Failed to approve category')
     }
   }
 
@@ -515,6 +541,30 @@ export default function Category() {
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowPendingOnly(false)}
+                className={`px-3 py-2 rounded-full text-xs font-semibold border transition-colors ${
+                  !showPendingOnly
+                    ? "bg-slate-900 text-white border-slate-900"
+                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowPendingOnly(true)}
+                className={`px-3 py-2 rounded-full text-xs font-semibold border transition-colors ${
+                  showPendingOnly
+                    ? "bg-amber-600 text-white border-amber-600"
+                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                Pending approvals
+              </button>
+            </div>
             <div className="relative flex-1 sm:flex-initial min-w-[200px]">
               <input
                 type="text"
@@ -573,6 +623,9 @@ export default function Category() {
                 <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
                   Status
                 </th>
+                <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
+                  Approval
+                </th>
                 <th className="px-6 py-4 text-center text-[10px] font-bold text-slate-700 uppercase tracking-wider">
                   Action
                 </th>
@@ -581,7 +634,7 @@ export default function Category() {
             <tbody className="bg-white divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-20 text-center">
+                  <td colSpan={8} className="px-6 py-20 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <Loader2 className="w-8 h-8 animate-spin text-blue-600 mb-2" />
                       <p className="text-sm text-slate-500">Loading categories...</p>
@@ -590,7 +643,7 @@ export default function Category() {
                 </tr>
               ) : filteredCategories.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-20 text-center">
+                  <td colSpan={8} className="px-6 py-20 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <p className="text-lg font-semibold text-slate-700 mb-1">No Data Found</p>
                       <p className="text-sm text-slate-500">No categories match your search</p>
@@ -647,8 +700,35 @@ export default function Category() {
                         />
                       </button>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {category.isApproved ? (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-[11px] font-semibold bg-green-50 text-green-700 border border-green-100">
+                          Approved
+                        </span>
+                      ) : (
+                        <div className="space-y-1">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-100">
+                            Pending
+                          </span>
+                          {category.restaurant?.name && (
+                            <div className="text-[11px] text-slate-500">
+                              Requested by {category.restaurant.name}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <div className="flex items-center justify-center gap-2">
+                        {!category.isApproved && (
+                          <button
+                            onClick={() => handleApprove(category.id)}
+                            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-600 text-white hover:bg-amber-700 transition-colors"
+                            title="Approve"
+                          >
+                            Approve
+                          </button>
+                        )}
                         <button
                           onClick={() => handleEdit(category)}
                           className="p-1.5 rounded text-blue-600 hover:bg-blue-50 transition-colors"

@@ -492,6 +492,10 @@ export async function getCategories(query) {
             filter.zoneId = new mongoose.Types.ObjectId(zid);
         }
     }
+    if (query.isApproved !== undefined) {
+        // Backward compatible: treat missing isApproved as approved.
+        filter.isApproved = query.isApproved === true ? { $ne: false } : false;
+    }
 
     const [list, total] = await Promise.all([
         FoodCategory.find(filter)
@@ -499,6 +503,7 @@ export async function getCategories(query) {
             .skip(skip)
             .limit(limit)
             .populate('zoneId', 'name zoneName isActive')
+            .populate('restaurantId', 'restaurantName ownerName ownerPhone')
             .lean(),
         FoodCategory.countDocuments(filter)
     ]);
@@ -510,6 +515,16 @@ export async function getCategories(query) {
         type: c.type || '',
         status: c.isActive !== false,
         isActive: c.isActive !== false,
+        isApproved: c.isApproved !== false,
+        restaurantId: c.restaurantId?._id ? String(c.restaurantId._id) : (c.restaurantId ? String(c.restaurantId) : null),
+        restaurant: c.restaurantId?._id
+            ? {
+                _id: c.restaurantId._id,
+                name: c.restaurantId.restaurantName || '',
+                ownerName: c.restaurantId.ownerName || '',
+                ownerPhone: c.restaurantId.ownerPhone || ''
+            }
+            : null,
         zoneId: c.zoneId || null,
         sortOrder: c.sortOrder || 0,
         createdAt: c.createdAt,
@@ -536,10 +551,23 @@ export async function createCategory(body) {
                 })()
                 : undefined,
         isActive: body.isActive !== false,
-        sortOrder: Number.isFinite(Number(body.sortOrder)) ? Number(body.sortOrder) : 0
+        sortOrder: Number.isFinite(Number(body.sortOrder)) ? Number(body.sortOrder) : 0,
+        // Admin-created categories are globally available immediately.
+        isApproved: true,
+        restaurantId: undefined
     });
     await doc.save();
     return doc.toObject();
+}
+
+export async function approveCategory(id) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+    const updated = await FoodCategory.findOneAndUpdate(
+        { _id: id, isApproved: { $ne: true } },
+        { $set: { isApproved: true } },
+        { new: true }
+    ).lean();
+    return updated || null;
 }
 
 export async function updateCategory(id, body) {

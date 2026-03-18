@@ -707,6 +707,7 @@ export default function ExploreMore() {
     { id: 1, label: "Outlet info", icon: Info, route: "/restaurant/outlet-info" },
     { id: 2, label: "Outlet timings", icon: Clock, route: "/restaurant/outlet-timings" },
     { id: 3, label: "Dining Reservations", icon: Calendar, route: "/restaurant/reservations" },
+    { id: 4, label: "Menu categories", icon: Settings, route: "/restaurant/menu-categories" },
   ]
 
   const settingsItems = [
@@ -1476,7 +1477,7 @@ export default function ExploreMore() {
                   }}
                   className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold text-sm hover:bg-green-700 transition-colors"
                 >
-                  Done
+                  Done 
                 </button>
               </div>
             </motion.div>

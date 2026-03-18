@@ -282,6 +282,22 @@ export async function toggleCategoryStatus(req, res, next) {
     }
 }
 
+export async function approveCategory(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid category id' });
+        }
+        const updated = await adminService.approveCategory(id);
+        if (!updated) {
+            return res.status(404).json({ success: false, message: 'Category not found or already approved' });
+        }
+        res.status(200).json({ success: true, message: 'Category approved successfully', data: { category: updated } });
+    } catch (error) {
+        next(error);
+    }
+}
+
 // ----- Offers & Coupons -----
 export async function getAllOffers(req, res, next) {
     try {

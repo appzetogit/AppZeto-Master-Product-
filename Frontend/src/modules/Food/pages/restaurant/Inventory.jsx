@@ -26,6 +26,7 @@ const debugError = (...args) => {}
 
 
 const INVENTORY_STORAGE_KEY = "restaurant_inventory_state"
+const INVENTORY_RECOMMENDED_KEY = "restaurant_inventory_recommended_map"
 
 // Mock data - replace with actual data from API
 const mockCategories = [
@@ -644,6 +645,17 @@ export default function Inventory() {
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [addons, setAddons] = useState([])
   const [loadingAddons, setLoadingAddons] = useState(false)
+  const [recommendedMap, setRecommendedMap] = useState(() => {
+    try {
+      if (typeof window === "undefined") return {}
+      const raw = localStorage.getItem(INVENTORY_RECOMMENDED_KEY)
+      const parsed = raw ? JSON.parse(raw) : {}
+      return parsed && typeof parsed === "object" ? parsed : {}
+    } catch (error) {
+      debugWarn("Failed to load recommended map:", error)
+      return {}
+    }
+  })
 
   // Inventory tabs
   const inventoryTabs = ["all-items", "add-ons"]
@@ -679,7 +691,9 @@ export default function Inventory() {
                   name: item.name || "Unnamed Item",
                   inStock: item.isAvailable !== undefined ? item.isAvailable : true,
                   isVeg: item.foodType === "Veg",
-                  isRecommended: item.isRecommended !== undefined ? item.isRecommended : false,
+                  // Backend menu is generated from food_items and currently doesn't persist "recommended".
+                  // Keep as a local UI preference keyed by food item id.
+                  isRecommended: Boolean(recommendedMap?.[String(item.id)]),
                   stockQuantity: item.stock || "Unlimited",
                   unit: item.itemSizeUnit || "piece",
                   expiryDate: null,
@@ -698,7 +712,7 @@ export default function Inventory() {
                   name: item.name || "Unnamed Item",
                   inStock: item.isAvailable !== undefined ? item.isAvailable : true,
                   isVeg: item.foodType === "Veg",
-                  isRecommended: item.isRecommended !== undefined ? item.isRecommended : false,
+                  isRecommended: Boolean(recommendedMap?.[String(item.id)]),
                   stockQuantity: item.stock || "Unlimited",
                   unit: item.itemSizeUnit || "piece",
                   expiryDate: null,
@@ -711,7 +725,8 @@ export default function Inventory() {
             
             // Use category's isEnabled from menu API, not calculated from items
             // Category toggle should be independent of item toggles
-            const categoryInStock = section.isEnabled !== undefined ? section.isEnabled : true
+            // Menu snapshots are disabled on backend; treat category toggle as derived from items (all in stock).
+            const categoryInStock = allItems.length > 0 ? allItems.every(i => i.inStock) : true
             const itemCount = allItems.length
             
             return {
@@ -749,7 +764,7 @@ export default function Inventory() {
     }
     
     fetchMenuData()
-  }, [])
+  }, [recommendedMap])
 
   // Note: Menu items are now displayed from menu API
   // Stock status updates should be managed through the menu API, not inventory API
@@ -969,68 +984,27 @@ export default function Inventory() {
   }
 
   // Update menu API when category/item toggles change
-  const updateMenuAPI = async (categoryId, itemId, isEnabled, isAvailable) => {
+  const updateAvailabilityAPI = async (categoryId, itemId, isAvailable) => {
     try {
-      // Fetch current menu
-      const menuResponse = await restaurantAPI.getMenu()
-      if (!menuResponse.data || !menuResponse.data.success || !menuResponse.data.data || !menuResponse.data.data.menu) {
-        debugError('Failed to fetch menu for update')
+      if (!categoryId) return
+
+      // Backend source of truth is food_items. Update availability via /food/restaurant/foods/:id.
+      if (itemId) {
+        await restaurantAPI.updateFood(itemId, { isAvailable: Boolean(isAvailable) })
         return
       }
 
-      const menu = menuResponse.data.data.menu
-      const sections = menu.sections || []
-
-      // Update menu sections
-      const updatedSections = sections.map(section => {
-        if (section.id !== categoryId) return section
-
-        // If updating category, set isEnabled
-        if (itemId === null) {
-          return {
-            ...section,
-            isEnabled: isEnabled,
-            // Also update all items in the category
-            items: section.items.map(item => ({
-              ...item,
-              isAvailable: isAvailable
-            })),
-            subsections: section.subsections.map(subsection => ({
-              ...subsection,
-              items: subsection.items.map(item => ({
-                ...item,
-                isAvailable: isAvailable
-              }))
-            }))
-          }
-        } else {
-          // If updating item, update only that item
-          const updatedItems = section.items.map(item =>
-            item.id === String(itemId) ? { ...item, isAvailable: isAvailable } : item
-          )
-          
-          // Update items in subsections too
-          const updatedSubsections = section.subsections.map(subsection => ({
-            ...subsection,
-            items: subsection.items.map(item =>
-              item.id === String(itemId) ? { ...item, isAvailable: isAvailable } : item
-            )
-          }))
-
-          return {
-            ...section,
-            items: updatedItems,
-            subsections: updatedSubsections
-          }
-        }
-      })
-
-      // Save updated menu
-      await restaurantAPI.updateMenu({ sections: updatedSections })
-      debugLog('Menu updated successfully')
+      const category = categories.find((c) => c.id === categoryId)
+      const items = category?.items || []
+      // Bulk update all items in a category.
+      await Promise.all(
+        items.map((it) =>
+          restaurantAPI.updateFood(it.id, { isAvailable: Boolean(isAvailable) }),
+        ),
+      )
     } catch (error) {
-      debugError('Error updating menu:', error)
-      toast.error('Failed to update menu')
+      debugError('Error updating availability:', error)
+      toast.error(error?.response?.data?.message || 'Failed to update availability')
     }
   }
 
@@ -1066,9 +1040,9 @@ export default function Inventory() {
 
       // Update menu API
       if (type === "category") {
-        await updateMenuAPI(categoryId, null, true, true)
+        await updateAvailabilityAPI(categoryId, null, true)
       } else {
-        await updateMenuAPI(categoryId, itemId, undefined, true)
+        await updateAvailabilityAPI(categoryId, itemId, true)
       }
       return
     }
@@ -1122,9 +1096,9 @@ export default function Inventory() {
 
     // Update menu API
     if (type === "category") {
-      await updateMenuAPI(categoryId, null, false, false)
+      await updateAvailabilityAPI(categoryId, null, false)
     } else {
-      await updateMenuAPI(categoryId, itemId, undefined, false)
+      await updateAvailabilityAPI(categoryId, itemId, false)
     }
 
     setTogglePopupOpen(false)
@@ -1170,51 +1144,6 @@ export default function Inventory() {
   }
 
   // Update menu API when recommendation toggle changes
-  const updateRecommendationAPI = async (categoryId, itemId, isRecommended) => {
-    try {
-      // Fetch current menu
-      const menuResponse = await restaurantAPI.getMenu()
-      if (!menuResponse.data || !menuResponse.data.success || !menuResponse.data.data || !menuResponse.data.data.menu) {
-        debugError('Failed to fetch menu for update')
-        return
-      }
-
-      const menu = menuResponse.data.data.menu
-      const sections = menu.sections || []
-
-      // Update menu sections
-      const updatedSections = sections.map(section => {
-        if (section.id !== categoryId) return section
-
-        // Update item in direct items
-        const updatedItems = section.items.map(item =>
-          item.id === String(itemId) ? { ...item, isRecommended: isRecommended } : item
-        )
-        
-        // Update item in subsections too
-        const updatedSubsections = section.subsections.map(subsection => ({
-          ...subsection,
-          items: subsection.items.map(item =>
-            item.id === String(itemId) ? { ...item, isRecommended: isRecommended } : item
-          )
-        }))
-
-        return {
-          ...section,
-          items: updatedItems,
-          subsections: updatedSubsections
-        }
-      })
-
-      // Save updated menu
-      await restaurantAPI.updateMenu({ sections: updatedSections })
-      debugLog('Menu recommendation updated successfully')
-    } catch (error) {
-      debugError('Error updating menu recommendation:', error)
-      toast.error('Failed to update recommendation')
-    }
-  }
-
   // Handle item recommendation toggle
   const handleRecommendToggle = async (categoryId, itemId) => {
     // Find current recommendation status
@@ -1236,8 +1165,17 @@ export default function Inventory() {
       })
     )
 
-    // Update menu API
-    await updateRecommendationAPI(categoryId, itemId, newRecommendationStatus)
+    // Persist local recommended preference (backend doesn't support it yet).
+    try {
+      setRecommendedMap((prev) => {
+        const next = { ...(prev || {}) }
+        next[String(itemId)] = Boolean(newRecommendationStatus)
+        localStorage.setItem(INVENTORY_RECOMMENDED_KEY, JSON.stringify(next))
+        return next
+      })
+    } catch (error) {
+      debugWarn("Failed to persist recommended state:", error)
+    }
   }
 
   const scrollToCategory = (categoryId) => {

@@ -5,10 +5,21 @@ import {
     deleteRestaurantCategory
 } from '../services/restaurantCategory.service.js';
 import { sendResponse, sendError } from '../../../../utils/response.js';
+import { FoodRestaurant } from '../models/restaurant.model.js';
 
 export const listCategoriesController = async (req, res, next) => {
     try {
-        const data = await listRestaurantCategories(req.query || {});
+        const restaurantId = req.user?.userId;
+        // Default to restaurant's zone when caller doesn't pass zoneId.
+        // This returns (zone categories + global categories) instead of only global.
+        const query = { ...(req.query || {}) };
+        if (!query.zoneId) {
+            const r = await FoodRestaurant.findById(restaurantId).select('zoneId').lean();
+            if (r?.zoneId) {
+                query.zoneId = String(r.zoneId);
+            }
+        }
+        const data = await listRestaurantCategories(restaurantId, query);
         return sendResponse(res, 200, 'Categories fetched successfully', data);
     } catch (error) {
         next(error);
@@ -17,7 +28,8 @@ export const listCategoriesController = async (req, res, next) => {
 
 export const createCategoryController = async (req, res, next) => {
     try {
-        const category = await createRestaurantCategory(req.body || {});
+        const restaurantId = req.user?.userId;
+        const category = await createRestaurantCategory(restaurantId, req.body || {});
         return sendResponse(res, 201, 'Category created successfully', { category });
     } catch (error) {
         next(error);

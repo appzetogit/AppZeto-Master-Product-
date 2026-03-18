@@ -223,6 +223,8 @@ export const adminAPI = {
     apiClient.delete(`/food/admin/categories/${id}`, {
       contextModule: "admin",
     }),
+  approveCategory: (id) =>
+    apiClient.patch(`/food/admin/categories/${String(id)}/approve`, {}, { contextModule: "admin" }),
   toggleCategoryStatus: (id) =>
     apiClient.patch(
       `/food/admin/categories/${id}/toggle`,

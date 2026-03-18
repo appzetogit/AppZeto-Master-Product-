@@ -993,29 +993,19 @@ export default function HubMenu() {
     }
     
     try {
-      // Add category to backend
-      const response = await restaurantAPI.addSection(newCategoryName.trim())
-      
-      if (response.data && response.data.success) {
-        // Refresh menu data
-        const menuResponse = await restaurantAPI.getMenu()
-        if (menuResponse.data && menuResponse.data.success && menuResponse.data.data && menuResponse.data.data.menu) {
-          setMenuData(menuResponse.data.data.menu.sections || [])
+      // Categories are managed via /food/restaurant/categories (NOT /menu).
+      // Create the category record so it shows up across the dashboard.
+      await restaurantAPI.createCategory({ name: newCategoryName.trim() })
+
+      toast.success('Category added successfully!')
+
+      // The menu is generated from food items; the new section will appear once an item is created in it.
+      navigate('/restaurant/hub-menu/item/new', {
+        state: {
+          category: newCategoryName.trim(),
+          isNewCategory: true,
         }
-        
-        toast.success('Category added successfully!')
-        
-        // Navigate to new item page with new category
-        navigate('/restaurant/hub-menu/item/new', {
-          state: {
-            category: newCategoryName.trim(),
-            isNewCategory: true,
-            sectionId: response.data.data.section.id
-          }
-        })
-      } else {
-        toast.error(response.data?.message || 'Failed to add category')
-      }
+      })
     } catch (error) {
       debugError('Error adding category:', error)
       toast.error(error.response?.data?.message || 'Failed to add category')
@@ -1034,14 +1024,10 @@ export default function HubMenu() {
     }
 
     try {
-      // Remove section from menuData and update backend
-      const updatedSections = menuData.filter(section => section.id !== selectedCategory.id)
-      
-      await restaurantAPI.updateMenu({ sections: updatedSections })
-      
-      // Update local state
-      setMenuData(updatedSections)
-      toast.success('Category deleted successfully')
+      // Menu editing is disabled on the backend. The menu is generated from food_items.
+      // Category deletion must be done via the Menu Categories page and can only happen when it has no items.
+      toast.error('Delete categories from Menu Categories (and only when empty).')
+      navigate('/restaurant/menu-categories')
     } catch (error) {
       debugError('Error deleting category:', error)
       toast.error('Failed to delete category')

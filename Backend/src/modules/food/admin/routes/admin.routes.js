@@ -49,6 +49,7 @@ router.post('/categories', adminController.createCategory);
 router.patch('/categories/:id', adminController.updateCategory);
 router.delete('/categories/:id', adminController.deleteCategory);
 router.patch('/categories/:id/toggle', adminController.toggleCategoryStatus);
+router.patch('/categories/:id/approve', adminController.approveCategory);
 
 // ----- Foods -----
 router.get('/foods', adminController.getFoods);

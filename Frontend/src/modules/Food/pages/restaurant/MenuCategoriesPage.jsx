@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
 import {
@@ -10,9 +10,10 @@ import {
   GripVertical,
   Loader2,
   Eye,
-  EyeOff
+  EyeOff,
+  Upload
 } from "lucide-react"
-import { restaurantAPI } from "@food/api"
+import { restaurantAPI, uploadAPI } from "@food/api"
 import { toast } from "sonner"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -27,9 +28,15 @@ export default function MenuCategoriesPage() {
   const [editingCategory, setEditingCategory] = useState(null)
   const [formData, setFormData] = useState({
     name: '',
-    icon: '',
-    color: '#000000'
+    type: '',
+    image: '',
+    isActive: true,
+    sortOrder: 0,
   })
+  const [selectedImageFile, setSelectedImageFile] = useState(null)
+  const [imagePreview, setImagePreview] = useState(null)
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const fileInputRef = useRef(null)
 
   // Fetch categories
   useEffect(() => {
@@ -39,7 +46,7 @@ export default function MenuCategoriesPage() {
   const fetchCategories = async () => {
     try {
       setLoading(true)
-      const response = await restaurantAPI.getAllCategories()
+      const response = await restaurantAPI.getAllCategories({ includePending: true })
       if (response.data.success) {
         setCategories(response.data.data.categories || [])
       }
@@ -55,9 +62,15 @@ export default function MenuCategoriesPage() {
     setEditingCategory(null)
     setFormData({
       name: '',
-      icon: '',
-      color: '#000000'
+      type: '',
+      image: '',
+      isActive: true,
+      sortOrder: 0,
     })
+    setSelectedImageFile(null)
+    setImagePreview(null)
+    setUploadingImage(false)
+    if (fileInputRef.current) fileInputRef.current.value = ""
     setShowAddModal(true)
   }
 
@@ -65,10 +78,37 @@ export default function MenuCategoriesPage() {
     setEditingCategory(category)
     setFormData({
       name: category.name || '',
-      icon: category.icon || '',
-      color: category.color || '#000000'
+      type: category.type || '',
+      image: category.image || '',
+      isActive: category.isActive !== false,
+      sortOrder: Number.isFinite(Number(category.sortOrder)) ? Number(category.sortOrder) : 0,
     })
+    setSelectedImageFile(null)
+    setImagePreview(category.image || null)
+    setUploadingImage(false)
+    if (fileInputRef.current) fileInputRef.current.value = ""
     setShowAddModal(true)
+  }
+
+  const handleImageFileChange = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const allowedTypes = ["image/png", "image/jpeg", "image/jpg", "image/webp"]
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Invalid file type. Please upload PNG, JPG, JPEG, or WEBP.")
+      return
+    }
+    const maxSize = 5 * 1024 * 1024
+    if (file.size > maxSize) {
+      toast.error("Image size exceeds 5MB limit.")
+      return
+    }
+    setSelectedImageFile(file)
+    try {
+      setImagePreview(URL.createObjectURL(file))
+    } catch {
+      setImagePreview(null)
+    }
   }
 
   const handleSaveCategory = async () => {
@@ -78,9 +118,26 @@ export default function MenuCategoriesPage() {
     }
 
     try {
-      // Prepare data to send (only name is required, backend will handle order)
+      let imageUrl =
+        formData.image && String(formData.image).trim()
+          ? String(formData.image).trim()
+          : ""
+
+      // Upload image if a file was selected.
+      if (selectedImageFile) {
+        setUploadingImage(true)
+        const res = await uploadAPI.uploadMedia(selectedImageFile, { folder: "food/categories" })
+        const url = res?.data?.data?.url || res?.data?.url
+        if (url) imageUrl = String(url)
+      }
+
+      // Payload aligned to Backend FoodCategory model.
       const categoryData = {
-        name: formData.name.trim()
+        name: formData.name.trim(),
+        type: String(formData.type || "").trim(),
+        image: imageUrl,
+        isActive: formData.isActive !== false,
+        sortOrder: Number.isFinite(Number(formData.sortOrder)) ? Number(formData.sortOrder) : 0,
       }
 
       if (editingCategory) {
@@ -101,6 +158,8 @@ export default function MenuCategoriesPage() {
       } else {
         toast.error(error.response?.data?.message || error.message || 'Failed to save category')
       }
+    } finally {
+      setUploadingImage(false)
     }
   }
 
@@ -182,6 +241,11 @@ export default function MenuCategoriesPage() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <h3 className="font-semibold text-gray-900">{category.name}</h3>
+                      {category.isApproved === false && (
+                        <span className="text-[10px] px-2 py-0.5 bg-yellow-50 text-yellow-700 border border-yellow-100 rounded-full font-medium">
+                          Pending approval
+                        </span>
+                      )}
                       {!category.isActive && (
                         <span className="text-[10px] px-2 py-0.5 bg-red-50 text-red-600 border border-red-100 rounded-full font-medium">Deactivated</span>
                       )}
@@ -259,7 +323,7 @@ export default function MenuCategoriesPage() {
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto p-4">
-                <div>
+                <div className="space-y-4">
                   <label className="block text-sm font-medium text-gray-900 mb-2">
                     Category Name *
                   </label>
@@ -271,6 +335,94 @@ export default function MenuCategoriesPage() {
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
                     maxLength={100}
                   />
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-900 mb-2">
+                      Category type (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.type}
+                      onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                      placeholder="e.g., Food, Beverages"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                      maxLength={100}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-900 mb-2">
+                      Sort order (optional)
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.sortOrder}
+                      onChange={(e) =>
+                        setFormData({ ...formData, sortOrder: e.target.value })
+                      }
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                    />
+                    <p className="text-[11px] text-gray-500 mt-1">
+                      Lower numbers appear first.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-900 mb-2">
+                      Category image (optional)
+                    </label>
+                    {(imagePreview || formData.image) && (
+                      <div className="mb-3">
+                        <img
+                          src={imagePreview || formData.image}
+                          alt="Category preview"
+                          className="w-16 h-16 rounded-lg object-cover border border-gray-200"
+                        />
+                      </div>
+                    )}
+                    <div className="flex items-center gap-3">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/jpg,image/webp"
+                        onChange={handleImageFileChange}
+                        className="hidden"
+                        id="restaurant-category-image"
+                      />
+                      <label
+                        htmlFor="restaurant-category-image"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 text-sm font-semibold text-gray-900 hover:bg-gray-50 transition-colors cursor-pointer"
+                      >
+                        <Upload className="w-4 h-4" />
+                        {imagePreview ? "Change image" : "Upload image"}
+                      </label>
+                      <input
+                        type="url"
+                        value={formData.image}
+                        onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+                        placeholder="...or paste image URL"
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Active</p>
+                      <p className="text-[11px] text-gray-500">Hidden categories won’t be listed by default.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormData((p) => ({ ...p, isActive: !p.isActive }))}
+                      className={`h-8 px-3 rounded-full text-xs font-semibold border transition-colors ${
+                        formData.isActive
+                          ? "bg-green-50 text-green-700 border-green-200"
+                          : "bg-red-50 text-red-700 border-red-200"
+                      }`}
+                    >
+                      {formData.isActive ? "Active" : "Inactive"}
+                    </button>
+                  </div>
                 </div>
               </div>
               <div className="px-4 py-4 border-t border-gray-200 flex gap-3">
@@ -282,9 +434,14 @@ export default function MenuCategoriesPage() {
                 </button>
                 <button
                   onClick={handleSaveCategory}
-                  className="flex-1 py-3 px-4 bg-black text-white rounded-lg text-sm font-semibold hover:bg-gray-800 transition-colors"
+                  disabled={uploadingImage}
+                  className={`flex-1 py-3 px-4 rounded-lg text-sm font-semibold transition-colors ${
+                    uploadingImage
+                      ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                      : "bg-black text-white hover:bg-gray-800"
+                  }`}
                 >
-                  {editingCategory ? 'Update' : 'Create'}
+                  {uploadingImage ? "Uploading..." : (editingCategory ? 'Update' : 'Create')}
                 </button>
               </div>
             </motion.div>

@@ -81,19 +81,10 @@ import { useLocation } from "@food/hooks/useLocation";
 import { useZone } from "@food/hooks/useZone";
 import quickSpicyLogo from "@food/assets/quicky-spicy-logo.png";
 import offerImage from "@food/assets/offerimage.png";
-import api, { restaurantAPI } from "@food/api";
+import api, { restaurantAPI, adminAPI } from "@food/api";
 import { API_BASE_URL } from "@food/api/config";
 import OptimizedImage from "@food/components/OptimizedImage";
 import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability";
-} from "@food/components/ui/dropdown-menu"
-import { useLocation } from "@food/hooks/useLocation"
-import { useZone } from "@food/hooks/useZone"
-import quickSpicyLogo from "@food/assets/quicky-spicy-logo.png"
-import offerImage from "@food/assets/offerimage.png"
-import api, { restaurantAPI, adminAPI } from "@food/api"
-import { API_BASE_URL } from "@food/api/config"
-import OptimizedImage from "@food/components/OptimizedImage"
-import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability"
 // Explore More Icons
 import exploreOffers from "@food/assets/explore more icons/offers.png";
 import exploreGourmet from "@food/assets/explore more icons/gourmet.png";
@@ -808,10 +799,6 @@ export default function Home() {
     setRealCategories([]);
     setLoadingRealCategories(false);
   }, []);
-        if (!cancelled) setLoadingBanners(false)
-      })
-    return () => { cancelled = true }
-  }, [])
 
   // Fetch explore icons and landing settings from public APIs
   useEffect(() => {
@@ -1068,13 +1055,6 @@ export default function Home() {
   const [showToast, setShowToast] = useState(false);
   const [showManageCollections, setShowManageCollections] = useState(false);
   const [selectedRestaurantSlug, setSelectedRestaurantSlug] = useState(null);
-  const { addFavorite, removeFavorite, isFavorite, getFavorites, getDefaultAddress } = profileContext
-  const { addToCart, cart } = useCart()
-  const { location, loading, requestLocation } = useLocation()
-  const { zoneId, zoneStatus, isInService, isOutOfService, loading: zoneLoading, error: zoneError } = useZone(location)
-  const [showToast, setShowToast] = useState(false)
-  const [showManageCollections, setShowManageCollections] = useState(false)
-  const [selectedRestaurantSlug, setSelectedRestaurantSlug] = useState(null)
 
   // Fetch categories (zone-aware) for the homepage category rail.
   useEffect(() => {
@@ -1854,10 +1834,6 @@ export default function Home() {
 
     fetchMenuCategories();
   }, [restaurantsData, normalizeImageUrl, slugifyCategory]);
-    setMenuCategories([])
-    setRestaurantDietMeta({})
-    setLoadingMenuCategories(false)
-  }, [restaurantsData])
 
   const matchesVegMode = useCallback(
     (restaurant) => {

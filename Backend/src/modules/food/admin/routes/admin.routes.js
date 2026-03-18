@@ -3,6 +3,7 @@ import { AuthError } from '../../../../core/auth/errors.js';
 import * as adminController from '../controllers/admin.controller.js';
 import * as foodApprovalController from '../controllers/foodApproval.controller.js';
 import * as orderController from '../../orders/order.controller.js';
+import { getAdminPageController, upsertAdminPageController } from '../controllers/pageContent.controller.js';
 
 const router = express.Router();
 
@@ -117,5 +118,9 @@ router.get('/orders/:orderId', orderController.getOrderByIdAdminController);
 router.patch('/orders/:orderId/assign-delivery', orderController.assignDeliveryPartnerController);
 router.get('/settings/dispatch', orderController.getDispatchSettingsController);
 router.patch('/settings/dispatch', orderController.updateDispatchSettingsController);
+
+// ----- CMS Pages (About + legal) -----
+router.get('/pages-social-media/:key', getAdminPageController);
+router.put('/pages-social-media/:key', upsertAdminPageController);
 
 export default router;

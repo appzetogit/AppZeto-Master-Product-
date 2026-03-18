@@ -3,6 +3,7 @@ import { toast } from "sonner"
 import api from "@food/api"
 import { API_ENDPOINTS } from "@food/api/config"
 import { Textarea } from "@food/components/ui/textarea"
+import { legalHtmlToPlainText, plainTextToLegalHtml } from "@food/utils/legalContentFormat"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -11,6 +12,7 @@ const debugError = (...args) => {}
 export default function ShippingPolicy() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [viewMode, setViewMode] = useState("edit") // "edit" | "preview"
   const [shippingData, setShippingData] = useState({
     title: 'Shipping Policy',
     content: ''
@@ -20,46 +22,14 @@ export default function ShippingPolicy() {
     fetchShippingData()
   }, [])
 
-  // Convert HTML to plain text
-  const htmlToText = (html) => {
-    if (!html) return ''
-    
-    let text = html
-    
-    // Replace paragraph breaks with newlines
-    text = text.replace(/<p[^>]*>/gi, '').replace(/<\/p>/gi, '\n')
-    text = text.replace(/<br\s*\/?>/gi, '\n')
-    text = text.replace(/<div[^>]*>/gi, '').replace(/<\/div>/gi, '\n')
-    
-    // Remove all remaining HTML tags
-    text = text.replace(/<[^>]*>/g, '')
-    
-    // Decode HTML entities
-    text = text.replace(/&nbsp;/g, ' ')
-    text = text.replace(/&amp;/g, '&')
-    text = text.replace(/&lt;/g, '<')
-    text = text.replace(/&gt;/g, '>')
-    text = text.replace(/&quot;/g, '"')
-    text = text.replace(/&#39;/g, "'")
-    text = text.replace(/&apos;/g, "'")
-    
-    // Clean up multiple newlines (keep max 2 consecutive)
-    text = text.replace(/\n{3,}/g, '\n\n')
-    
-    // Trim each line and remove empty lines at start/end
-    text = text.split('\n').map(line => line.trim()).join('\n')
-    
-    return text.trim()
-  }
-
   const fetchShippingData = async () => {
     try {
       setLoading(true)
-      const response = await api.get(API_ENDPOINTS.ADMIN.SHIPPING)
+      const response = await api.get(API_ENDPOINTS.ADMIN.SHIPPING, { contextModule: "admin" })
       if (response.data.success) {
         // Convert HTML to plain text for textarea
         const content = response.data.data.content || ''
-        const textContent = htmlToText(content)
+        const textContent = legalHtmlToPlainText(content)
         setShippingData({
           ...response.data.data,
           content: textContent
@@ -77,21 +47,19 @@ export default function ShippingPolicy() {
     e.preventDefault()
     try {
       setSaving(true)
-      // Convert plain text to HTML for storage
-      const htmlContent = shippingData.content.split('\n').map(line => {
-        if (line.trim() === '') return '<p><br></p>'
-        return `<p>${line}</p>`
-      }).join('')
+      // Convert plain text/markdown to HTML for storage + user rendering
+      const htmlContent = plainTextToLegalHtml(shippingData.content)
       
-      const response = await api.put(API_ENDPOINTS.ADMIN.SHIPPING, {
-        title: shippingData.title,
-        content: htmlContent
-      })
+      const response = await api.put(
+        API_ENDPOINTS.ADMIN.SHIPPING,
+        { title: shippingData.title, content: htmlContent },
+        { contextModule: "admin" }
+      )
       if (response.data.success) {
         toast.success('Shipping policy updated successfully')
         // Convert HTML to plain text for display in textarea
         const content = response.data.data.content || ''
-        const textContent = htmlToText(content)
+        const textContent = legalHtmlToPlainText(content)
         setShippingData({
           ...response.data.data,
           content: textContent
@@ -127,20 +95,57 @@ export default function ShippingPolicy() {
 
         {/* Text Area */}
         <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-          <Textarea
-            value={shippingData.content}
-            onChange={(e) => setShippingData(prev => ({ ...prev, content: e.target.value }))}
-            placeholder="Enter shipping policy content..."
-            className="min-h-[600px] w-full text-sm text-slate-700 leading-relaxed resize-y"
-            dir="ltr"
-            style={{
-              direction: 'ltr',
-              textAlign: 'left',
-              unicodeBidi: 'bidi-override',
-              width: '100%',
-              maxWidth: '100%'
-            }}
-          />
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div className="text-sm text-slate-600">
+              Use headings like <span className="font-mono">#</span>, <span className="font-mono">##</span> and bold like <span className="font-mono">**text**</span>.
+            </div>
+            <div className="inline-flex rounded-lg border border-slate-200 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setViewMode("edit")}
+                className={`px-3 py-1.5 text-sm font-medium ${viewMode === "edit" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50"}`}
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("preview")}
+                className={`px-3 py-1.5 text-sm font-medium ${viewMode === "preview" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50"}`}
+              >
+                Preview
+              </button>
+            </div>
+          </div>
+
+          {viewMode === "edit" ? (
+            <Textarea
+              value={shippingData.content}
+              onChange={(e) => setShippingData(prev => ({ ...prev, content: e.target.value }))}
+              placeholder="Enter shipping policy content..."
+              className="min-h-[600px] w-full text-sm text-slate-700 leading-relaxed resize-y"
+              dir="ltr"
+              style={{
+                direction: 'ltr',
+                textAlign: 'left',
+                unicodeBidi: 'bidi-override',
+                width: '100%',
+                maxWidth: '100%'
+              }}
+            />
+          ) : (
+            <div className="min-h-[600px] w-full rounded-md border border-slate-200 bg-white p-4">
+              <div
+                className="prose prose-slate max-w-none
+                  prose-headings:text-slate-900
+                  prose-p:text-slate-700
+                  prose-strong:text-slate-900
+                  prose-ul:text-slate-700
+                  prose-li:my-1
+                  leading-relaxed"
+                dangerouslySetInnerHTML={{ __html: plainTextToLegalHtml(shippingData.content) }}
+              />
+            </div>
+          )}
         </div>
 
         {/* Submit Button */}

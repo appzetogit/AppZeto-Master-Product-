@@ -21,7 +21,7 @@ const notifications = [
     id: 2,
     type: "offer",
     title: "Special Offer",
-    message: "Get 50% off on your next order above ?500",
+    message: "Get 50% off on your next order above ₹500",
     time: "1 hour ago",
     read: false,
     icon: Tag,

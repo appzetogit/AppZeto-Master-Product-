@@ -15,7 +15,7 @@ export default function Terms() {
   const [loading, setLoading] = useState(true)
   const [termsData, setTermsData] = useState({
     title: 'Terms and Conditions',
-    content: '<p>Loading...</p>'
+    content: ''
   })
 
   useEffect(() => {
@@ -27,13 +27,13 @@ export default function Terms() {
       setLoading(true)
       const response = await api.get(API_ENDPOINTS.ADMIN.TERMS_PUBLIC)
       if (response.data.success) {
-        setTermsData(response.data.data)
+        setTermsData(response.data.data || { title: 'Terms and Conditions', content: '' })
       }
     } catch (error) {
       debugError('Error fetching terms data:', error)
       setTermsData({
         title: 'Terms and Conditions',
-        content: '<p>Unable to load terms and conditions at the moment. Please try again later.</p>'
+        content: ''
       })
     } finally {
       setLoading(false)

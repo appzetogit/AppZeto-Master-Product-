@@ -220,7 +220,7 @@ export default function Profile() {
 
   const handleShareReferral = async () => {
     if (!referralCode) return
-    const shareText = `Use my referral code ${referralCode} on signup and I get ?50 in wallet.`
+    const shareText = `Use my referral code ${referralCode} on signup and I get ₹50 in wallet.`
     try {
       if (navigator.share) {
         await navigator.share({
@@ -378,7 +378,7 @@ export default function Profile() {
                     <span className="text-base font-medium text-gray-900 dark:text-white">{companyName} Money</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-base font-semibold text-green-600 dark:text-green-400">?{userProfile?.wallet?.balance?.toFixed(0) || '0'}</span>
+                    <span className="text-base font-semibold text-green-600 dark:text-green-400">₹{userProfile?.wallet?.balance?.toFixed(0) || '0'}</span>
                     <motion.div
                       whileHover={{ x: 4 }}
                       transition={{ duration: 0.2 }}
@@ -465,7 +465,7 @@ export default function Profile() {
                     <span className="text-base font-medium text-gray-900 dark:text-white">Referral</span>
                   </div>
                   <span className="text-xs font-semibold px-2 py-1 rounded bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300">
-                    Earn ?50
+                    Earn ₹50
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-2 bg-gray-50 dark:bg-gray-900 rounded-lg px-3 py-2 mb-2">
@@ -488,7 +488,7 @@ export default function Profile() {
                 </div>
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    When someone signs up using your code, you get ?50 in wallet.
+                    When someone signs up using your code, you get ₹50 in wallet.
                   </p>
                   <button
                     type="button"
@@ -736,41 +736,6 @@ export default function Profile() {
               </motion.div>
             </Link>
           </div>
-        </div>
-
-        {/* Coupons Section */}
-        <div className="mb-3">
-          <div className="flex items-center gap-2 mb-2 px-1">
-            <div className="w-1 h-4 bg-[#EB590E] rounded"></div>
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Coupons</h3>
-          </div>
-          <Link to="/user/profile/redeem-gold-coupon">
-            <motion.div
-              whileHover={{ x: 4, scale: 1.01 }}
-              transition={{ duration: 0.2, type: "spring", stiffness: 300 }}
-            >
-              <Card className="bg-white dark:bg-[#1a1a1a] py-0 rounded-xl shadow-sm border-0 dark:border-gray-800 cursor-pointer">
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <motion.div
-                      className="bg-gray-100 dark:bg-gray-800 rounded-full p-2"
-                      whileHover={{ rotate: 15, scale: 1.1 }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      <Percent className="h-5 w-5 text-gray-700 dark:text-gray-300" />
-                    </motion.div>
-                    <span className="text-base font-medium text-gray-900 dark:text-white">Redeem Gold coupon</span>
-                  </div>
-                  <motion.div
-                    whileHover={{ x: 4 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <ChevronRight className="h-5 w-5 text-gray-400 dark:text-gray-500" />
-                  </motion.div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          </Link>
         </div>
 
         {/* More Section */}

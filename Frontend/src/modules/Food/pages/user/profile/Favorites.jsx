@@ -253,7 +253,7 @@ export default function Favorites() {
                               <span className="text-muted-foreground font-medium text-xs">{dish.foodType || "N/A"}</span>
                             </div>
                             <div className="text-sm font-bold text-primary-orange">
-                              ?{Math.round(dish.price || 0)}
+                              ₹{Math.round(dish.price || 0)}
                             </div>
                           </div>
                           <Button className="w-full bg-gradient-to-r bg-primary-orange hover:opacity-90 text-white text-xs py-1.5 h-8">

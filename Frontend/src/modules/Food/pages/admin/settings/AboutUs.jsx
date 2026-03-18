@@ -62,9 +62,16 @@ export default function AboutUs() {
   const fetchAboutData = async () => {
     try {
       setLoading(true)
-      const response = await api.get(API_ENDPOINTS.ADMIN.ABOUT)
+      const response = await api.get(API_ENDPOINTS.ADMIN.ABOUT, { contextModule: "admin" })
       if (response.data.success) {
-        setAboutData(response.data.data)
+        const data = response.data.data
+        if (data && typeof data === "object") {
+          setAboutData((prev) => ({
+            ...prev,
+            ...data,
+            features: Array.isArray(data.features) ? data.features : [],
+          }))
+        }
       }
     } catch (error) {
       debugError('Error fetching about data:', error)
@@ -77,10 +84,17 @@ export default function AboutUs() {
   const handleSave = async () => {
     try {
       setSaving(true)
-      const response = await api.put(API_ENDPOINTS.ADMIN.ABOUT, aboutData)
+      const response = await api.put(API_ENDPOINTS.ADMIN.ABOUT, aboutData, { contextModule: "admin" })
       if (response.data.success) {
         toast.success('About page updated successfully')
-        setAboutData(response.data.data)
+        const data = response.data.data
+        if (data && typeof data === "object") {
+          setAboutData((prev) => ({
+            ...prev,
+            ...data,
+            features: Array.isArray(data.features) ? data.features : [],
+          }))
+        }
       }
     } catch (error) {
       debugError('Error saving about data:', error)
@@ -119,10 +133,17 @@ export default function AboutUs() {
 
       // Save to backend immediately
       setSaving(true)
-      const response = await api.put(API_ENDPOINTS.ADMIN.ABOUT, updatedData)
+      const response = await api.put(API_ENDPOINTS.ADMIN.ABOUT, updatedData, { contextModule: "admin" })
       if (response.data.success) {
         toast.success('Feature deleted successfully')
-        setAboutData(response.data.data)
+        const data = response.data.data
+        if (data && typeof data === "object") {
+          setAboutData((prev) => ({
+            ...prev,
+            ...data,
+            features: Array.isArray(data.features) ? data.features : [],
+          }))
+        }
       }
     } catch (error) {
       debugError('Error deleting feature:', error)
@@ -236,7 +257,7 @@ export default function AboutUs() {
                 <Card key={index} className="border-2">
                   <CardContent className="p-4">
                     <div className="flex items-start gap-4">
-                      <div className={`${feature.bgColor} rounded-lg p-3 flex-shrink-0`}>
+                      <div className={`${feature.bgColor} rounded-lg p-3 shrink-0`}>
                         <IconComponent className={`h-6 w-6 ${feature.color}`} />
                       </div>
                       <div className="flex-1 space-y-3">

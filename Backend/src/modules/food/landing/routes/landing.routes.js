@@ -57,8 +57,12 @@ import {
     updateGourmetOrderAdmin,
     toggleGourmetStatusAdmin
 } from '../controllers/top10GourmetAdmin.controller.js';
+import { getPublicPageController } from '../../admin/controllers/pageContent.controller.js';
 
 const router = express.Router();
+
+// Public CMS pages (About + legal). No auth required.
+router.get('/pages/:key', getPublicPageController);
 
 // Admin hero banner management (DEV: auth temporarily disabled for faster integration)
 router.get('/hero-banners', listHeroBannersController);

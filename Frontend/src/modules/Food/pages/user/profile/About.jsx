@@ -28,9 +28,9 @@ export default function About() {
   const companyName = useCompanyName()
   const [loading, setLoading] = useState(true)
   const [aboutData, setAboutData] = useState({
-    appName: 'Appzeto Food',
-    version: '1.0.0',
-    description: 'Your trusted food delivery partner, bringing delicious meals right to your doorstep. Experience the convenience of ordering from your favorite restaurants with fast, reliable delivery.',
+    appName: '',
+    version: '',
+    description: '',
     logo: '',
     features: [],
     stats: []
@@ -45,11 +45,10 @@ export default function About() {
       setLoading(true)
       const response = await api.get(API_ENDPOINTS.ADMIN.ABOUT_PUBLIC)
       if (response.data.success) {
-        setAboutData(response.data.data)
+        setAboutData(response.data.data || {})
       }
     } catch (error) {
       debugError('Error fetching about data:', error)
-      // Use default data on error
     } finally {
       setLoading(false)
     }
@@ -113,7 +112,7 @@ export default function About() {
                 transition={{ delay: 0.3, duration: 0.5 }}
                 className="text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 dark:text-white mb-2"
               >
-                {aboutData.appName}
+                {aboutData.appName || companyName || "About"}
               </motion.h2>
 
               <motion.p
@@ -122,7 +121,7 @@ export default function About() {
                 transition={{ delay: 0.4, duration: 0.5 }}
                 className="text-gray-600 dark:text-gray-400 text-sm md:text-base mb-4"
               >
-                Version {aboutData.version}
+                {aboutData.version ? `Version ${aboutData.version}` : " "}
               </motion.p>
 
               <motion.p
@@ -131,7 +130,9 @@ export default function About() {
                 transition={{ delay: 0.5, duration: 0.5 }}
                 className="text-gray-700 dark:text-gray-300 leading-relaxed text-base md:text-lg max-w-2xl mx-auto"
               >
-                {aboutData.description}
+                {aboutData.description
+                  ? aboutData.description
+                  : "This page will appear once the admin adds About content."}
               </motion.p>
             </div>
           </Card>
@@ -193,7 +194,7 @@ export default function About() {
               </h3>
               <div className="space-y-3">
                 <Link
-                  to="/profile/terms"
+                  to="/user/profile/terms"
                   className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group"
                 >
                   <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-2 group-hover:bg-gray-200 dark:group-hover:bg-gray-700 transition-colors">
@@ -211,7 +212,7 @@ export default function About() {
                 </Link>
 
                 <Link
-                  to="/profile/privacy"
+                  to="/user/profile/privacy"
                   className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group"
                 >
                   <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-2 group-hover:bg-gray-200 dark:group-hover:bg-gray-700 transition-colors">
@@ -229,7 +230,7 @@ export default function About() {
                 </Link>
 
                 <Link
-                  to="/profile/refund"
+                  to="/user/profile/refund"
                   className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group"
                 >
                   <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-2 group-hover:bg-gray-200 dark:group-hover:bg-gray-700 transition-colors">
@@ -247,7 +248,7 @@ export default function About() {
                 </Link>
 
                 <Link
-                  to="/profile/shipping"
+                  to="/user/profile/shipping"
                   className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group"
                 >
                   <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-2 group-hover:bg-gray-200 dark:group-hover:bg-gray-700 transition-colors">
@@ -265,7 +266,7 @@ export default function About() {
                 </Link>
 
                 <Link
-                  to="/profile/cancellation"
+                  to="/user/profile/cancellation"
                   className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group"
                 >
                   <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-2 group-hover:bg-gray-200 dark:group-hover:bg-gray-700 transition-colors">
@@ -294,7 +295,7 @@ export default function About() {
           className="text-center mt-8 mb-4"
         >
           <p className="text-sm text-gray-500 dark:text-gray-500">
-            © {new Date().getFullYear()} {companyName}. All rights reserved.
+            ù {new Date().getFullYear()} {companyName}. All rights reserved.
           </p>
         </motion.div>
       </div>

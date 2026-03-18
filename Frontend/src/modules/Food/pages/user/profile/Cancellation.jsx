@@ -15,7 +15,7 @@ export default function Cancellation() {
   const [loading, setLoading] = useState(true)
   const [cancellationData, setCancellationData] = useState({
     title: 'Cancellation Policy',
-    content: '<p>Loading...</p>'
+    content: ''
   })
 
   useEffect(() => {
@@ -27,13 +27,13 @@ export default function Cancellation() {
       setLoading(true)
       const response = await api.get(API_ENDPOINTS.ADMIN.CANCELLATION_PUBLIC)
       if (response.data.success) {
-        setCancellationData(response.data.data)
+        setCancellationData(response.data.data || { title: 'Cancellation Policy', content: '' })
       }
     } catch (error) {
       debugError('Error fetching cancellation data:', error)
       setCancellationData({
         title: 'Cancellation Policy',
-        content: '<p>Unable to load cancellation policy at the moment. Please try again later.</p>'
+        content: ''
       })
     } finally {
       setLoading(false)

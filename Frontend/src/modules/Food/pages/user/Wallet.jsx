@@ -92,7 +92,9 @@ export default function Wallet() {
   }, [selectedFilter, transactions])
 
   const formatAmount = (amount) => {
-    return `?${amount.toLocaleString('en-IN')}`
+    const numeric = Number(amount ?? 0)
+    const safe = Number.isFinite(numeric) ? numeric : 0
+    return `${"\u20B9"}${safe.toLocaleString('en-IN')}`
   }
 
   const formatDate = (dateString) => {

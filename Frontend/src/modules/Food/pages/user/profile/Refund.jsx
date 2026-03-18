@@ -15,7 +15,7 @@ export default function Refund() {
   const [loading, setLoading] = useState(true)
   const [refundData, setRefundData] = useState({
     title: 'Refund Policy',
-    content: '<p>Loading...</p>'
+    content: ''
   })
 
   useEffect(() => {
@@ -27,13 +27,13 @@ export default function Refund() {
       setLoading(true)
       const response = await api.get(API_ENDPOINTS.ADMIN.REFUND_PUBLIC)
       if (response.data.success) {
-        setRefundData(response.data.data)
+        setRefundData(response.data.data || { title: 'Refund Policy', content: '' })
       }
     } catch (error) {
       debugError('Error fetching refund data:', error)
       setRefundData({
         title: 'Refund Policy',
-        content: '<p>Unable to load refund policy at the moment. Please try again later.</p>'
+        content: ''
       })
     } finally {
       setLoading(false)

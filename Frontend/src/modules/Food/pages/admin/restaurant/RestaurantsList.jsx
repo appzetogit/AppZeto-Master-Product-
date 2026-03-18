@@ -125,7 +125,7 @@ export default function RestaurantsList() {
         setLoading(true)
         setError(null)
 
-        const response = await adminAPI.getRestaurants({})
+        const response = await adminAPI.getApprovedRestaurants({})
 
         if (cancelled) return
 
@@ -177,7 +177,7 @@ export default function RestaurantsList() {
             cuisine: Array.isArray(restaurant.cuisines) && restaurant.cuisines.length > 0
               ? restaurant.cuisines[0]
               : (restaurant.cuisine || "N/A"),
-            status: restaurant.status === "approved" || restaurant.isActive !== false,
+            status: restaurant.status === "approved",
             rating: restaurant.ratings?.average || restaurant.rating || 0,
             logo: typeof restaurant.profileImage === "string" ? restaurant.profileImage : (restaurant.profileImage?.url || restaurant.logo || PLACEHOLDER_40),
             originalData: restaurant,

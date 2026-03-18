@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { Search, Download, ChevronDown, Eye, Settings, ArrowUpDown, Loader2, Star, Building2, User, FileText, Phone, Mail, MapPin, ShieldX, Trash2, Plus, ArrowRight } from "lucide-react"
-import { adminAPI, restaurantAPI } from "@food/api"
+import { adminAPI } from "@food/api"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@food/components/ui/dropdown-menu"
 import { exportRestaurantsToPDF } from "@food/components/admin/restaurants/restaurantsExportUtils"
 const debugLog = (...args) => {}
@@ -28,33 +28,25 @@ export default function DiningList() {
                 setLoading(true)
                 setError(null)
 
-                let response
-                try {
-                    // Try admin API first
-                    response = await adminAPI.getRestaurants()
-                } catch (adminErr) {
-                    debugLog("Admin restaurants endpoint not available, using fallback")
-                    response = await restaurantAPI.getRestaurants()
-                }
+                const response = await adminAPI.getDiningRestaurants()
 
                 if (response.data && response.data.success && response.data.data) {
-                    const restaurantsData = response.data.data.restaurants || response.data.data || []
+                    const restaurantsData = response.data.data.restaurants || []
 
                     const mappedRestaurants = restaurantsData.map((restaurant, index) => ({
                         id: restaurant._id || restaurant.id || index + 1,
                         _id: restaurant._id,
-                        name: restaurant.name || "N/A",
+                        name: restaurant.name || restaurant.restaurantName || "N/A",
                         ownerName: restaurant.ownerName || "N/A",
-                        ownerPhone: restaurant.ownerPhone || restaurant.phone || "N/A",
-                        zone: restaurant.location?.area || restaurant.location?.city || restaurant.zone || "N/A",
-                        cuisine: Array.isArray(restaurant.cuisines) && restaurant.cuisines.length > 0
-                            ? restaurant.cuisines[0]
-                            : (restaurant.cuisine || "N/A"),
-                        status: restaurant.isActive !== false,
-                        rating: restaurant.ratings?.average || restaurant.rating || 0,
-                        logo: restaurant.profileImage?.url || restaurant.logo || "https://via.placeholder.com/40",
-
-                        diningSettings: restaurant.diningSettings || { isEnabled: false, maxGuests: 6 },
+                        ownerPhone: restaurant.ownerPhone || "N/A",
+                        zone: restaurant.zone || "N/A",
+                        status: restaurant.status === "approved" || restaurant.isActive === true,
+                        rating: restaurant.rating || 0,
+                        logo: restaurant.logo || "https://via.placeholder.com/40",
+                        categories: Array.isArray(restaurant.categories) ? restaurant.categories : [],
+                        categoryIds: Array.isArray(restaurant.categoryIds) ? restaurant.categoryIds : [],
+                        primaryCategoryId: restaurant.primaryCategoryId || null,
+                        diningSettings: restaurant.diningSettings || { isEnabled: false, maxGuests: 6, diningType: "" },
                         originalData: restaurant,
                     }))
 
@@ -112,7 +104,7 @@ export default function DiningList() {
         // Category Filter
         if (selectedCategory !== "All") {
             result = result.filter(restaurant =>
-                restaurant.diningSettings?.diningType === selectedCategory ||
+                restaurant.categories?.some(category => category.slug === selectedCategory) ||
                 (selectedCategory === "Uncategorized" && !restaurant.diningSettings?.diningType)
             )
         }
@@ -140,7 +132,10 @@ export default function DiningList() {
             ))
 
             await adminAPI.updateRestaurantDiningSettings(restaurant._id, {
-                isEnabled: newStatus
+                isEnabled: newStatus,
+                maxGuests: restaurant.diningSettings?.maxGuests || 6,
+                categoryIds: restaurant.categoryIds || [],
+                primaryCategoryId: restaurant.primaryCategoryId || restaurant.categoryIds?.[0] || null,
             })
             // Could show success toast here
         } catch (error) {
@@ -170,7 +165,10 @@ export default function DiningList() {
             ))
 
             await adminAPI.updateRestaurantDiningSettings(restaurant._id, {
-                maxGuests: guests
+                isEnabled: restaurant.diningSettings?.isEnabled === true,
+                maxGuests: guests,
+                categoryIds: restaurant.categoryIds || [],
+                primaryCategoryId: restaurant.primaryCategoryId || restaurant.categoryIds?.[0] || null,
             })
         } catch (error) {
             debugError("Failed to update max guests", error)
@@ -251,7 +249,7 @@ export default function DiningList() {
                                     All ({restaurants.length})
                                 </button>
                                 {categories.map((cat) => {
-                                    const count = restaurants.filter(r => r.diningSettings?.diningType === cat.slug).length;
+                                    const count = restaurants.filter(r => r.categories?.some(category => category.slug === cat.slug)).length;
                                     return (
                                         <button
                                             key={cat._id}
@@ -428,16 +426,24 @@ export default function DiningList() {
                             <div className="space-y-2">
                                 <label className="text-sm font-semibold text-slate-900">Dining Category</label>
                                 <select
-                                    value={editingRestaurant.diningSettings?.diningType || ""}
+                                    value={editingRestaurant.primaryCategoryId || editingRestaurant.categoryIds?.[0] || ""}
                                     onChange={(e) => setEditingRestaurant(prev => ({
                                         ...prev,
-                                        diningSettings: { ...prev.diningSettings, diningType: e.target.value }
+                                        primaryCategoryId: e.target.value || null,
+                                        categoryIds: e.target.value ? [e.target.value] : [],
+                                        categories: e.target.value
+                                            ? categories.filter(cat => cat._id === e.target.value)
+                                            : [],
+                                        diningSettings: {
+                                            ...prev.diningSettings,
+                                            diningType: categories.find(cat => cat._id === e.target.value)?.slug || "",
+                                        }
                                     }))}
                                     className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                                 >
                                     <option value="">Select a category</option>
                                     {categories.map(cat => (
-                                        <option key={cat._id} value={cat.slug}>{cat.name}</option>
+                                        <option key={cat._id} value={cat._id}>{cat.name}</option>
                                     ))}
                                 </select>
                             </div>
@@ -454,7 +460,12 @@ export default function DiningList() {
                                 onClick={async () => {
                                     try {
                                         setLoading(true)
-                                        await adminAPI.updateRestaurantDiningSettings(editingRestaurant._id, editingRestaurant.diningSettings)
+                                        await adminAPI.updateRestaurantDiningSettings(editingRestaurant._id, {
+                                            isEnabled: editingRestaurant.diningSettings?.isEnabled === true,
+                                            maxGuests: editingRestaurant.diningSettings?.maxGuests || 6,
+                                            categoryIds: editingRestaurant.categoryIds || [],
+                                            primaryCategoryId: editingRestaurant.primaryCategoryId || editingRestaurant.categoryIds?.[0] || null,
+                                        })
 
                                         // Update local state
                                         setRestaurants(prev => prev.map(r =>

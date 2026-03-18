@@ -267,11 +267,11 @@ export default function Checkout() {
                         <div className="flex-1">
                           <p className="font-medium text-sm md:text-base dark:text-gray-200">{item.name}</p>
                           <p className="text-xs md:text-sm text-muted-foreground">
-                            ?{(item.price * 83).toFixed(0)} � {item.quantity}
+                            ₹{(item.price * 83).toFixed(0)} × {item.quantity}
                           </p>
                         </div>
                         <p className="font-semibold text-sm md:text-base dark:text-gray-200">
-                          ?{(item.price * 83 * item.quantity).toFixed(0)}
+                          ₹{(item.price * 83 * item.quantity).toFixed(0)}
                         </p>
                       </div>
                     ))}
@@ -280,19 +280,19 @@ export default function Checkout() {
                   <div className="space-y-2 md:space-y-3 pt-4 md:pt-6 border-t dark:border-gray-700">
                     <div className="flex justify-between text-sm md:text-base">
                       <span className="text-muted-foreground">Subtotal</span>
-                      <span className="dark:text-gray-200">?{subtotal.toFixed(0)}</span>
+                      <span className="dark:text-gray-200">₹{subtotal.toFixed(0)}</span>
                     </div>
                     <div className="flex justify-between text-sm md:text-base">
                       <span className="text-muted-foreground">Delivery Fee</span>
-                      <span className="dark:text-gray-200">?{deliveryFee.toFixed(0)}</span>
+                      <span className="dark:text-gray-200">₹{deliveryFee.toFixed(0)}</span>
                     </div>
                     <div className="flex justify-between text-sm md:text-base">
                       <span className="text-muted-foreground">Tax</span>
-                      <span className="dark:text-gray-200">?{tax.toFixed(0)}</span>
+                      <span className="dark:text-gray-200">₹{tax.toFixed(0)}</span>
                     </div>
                     <div className="flex justify-between font-bold text-lg md:text-xl lg:text-2xl pt-2 md:pt-3 border-t dark:border-gray-700">
                       <span className="dark:text-white">Total</span>
-                      <span className="text-[#EB590E] dark:text-orange-400">?{total.toFixed(0)}</span>
+                      <span className="text-[#EB590E] dark:text-orange-400">₹{total.toFixed(0)}</span>
                     </div>
                   </div>
 

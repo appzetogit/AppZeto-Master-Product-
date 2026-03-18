@@ -70,9 +70,9 @@ const giftCardCategories = [
 ]
 
 const amountOptions = [
-  { value: 1000, label: '?1,000' },
-  { value: 2000, label: '?2,000', popular: true },
-  { value: 5000, label: '?5,000' },
+  { value: 1000, label: '₹1,000' },
+  { value: 2000, label: '₹2,000', popular: true },
+  { value: 5000, label: '₹5,000' },
   { value: 'custom', label: 'Custom' }
 ]
 
@@ -105,8 +105,8 @@ export default function GiftCards() {
   }, [])
 
   const displayAmount = selectedAmount === 'custom'
-    ? (customAmount ? `?${Number(customAmount).toLocaleString('en-IN')}` : '?0')
-    : `?${selectedAmount.toLocaleString('en-IN')}`
+    ? (customAmount ? `₹${Number(customAmount).toLocaleString('en-IN')}` : '₹0')
+    : `₹${selectedAmount.toLocaleString('en-IN')}`
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#0a0a0a] pb-24">
@@ -262,10 +262,10 @@ export default function GiftCards() {
                 {selectedAmount === 'custom' && (
                   <div className="pt-3">
                     <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 font-semibold text-lg">?</span>
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 font-semibold text-lg">₹</span>
                       <Input
                         type="number"
-                        placeholder="Enter amount (Min ?100)"
+                        placeholder="Enter amount (Min ₹100)"
                         value={customAmount}
                         onChange={(e) => setCustomAmount(e.target.value)}
                         className="pl-10 h-14 text-lg border-gray-200 dark:border-gray-700 focus:border-[#EB590E] dark:focus:border-[#D94F0C] w-full focus:ring-[#EB590E] dark:focus:ring-[#D94F0C] rounded-xl bg-white dark:bg-[#2a2a2a] text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400"
@@ -379,7 +379,7 @@ export default function GiftCards() {
             onClick={() => {
               const finalAmount = selectedAmount === 'custom' ? Number(customAmount) : selectedAmount
               if (!finalAmount || finalAmount < 100) {
-                alert('Please select or enter a valid amount (Min ?100)')
+                alert('Please select or enter a valid amount (Min ₹100)')
                 return
               }
               navigate('/user/gift-card/checkout', {

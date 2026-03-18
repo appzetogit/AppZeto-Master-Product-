@@ -2,7 +2,10 @@ import express from 'express';
 import { AuthError } from '../../../../core/auth/errors.js';
 import * as adminController from '../controllers/admin.controller.js';
 import * as foodApprovalController from '../controllers/foodApproval.controller.js';
+import * as addonsApprovalController from '../controllers/addonsApproval.controller.js';
+import * as diningAdminController from '../../dining/controllers/diningAdmin.controller.js';
 import * as orderController from '../../orders/order.controller.js';
+import { getAdminPageController, upsertAdminPageController } from '../controllers/pageContent.controller.js';
 
 const router = express.Router();
 
@@ -50,6 +53,11 @@ router.patch('/categories/:id', adminController.updateCategory);
 router.delete('/categories/:id', adminController.deleteCategory);
 router.patch('/categories/:id/toggle', adminController.toggleCategoryStatus);
 router.patch('/categories/:id/approve', adminController.approveCategory);
+
+// ----- Restaurant Add-ons Approval -----
+router.get('/addons', addonsApprovalController.getRestaurantAddons);
+router.patch('/addons/:id/approve', addonsApprovalController.approveRestaurantAddon);
+router.patch('/addons/:id/reject', addonsApprovalController.rejectRestaurantAddon);
 
 // ----- Foods -----
 router.get('/foods', adminController.getFoods);
@@ -112,11 +120,23 @@ router.post('/zones', adminController.createZone);
 router.patch('/zones/:id', adminController.updateZone);
 router.delete('/zones/:id', adminController.deleteZone);
 
+// ----- Dining -----
+router.get('/dining/categories', diningAdminController.getDiningCategories);
+router.post('/dining/categories', diningAdminController.createDiningCategory);
+router.patch('/dining/categories/:id', diningAdminController.updateDiningCategory);
+router.delete('/dining/categories/:id', diningAdminController.deleteDiningCategory);
+router.get('/dining/restaurants', diningAdminController.getDiningRestaurants);
+router.patch('/dining/restaurants/:restaurantId', diningAdminController.updateDiningRestaurant);
+
 // ----- Orders & Dispatch Settings -----
 router.get('/orders', orderController.listOrdersAdminController);
 router.get('/orders/:orderId', orderController.getOrderByIdAdminController);
 router.patch('/orders/:orderId/assign-delivery', orderController.assignDeliveryPartnerController);
 router.get('/settings/dispatch', orderController.getDispatchSettingsController);
 router.patch('/settings/dispatch', orderController.updateDispatchSettingsController);
+
+// ----- CMS Pages (About + legal) -----
+router.get('/pages-social-media/:key', getAdminPageController);
+router.put('/pages-social-media/:key', upsertAdminPageController);
 
 export default router;

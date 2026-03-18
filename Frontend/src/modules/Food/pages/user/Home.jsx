@@ -2632,7 +2632,7 @@ export default function Home() {
                       MEALS UNDER
                     </span>
                     <span className="text-sm sm:text-base font-extrabold text-white">
-                      ?200
+                      ₹200
                     </span>
                     <div className="w-10 h-4 bg-white rounded-full mt-1 flex items-center justify-center">
                       <span className="text-[8px] font-bold text-[#EB590E]">
@@ -3474,7 +3474,7 @@ export default function Home() {
                           }`}>
                           <span
                             className={`text-sm font-medium ${activeFilters.has("price-under-200") ? "text-[#EB590E]" : "text-gray-700 dark:text-gray-300"}`}>
-                            Under ?200
+                            Under ₹200
                           </span>
                         </button>
                         <button
@@ -3486,7 +3486,7 @@ export default function Home() {
                           }`}>
                           <span
                             className={`text-sm font-medium ${activeFilters.has("price-under-500") ? "text-[#EB590E]" : "text-gray-700 dark:text-gray-300"}`}>
-                            Under ?500
+                            Under ₹500
                           </span>
                         </button>
                       </div>

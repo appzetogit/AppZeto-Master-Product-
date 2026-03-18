@@ -63,7 +63,6 @@ const EditPayment = lazy(() => import("@food/pages/user/profile/EditPayment"))
 const Favorites = lazy(() => import("@food/pages/user/profile/Favorites"))
 const Settings = lazy(() => import("@food/pages/user/profile/Settings"))
 const Coupons = lazy(() => import("@food/pages/user/profile/Coupons"))
-const RedeemGoldCoupon = lazy(() => import("@food/pages/user/profile/RedeemGoldCoupon"))
 const About = lazy(() => import("@food/pages/user/profile/About"))
 const Terms = lazy(() => import("@food/pages/user/profile/Terms"))
 const Privacy = lazy(() => import("@food/pages/user/profile/Privacy"))
@@ -243,14 +242,6 @@ export default function UserRouter() {
             element={
               <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
                 <Coupons />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="profile/redeem-gold-coupon"
-            element={
-              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
-                <RedeemGoldCoupon />
               </ProtectedRoute>
             }
           />

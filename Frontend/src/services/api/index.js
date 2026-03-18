@@ -47,6 +47,32 @@ export const api = {
   delete: (_url, _config) => emptyDataStub(),
 };
 
+/** Single in-flight + short cache for user /auth/me - avoids duplicate calls. */
+let userMeInFlight = null;
+let userMeCached = null;
+let userMeCacheTime = 0;
+const USER_ME_CACHE_MS = 3000;
+
+const getUserMeOnce = () => {
+  const now = Date.now();
+  if (userMeCached && now - userMeCacheTime < USER_ME_CACHE_MS) {
+    return Promise.resolve(userMeCached);
+  }
+  if (!userMeInFlight) {
+    userMeInFlight = authService
+      .getMe("user")
+      .then((res) => {
+        userMeCached = res;
+        userMeCacheTime = Date.now();
+        return res;
+      })
+      .finally(() => {
+        userMeInFlight = null;
+      });
+  }
+  return userMeInFlight;
+};
+
 /** Auth API - user OTP + admin login via new backend */
 export const authAPI = {
   sendOTP: (phone, _purpose = "login", _email = null) => {
@@ -67,7 +93,7 @@ export const authAPI = {
       return Promise.reject(new Error("Phone and OTP are required"));
     return authService.verifyUserOtp(phone, otp);
   },
-  getCurrentUser: () => authService.getMe("user"),
+  getCurrentUser: () => getUserMeOnce(),
   refreshToken: (token) => authService.refreshToken(token),
   logout: (refreshToken) => {
     const token =
@@ -211,6 +237,35 @@ export const adminAPI = {
   /** Categories (admin) */
   getCategories: (params = {}) =>
     apiClient.get("/food/admin/categories", { params, contextModule: "admin" }),
+  /** Dining categories (admin) */
+  getDiningCategories: (params = {}) =>
+    apiClient.get("/food/admin/dining/categories", {
+      params,
+      contextModule: "admin",
+    }),
+  createDiningCategory: (body) =>
+    apiClient.post("/food/admin/dining/categories", body ?? {}, {
+      contextModule: "admin",
+    }),
+  updateDiningCategory: (id, body) =>
+    apiClient.patch(`/food/admin/dining/categories/${String(id)}`, body ?? {}, {
+      contextModule: "admin",
+    }),
+  deleteDiningCategory: (id) =>
+    apiClient.delete(`/food/admin/dining/categories/${String(id)}`, {
+      contextModule: "admin",
+    }),
+  getDiningRestaurants: (params = {}) =>
+    apiClient.get("/food/admin/dining/restaurants", {
+      params,
+      contextModule: "admin",
+    }),
+  updateRestaurantDiningSettings: (restaurantId, body) =>
+    apiClient.patch(
+      `/food/admin/dining/restaurants/${String(restaurantId)}`,
+      body ?? {},
+      { contextModule: "admin" },
+    ),
   createCategory: (body) =>
     apiClient.post("/food/admin/categories", body ?? {}, {
       contextModule: "admin",
@@ -517,6 +572,18 @@ export const adminAPI = {
     apiClient.put("/food/admin/delivery-emergency-help", body ?? {}, {
       contextModule: "admin",
     }),
+
+  /** Restaurant add-ons approval (admin) */
+  getRestaurantAddons: (params = {}) =>
+    apiClient.get("/food/admin/addons", { params: params ?? {}, contextModule: "admin" }),
+  approveRestaurantAddon: (id) =>
+    apiClient.patch(`/food/admin/addons/${String(id)}/approve`, {}, { contextModule: "admin" }),
+  rejectRestaurantAddon: (id, reason) =>
+    apiClient.patch(
+      `/food/admin/addons/${String(id)}/reject`,
+      { reason: String(reason || "").trim() },
+      { contextModule: "admin" },
+    ),
 };
 
 /** Restaurant API - OTP login via new backend; no email/password. */
@@ -635,6 +702,23 @@ export const restaurantAPI = {
     apiClient.patch(`/food/restaurant/foods/${String(id)}`, body ?? {}, {
       contextModule: "restaurant",
     }),
+  /** Add-ons (restaurant) - approval handled by admin */
+  getAddons: (params = {}) =>
+    apiClient.get("/food/restaurant/addons", {
+      // Backend validator enforces limit <= 100
+      params: { limit: 100, page: 1, ...params },
+      contextModule: "restaurant",
+    }),
+  addAddon: (body) =>
+    apiClient.post("/food/restaurant/addons", body ?? {}, { contextModule: "restaurant" }),
+  updateAddon: (id, body) =>
+    apiClient.patch(`/food/restaurant/addons/${String(id)}`, body ?? {}, {
+      contextModule: "restaurant",
+    }),
+  deleteAddon: (id) =>
+    apiClient.delete(`/food/restaurant/addons/${String(id)}`, {
+      contextModule: "restaurant",
+    }),
   logout: (refreshToken) => {
     restaurantCurrentInFlight = null;
     restaurantCurrentCached = null;
@@ -671,6 +755,9 @@ export const restaurantAPI = {
   /** Public: get outlet timings by restaurant id */
   getOutletTimingsByRestaurantId: (id, config = {}) =>
     getPublicRestaurantOutletTimingsOnce(id, config),
+  /** Public (user app): approved add-ons by restaurant id/slug */
+  getAddonsByRestaurantId: (id, config = {}) =>
+    apiClient.get(`/food/restaurant/restaurants/${String(id)}/addons`, { ...config }),
   /** Public: list coupons/offers created by admin */
   getPublicOffers: (params = {}, config = {}) =>
     apiClient.get("/food/restaurant/offers", { params, ...config }),
@@ -1023,8 +1110,66 @@ export const deliveryAPI = {
 };
 
 export const userAPI = {
-  /** GET /food/user/addresses (Bearer USER) */
-  getAddresses: () => apiClient.get("/food/user/addresses", { contextModule: "user" }),
+  /** Get current user profile (Bearer USER). */
+  getProfile: () =>
+    getUserMeOnce().then((res) => {
+      const user =
+        res?.data?.data?.user ??
+        res?.data?.user ??
+        res?.data?.data ??
+        res?.data;
+      return { ...res, data: { ...res.data, data: { user } } };
+    }),
+  /** PATCH /food/user/profile (Bearer USER) */
+  updateProfile: (body) =>
+    apiClient.patch("/food/user/profile", body ?? {}, { contextModule: "user" }),
+  /** Upload and set user profile image (multipart). Field name: file */
+  uploadProfileImage: (file) => {
+    if (!file) return Promise.reject(new Error("File is required"));
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiClient.post("/food/user/profile/profile-image", formData, {
+      contextModule: "user",
+    });
+  },
+  /** GET /food/user/wallet (Bearer USER) */
+  getWallet: () => apiClient.get("/food/user/wallet", { contextModule: "user" }),
+  /** POST /food/user/wallet/topup/order (Bearer USER). Body: { amount } */
+  createWalletTopupOrder: (amount) =>
+    apiClient.post(
+      "/food/user/wallet/topup/order",
+      { amount: Number(amount) },
+      { contextModule: "user" },
+    ),
+  /** POST /food/user/wallet/topup/verify (Bearer USER) */
+  verifyWalletTopupPayment: (body) =>
+    apiClient.post("/food/user/wallet/topup/verify", body ?? {}, {
+      contextModule: "user",
+    }),
+  /** GET /food/user/addresses (Bearer USER). Deduped + short-cached. */
+  getAddresses: (() => {
+    let inFlight = null;
+    let cached = null;
+    let cacheTime = 0;
+    const CACHE_MS = 3000;
+    return () => {
+      const now = Date.now();
+      if (cached && now - cacheTime < CACHE_MS) return Promise.resolve(cached);
+      if (!inFlight) {
+        inFlight = apiClient
+          .get("/food/user/addresses", { contextModule: "user" })
+          .then((res) => {
+            cached = res;
+            cacheTime = Date.now();
+            return res;
+          })
+          .finally(() => {
+            inFlight = null;
+          });
+      }
+      return inFlight;
+    };
+  })(),
   /** POST /food/user/addresses (Bearer USER) */
   addAddress: (body) => apiClient.post("/food/user/addresses", body ?? {}, { contextModule: "user" }),
   /** PATCH /food/user/addresses/:id (Bearer USER) */
@@ -1092,6 +1237,33 @@ export const orderAPI = {
   cancelOrder: (orderId, body = {}) =>
     apiClient.patch(`/food/orders/${String(orderId)}/cancel`, body ?? {}, { contextModule: "user" }),
 };
-export const diningAPI = createStubAPI();
+export const diningAPI = {
+  getCategories: (params = {}) =>
+    apiClient.get("/food/dining/categories/public", { params }),
+  getRestaurants: (params = {}) =>
+    apiClient.get("/food/dining/restaurants/public", { params }),
+  getHeroBanners: () =>
+    apiClient.get("/food/hero-banners/dining/public"),
+  getRestaurantBySlug: (slug) =>
+    apiClient.get(`/food/restaurant/restaurants/${String(slug)}`),
+  getOfferBanners: () =>
+    Promise.resolve({ data: { success: true, data: [] } }),
+  getStories: () =>
+    Promise.resolve({ data: { success: true, data: [] } }),
+  getBankOffers: () =>
+    Promise.resolve({ data: { success: true, data: [] } }),
+  getBookings: () =>
+    Promise.resolve({ data: { success: true, data: [] } }),
+  createReview: () =>
+    Promise.resolve({ data: { success: true, data: null } }),
+  createBooking: () =>
+    Promise.resolve({
+      data: {
+        success: false,
+        message: "Booking backend not connected",
+        data: null,
+      },
+    }),
+};
 export const heroBannerAPI = createStubAPI();
 export const publicAPI = createStubAPI();

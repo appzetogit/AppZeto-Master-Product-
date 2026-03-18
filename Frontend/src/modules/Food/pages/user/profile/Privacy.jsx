@@ -15,7 +15,7 @@ export default function Privacy() {
   const [loading, setLoading] = useState(true)
   const [privacyData, setPrivacyData] = useState({
     title: 'Privacy Policy',
-    content: '<p>Loading...</p>'
+    content: ''
   })
 
   useEffect(() => {
@@ -27,13 +27,13 @@ export default function Privacy() {
       setLoading(true)
       const response = await api.get(API_ENDPOINTS.ADMIN.PRIVACY_PUBLIC)
       if (response.data.success) {
-        setPrivacyData(response.data.data)
+        setPrivacyData(response.data.data || { title: 'Privacy Policy', content: '' })
       }
     } catch (error) {
       debugError('Error fetching privacy data:', error)
       setPrivacyData({
         title: 'Privacy Policy',
-        content: '<p>Unable to load privacy policy at the moment. Please try again later.</p>'
+        content: ''
       })
     } finally {
       setLoading(false)

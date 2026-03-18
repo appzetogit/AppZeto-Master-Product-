@@ -613,7 +613,7 @@ Order again from this restaurant in the ${companyName} app.`
                       {order.deliveryPartnerName && (
                         <p className="text-xs text-gray-600 mt-1">
                           <span className="font-medium">Delivery:</span> {order.deliveryPartnerName}
-                          {order.deliveryPartnerPhone && ` ï ${order.deliveryPartnerPhone}`}
+                          {order.deliveryPartnerPhone && ` ù ${order.deliveryPartnerPhone}`}
                         </p>
                       )}
                       {order.restaurantId && (
@@ -700,9 +700,9 @@ Order again from this restaurant in the ${companyName} app.`
                                 )}
                               </div>
                               <div className="text-right flex-shrink-0">
-                                <span className="text-sm font-semibold text-gray-800">?{itemTotal.toFixed(2)}</span>
+                                <span className="text-sm font-semibold text-gray-800">{"\u20B9"}{itemTotal.toFixed(2)}</span>
                                 {itemQuantity > 1 && (
-                                  <p className="text-xs text-gray-500">?{itemPrice.toFixed(2)} each</p>
+                                  <p className="text-xs text-gray-500">{"\u20B9"}{itemPrice.toFixed(2)} each</p>
                                 )}
                               </div>
                             </div>
@@ -715,31 +715,31 @@ Order again from this restaurant in the ${companyName} app.`
                   )}
                 </div>
 
-                {/* Order Summary */}
+                {/* Order Summary Section */}
                 <div className="px-4 py-3 bg-gray-50 rounded-lg mx-4 mb-2">
                   <div className="space-y-1.5">
                     {order.subtotal > 0 && (
                       <div className="flex justify-between text-xs">
                         <span className="text-gray-600">Subtotal</span>
-                        <span className="text-gray-800 font-medium">?{order.subtotal.toFixed(2)}</span>
+                        <span className="text-gray-800 font-medium">{"\u20B9"}{order.subtotal.toFixed(2)}</span>
                       </div>
                     )}
                     {order.deliveryFee > 0 && (
                       <div className="flex justify-between text-xs">
                         <span className="text-gray-600">Delivery Fee</span>
-                        <span className="text-gray-800 font-medium">?{order.deliveryFee.toFixed(2)}</span>
+                        <span className="text-gray-800 font-medium">{"\u20B9"}{order.deliveryFee.toFixed(2)}</span>
                       </div>
                     )}
                     {order.tax > 0 && (
                       <div className="flex justify-between text-xs">
                         <span className="text-gray-600">Tax</span>
-                        <span className="text-gray-800 font-medium">?{order.tax.toFixed(2)}</span>
+                        <span className="text-gray-800 font-medium">{"\u20B9"}{order.tax.toFixed(2)}</span>
                       </div>
                     )}
                     {order.pricing?.discount > 0 && (
                       <div className="flex justify-between text-xs">
                         <span className="text-green-600">Discount</span>
-                        <span className="text-green-600 font-medium">-?{order.pricing.discount.toFixed(2)}</span>
+                        <span className="text-green-600 font-medium">-{"\u20B9"}{order.pricing.discount.toFixed(2)}</span>
                       </div>
                     )}
                     {order.pricing?.couponCode && (
@@ -751,7 +751,7 @@ Order again from this restaurant in the ${companyName} app.`
                     <div className="border-t border-gray-200 pt-1.5 mt-1.5">
                       <div className="flex justify-between">
                         <span className="text-sm font-semibold text-gray-800">Total</span>
-                        <span className="text-base font-bold text-gray-900">?{order.total.toFixed(2)}</span>
+                        <span className="text-base font-bold text-gray-900">{"\u20B9"}{order.total.toFixed(2)}</span>
                       </div>
                     </div>
                   </div>
@@ -907,7 +907,7 @@ Order again from this restaurant in the ${companyName} app.`
             </div>
 
             <div className="px-6 py-6">
-              {/* Star rating (1ñ5) */}
+              {/* Star rating (1ù5) */}
               <div className="mb-6">
                 <p className="text-sm font-semibold text-gray-900 mb-4 text-center">
                   How was your overall experience?

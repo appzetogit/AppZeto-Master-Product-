@@ -24,7 +24,7 @@ export default function TableBookingConfirmation() {
 
     useEffect(() => {
         if (!restaurant) {
-            navigate("/dining")
+            navigate("/food/user/dining")
             return
         }
 
@@ -74,7 +74,7 @@ export default function TableBookingConfirmation() {
             if (response.data.success) {
                 toast.success("Table booked successfully!")
                 // Navigate to success page with booking details
-                navigate("/dining/book-success", { state: { booking: response.data.data } })
+                navigate("/food/user/dining/book-success", { state: { booking: response.data.data } })
             }
         } catch (error) {
             debugError("Booking error:", error)

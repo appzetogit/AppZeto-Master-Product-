@@ -1210,11 +1210,16 @@ export default function RestaurantOnboarding() {
         clearOnboardingFromLocalStorage()
         clearOnboardingFileCache()
         try {
-          localStorage.removeItem("restaurant_pendingPhone")
+          localStorage.setItem("restaurant_pendingPhone", normalizePhoneDigits(step1.ownerPhone))
         } catch {}
 
         toast.success("Registration submitted. Awaiting admin approval.", { duration: 4000 })
-        navigate("/food/restaurant/login", { replace: true })
+        navigate("/food/restaurant/pending-verification", {
+          replace: true,
+          state: {
+            phone: normalizePhoneDigits(step1.ownerPhone),
+          },
+        })
       }
     } catch (err) {
       const msg =

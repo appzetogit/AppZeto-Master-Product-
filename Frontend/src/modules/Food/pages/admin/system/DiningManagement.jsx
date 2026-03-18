@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react"
-import { Upload, Trash2, Image as ImageIcon, Loader2, AlertCircle, CheckCircle2, ArrowUp, ArrowDown, Layout, Link as LinkIcon, Tag, UtensilsCrossed, FileText, Edit, X } from "lucide-react"
-import api from "@food/api"
+import { Upload, Trash2, Image as ImageIcon, Loader2, AlertCircle, CheckCircle2, ArrowUp, ArrowDown, Layout, Tag, UtensilsCrossed, FileText, Edit, X } from "lucide-react"
+import api, { adminAPI, uploadAPI } from "@food/api"
 import { getModuleToken } from "@food/utils/auth"
 import { Input } from "@food/components/ui/input"
 import { Label } from "@food/components/ui/label"
@@ -20,6 +20,8 @@ export default function DiningManagement() {
     const [categoriesDeleting, setCategoriesDeleting] = useState(null)
     const [categoryName, setCategoryName] = useState("")
     const [categoryFile, setCategoryFile] = useState(null)
+    const [editingCategoryId, setEditingCategoryId] = useState(null)
+    const [editingCategoryImageUrl, setEditingCategoryImageUrl] = useState("")
     const categoryFileInputRef = useRef(null)
 
     // Banners
@@ -30,9 +32,6 @@ export default function DiningManagement() {
     const [bannerFile, setBannerFile] = useState(null)
     const [bannerPercentageOff, setBannerPercentageOff] = useState("")
     const [bannerTagline, setBannerTagline] = useState("")
-    const [bannerRestaurant, setBannerRestaurant] = useState("")
-    const [restaurantsList, setRestaurantsList] = useState([])
-    const [editingBannerId, setEditingBannerId] = useState(null)
     const bannerFileInputRef = useRef(null)
 
     // Stories
@@ -63,40 +62,80 @@ export default function DiningManagement() {
 
     useEffect(() => {
         fetchCategories()
-        fetchBanners()
-        fetchStories()
-        fetchRestaurantsList()
     }, [])
+
+    useEffect(() => {
+        setError(null)
+        setSuccess(null)
+
+        if (activeTab === 'banners') {
+            fetchBanners()
+        }
+
+        if (activeTab === 'stories') {
+            fetchStories()
+        }
+    }, [activeTab])
 
     // ==================== CATEGORIES ====================
     const fetchCategories = async () => {
         try {
             setCategoriesLoading(true)
-            const response = await api.get('/admin/dining/categories', getAuthConfig())
-            if (response.data.success) setCategories(response.data.data.categories)
+            const response = await adminAPI.getDiningCategories()
+            if (response.data.success) setCategories(response.data.data.categories || [])
         } catch (err) { debugError(err) } finally { setCategoriesLoading(false) }
     }
 
-    const handleCreateCategory = async () => {
-        if (!categoryName || !categoryFile) return setError("Name and Image are required")
-        try {
-            setCategoriesUploading(true)
-            const formData = new FormData()
-            formData.append('name', categoryName)
-            formData.append('image', categoryFile)
+    const resetCategoryForm = () => {
+        setCategoryName("")
+        setCategoryFile(null)
+        setEditingCategoryId(null)
+        setEditingCategoryImageUrl("")
+        if (categoryFileInputRef.current) categoryFileInputRef.current.value = ""
+    }
 
-            const response = await api.post('/admin/dining/categories', formData, getAuthConfig({
-                headers: { 'Content-Type': 'multipart/form-data' }
-            }))
+    const handleEditCategory = (category) => {
+        setError(null)
+        setSuccess(null)
+        setEditingCategoryId(category._id)
+        setCategoryName(category.name || "")
+        setCategoryFile(null)
+        setEditingCategoryImageUrl(category.imageUrl || "")
+        if (categoryFileInputRef.current) categoryFileInputRef.current.value = ""
+    }
+
+    const handleSubmitCategory = async () => {
+        const trimmedCategoryName = categoryName.trim()
+        if (!trimmedCategoryName) return setError("Category name is required")
+        if (!editingCategoryId && !categoryFile) return setError("Name and Image are required")
+
+        try {
+            setError(null)
+            setSuccess(null)
+            setCategoriesUploading(true)
+            let imageUrl = editingCategoryImageUrl
+
+            if (categoryFile) {
+                const uploadResponse = await uploadAPI.uploadMedia(categoryFile, { folder: "appzeto/dining/categories" })
+                imageUrl = uploadResponse?.data?.data?.url || ""
+            }
+
+            const response = editingCategoryId
+                ? await adminAPI.updateDiningCategory(editingCategoryId, {
+                    name: trimmedCategoryName,
+                    ...(imageUrl ? { imageUrl } : {}),
+                })
+                : await adminAPI.createDiningCategory({
+                    name: trimmedCategoryName,
+                    imageUrl,
+                })
 
             if (response.data.success) {
-                setSuccess("Category created successfully")
-                setCategoryName("")
-                setCategoryFile(null)
-                if (categoryFileInputRef.current) categoryFileInputRef.current.value = ""
+                setSuccess(editingCategoryId ? "Category updated successfully" : "Category created successfully")
+                resetCategoryForm()
                 fetchCategories()
             }
-        } catch (err) { setError(err.response?.data?.message || "Failed to create category") }
+        } catch (err) { setError(err.response?.data?.message || (editingCategoryId ? "Failed to update category" : "Failed to create category")) }
         finally { setCategoriesUploading(false) }
     }
 
@@ -104,7 +143,7 @@ export default function DiningManagement() {
         if (!window.confirm("Delete this category?")) return
         try {
             setCategoriesDeleting(id)
-            await api.delete(`/admin/dining/categories/${id}`, getAuthConfig())
+            await adminAPI.deleteDiningCategory(id)
             fetchCategories()
             setSuccess("Category deleted")
         } catch (err) { setError("Failed to delete category") }
@@ -115,51 +154,42 @@ export default function DiningManagement() {
     const fetchBanners = async () => {
         try {
             setBannersLoading(true)
-            const response = await api.get('/admin/dining/offer-banners', getAuthConfig())
-            if (response.data.success) setBanners(response.data.data.banners)
-        } catch (err) { debugError(err) } finally { setBannersLoading(false) }
-    }
-
-    const fetchRestaurantsList = async () => {
-        try {
-            const response = await api.get('/admin/dining/restaurants-list', getAuthConfig())
-            if (response.data.success) setRestaurantsList(response.data.data.restaurants)
-        } catch (err) { debugError(err) }
+            const response = await api.get('/food/hero-banners/dining', getAuthConfig())
+            if (response.data.success) {
+                setBanners(response.data.data.banners || [])
+            } else {
+                setBanners([])
+            }
+        } catch (err) {
+            debugError(err)
+            setBanners([])
+        } finally { setBannersLoading(false) }
     }
 
     const handleSubmitBanner = async () => {
-        if (!editingBannerId && (!bannerFile || !bannerPercentageOff || !bannerTagline || !bannerRestaurant)) {
-            return setError("All fields and Image are required")
-        }
-        if (editingBannerId && (!bannerPercentageOff || !bannerTagline || !bannerRestaurant)) {
-            return setError("All text fields are required")
+        setError(null)
+        setSuccess(null)
+        if (!bannerFile) {
+            return setError("Banner image is required")
         }
 
         try {
             setBannersUploading(true)
             const formData = new FormData()
-            if (bannerFile) formData.append('image', bannerFile)
-            formData.append('percentageOff', bannerPercentageOff)
-            formData.append('tagline', bannerTagline)
-            formData.append('restaurant', bannerRestaurant)
+            formData.append('files', bannerFile)
+            if (bannerTagline.trim()) formData.append('title', bannerTagline.trim())
+            if (bannerPercentageOff.trim()) formData.append('ctaText', bannerPercentageOff.trim())
 
-            let response;
-            if (editingBannerId) {
-                response = await api.put(`/admin/dining/offer-banners/${editingBannerId}`, formData, getAuthConfig({
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                }))
-            } else {
-                response = await api.post('/admin/dining/offer-banners', formData, getAuthConfig({
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                }))
-            }
+            const response = await api.post('/food/hero-banners/dining/multiple', formData, getAuthConfig({
+                headers: { 'Content-Type': 'multipart/form-data' }
+            }))
 
             if (response.data.success) {
-                setSuccess(editingBannerId ? "Banner updated successfully" : "Banner created successfully")
+                setSuccess("Dining page banner created successfully")
                 resetBannerForm()
                 fetchBanners()
             }
-        } catch (err) { setError(err.response?.data?.message || (editingBannerId ? "Failed to update banner" : "Failed to create banner")) }
+        } catch (err) { setError(err.response?.data?.message || "Failed to create dining page banner") }
         finally { setBannersUploading(false) }
     }
 
@@ -167,17 +197,6 @@ export default function DiningManagement() {
         setBannerFile(null)
         setBannerPercentageOff("")
         setBannerTagline("")
-        setBannerRestaurant("")
-        setEditingBannerId(null)
-        if (bannerFileInputRef.current) bannerFileInputRef.current.value = ""
-    }
-
-    const handleEditBanner = (banner) => {
-        setEditingBannerId(banner._id)
-        setBannerPercentageOff(banner.percentageOff)
-        setBannerTagline(banner.tagline)
-        setBannerRestaurant(banner.restaurant._id || banner.restaurant)
-        setBannerFile(null)
         if (bannerFileInputRef.current) bannerFileInputRef.current.value = ""
     }
 
@@ -185,7 +204,7 @@ export default function DiningManagement() {
         if (!window.confirm("Delete this banner?")) return
         try {
             setBannersDeleting(id)
-            await api.delete(`/admin/dining/offer-banners/${id}`, getAuthConfig())
+            await api.delete(`/food/hero-banners/dining/${id}`, getAuthConfig())
             fetchBanners()
             setSuccess("Banner deleted")
         } catch (err) { setError("Failed to delete banner") }
@@ -197,11 +216,20 @@ export default function DiningManagement() {
         try {
             setStoriesLoading(true)
             const response = await api.get('/admin/dining/stories', getAuthConfig())
-            if (response.data.success) setStories(response.data.data.stories)
-        } catch (err) { debugError(err) } finally { setStoriesLoading(false) }
+            if (response.data.success) {
+                setStories(response.data.data.stories || [])
+            } else {
+                setStories([])
+            }
+        } catch (err) {
+            debugError(err)
+            setStories([])
+        } finally { setStoriesLoading(false) }
     }
 
     const handleSubmitStory = async () => {
+        setError(null)
+        setSuccess(null)
         if (!editingStoryId && (!storyName || !storyFile)) return setError("Name and Image are required")
         if (editingStoryId && !storyName) return setError("Name is required")
 
@@ -272,8 +300,8 @@ export default function DiningManagement() {
                             <UtensilsCrossed className="w-5 h-5 text-white" />
                         </div>
                         <div>
-                            <h1 className="text-2xl font-bold text-slate-900">Dining Banners</h1>
-                            <p className="text-sm text-slate-600 mt-1">Manage dining categories, banners, and stories</p>
+                            <h1 className="text-2xl font-bold text-slate-900">Dining Management</h1>
+                            <p className="text-sm text-slate-600 mt-1">Manage dining categories, restaurant links, banners, and stories</p>
                         </div>
                     </div>
                 </div>
@@ -307,18 +335,32 @@ export default function DiningManagement() {
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div className="lg:col-span-1">
                             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                                <h2 className="text-lg font-bold text-slate-900 mb-4">Add Category</h2>
+                                <div className="flex items-center justify-between gap-3 mb-4">
+                                    <h2 className="text-lg font-bold text-slate-900">{editingCategoryId ? "Edit Category" : "Add Category"}</h2>
+                                    {editingCategoryId && (
+                                        <Button type="button" variant="outline" onClick={resetCategoryForm} className="gap-2">
+                                            <X className="w-4 h-4" />
+                                            Cancel
+                                        </Button>
+                                    )}
+                                </div>
                                 <div className="space-y-4">
                                     <div>
                                         <Label>Name</Label>
                                         <Input value={categoryName} onChange={e => setCategoryName(e.target.value)} placeholder="Category Name" className="mt-1" />
                                     </div>
                                     <div>
-                                        <Label>Image</Label>
+                                        <Label>{editingCategoryId ? "Replace Image" : "Image"}</Label>
                                         <Input type="file" ref={categoryFileInputRef} onChange={e => setCategoryFile(e.target.files[0])} accept="image/*" className="mt-1" />
+                                        {editingCategoryId && editingCategoryImageUrl && !categoryFile && (
+                                            <div className="mt-3">
+                                                <img src={editingCategoryImageUrl} alt={categoryName || "Current category"} className="w-24 h-24 rounded-lg object-cover border border-slate-200" />
+                                                <p className="text-xs text-slate-500 mt-2">Current image will be kept unless you select a new one.</p>
+                                            </div>
+                                        )}
                                     </div>
-                                    <Button onClick={handleCreateCategory} disabled={categoriesUploading} className="w-full bg-blue-600 hover:bg-blue-700">
-                                        {categoriesUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create Category"}
+                                    <Button onClick={handleSubmitCategory} disabled={categoriesUploading} className="w-full bg-blue-600 hover:bg-blue-700">
+                                        {categoriesUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : (editingCategoryId ? "Update Category" : "Create Category")}
                                     </Button>
                                 </div>
                             </div>
@@ -334,9 +376,14 @@ export default function DiningManagement() {
                                                 <div className="p-3 bg-white">
                                                     <p className="font-medium text-slate-900">{cat.name}</p>
                                                 </div>
-                                                <button onClick={() => handleDeleteCategory(cat._id)} className="absolute top-2 right-2 p-1.5 bg-red-100 text-red-600 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    {categoriesDeleting === cat._id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                                                </button>
+                                                <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button onClick={() => handleEditCategory(cat)} className="p-1.5 bg-blue-100 text-blue-600 rounded-full">
+                                                        <Edit className="w-4 h-4" />
+                                                    </button>
+                                                    <button onClick={() => handleDeleteCategory(cat._id)} className="p-1.5 bg-red-100 text-red-600 rounded-full">
+                                                        {categoriesDeleting === cat._id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                                                    </button>
+                                                </div>
                                             </div>
                                         ))}
                                         {categories.length === 0 && <p className="text-slate-500 text-center col-span-full py-8">No categories found.</p>}
@@ -351,62 +398,55 @@ export default function DiningManagement() {
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div className="lg:col-span-1">
                             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                                <h2 className="text-lg font-bold text-slate-900 mb-4">{editingBannerId ? "Edit Offer Banner" : "Add Offer Banner"}</h2>
+                                <h2 className="text-lg font-bold text-slate-900 mb-2">Add Dining Page Banner</h2>
+                                <p className="text-sm text-slate-500 mb-4">
+                                    This banner shows on the user dining page and is not linked to any restaurant.
+                                </p>
                                 <div className="space-y-4">
                                     <div>
                                         <Label>Image</Label>
-                                        <Input type="file" ref={bannerFileInputRef} onChange={e => setBannerFile(e.target.files[0])} accept="image/*" className="mt-1" />
+                                        <Input
+                                            type="file"
+                                            ref={bannerFileInputRef}
+                                            onChange={e => {
+                                                setBannerFile(e.target.files[0] || null)
+                                                setError(null)
+                                            }}
+                                            accept="image/*"
+                                            className="mt-1"
+                                        />
                                     </div>
                                     <div>
-                                        <Label>Percentage Off</Label>
-                                        <Input value={bannerPercentageOff} onChange={e => setBannerPercentageOff(e.target.value)} placeholder="e.g. 50% OFF" className="mt-1" />
+                                        <Label>Promo Text</Label>
+                                        <Input value={bannerPercentageOff} onChange={e => { setBannerPercentageOff(e.target.value); setError(null) }} placeholder="Optional, e.g. 50% OFF" className="mt-1" />
                                     </div>
                                     <div>
                                         <Label>Tagline</Label>
-                                        <Input value={bannerTagline} onChange={e => setBannerTagline(e.target.value)} placeholder="e.g. On selected items" className="mt-1" />
-                                    </div>
-                                    <div>
-                                        <Label>Restaurant</Label>
-                                        <select
-                                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 mt-1"
-                                            value={bannerRestaurant}
-                                            onChange={e => setBannerRestaurant(e.target.value)}
-                                        >
-                                            <option value="">Select Restaurant</option>
-                                            {restaurantsList.map(r => (
-                                                <option key={r._id} value={r._id}>{r.name}</option>
-                                            ))}
-                                        </select>
+                                        <Input value={bannerTagline} onChange={e => { setBannerTagline(e.target.value); setError(null) }} placeholder="Optional, e.g. Weekend dining specials" className="mt-1" />
                                     </div>
                                     <Button onClick={handleSubmitBanner} disabled={bannersUploading} className="w-full bg-blue-600 hover:bg-blue-700">
-                                        {bannersUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : (editingBannerId ? "Update Banner" : "Create Banner")}
+                                        {bannersUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create Banner"}
                                     </Button>
-                                    {editingBannerId && (
-                                        <Button onClick={resetBannerForm} variant="outline" className="w-full mt-2 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700">
-                                            Cancel Edit
-                                        </Button>
-                                    )}
                                 </div>
                             </div>
                         </div>
                         <div className="lg:col-span-2">
                             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                                <h2 className="text-lg font-bold text-slate-900 mb-4">Offer Banners List</h2>
+                                <h2 className="text-lg font-bold text-slate-900 mb-4">Dining Page Banners</h2>
                                 {bannersLoading ? <div className="flex justify-center p-8"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div> : (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         {banners.map(banner => (
                                             <div key={banner._id} className="border rounded-lg overflow-hidden group relative">
-                                                <img src={banner.imageUrl} alt={banner.tagline} className="w-full h-32 object-cover" />
+                                                <img src={banner.imageUrl} alt={banner.title || "Dining banner"} className="w-full h-32 object-cover" />
                                                 <div className="p-3 bg-white">
-                                                    <p className="font-bold text-slate-900">{banner.percentageOff}</p>
-                                                    <p className="text-sm text-slate-600">{banner.tagline}</p>
-                                                    <p className="text-xs text-blue-600 mt-1">{banner.restaurant?.name}</p>
+                                                    {banner.ctaText && <p className="font-bold text-slate-900">{banner.ctaText}</p>}
+                                                    {banner.title && <p className="text-sm text-slate-600">{banner.title}</p>}
+                                                    <p className="text-xs text-slate-500 mt-1">
+                                                        {banner.isActive === false ? "Inactive" : "Active on dining page"}
+                                                    </p>
                                                 </div>
                                                 <button onClick={() => handleDeleteBanner(banner._id)} className="absolute top-2 right-2 p-1.5 bg-red-100 text-red-600 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
                                                     {bannersDeleting === banner._id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                                                </button>
-                                                <button onClick={() => handleEditBanner(banner)} className="absolute top-2 right-10 p-1.5 bg-blue-100 text-blue-600 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <Edit className="w-4 h-4" />
                                                 </button>
                                             </div>
                                         ))}
@@ -426,11 +466,20 @@ export default function DiningManagement() {
                                 <div className="space-y-4">
                                     <div>
                                         <Label>Name</Label>
-                                        <Input value={storyName} onChange={e => setStoryName(e.target.value)} placeholder="Story Name" className="mt-1" />
+                                        <Input value={storyName} onChange={e => { setStoryName(e.target.value); setError(null) }} placeholder="Story Name" className="mt-1" />
                                     </div>
                                     <div>
                                         <Label>Image</Label>
-                                        <Input type="file" ref={storyFileInputRef} onChange={e => setStoryFile(e.target.files[0])} accept="image/*" className="mt-1" />
+                                        <Input
+                                            type="file"
+                                            ref={storyFileInputRef}
+                                            onChange={e => {
+                                                setStoryFile(e.target.files[0] || null)
+                                                setError(null)
+                                            }}
+                                            accept="image/*"
+                                            className="mt-1"
+                                        />
                                     </div>
                                     <Button onClick={handleSubmitStory} disabled={storiesUploading} className="w-full bg-blue-600 hover:bg-blue-700">
                                         {storiesUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : (editingStoryId ? "Update Story" : "Create Story")}

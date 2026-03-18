@@ -1,264 +1,323 @@
-import { useState, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
-import { ArrowLeft, ChevronDown, Calendar, Clock, Ticket } from "lucide-react"
+import { ArrowLeft, ChevronDown } from "lucide-react"
 import { Button } from "@food/components/ui/button"
 import AnimatedPage from "@food/components/user/AnimatedPage"
-import { useEffect } from "react"
-import { diningAPI } from "@food/api"
+import { diningAPI, restaurantAPI } from "@food/api"
 import Loader from "@food/components/Loader"
-const debugLog = (...args) => {}
-const debugWarn = (...args) => {}
-const debugError = (...args) => {}
 
+const buildDates = (count = 7) =>
+  Array.from({ length: count }, (_, index) => {
+    const date = new Date()
+    date.setDate(date.getDate() + index)
+    return date
+  })
 
-export default function TableBooking() {
-    const { slug } = useParams()
-    const location = useLocation()
-    const navigate = useNavigate()
-    const [restaurant, setRestaurant] = useState(null)
-    const [loading, setLoading] = useState(true)
-
-    const [selectedGuests, setSelectedGuests] = useState(location.state?.guestCount || 2)
-    const [selectedDate, setSelectedDate] = useState(new Date())
-    const [activeTimeOfDay, setActiveTimeOfDay] = useState("Lunch")
-    const [selectedSlot, setSelectedSlot] = useState(null)
-
-    useEffect(() => {
-        const fetchRestaurant = async () => {
-            try {
-                const response = await diningAPI.getRestaurantBySlug(slug)
-                if (response.data && response.data.success) {
-                    const apiRestaurant = response.data.data
-                    const actualRestaurant = apiRestaurant?.restaurant || apiRestaurant
-                    setRestaurant(actualRestaurant)
-                }
-            } catch (error) {
-                debugError("Error fetching restaurant:", error)
-            } finally {
-                setLoading(false)
-            }
-        }
-        fetchRestaurant()
-    }, [slug])
-
-    // Generate next 7 days
-    const dates = useMemo(() => {
-        const items = []
-        for (let i = 0; i < 7; i++) {
-            const date = new Date()
-            date.setDate(date.getDate() + i)
-            items.push(date)
-        }
-        return items
-    }, [])
-
-    const formatDate = (date) => {
-        const today = new Date()
-        const tomorrow = new Date()
-        tomorrow.setDate(today.getDate() + 1)
-
-        if (date.toDateString() === today.toDateString()) return "Today"
-        if (date.toDateString() === tomorrow.toDateString()) return "Tomorrow"
-
-        return date.toLocaleDateString('en-GB', { weekday: 'short' })
-    }
-
-    const formatDayNum = (date) => {
-        return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
-    }
-
-    const slots = {
-        Lunch: [
-            { time: "12:00 PM", discount: "20% OFF" },
-            { time: "12:30 PM", discount: "20% OFF" },
-            { time: "1:00 PM", discount: "15% OFF" },
-            { time: "1:30 PM", discount: "15% OFF" },
-            { time: "2:00 PM", discount: "10% OFF" },
-            { time: "2:30 PM", discount: "10% OFF" },
-            { time: "3:00 PM", discount: "30% OFF" },
-            { time: "3:30 PM", discount: "30% OFF" },
-            { time: "3:45 PM", discount: "30% OFF" },
-            { time: "4:00 PM", discount: "30% OFF" },
-            { time: "4:15 PM", discount: "30% OFF" },
-            { time: "4:30 PM", discount: "30% OFF" },
-        ],
-        Dinner: [
-            { time: "7:00 PM", discount: "10% OFF" },
-            { time: "7:30 PM", discount: "10% OFF" },
-            { time: "8:00 PM", discount: "5% OFF" },
-            { time: "8:30 PM", discount: "5% OFF" },
-            { time: "9:00 PM", discount: "No OFF" },
-            { time: "9:30 PM", discount: "No OFF" },
-            { time: "10:00 PM", discount: "15% OFF" },
-            { time: "10:30 PM", discount: "20% OFF" },
-        ]
-    }
-
-    if (loading) return <Loader />
-    if (!restaurant) return <div>Restaurant not found</div>
-
-    const handleProceed = () => {
-        if (!selectedSlot) return
-        navigate("/dining/book-confirmation", {
-            state: {
-                restaurant,
-                guests: selectedGuests,
-                date: selectedDate,
-                timeSlot: selectedSlot.time,
-                discount: selectedSlot.discount
-            }
-        })
-    }
-
-    return (
-        <AnimatedPage className="bg-slate-50 min-h-screen pb-24">
-            {/* Header */}
-            <div className="bg-white px-4 pt-4 pb-12 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-yellow-50 rounded-full blur-3xl opacity-50 -mr-20 -mt-20"></div>
-                <div className="absolute bottom-0 left-0 w-48 h-48 bg-red-50 rounded-full blur-3xl opacity-30 -ml-16 -mb-16"></div>
-
-                <div className="relative z-10">
-                    <button onClick={() => navigate(-1)} className="p-2 -ml-2 mb-4 bg-white shadow-sm rounded-full">
-                        <ArrowLeft className="w-6 h-6" />
-                    </button>
-                    <div className="text-center">
-                        <h1 className="text-2xl font-bold text-gray-900">Book a table</h1>
-                        <p className="text-gray-500 font-medium">{restaurant.name}</p>
-                    </div>
-                </div>
-            </div>
-
-            <div className="px-4 -mt-6 relative z-20 space-y-4">
-                {/* Guest Selector */}
-                <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center justify-between">
-                    <span className="font-semibold text-gray-700">Select number of guests</span>
-                    <div className="relative">
-                        <select
-                            value={selectedGuests}
-                            onChange={(e) => setSelectedGuests(parseInt(e.target.value))}
-                            className="appearance-none bg-slate-50 border border-slate-200 rounded-lg py-2 pl-4 pr-10 font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-red-500"
-                        >
-                            {Array.from({ length: restaurant.diningSettings?.maxGuests || 10 }, (_, i) => i + 1).map(num => (
-                                <option key={num} value={num}>{num}</option>
-                            ))}
-                        </select>
-                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
-                    </div>
-                </div>
-
-                {/* Cashback Banner */}
-                <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl p-4 flex items-center gap-4 border border-indigo-100 shadow-sm overflow-hidden relative">
-                    <div className="absolute right-0 top-0 opacity-10">
-                        <Ticket className="w-16 h-16 rotate-45" />
-                    </div>
-                    <div className="bg-indigo-500 p-2 rounded-xl text-white shadow-lg shadow-indigo-200">
-                        <Ticket className="w-6 h-6" />
-                    </div>
-                    <div>
-                        <p className="font-bold text-gray-800 flex items-center gap-1">
-                            Get an extra 10% cashback <span className="text-indigo-600">on your final bill</span>
-                        </p>
-                        <p className="text-xs text-indigo-500 font-medium">payment at the restaurant</p>
-                    </div>
-                </div>
-
-                {/* Date Selector */}
-                <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
-                    <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-red-500" />
-                        Select date
-                    </h3>
-                    <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-                        {dates.map((date, idx) => (
-                            <button
-                                key={idx}
-                                onClick={() => setSelectedDate(date)}
-                                className={`min-w-[110px] p-3 rounded-2xl border transition-all flex flex-col items-center gap-1 ${selectedDate.toDateString() === date.toDateString()
-                                    ? "bg-red-50 border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.1)]"
-                                    : "bg-white border-slate-100 hover:border-slate-200"
-                                    }`}
-                            >
-                                <span className={`text-xs font-bold uppercase tracking-wider ${selectedDate.toDateString() === date.toDateString() ? "text-red-500" : "text-gray-400"
-                                    }`}>
-                                    {formatDate(date)}
-                                </span>
-                                <span className={`font-bold ${selectedDate.toDateString() === date.toDateString() ? "text-gray-900" : "text-gray-500"
-                                    }`}>
-                                    {formatDayNum(date)}
-                                </span>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Time Selector */}
-                <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 min-h-[400px]">
-                    <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-red-500" />
-                        Select time of day
-                    </h3>
-
-                    {/* Tabs */}
-                    <div className="flex p-1 bg-slate-100 rounded-xl mb-6">
-                        {["Lunch", "Dinner"].map(type => (
-                            <button
-                                key={type}
-                                onClick={() => setActiveTimeOfDay(type)}
-                                className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTimeOfDay === type
-                                    ? "bg-white text-gray-900 shadow-sm"
-                                    : "text-gray-500 hover:text-gray-700"
-                                    }`}
-                            >
-                                {type}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Slots Grid */}
-                    <div className="grid grid-cols-3 gap-3">
-                        {slots[activeTimeOfDay].map((slot, idx) => (
-                            <button
-                                key={idx}
-                                onClick={() => setSelectedSlot(slot)}
-                                className={`p-3 rounded-xl border transition-all text-center flex flex-col gap-0.5 ${selectedSlot?.time === slot.time
-                                    ? "bg-red-500 border-red-500 text-white shadow-lg shadow-red-200"
-                                    : "bg-white border-slate-100 hover:border-slate-200"
-                                    }`}
-                            >
-                                <span className={`text-sm font-bold ${selectedSlot?.time === slot.time ? "text-white" : "text-gray-800"
-                                    }`}>
-                                    {slot.time}
-                                </span>
-                                {slot.discount !== "No OFF" && (
-                                    <span className={`text-[10px] font-bold ${selectedSlot?.time === slot.time ? "text-white/90" : "text-[#EB590E]"
-                                        }`}>
-                                        {slot.discount}
-                                    </span>
-                                )}
-                            </button>
-                        ))}
-                    </div>
-
-                    <div className="mt-8 text-center text-red-500 font-bold text-sm flex items-center justify-center gap-1 cursor-pointer">
-                        View all slots <ChevronDown className="w-4 h-4" />
-                    </div>
-                </div>
-            </div>
-
-            {/* Sticky Proceed Button */}
-            <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-100 p-4 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] z-50">
-                <Button
-                    disabled={!selectedSlot}
-                    onClick={handleProceed}
-                    className={`w-full h-14 rounded-2xl font-bold text-lg transition-all ${selectedSlot
-                        ? "bg-red-500 hover:bg-red-600 text-white shadow-xl shadow-red-200"
-                        : "bg-slate-200 text-slate-400 cursor-not-allowed"
-                        }`}
-                >
-                    Proceed
-                </Button>
-            </div>
-        </AnimatedPage>
-    )
+const formatTimeValue = (value) => {
+  if (!value) return null
+  if (/[ap]m/i.test(value)) return value.toUpperCase()
+  const date = new Date(`2000-01-01T${String(value).padStart(5, "0")}`)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true })
 }
 
+const parseTimeToMinutes = (value) => {
+  if (!value) return null
+  const match = String(value).match(/^(\d{1,2}):(\d{2})$/)
+  if (!match) return null
+  return Number(match[1]) * 60 + Number(match[2])
+}
+
+const getDayName = (date) => date.toLocaleDateString("en-US", { weekday: "long" })
+
+const buildSlots = (timing) => {
+  if (!timing || timing.isOpen === false) return []
+  const opening = parseTimeToMinutes(timing.openingTime)
+  const closing = parseTimeToMinutes(timing.closingTime)
+  if (opening === null || closing === null) return []
+
+  const slots = []
+  let cursor = opening
+  const end = closing > opening ? closing : opening + 240
+
+  while (cursor <= end && slots.length < 16) {
+    const hours = Math.floor((cursor % (24 * 60)) / 60)
+    const minutes = cursor % 60
+    slots.push(formatTimeValue(`${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`))
+    cursor += 30
+  }
+
+  return slots
+}
+
+const getMealPeriod = (slot) => {
+  if (!slot) return "all"
+  const normalized = String(slot).toUpperCase()
+  const match = normalized.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/)
+  if (!match) return "all"
+
+  let hour = Number(match[1])
+  const minute = Number(match[2])
+  const meridiem = match[3]
+
+  if (meridiem === "PM" && hour !== 12) hour += 12
+  if (meridiem === "AM" && hour === 12) hour = 0
+
+  const totalMinutes = hour * 60 + minute
+  if (totalMinutes < 17 * 60) return "lunch"
+  return "dinner"
+}
+
+const getOfferLabel = (slot) => {
+  const period = getMealPeriod(slot)
+  return period === "lunch" ? "Lunch" : "Carnival"
+}
+
+export default function TableBooking() {
+  const { slug } = useParams()
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  const [restaurant, setRestaurant] = useState(location.state?.restaurant || null)
+  const [loading, setLoading] = useState(!location.state?.restaurant)
+  const [outletTimings, setOutletTimings] = useState({})
+  const [selectedGuests, setSelectedGuests] = useState(location.state?.guestCount || 2)
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const initial = location.state?.selectedDate ? new Date(location.state.selectedDate) : new Date()
+    return Number.isNaN(initial.getTime()) ? new Date() : initial
+  })
+  const [selectedSlot, setSelectedSlot] = useState(location.state?.selectedTime || null)
+  const [selectedMealPeriod, setSelectedMealPeriod] = useState("lunch")
+
+  useEffect(() => {
+    const fetchRestaurant = async () => {
+      try {
+        setLoading(true)
+        const response = await diningAPI.getRestaurantBySlug(slug)
+        if (response?.data?.success) {
+          const apiRestaurant = response?.data?.data?.restaurant || response?.data?.data
+          setRestaurant(apiRestaurant || null)
+
+          const restaurantId = apiRestaurant?._id || apiRestaurant?.id || slug
+          const timingsResponse = await restaurantAPI.getOutletTimingsByRestaurantId(restaurantId)
+          setOutletTimings(timingsResponse?.data?.data?.outletTimings || {})
+        }
+      } catch {
+        setRestaurant(null)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (location.state?.restaurant) {
+      const restaurantId = location.state.restaurant?._id || location.state.restaurant?.id || slug
+      restaurantAPI
+        .getOutletTimingsByRestaurantId(restaurantId)
+        .then((response) => setOutletTimings(response?.data?.data?.outletTimings || {}))
+        .catch(() => setOutletTimings({}))
+      setLoading(false)
+      return
+    }
+
+    fetchRestaurant()
+  }, [location.state?.restaurant, slug])
+
+  const dates = useMemo(() => buildDates(7), [])
+  const selectedDayTiming = useMemo(() => outletTimings?.[getDayName(selectedDate)] || null, [outletTimings, selectedDate])
+  const allSlots = useMemo(() => buildSlots(selectedDayTiming), [selectedDayTiming])
+  const filteredSlots = useMemo(
+    () => allSlots.filter((slot) => getMealPeriod(slot) === selectedMealPeriod),
+    [allSlots, selectedMealPeriod]
+  )
+
+  useEffect(() => {
+    if (!selectedSlot && filteredSlots.length > 0) {
+      setSelectedSlot(filteredSlots[0])
+      return
+    }
+
+    if (selectedSlot && filteredSlots.length > 0 && !filteredSlots.includes(selectedSlot)) {
+      setSelectedSlot(filteredSlots[0])
+      return
+    }
+
+    if (filteredSlots.length === 0) {
+      setSelectedSlot(null)
+    }
+  }, [filteredSlots, selectedSlot])
+
+  useEffect(() => {
+    if (allSlots.length === 0) return
+    const hasLunch = allSlots.some((slot) => getMealPeriod(slot) === "lunch")
+    const hasDinner = allSlots.some((slot) => getMealPeriod(slot) === "dinner")
+
+    if (selectedMealPeriod === "lunch" && !hasLunch && hasDinner) {
+      setSelectedMealPeriod("dinner")
+    }
+    if (selectedMealPeriod === "dinner" && !hasDinner && hasLunch) {
+      setSelectedMealPeriod("lunch")
+    }
+  }, [allSlots, selectedMealPeriod])
+
+  if (loading) return <Loader />
+  if (!restaurant) return <div className="p-6 text-center">Restaurant not found</div>
+
+  const handleProceed = () => {
+    if (!selectedSlot) return
+    navigate("/food/user/dining/book-confirmation", {
+      state: {
+        restaurant,
+        guests: selectedGuests,
+        date: selectedDate,
+        timeSlot: selectedSlot,
+        discount: selectedSlot,
+      },
+    })
+  }
+
+  return (
+    <AnimatedPage className="min-h-screen bg-[#f5f6fb] pb-28">
+      <div className="relative overflow-hidden bg-gradient-to-b from-[#ffe7c6] via-[#fff1d7] to-[#f5f6fb] px-4 pb-10 pt-5">
+        <div className="absolute inset-x-0 top-0 h-24 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.65),transparent_65%)]" />
+
+        <div className="relative z-10">
+          <button
+            onClick={() => navigate(-1)}
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#383838] shadow-sm"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+
+          <div className="mt-6 text-center">
+            <h1 className="text-[30px] font-black tracking-tight text-[#25314a]">Book a table</h1>
+            <p className="mt-1 text-sm font-medium text-[#636363]">{restaurant.name || restaurant.restaurantName}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="-mt-4 space-y-4 px-4">
+        <section className="rounded-[22px] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm font-medium text-[#2f3545]">Select number of guests</span>
+            <div className="relative">
+              <select
+                value={selectedGuests}
+                onChange={(event) => setSelectedGuests(parseInt(event.target.value, 10))}
+                className="appearance-none rounded-full bg-[#f7f7fb] py-2 pl-4 pr-9 text-sm font-semibold text-[#404040] outline-none"
+              >
+                {Array.from({ length: restaurant.diningSettings?.maxGuests || 10 }, (_, index) => index + 1).map((count) => (
+                  <option key={count} value={count}>
+                    {count}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#808080]" />
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-[22px] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
+          <h3 className="text-sm font-medium text-[#2f3545]">Select date</h3>
+
+          <div className="mt-4 grid grid-cols-3 gap-3">
+            {dates.slice(0, 3).map((date, index) => {
+              const active = selectedDate.toDateString() === date.toDateString()
+              return (
+                <button
+                  key={date.toISOString()}
+                  onClick={() => setSelectedDate(date)}
+                  className={`rounded-[18px] border px-3 py-4 text-center transition-colors ${
+                    active
+                      ? "border-[#ef8f98] bg-[#fffaf9]"
+                      : "border-[#ececf2] bg-white"
+                  }`}
+                >
+                  <span className="block text-sm font-medium text-[#444b5f]">
+                    {index === 0 ? "Today" : index === 1 ? "Tomorrow" : date.toLocaleDateString("en-IN", { weekday: "long" })}
+                  </span>
+                  <span className="mt-1 block text-sm text-[#7b8191]">
+                    {date.toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </section>
+
+        <section className="rounded-[22px] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
+          <h3 className="text-sm font-medium text-[#2f3545]">Select time of day</h3>
+
+          <div className="mt-4 flex gap-2">
+            {[
+              { id: "lunch", label: "Lunch" },
+              { id: "dinner", label: "Dinner" },
+            ].map((period) => {
+              const active = selectedMealPeriod === period.id
+              return (
+                <button
+                  key={period.id}
+                  onClick={() => setSelectedMealPeriod(period.id)}
+                  className={`rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+                    active
+                      ? "border-[#ef8f98] bg-white text-[#d64f63]"
+                      : "border-[#ececf2] bg-[#fafafc] text-[#666f82]"
+                  }`}
+                >
+                  {period.label}
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="mt-4 grid grid-cols-3 gap-3">
+            {filteredSlots.length === 0 ? (
+              <div className="col-span-3 rounded-[18px] border border-dashed border-[#e5e7ef] px-4 py-8 text-center text-sm text-[#7c8394]">
+                No {selectedMealPeriod} slots available for the selected date.
+              </div>
+            ) : (
+              filteredSlots.map((slot) => {
+                const active = selectedSlot === slot
+                return (
+                  <button
+                    key={slot}
+                    onClick={() => setSelectedSlot(slot)}
+                    className={`rounded-[16px] border px-3 py-4 text-center transition-colors ${
+                      active
+                        ? "border-[#ef8f98] bg-[#fffaf9]"
+                        : "border-[#ececf2] bg-white"
+                    }`}
+                  >
+                    <span className="block text-sm font-medium text-[#334155]">{slot}</span>
+                    <span className="mt-1 block text-xs font-medium text-[#2d5ea8]">
+                      {getOfferLabel(slot)}
+                    </span>
+                  </button>
+                )
+              })
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-[18px] bg-white px-4 py-5 text-center shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
+          <p className="text-sm text-[#6f7687]">
+            Select your preferred time slot to view available booking options
+          </p>
+        </section>
+      </div>
+
+      <div className="fixed bottom-0 left-0 right-0 border-t border-[#e6e7ef] bg-[#f5f6fb]/95 p-4 backdrop-blur-xl">
+        <Button
+          disabled={!selectedSlot}
+          onClick={handleProceed}
+          className={`h-14 w-full rounded-2xl text-lg font-bold ${
+            selectedSlot
+              ? "bg-[#8f97ae] text-white hover:bg-[#7f879f]"
+              : "bg-[#a4abba] text-white/95"
+          }`}
+        >
+          Proceed
+        </Button>
+      </div>
+    </AnimatedPage>
+  )
+}

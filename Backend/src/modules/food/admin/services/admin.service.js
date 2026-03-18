@@ -16,6 +16,7 @@ import { FoodFeeSettings } from '../models/feeSettings.model.js';
 import { FoodUser } from '../../../../core/users/user.model.js';
 import { FoodDeliveryCashLimit } from '../models/deliveryCashLimit.model.js';
 import { FoodDeliveryEmergencyHelp } from '../models/deliveryEmergencyHelp.model.js';
+import { FoodAddon } from '../../restaurant/models/foodAddon.model.js';
 
 // ----- Restaurants -----
 export async function getRestaurants(query) {
@@ -605,6 +606,111 @@ export async function toggleCategoryStatus(id) {
     doc.isActive = !doc.isActive;
     await doc.save();
     return doc.toObject();
+}
+
+// ----- Restaurant Add-ons approval (admin) -----
+export async function getRestaurantAddonsAdmin(query = {}) {
+    const limit = Math.min(Math.max(parseInt(query.limit, 10) || 50, 1), 200);
+    const page = Math.max(parseInt(query.page, 10) || 1, 1);
+    const skip = (page - 1) * limit;
+
+    const filter = { isDeleted: { $ne: true } };
+
+    const approvalStatus = String(query.approvalStatus || '').trim();
+    if (approvalStatus && ['pending', 'approved', 'rejected'].includes(approvalStatus)) {
+        filter.approvalStatus = approvalStatus;
+    }
+
+    if (query.restaurantId && mongoose.Types.ObjectId.isValid(String(query.restaurantId))) {
+        filter.restaurantId = new mongoose.Types.ObjectId(String(query.restaurantId));
+    }
+
+    if (query.search && String(query.search).trim()) {
+        const raw = String(query.search).trim().slice(0, 80);
+        const term = raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        filter.$or = [{ 'draft.name': { $regex: term, $options: 'i' } }];
+    }
+
+    const [list, total] = await Promise.all([
+        FoodAddon.find(filter)
+            .sort({ requestedAt: -1, createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .populate('restaurantId', 'restaurantName ownerName ownerPhone')
+            .lean(),
+        FoodAddon.countDocuments(filter)
+    ]);
+
+    const addons = list.map((a) => ({
+        id: a._id,
+        _id: a._id,
+        restaurantId: a.restaurantId?._id ? String(a.restaurantId._id) : String(a.restaurantId),
+        restaurant: a.restaurantId?._id
+            ? {
+                _id: a.restaurantId._id,
+                name: a.restaurantId.restaurantName || '',
+                ownerName: a.restaurantId.ownerName || '',
+                ownerPhone: a.restaurantId.ownerPhone || ''
+            }
+            : null,
+        approvalStatus: a.approvalStatus || 'pending',
+        rejectionReason: a.rejectionReason || '',
+        requestedAt: a.requestedAt,
+        approvedAt: a.approvedAt,
+        rejectedAt: a.rejectedAt,
+        isAvailable: a.isAvailable !== false,
+        draft: a.draft || null,
+        published: a.published || null,
+        createdAt: a.createdAt,
+        updatedAt: a.updatedAt
+    }));
+
+    return { addons, total, page, limit };
+}
+
+export async function approveRestaurantAddon(addonId) {
+    if (!addonId || !mongoose.Types.ObjectId.isValid(String(addonId))) return null;
+    const _id = new mongoose.Types.ObjectId(String(addonId));
+
+    // Use update pipeline to copy draft -> published atomically.
+    const updated = await FoodAddon.findOneAndUpdate(
+        { _id, isDeleted: { $ne: true } },
+        [
+            {
+                $set: {
+                    published: '$draft',
+                    approvalStatus: 'approved',
+                    approvedAt: '$$NOW',
+                    rejectedAt: null,
+                    rejectionReason: ''
+                }
+            }
+        ],
+        { new: true }
+    ).lean();
+
+    return updated || null;
+}
+
+export async function rejectRestaurantAddon(addonId, reason) {
+    if (!addonId || !mongoose.Types.ObjectId.isValid(String(addonId))) return null;
+    const _id = new mongoose.Types.ObjectId(String(addonId));
+    const rejectionReason = String(reason || '').trim();
+    if (!rejectionReason) {
+        throw new ValidationError('Rejection reason is required');
+    }
+    const updated = await FoodAddon.findOneAndUpdate(
+        { _id, isDeleted: { $ne: true } },
+        {
+            $set: {
+                approvalStatus: 'rejected',
+                rejectionReason,
+                rejectedAt: new Date()
+            }
+        },
+        { new: true }
+    ).lean();
+    return updated || null;
 }
 
 // ----- Foods (separate collection) -----

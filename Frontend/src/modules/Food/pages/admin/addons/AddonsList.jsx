@@ -1,271 +1,191 @@
-import { useState, useMemo, useEffect } from "react"
-import { Search, Trash2, Loader2, Eye } from "lucide-react"
-import { adminAPI, restaurantAPI } from "@food/api"
-import apiClient from "@food/api"
+import { useEffect, useMemo, useState } from "react"
+import { CheckCircle2, Eye, Loader2, Search, XCircle } from "lucide-react"
+import { adminAPI } from "@food/api"
 import { toast } from "sonner"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@food/components/ui/dialog"
-const debugLog = (...args) => {}
-const debugWarn = (...args) => {}
+
 const debugError = (...args) => {}
 
+const getItemCreatedMs = (item = {}) => {
+  const direct = [item.requestedAt, item.createdAt, item.updatedAt]
+    .map((v) => new Date(v).getTime())
+    .find((ms) => Number.isFinite(ms) && ms > 0)
+  return direct || 0
+}
+
+const formatAddonId = (id) => {
+  if (!id) return "ADDON000000"
+  const idString = String(id)
+  const digits = idString.match(/\d+/g)
+  const combined = digits ? digits.join("") : ""
+  const lastDigits = combined ? combined.slice(-6).padStart(6, "0") : "000000"
+  return `ADDON${lastDigits}`
+}
+
+const getAddonTitle = (addon) => addon?.draft?.name || addon?.name || "Unnamed Add-on"
+const getAddonImage = (addon) =>
+  addon?.draft?.image ||
+  addon?.draft?.images?.[0] ||
+  addon?.published?.image ||
+  addon?.published?.images?.[0] ||
+  "https://via.placeholder.com/40"
 
 export default function AddonsList() {
+  const [activeTab, setActiveTab] = useState("pending") // pending | approved | rejected
   const [searchQuery, setSearchQuery] = useState("")
   const [addons, setAddons] = useState([])
   const [loading, setLoading] = useState(true)
-  const [deleting, setDeleting] = useState(false)
+  const [submittingAction, setSubmittingAction] = useState(false)
+
   const [selectedAddon, setSelectedAddon] = useState(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
 
-  const getItemCreatedMs = (item = {}) => {
-    const direct = [item.createdAt, item.addedAt, item.requestedAt, item.updatedAt]
-      .map((v) => new Date(v).getTime())
-      .find((ms) => Number.isFinite(ms) && ms > 0)
-    if (direct) return direct
+  const [rejectingAddon, setRejectingAddon] = useState(null)
+  const [rejectionReason, setRejectionReason] = useState("")
 
-    const rawId = String(item.id || "")
-    const match = rawId.match(/\d{10,}/)
-    if (match) {
-      const fromId = Number(match[0])
-      if (Number.isFinite(fromId) && fromId > 0) return fromId
-    }
-    return 0
-  }
-
-  const isListEligibleStatus = (status) => {
-    const normalized = String(status || "").toLowerCase()
-    return normalized === "approved" || normalized === "rejected"
-  }
-
-  // Fetch all addons from all restaurants
   useEffect(() => {
-    const fetchAllAddons = async () => {
+    const fetchAddons = async () => {
       try {
         setLoading(true)
-        
-        // First, fetch all restaurants
-        const restaurantsResponse = await adminAPI.getRestaurants({ limit: 1000 })
-        const restaurants = restaurantsResponse?.data?.data?.restaurants || 
-                          restaurantsResponse?.data?.restaurants || 
-                          []
-        
-        if (restaurants.length === 0) {
-          setAddons([])
-          setLoading(false)
-          return
-        }
-
-        // Fetch addons for each restaurant using admin menu endpoint
-        const allAddons = []
-        
-        for (const restaurant of restaurants) {
-          try {
-            const restaurantId = restaurant._id || restaurant.id
-            const menuResponse = await apiClient.get(`/admin/restaurants/${restaurantId}/menu`)
-            const menu = menuResponse?.data?.data?.menu || menuResponse?.data?.menu
-            const restaurantAddons = Array.isArray(menu?.addons) ? menu.addons : []
-            
-            // Map addons with restaurant information
-            restaurantAddons.forEach((addon) => {
-              allAddons.push({
-                id: addon.id || `${restaurantId}-${addon.name}`,
-                _id: addon._id,
-                name: addon.name || "Unnamed Addon",
-                image: addon.image || addon.images?.[0] || "https://via.placeholder.com/40",
-                price: addon.price || 0,
-                description: addon.description || "",
-                isAvailable: addon.isAvailable !== false,
-                approvalStatus: addon.approvalStatus || 'pending',
-                restaurantId: restaurantId,
-                restaurantName: restaurant.name || "Unknown Restaurant",
-                originalAddon: addon // Keep original addon data
-              })
-            })
-          } catch (error) {
-            // Silently skip restaurants that don't have addons or have errors
-            debugWarn(`Failed to fetch addons for restaurant ${restaurant._id || restaurant.id}:`, error.message)
-          }
-        }
-        
-        allAddons.sort((a, b) => getItemCreatedMs(b.originalAddon) - getItemCreatedMs(a.originalAddon))
-        setAddons(allAddons.filter((addon) => isListEligibleStatus(addon.approvalStatus)))
+        const response = await adminAPI.getRestaurantAddons({
+          approvalStatus: activeTab,
+          search: searchQuery?.trim() ? searchQuery.trim() : undefined,
+          limit: 200,
+          page: 1,
+        })
+        const data = response?.data?.data?.addons || response?.data?.addons || []
+        setAddons(Array.isArray(data) ? data : [])
       } catch (error) {
         debugError("Error fetching addons:", error)
-        toast.error("Failed to load addons from restaurants")
+        toast.error("Failed to load restaurant add-ons")
         setAddons([])
       } finally {
         setLoading(false)
       }
     }
 
-    fetchAllAddons()
-  }, [])
-
-  // Format ID to ADDON format (e.g., ADDON606927)
-  const formatAddonId = (id) => {
-    if (!id) return "ADDON000000"
-    
-    const idString = String(id)
-    // Extract last 6 digits from the ID
-    // Handle formats like "addon-1768285606927-r7kwd45t8" or "1768285606927-r7kwd45t8"
-    const parts = idString.split(/[-.]/)
-    let lastDigits = ""
-    
-    // Get the last part and extract digits
-    if (parts.length > 0) {
-      const lastPart = parts[parts.length - 1]
-      // Extract only digits from the last part
-      const digits = lastPart.match(/\d+/g)
-      if (digits && digits.length > 0) {
-        // Get last 6 digits from all digits found
-        const allDigits = digits.join("")
-        lastDigits = allDigits.slice(-6).padStart(6, "0")
-      } else {
-        // If no digits in last part, look for digits in all parts
-        const allParts = parts.join("")
-        const allDigits = allParts.match(/\d+/g)
-        if (allDigits && allDigits.length > 0) {
-          const combinedDigits = allDigits.join("")
-          lastDigits = combinedDigits.slice(-6).padStart(6, "0")
-        }
-      }
-    }
-    
-    // If no digits found, use a hash of the ID
-    if (!lastDigits) {
-      const hash = idString.split("").reduce((acc, char) => {
-        return ((acc << 5) - acc) + char.charCodeAt(0) | 0
-      }, 0)
-      lastDigits = Math.abs(hash).toString().slice(-6).padStart(6, "0")
-    }
-    
-    return `ADDON${lastDigits}`
-  }
+    const t = setTimeout(fetchAddons, 250)
+    return () => clearTimeout(t)
+  }, [activeTab, searchQuery])
 
   const filteredAddons = useMemo(() => {
-    let result = [...addons]
-    
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim()
-      result = result.filter(addon =>
-        addon.name.toLowerCase().includes(query) ||
-        addon.id.toString().includes(query) ||
-        addon.restaurantName?.toLowerCase().includes(query)
-      )
-    }
-
-    result.sort((a, b) => getItemCreatedMs(b.originalAddon) - getItemCreatedMs(a.originalAddon))
+    const result = Array.isArray(addons) ? [...addons] : []
+    result.sort((a, b) => getItemCreatedMs(b) - getItemCreatedMs(a))
     return result
-  }, [addons, searchQuery])
+  }, [addons])
 
-  const handleDelete = async (id) => {
-    const addon = addons.find(a => a.id === id)
-    if (!addon) return
-
-    if (!window.confirm(`Are you sure you want to delete "${addon.name}"? This action cannot be undone.`)) {
-      return
-    }
-
-    try {
-      setDeleting(true)
-      
-      // Get the restaurant's menu to find and remove the addon
-      const menuResponse = await restaurantAPI.getMenuByRestaurantId(addon.restaurantId)
-      const menu = menuResponse?.data?.data?.menu || menuResponse?.data?.menu
-      
-      if (!menu) {
-        throw new Error("Menu not found")
-      }
-
-      // Find and remove the addon from the menu
-      const addonIndex = menu.addons?.findIndex(a => 
-        String(a.id) === String(addon.id) || 
-        String(a.id) === String(addon.originalAddon?.id)
-      )
-
-      if (addonIndex === -1 || !menu.addons) {
-        throw new Error("Addon not found in menu")
-      }
-
-      // Remove addon from array
-      menu.addons.splice(addonIndex, 1)
-
-      // Update menu in backend
-      try {
-        const response = await apiClient.put(
-          `/restaurant/menu`,
-          { 
-            sections: menu.sections || [],
-            addons: menu.addons
-          }
-        )
-        
-        if (!response.data || !response.data.success) {
-          throw new Error(response.data?.message || "Failed to update menu")
-        }
-      } catch (apiError) {
-        if (apiError.response?.status === 401 || apiError.response?.status === 403) {
-          throw new Error("Admin cannot directly update restaurant menus. Please contact developer to add admin menu update endpoint.")
-        }
-        throw apiError
-      }
-
-      // Remove from local state
-      setAddons(addons.filter(a => a.id !== id))
-      toast.success("Addon deleted successfully")
-    } catch (error) {
-      debugError("Error deleting addon:", error)
-      toast.error(error?.response?.data?.message || error?.message || "Failed to delete addon")
-    } finally {
-      setDeleting(false)
-    }
-  }
+  const countLabel = filteredAddons.length
 
   const handleViewDetails = (addon) => {
     setSelectedAddon(addon)
     setShowDetailModal(true)
   }
 
+  const handleApprove = async (addon) => {
+    const id = addon?.id || addon?._id
+    if (!id) return
+    try {
+      setSubmittingAction(true)
+      await adminAPI.approveRestaurantAddon(String(id))
+      toast.success("Add-on approved")
+      setAddons((prev) => (prev || []).filter((a) => String(a.id || a._id) !== String(id)))
+    } catch (error) {
+      debugError("Approve add-on failed:", error)
+      toast.error(error?.response?.data?.message || "Failed to approve add-on")
+    } finally {
+      setSubmittingAction(false)
+    }
+  }
+
+  const openReject = (addon) => {
+    setRejectingAddon(addon)
+    setRejectionReason("")
+  }
+
+  const submitReject = async () => {
+    const id = rejectingAddon?.id || rejectingAddon?._id
+    if (!id) return
+    if (!rejectionReason.trim()) {
+      toast.error("Please enter a rejection reason")
+      return
+    }
+    try {
+      setSubmittingAction(true)
+      await adminAPI.rejectRestaurantAddon(String(id), rejectionReason.trim())
+      toast.success("Add-on rejected")
+      setAddons((prev) => (prev || []).filter((a) => String(a.id || a._id) !== String(id)))
+      setRejectingAddon(null)
+    } catch (error) {
+      debugError("Reject add-on failed:", error)
+      toast.error(error?.response?.data?.message || "Failed to reject add-on")
+    } finally {
+      setSubmittingAction(false)
+    }
+  }
+
   return (
-    <div className="p-4 lg:p-6 bg-slate-50 min-h-screen">
-      {/* Header Section */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center">
-            <div className="grid grid-cols-2 gap-0.5">
-              <div className="w-2 h-2 bg-white rounded-sm"></div>
-              <div className="w-2 h-2 bg-white rounded-sm"></div>
-              <div className="w-2 h-2 bg-white rounded-sm"></div>
-              <div className="w-2 h-2 bg-white rounded-sm"></div>
-            </div>
+    <div className="p-4 lg:p-6 bg-slate-50 min-h-screen space-y-6">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Restaurant add-ons</h1>
+            <div className="text-sm text-slate-500 mt-1">Approve or reject restaurant add-ons (draft → published).</div>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">Addon</h1>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab("pending")}
+              className={`px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
+                activeTab === "pending"
+                  ? "bg-amber-600 text-white border-amber-600"
+                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+              }`}
+            >
+              Pending
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("approved")}
+              className={`px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
+                activeTab === "approved"
+                  ? "bg-green-600 text-white border-green-600"
+                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+              }`}
+            >
+              Approved
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("rejected")}
+              className={`px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
+                activeTab === "rejected"
+                  ? "bg-red-600 text-white border-red-600"
+                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+              }`}
+            >
+              Rejected
+            </button>
+          </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold text-slate-900">Addon List</h2>
-            <span className="px-3 py-1 rounded-full text-sm font-semibold bg-slate-100 text-slate-700">
-              {filteredAddons.length}
-            </span>
+        <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="relative w-full sm:w-96">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search add-ons or restaurant..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 pr-4 py-2.5 w-full text-sm rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400"
+            />
           </div>
-
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="relative flex-1 sm:flex-initial min-w-[200px]">
-              <input
-                type="text"
-                placeholder="Ex : Addons"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 pr-4 py-2.5 w-full text-sm rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400"
-              />
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            </div>
+          <div className="text-sm text-slate-600">
+            Showing <span className="font-semibold">{countLabel}</span>
           </div>
         </div>
       </div>
 
-      {/* Table */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -281,6 +201,9 @@ export default function AddonsList() {
                   Name
                 </th>
                 <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
+                  Restaurant
+                </th>
+                <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
                   Price
                 </th>
                 <th className="px-6 py-4 text-center text-[10px] font-bold text-slate-700 uppercase tracking-wider">
@@ -291,36 +214,33 @@ export default function AddonsList() {
             <tbody className="bg-white divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-20 text-center">
+                  <td colSpan={6} className="px-6 py-20 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <Loader2 className="w-8 h-8 animate-spin text-blue-600 mb-2" />
-                      <p className="text-sm text-slate-500">Loading addons from restaurants...</p>
+                      <p className="text-sm text-slate-500">Loading add-ons...</p>
                     </div>
                   </td>
                 </tr>
               ) : filteredAddons.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-20 text-center">
+                  <td colSpan={6} className="px-6 py-20 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <p className="text-lg font-semibold text-slate-700 mb-1">No Data Found</p>
-                      <p className="text-sm text-slate-500">No addons match your search</p>
+                      <p className="text-sm text-slate-500">No add-ons match your search</p>
                     </div>
                   </td>
                 </tr>
               ) : (
                 filteredAddons.map((addon, index) => (
-                  <tr
-                    key={addon.id}
-                    className="hover:bg-slate-50 transition-colors"
-                  >
+                  <tr key={String(addon.id || addon._id)} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm font-medium text-slate-700">{index + 1}</span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 flex items-center justify-center">
                         <img
-                          src={addon.image}
-                          alt={addon.name}
+                          src={getAddonImage(addon)}
+                          alt={getAddonTitle(addon)}
                           className="w-full h-full object-cover"
                           onError={(e) => {
                             e.target.src = "https://via.placeholder.com/40"
@@ -330,27 +250,31 @@ export default function AddonsList() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex flex-col">
-                        <span className="text-sm font-medium text-slate-900">{addon.name}</span>
-                        <span className="text-xs text-slate-500">ID #{formatAddonId(addon.id)}</span>
-                        {addon.restaurantName && (
-                          <span className="text-xs text-slate-400 mt-0.5">
-                            {addon.restaurantName}
-                          </span>
-                        )}
-                        {addon.description && (
-                          <span className="text-xs text-slate-500 mt-0.5">
-                            {addon.description}
-                          </span>
-                        )}
+                        <span className="text-sm font-medium text-slate-900">{getAddonTitle(addon)}</span>
+                        <span className="text-xs text-slate-500">ID #{formatAddonId(addon.id || addon._id)}</span>
+                        {addon?.approvalStatus ? (
+                          <span className="text-xs text-slate-400 mt-0.5 capitalize">{addon.approvalStatus}</span>
+                        ) : null}
+                        {addon?.rejectionReason ? (
+                          <span className="text-xs text-slate-500 mt-0.5 line-clamp-1">{addon.rejectionReason}</span>
+                        ) : null}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex flex-col">
+                        <span className="text-sm text-slate-900">{addon?.restaurant?.name || "-"}</span>
+                        {addon?.restaurant?.ownerPhone ? (
+                          <span className="text-xs text-slate-500">{addon.restaurant.ownerPhone}</span>
+                        ) : null}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm font-medium text-slate-900">
-                        ?{addon.price.toFixed(2)}
+                        ₹{Number(addon?.draft?.price ?? addon?.price ?? 0).toFixed(2)}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <div className="flex items-center justify-center gap-2">
+                      <div className="flex items-center justify-center gap-2 flex-wrap">
                         <button
                           onClick={() => handleViewDetails(addon)}
                           className="p-1.5 rounded text-blue-600 hover:bg-blue-50 transition-colors"
@@ -358,18 +282,26 @@ export default function AddonsList() {
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        <button
-                          onClick={() => handleDelete(addon.id)}
-                          disabled={deleting}
-                          className="p-1.5 rounded text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          title="Delete"
-                        >
-                          {deleting ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="w-4 h-4" />
-                          )}
-                        </button>
+                        {activeTab === "pending" ? (
+                          <>
+                            <button
+                              onClick={() => handleApprove(addon)}
+                              disabled={submittingAction}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-600 text-white hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <CheckCircle2 className="w-4 h-4" />
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => openReject(addon)}
+                              disabled={submittingAction}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <XCircle className="w-4 h-4" />
+                              Reject
+                            </button>
+                          </>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -389,31 +321,82 @@ export default function AddonsList() {
             <div className="p-6 space-y-5">
               <div className="flex items-center gap-4">
                 <img
-                  src={selectedAddon.image}
-                  alt={selectedAddon.name}
+                  src={getAddonImage(selectedAddon)}
+                  alt={getAddonTitle(selectedAddon)}
                   className="w-20 h-20 rounded-xl object-cover border border-slate-200"
                   onError={(e) => {
                     e.target.src = "https://via.placeholder.com/64"
                   }}
                 />
                 <div>
-                  <p className="text-lg font-semibold text-slate-900">{selectedAddon.name}</p>
-                  <p className="text-sm text-slate-500 mt-0.5">ID #{formatAddonId(selectedAddon.id)}</p>
+                  <p className="text-lg font-semibold text-slate-900">{getAddonTitle(selectedAddon)}</p>
+                  <p className="text-sm text-slate-500 mt-0.5">
+                    ID #{formatAddonId(selectedAddon.id || selectedAddon._id)}
+                  </p>
                 </div>
               </div>
+
               <div className="grid grid-cols-2 gap-4 text-sm bg-slate-50 border border-slate-200 rounded-lg p-4">
-                <p><span className="font-semibold text-slate-700">Restaurant:</span> <span className="text-slate-900">{selectedAddon.restaurantName || "-"}</span></p>
-                <p><span className="font-semibold text-slate-700">Price:</span> <span className="text-slate-900">?{selectedAddon.price?.toFixed(2)}</span></p>
-                <p><span className="font-semibold text-slate-700">Status:</span> <span className="text-slate-900">{selectedAddon.isAvailable ? "Available" : "Unavailable"}</span></p>
-                <p><span className="font-semibold text-slate-700">Approval:</span> <span className="text-slate-900 capitalize">{selectedAddon.approvalStatus || "-"}</span></p>
-              </div>
-              {selectedAddon.description && (
-                <p className="text-sm text-slate-700 leading-relaxed">
-                  <span className="font-semibold text-slate-800">Description:</span> {selectedAddon.description}
+                <p>
+                  <span className="font-semibold text-slate-700">Restaurant:</span>{" "}
+                  <span className="text-slate-900">{selectedAddon?.restaurant?.name || "-"}</span>
                 </p>
-              )}
+                <p>
+                  <span className="font-semibold text-slate-700">Price:</span>{" "}
+                  <span className="text-slate-900">₹{Number(selectedAddon?.draft?.price ?? 0).toFixed(2)}</span>
+                </p>
+                <p>
+                  <span className="font-semibold text-slate-700">Available:</span>{" "}
+                  <span className="text-slate-900">{selectedAddon?.isAvailable ? "Yes" : "No"}</span>
+                </p>
+                <p>
+                  <span className="font-semibold text-slate-700">Approval:</span>{" "}
+                  <span className="text-slate-900 capitalize">{selectedAddon?.approvalStatus || "-"}</span>
+                </p>
+              </div>
+
+              {selectedAddon?.draft?.description ? (
+                <p className="text-sm text-slate-700 leading-relaxed">
+                  <span className="font-semibold text-slate-800">Description:</span> {selectedAddon.draft.description}
+                </p>
+              ) : null}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(rejectingAddon)} onOpenChange={(open) => !open && setRejectingAddon(null)}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Reject add-on</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="text-sm text-slate-700">Provide a clear reason (shown to restaurant).</div>
+            <textarea
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              rows={4}
+              placeholder="e.g., Not allowed item, unclear name, price mismatch..."
+              className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400"
+            />
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setRejectingAddon(null)}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={submitReject}
+                disabled={submittingAction}
+                className="px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {submittingAction ? "Submitting..." : "Reject"}
+              </button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

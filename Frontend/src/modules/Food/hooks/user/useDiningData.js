@@ -30,7 +30,7 @@ export const useDiningData = (location) => {
       if (offers.data?.success) setBankOfferItems(offers.data.data);
       
       if (hero.data?.success && hero.data.data.banners?.length > 0) {
-        setDiningHeroBanner(hero.data.data.banners[0]);
+        setDiningHeroBanner(hero.data.data.banners[0]?.imageUrl || null);
       }
     } finally {
       setLoading(false);

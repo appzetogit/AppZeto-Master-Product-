@@ -35,12 +35,12 @@ export default function AddMoneyModal({ open, onOpenChange, onSuccess }) {
     const amountNum = parseFloat(amount)
 
     if (!amount || isNaN(amountNum) || amountNum < 1) {
-      toast.error("Please enter a valid amount (minimum ?1)")
+      toast.error("Please enter a valid amount (minimum ₹1)")
       return
     }
 
     if (amountNum > 50000) {
-      toast.error("Maximum amount is ?50,000")
+      toast.error("Maximum amount is ₹50,000")
       return
     }
 
@@ -95,7 +95,7 @@ export default function AddMoneyModal({ open, onOpenChange, onSuccess }) {
         currency: razorpay.currency || 'INR',
         order_id: razorpay.orderId,
         name: companyName,
-        description: `Wallet Top-up - ?${amountNum.toFixed(2)}`,
+        description: `Wallet Top-up - ₹${amountNum.toFixed(2)}`,
         prefill: {
           name: userName,
           email: userEmail,
@@ -115,7 +115,7 @@ export default function AddMoneyModal({ open, onOpenChange, onSuccess }) {
               amount: amountNum
             })
 
-            toast.success(`?${amountNum} added to wallet successfully!`)
+            toast.success(`₹${amountNum} added to wallet successfully!`)
 
             // Reset form
             setAmount("")
@@ -208,7 +208,7 @@ export default function AddMoneyModal({ open, onOpenChange, onSuccess }) {
               />
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              Minimum: ?1 | Maximum: ?50,000
+              Minimum: ₹1 | Maximum: ₹50,000
             </p>
           </div>
 
@@ -227,7 +227,7 @@ export default function AddMoneyModal({ open, onOpenChange, onSuccess }) {
                   onClick={() => handleAmountSelect(quickAmount)}
                   disabled={loading || processing}
                 >
-                  ?{quickAmount}
+                  ₹{quickAmount}
                 </Button>
               ))}
             </div>
@@ -245,7 +245,7 @@ export default function AddMoneyModal({ open, onOpenChange, onSuccess }) {
                 {loading ? "Processing..." : "Opening Payment Gateway..."}
               </>
             ) : (
-              `Add ?${amount || "0"}`
+              `Add ₹${amount || "0"}`
             )}
           </Button>
         </div>

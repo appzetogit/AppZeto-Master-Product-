@@ -1,361 +1,569 @@
-import { useState, useEffect } from "react"
-import { useParams, useNavigate } from "react-router-dom"
+import { useEffect, useState } from "react"
+import { useLocation, useNavigate, useParams } from "react-router-dom"
 import { restaurantAPI } from "@food/api"
+import { useProfile } from "@food/context/ProfileContext"
+import { getMenuFromResponse } from "@food/utils/menuItems"
 import {
     ArrowLeft,
-    MapPin,
-    Star,
-    Phone,
-    Navigation,
-    Share2,
     Bookmark,
     CheckCircle2,
-    Clock,
-    UtensilsCrossed
+  Clock3,
+  IndianRupee,
+  Loader2,
+  MapPin,
+  Percent,
+  Share2,
+  Tag,
+  Ticket,
+  X,
 } from "lucide-react"
 import { Button } from "@food/components/ui/button"
-import { Loader2 } from "lucide-react"
-const debugLog = (...args) => {}
-const debugWarn = (...args) => {}
-const debugError = (...args) => {}
 
+const formatAddress = (restaurant) =>
+  restaurant?.location?.formattedAddress ||
+  restaurant?.location?.addressLine1 ||
+  restaurant?.location?.address ||
+  [restaurant?.location?.area || restaurant?.area, restaurant?.location?.city || restaurant?.city]
+    .filter(Boolean)
+    .join(", ")
 
-export default function DiningRestaurantDetails() {
-    const { diningType, slug } = useParams() // Get params from URL
-    const navigate = useNavigate()
-
-    const [restaurant, setRestaurant] = useState(null)
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState(null)
-
-    const [activeTab, setActiveTab] = useState("Pre-book offers")
-    const [isBookingOpen, setIsBookingOpen] = useState(false)
-    const [selectedGuests, setSelectedGuests] = useState(2)
-
-    // Fetch data
-    useEffect(() => {
-        const fetchRestaurant = async () => {
-            if (!slug) return
-            try {
-                setLoading(true)
-                // Try fetch by ID/Slug
-                const response = await restaurantAPI.getRestaurantById(slug)
-
-                if (response.data && response.data.success) {
-                    const apiRestaurant = response.data.data
-                    // Check if this is a dining restaurant with nested restaurant data
-                    const actualRestaurant = apiRestaurant?.restaurant || apiRestaurant
-                    setRestaurant(actualRestaurant)
-                } else {
-                    // Fallback: search by name if slug lookup fails directly (though getRestaurantById usually handles slugs)
-                    // For now, assuming direct slug work or we might need the search logic from RestaurantDetails.jsx
-                    setRestaurant(null)
-                    setError("Restaurant not found")
-                }
-            } catch (err) {
-                // If 404, we might need to search list. For now, simple error.
-                debugError("Failed to load restaurant", err)
-
-                // FAILSAFE: If API by slug fails, let's try to get list and find match (temporary fix for development if slug isn't unique ID)
-                // In a real app, backend should support slug lookup reliably.
-                try {
-                    const listResp = await restaurantAPI.getRestaurants()
-                    if (listResp.data?.data?.restaurants) {
-                        const match = listResp.data.data.restaurants.find(r =>
-                            r.slug === slug ||
-                            r.name.toLowerCase().replace(/\s+/g, '-') === slug.toLowerCase()
-                        )
-                        if (match) {
-                            const actualMatch = match?.restaurant || match
-                            setRestaurant(actualMatch)
-                            setError(null)
-                        } else {
-                            setError("Restaurant not found")
-                        }
-                    }
-                } catch (e) {
-                    setError("Restaurant not found")
-                }
-            } finally {
-                setLoading(false)
-            }
-        }
-        fetchRestaurant()
-    }, [slug])
-
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-screen bg-slate-50">
-                <Loader2 className="w-8 h-8 animate-spin text-[#EB590E]" />
-            </div>
-        )
-    }
-
-    if (error || !restaurant) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-4">
-                <h2 className="text-xl font-bold text-slate-800">Restaurant not found</h2>
-                <Button onClick={() => navigate(-1)} className="mt-4" variant="outline">Go Back</Button>
-            </div>
-        )
-    }
-
-    // Helper values
-    const coverImage = restaurant.coverImage || restaurant.profileImage?.url || restaurant.logo || "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&h=600&fit=crop"
-    const formattedDistance = "2.4 km away" // Placeholder or calc
-    const rating = restaurant.rating || restaurant.avgRating || 4.5
-    const isOpen = restaurant.isAcceptingOrders !== false // simplified check
-
-    if (restaurant.diningSettings && restaurant.diningSettings.isEnabled === false) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-4 text-center">
-                <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-4">
-                    <UtensilsCrossed className="w-8 h-8 text-gray-400" />
-                </div>
-                <h2 className="text-xl font-bold text-slate-800 mb-2">Dining Unavailable</h2>
-                <p className="text-slate-600 mb-6">Dining is currently unavailable for this restaurant.</p>
-                <Button onClick={() => navigate(-1)} variant="outline">Go Back</Button>
-            </div>
-        )
-    }
-
-    return (
-        <div className="min-h-screen bg-white pb-20 relative">
-            {/* Sticky Header / Back Button */}
-            <div className="fixed top-0 left-0 w-full z-50 p-4 flex justify-between items-center bg-gradient-to-b from-black/50 to-transparent pointer-events-none">
-                <button
-                    onClick={() => navigate(-1)}
-                    className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white pointer-events-auto hover:bg-black/60 transition-colors"
-                >
-                    <ArrowLeft className="w-6 h-6" />
-                </button>
-
-                <div className="flex gap-3 pointer-events-auto">
-                    <button className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/60 transition-colors">
-                        <Bookmark className="w-5 h-5" />
-                    </button>
-                    <button className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/60 transition-colors">
-                        <Share2 className="w-5 h-5" />
-                    </button>
-                </div>
-            </div>
-
-            {/* Hero Section */}
-            <div className="relative h-[45vh] w-full">
-                <img
-                    src={coverImage}
-                    alt={restaurant.name}
-                    className="w-full h-full object-cover"
-                />
-                {/* Dark Gradient Overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
-
-                {/* Content Overlay */}
-                <div className="absolute bottom-0 left-0 w-full p-5 text-white">
-                    <h1 className="text-3xl font-bold mb-1">{restaurant.name}</h1>
-                    <p className="text-sm text-gray-300 line-clamp-2 max-w-[90%] mb-2">
-                        {restaurant.location?.addressLine1 || restaurant.address || "Location not available"}
-                    </p>
-
-                    <div className="flex items-center gap-3 text-sm font-medium mb-3">
-                        <span>{formattedDistance}</span>
-                        <span className="w-1 h-1 rounded-full bg-gray-400"></span>
-                        {/* Cost For Two */}
-                        <span>{restaurant.costForTwo ? `?${restaurant.costForTwo} for two` : "?1400 for two"}</span>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            {isOpen ? (
-                                <div className="flex items-center gap-1.5 text-green-400 text-xs font-semibold uppercase tracking-wide">
-                                    <CheckCircle2 className="w-4 h-4" />
-                                    <span>Open now | 12:00 PM to 11:59 PM</span>
-                                </div>
-                            ) : (
-                                <div className="text-red-400 text-xs font-semibold">Closed</div>
-                            )}
-                        </div>
-
-                        <div className="flex flex-col items-center bg-green-700/90 backdrop-blur-sm rounded-lg px-2 py-1">
-                            <div className="flex items-center gap-1 text-white font-bold text-lg leading-none">
-                                {rating} <Star className="w-3 h-3 fill-current" />
-                            </div>
-                            <span className="text-[10px] text-white/90">780 Reviews</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Action Buttons Bar */}
-            <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100 gap-3">
-                <Button
-                    variant="outline"
-                    className="flex-1 border-gray-200 h-10 text-[#EB590E] hover:text-[#D94F0C] hover:bg-orange-50 font-medium rounded-full"
-                >
-                    <UtensilsCrossed className="w-4 h-4 mr-2" />
-                    Book a table
-                </Button>
-
-                <div className="flex gap-3">
-                    <button className="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center text-[#EB590E] hover:bg-orange-50">
-                        <Navigation className="w-5 h-5" />
-                    </button>
-                    <button className="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center text-[#EB590E] hover:bg-orange-50">
-                        <Phone className="w-5 h-5" />
-                    </button>
-                </div>
-            </div>
-
-            {/* Offer Banner */}
-            <div className="px-4 py-4">
-                <div className="bg-[#FFF8E8] border border-[#F5D8A0] rounded-xl p-4 relative overflow-hidden">
-                    <div className="flex flex-col items-center justify-center text-center z-10 relative">
-                        <span className="text-2xl font-black text-[#2D2D2D] tracking-tight">10% CASHBACK</span>
-                        <span className="text-xs font-medium text-gray-600 uppercase tracking-widest bg-white/50 px-2 py-0.5 rounded mt-1">on every dining bill</span>
-                    </div>
-
-                    {/* Decorative Elements mimicking the screenshot */}
-                    <div className="absolute top-0 left-0 w-8 h-8 bg-purple-500/20 -rotate-45 transform -translate-x-4 -translate-y-4"></div>
-                    <div className="absolute bottom-0 right-0 w-8 h-8 bg-green-500/20 rotate-45 transform translate-x-4 translate-y-4"></div>
-                </div>
-            </div>
-
-            {/* Tabs */}
-            <div className="sticky top-0 bg-white z-40 border-b border-gray-100 shadow-sm">
-                <div className="flex overflow-x-auto no-scrollbar py-1 px-4 gap-6">
-                    {["Pre-book offers", "Walk-in offers", "Menu", "Photos", "Reviews", "About"].map((tab) => (
-                        <button
-                            key={tab}
-                            onClick={() => setActiveTab(tab)}
-                            className={`whitespace-nowrap py-3 text-sm font-medium transition-colors relative ${activeTab === tab ? "text-[#EB590E]" : "text-gray-500 hover:text-gray-800"
-                                }`}
-                        >
-                            {tab}
-                            {activeTab === tab && (
-                                <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#EB590E] rounded-t-full" />
-                            )}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            {/* Tab Content Placeholder */}
-            <div className="p-4 min-h-[300px]">
-                <h3 className="font-bold text-lg mb-2">{activeTab}</h3>
-                <p className="text-gray-500 text-sm">Content for {activeTab} will be displayed here.</p>
-
-                {activeTab === "Menu" && (
-                    <div className="mt-4 grid grid-cols-2 gap-4">
-                        <div className="h-32 bg-gray-100 rounded-lg"></div>
-                        <div className="h-32 bg-gray-100 rounded-lg"></div>
-                    </div>
-                )}
-            </div>
-
-            {/* Sticky Booking Footer */}
-            {(!restaurant.diningSettings || restaurant.diningSettings.isEnabled) ? (
-                <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-100 p-3 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] z-50 flex gap-3">
-                    <Button
-                        variant="outline"
-                        onClick={() => setIsBookingOpen(true)}
-                        className="flex-1 h-12 rounded-xl text-[#EB590E] border-[#EB590E] hover:bg-orange-50 font-bold"
-                    >
-                        Book a table
-                    </Button>
-                    <Button
-                        className="flex-1 h-12 rounded-xl bg-[#EB590E] hover:bg-[#D94F0C] text-white font-bold flex flex-col items-center justify-center leading-tight py-1"
-                    >
-                        <span className="text-sm">Pay bill</span>
-                        <span className="text-[10px] font-normal opacity-90">Tap to view offers</span>
-                    </Button>
-                </div>
-            ) : (
-                <div className="fixed bottom-0 left-0 w-full bg-slate-100 border-t border-gray-200 p-4 z-50 text-center">
-                    <p className="text-gray-500 font-medium">Dining is currently unavailable for this restaurant.</p>
-                </div>
-            )}
-
-            {/* Booking Dialog */}
-            {isBookingOpen && (
-                <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center pointer-events-none">
-                    {/* Backdrop */}
-                    <div className="absolute inset-0 bg-black/50 pointer-events-auto" onClick={() => setIsBookingOpen(false)} />
-
-                    {/* Modal Panel */}
-                    <div className="relative w-full sm:w-[400px] bg-white rounded-t-2xl sm:rounded-2xl p-6 pointer-events-auto animate-in slide-in-from-bottom-5">
-                        <h3 className="text-xl font-bold mb-4">Book a Table</h3>
-
-                        <div className="space-y-4">
-                            <div className="space-y-3">
-                                <label className="text-sm font-medium text-gray-700 block">Number of Guests</label>
-
-                                {/* Manual Input */}
-                                <div className="relative">
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        max={restaurant.diningSettings?.maxGuests || 6}
-                                        value={selectedGuests}
-                                        onChange={(e) => {
-                                            const val = parseInt(e.target.value)
-                                            if (!isNaN(val)) {
-                                                const max = restaurant.diningSettings?.maxGuests || 6
-                                                if (val > max) setSelectedGuests(max)
-                                                else if (val < 1) setSelectedGuests(1)
-                                                else setSelectedGuests(val)
-                                            } else {
-                                                setSelectedGuests("")
-                                            }
-                                        }}
-                                        onBlur={(e) => {
-                                            if (!selectedGuests || selectedGuests < 1) setSelectedGuests(1)
-                                        }}
-                                        className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:border-[#EB590E] focus:ring-1 focus:ring-[#EB590E] transition-all text-lg font-semibold text-center"
-                                    />
-                                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium pointer-events-none">
-                                        Guests
-                                    </span>
-                                </div>
-
-                                {/* Scrollable Guest Options */}
-                                <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
-                                    {Array.from({ length: restaurant.diningSettings?.maxGuests || 6 }, (_, i) => i + 1).map(num => (
-                                        <button
-                                            key={num}
-                                            onClick={() => setSelectedGuests(num)}
-                                            className={`min-w-[40px] h-10 rounded-full flex items-center justify-center text-sm font-medium transition-all flex-shrink-0 ${selectedGuests === num
-                                                ? "bg-[#EB590E] text-white shadow-md transform scale-105"
-                                                : "bg-white border border-gray-200 text-gray-600 hover:border-orange-200 hover:bg-orange-50"
-                                                }`}
-                                        >
-                                            {num}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <Button
-                                onClick={() => {
-                                    setIsBookingOpen(false)
-                                    navigate(`/dining/book/${slug}`, { state: { guestCount: selectedGuests } })
-                                }}
-                                className="w-full bg-[#EB590E] hover:bg-[#D94F0C] text-white font-bold h-12 rounded-xl"
-                            >
-                                Confirm Booking
-                            </Button>
-                        </div>
-
-                        <button
-                            onClick={() => setIsBookingOpen(false)}
-                            className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600"
-                        >
-                            <span className="sr-only">Close</span>
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                        </button>
-                    </div>
-                </div>
-            )}
-        </div>
-    )
+const buildImageList = (restaurant) => {
+  const candidates = [
+    restaurant?.coverImage?.url,
+    restaurant?.coverImage,
+    ...(Array.isArray(restaurant?.coverImages) ? restaurant.coverImages.map((image) => image?.url || image) : []),
+    ...(Array.isArray(restaurant?.menuImages) ? restaurant.menuImages.map((image) => image?.url || image) : []),
+    restaurant?.profileImage?.url,
+    restaurant?.profileImage,
+  ]
+  return candidates
+    .map((value) => (typeof value === "string" ? value.trim() : ""))
+    .filter(Boolean)
+    .filter((value, index, list) => list.indexOf(value) === index)
 }
 
+const buildFacilities = (restaurant) => {
+  const facilities = []
+
+  if (restaurant?.diningSettings?.tableBookingEnabled !== false) facilities.push("Dinner")
+  if (restaurant?.isAcceptingOrders !== false) facilities.push("Lunch")
+  if (restaurant?.diningSettings?.homeDeliveryAvailable || restaurant?.homeDeliveryAvailable) facilities.push("Home delivery")
+  if (restaurant?.diningSettings?.takeawayAvailable || restaurant?.takeawayAvailable) facilities.push("Takeaway available")
+  if (restaurant?.diningSettings?.vegOnly || restaurant?.vegOnly) facilities.push("Vegetarian only")
+  if (restaurant?.diningSettings?.lessNoisy || restaurant?.ambience === "quiet") facilities.push("Less noisy")
+
+  return facilities.length > 0
+    ? facilities
+    : ["Dinner", "Lunch", "Home delivery", "Takeaway available", "Vegetarian only", "Less noisy"]
+}
+
+const buildFeaturedSections = (menuSections) =>
+  menuSections
+    .map((section, index) => {
+      const items = [
+        ...(Array.isArray(section?.items) ? section.items : []),
+        ...((Array.isArray(section?.subsections) ? section.subsections : []).flatMap((subsection) => subsection?.items || [])),
+      ]
+
+      return {
+        id: `${section?.name || "section"}-${index}`,
+        title: section?.name || "Menu",
+        pages: items.length || 1,
+      }
+    })
+    .slice(0, 2)
+
+const formatTimeLabel = (value) => {
+  if (!value) return null
+  if (/[ap]m/i.test(value)) return value.toUpperCase()
+  const date = new Date(`2000-01-01T${String(value).padStart(5, "0")}`)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true })
+}
+
+const scrollToSection = (id) => {
+  const element = document.getElementById(id)
+  if (element) {
+    element.scrollIntoView({ behavior: "smooth", block: "start" })
+  }
+}
+
+export default function DiningRestaurantDetails() {
+  const { category, slug } = useParams()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const { addFavorite, removeFavorite, isFavorite } = useProfile()
+
+  const [restaurant, setRestaurant] = useState(location.state?.restaurant || null)
+  const [menuSections, setMenuSections] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [selectedGuests, setSelectedGuests] = useState(2)
+  const [isBookingSheetOpen, setIsBookingSheetOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState("prebook")
+
+  useEffect(() => {
+    const fetchRestaurantData = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+
+        const routeRestaurant = location.state?.restaurant || null
+        const preferredRestaurantLookup =
+          routeRestaurant?._id ||
+          routeRestaurant?.restaurantId ||
+          routeRestaurant?.id ||
+          slug
+
+        const restaurantResponse = await restaurantAPI.getRestaurantById(preferredRestaurantLookup)
+        if (!restaurantResponse?.data?.success) {
+          setError("Restaurant not found")
+          setRestaurant(null)
+          return
+        }
+
+        const resolvedRestaurant =
+          restaurantResponse?.data?.data?.restaurant ||
+          restaurantResponse?.data?.data ||
+          null
+
+        if (!resolvedRestaurant) {
+          setError("Restaurant not found")
+          setRestaurant(null)
+          return
+        }
+
+        const restaurantId = resolvedRestaurant?._id || resolvedRestaurant?.id || slug
+        const menuResponse = await restaurantAPI.getMenuByRestaurantId(restaurantId).catch(() => null)
+        const resolvedMenu = menuResponse ? getMenuFromResponse(menuResponse) : null
+
+        setRestaurant(resolvedRestaurant)
+        setMenuSections(Array.isArray(resolvedMenu?.sections) ? resolvedMenu.sections : [])
+      } catch {
+        setError("Failed to load restaurant")
+        setRestaurant(null)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchRestaurantData()
+  }, [location.state?.restaurant, slug])
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#f6f7fb]">
+        <Loader2 className="h-8 w-8 animate-spin text-[#EB590E]" />
+      </div>
+    )
+  }
+
+  if (error || !restaurant) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#f6f7fb] px-4 text-center">
+        <h2 className="text-2xl font-bold text-[#23180f]">Restaurant not found</h2>
+        <Button onClick={() => navigate(-1)} variant="outline">
+          Go Back
+        </Button>
+      </div>
+    )
+  }
+
+  const restaurantName = restaurant.name || restaurant.restaurantName || "Restaurant"
+  const address = formatAddress(restaurant) || "Address unavailable"
+  const imageGallery = buildImageList(restaurant)
+  const heroImage = imageGallery[0] || ""
+  const menuPreviewImages = imageGallery.length > 0 ? imageGallery : [""]
+  const featuredSections = buildFeaturedSections(menuSections)
+  const cuisines =
+    Array.isArray(restaurant?.cuisines) && restaurant.cuisines.length > 0
+      ? restaurant.cuisines.join(", ")
+      : "Asian, Italian, Continental, Chinese, North Indian, Desserts, Beverages, Coffee"
+  const costForTwo = restaurant?.costForTwo ? `${"\u20B9"}${restaurant.costForTwo} for two` : `${"\u20B9"}1900 for two`
+  const facilities = buildFacilities(restaurant)
+  const rating = Number(restaurant?.rating || restaurant?.avgRating || 4.6).toFixed(1)
+  const reviewCount = restaurant?.reviewCount || restaurant?.reviewsCount || 844
+  const openingTime = formatTimeLabel(restaurant?.openingTime || restaurant?.diningSettings?.openingTime || "12:00")
+  const closingTime = formatTimeLabel(restaurant?.closingTime || restaurant?.diningSettings?.closingTime || "23:59")
+  const topTabs = [
+    { id: "prebook", label: "Pre-book offers", target: "restaurant-prebook" },
+    { id: "walkin", label: "Walk-in offers", target: "restaurant-prebook" },
+    { id: "menu", label: "Menu", target: "restaurant-menu" },
+    { id: "photos", label: "Photos", target: "restaurant-photos" },
+    { id: "about", label: "About", target: "restaurant-about" },
+  ]
+
+  const handleShare = async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: restaurantName,
+          text: `Check out ${restaurantName}`,
+          url: window.location.href,
+        })
+      }
+    } catch {}
+  }
+
+  const restaurantFavoriteSlug =
+    restaurant?.restaurantNameNormalized ||
+    restaurant?.slug ||
+    slug
+
+  const favorite = isFavorite(restaurantFavoriteSlug)
+
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1)
+      return
+    }
+
+    if (category) {
+      navigate(`/food/user/dining/${category}`)
+      return
+    }
+
+    navigate("/food/user/dining")
+  }
+
+  const handleToggleFavorite = () => {
+    if (favorite) {
+      removeFavorite(restaurantFavoriteSlug)
+      return
+    }
+
+    addFavorite({
+      slug: restaurantFavoriteSlug,
+      name: restaurantName,
+      cuisine: cuisines,
+      rating,
+      image: heroImage,
+    })
+  }
+
+  const handleContinueBooking = () => {
+    setIsBookingSheetOpen(false)
+    navigate(`/food/user/dining/book/${slug}`, {
+      state: {
+        guestCount: selectedGuests,
+        restaurant,
+      },
+    })
+  }
+
+  return (
+    <div className="min-h-screen bg-[#f6f7fb] pb-28">
+      <section className="mx-auto max-w-md bg-[#f6f7fb]">
+        <div className="relative h-[392px] overflow-hidden">
+          {heroImage ? (
+            <img src={heroImage} alt={restaurantName} className="h-full w-full object-cover" />
+          ) : (
+            <div className="h-full w-full bg-[radial-gradient(circle_at_top,#eadcc7,#a09279_58%,#655749)]" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/78 via-black/18 to-black/0" />
+
+          <div className="absolute left-0 right-0 top-0 z-10 flex items-center justify-between px-3 pt-3">
+            <button
+              onClick={handleBack}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-[#51586a]/75 text-white backdrop-blur-md"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleToggleFavorite}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-[#51586a]/75 text-white backdrop-blur-md"
+              >
+                <Bookmark className={`h-4 w-4 ${favorite ? "fill-current" : ""}`} />
+              </button>
+              <button
+                onClick={handleShare}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-[#51586a]/75 text-white backdrop-blur-md"
+              >
+                <Share2 className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="absolute inset-x-0 bottom-0 px-3 pb-4 text-white">
+            <div className="flex items-end justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-[36px] font-black leading-none tracking-[-0.03em]">{restaurantName}</h1>
+                <p className="mt-2 max-w-[94%] text-[14px] leading-5 text-white/92">{address}</p>
+                <p className="mt-2 text-[14px] text-white/90">
+                  {costForTwo}
+                  <span className="mx-1.5 text-white/65">•</span>
+                  {cuisines}
+                </p>
+                <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-black/28 px-2.5 py-1 text-[13px] font-medium backdrop-blur-sm">
+                  <CheckCircle2 className="h-4 w-4 text-[#48d597]" />
+                  <span>Open now</span>
+                  <span className="text-white/70">|</span>
+                  <span>{openingTime} to {closingTime}</span>
+                </div>
+              </div>
+
+              <div className="mb-1 shrink-0 rounded-[18px] bg-white px-3 py-2 text-center text-[#1f2328] shadow-xl">
+                <div className="flex items-center justify-center gap-1 text-[31px] font-black leading-none">
+                  <span>{rating}</span>
+                  <span className="text-[18px] text-[#18b54f]">★</span>
+                </div>
+                <p className="mt-1 text-[13px] leading-4 text-[#6e7481]">{reviewCount} Reviews</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-3 pb-1 pt-3">
+          <div className="grid grid-cols-[1.62fr_0.72fr_0.72fr] gap-2.5">
+            <button
+              onClick={() => setIsBookingSheetOpen(true)}
+              className="flex h-[52px] items-center justify-center gap-2 rounded-full border border-[#f1ebee] bg-white px-3 text-[15px] font-medium text-[#2b2118] shadow-[0_10px_24px_rgba(15,23,42,0.05)]"
+            >
+              <Ticket className="h-[15px] w-[15px] text-[#ef4c62]" />
+              <span>Book a table</span>
+            </button>
+            <button className="flex h-[52px] items-center justify-center rounded-full border border-[#f1ebee] bg-white text-[#ef4c62] shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+              <Tag className="h-[15px] w-[15px]" />
+            </button>
+            <button className="flex h-[52px] items-center justify-center rounded-full border border-[#f1ebee] bg-white text-[#ef4c62] shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+              <Clock3 className="h-[15px] w-[15px]" />
+            </button>
+          </div>
+
+          <div className="mt-4 overflow-hidden rounded-[18px] bg-[linear-gradient(180deg,#fff0ce,#fff8ea)] px-4 py-4 shadow-[0_8px_24px_rgba(238,184,68,0.22)]">
+            <div className="flex items-center justify-between gap-3">
+              <div className="rounded-full bg-[#8e77ff]/10 p-2 text-[#7f69eb]">
+                <Percent className="h-5 w-5" />
+              </div>
+              <div className="flex-1 text-center">
+                <p className="text-[33px] font-black leading-none tracking-[-0.04em] text-[#2c2352]">20% CASHBACK</p>
+                <p className="mt-1 text-[14px] font-medium text-[#4a4068]">on every dining bill</p>
+              </div>
+              <div className="rounded-full bg-[#8e77ff]/10 p-2 text-[#7f69eb]">
+                <Percent className="h-5 w-5" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="sticky top-0 z-30 border-b border-[#ececf3] bg-white/95 backdrop-blur-xl">
+        <div className="mx-auto max-w-md px-3 pb-3 pt-3">
+          <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {topTabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setActiveTab(tab.id)
+                  scrollToSection(tab.target)
+                }}
+                className={`shrink-0 rounded-full border px-4 py-2 text-sm transition-colors ${
+                  activeTab === tab.id
+                    ? "border-[#ef6b73] bg-white text-[#2a2018]"
+                    : "border-[#ece9e1] bg-[#fafafa] text-[#8b8881]"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-md px-4 pt-4">
+        <section id="restaurant-prebook">
+          <div>
+            <h2 className="text-[29px] font-black leading-none text-[#23180f]">Pre-book offers</h2>
+            <p className="mt-1 text-[15px] text-[#ef4c62]">Limited slots with extra offers</p>
+          </div>
+
+          <div className="mt-3 overflow-hidden rounded-[18px] bg-[linear-gradient(135deg,#0f4a87,#0b2954_70%)] text-white shadow-[0_10px_26px_rgba(8,52,95,0.25)]">
+            <div className="flex items-start justify-between px-4 pb-3 pt-4">
+              <div>
+                <p className="text-[28px] font-black leading-none">Flat 50% OFF</p>
+                <p className="mt-2 text-[14px] text-white/80">Dining Carnival offer</p>
+              </div>
+              <button className="rounded-full bg-black/45 px-4 py-2 text-[13px] font-semibold text-white backdrop-blur-sm">
+                Book now
+              </button>
+            </div>
+            <div className="border-t border-white/10 px-4 py-2 text-center text-[12px] text-white/75">
+              3 slots available from 3:30 PM today
+            </div>
+          </div>
+        </section>
+
+        <section id="restaurant-menu" className="mt-5 border-t border-[#e8e8ef] pt-4">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <h2 className="text-[28px] font-black leading-none text-[#23180f]">Menu</h2>
+              <p className="mt-2 text-[13px] text-[#e19135]">Last updated a month ago</p>
+            </div>
+            <div className="rounded-full bg-[#fff3e6] px-3 py-1 text-xs font-semibold text-[#e58a2c]">
+              {featuredSections.length || 2} dishes
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            {(featuredSections.length > 0
+              ? featuredSections
+              : [
+                  { id: "food", title: "Food", pages: 16 },
+                  { id: "beverages", title: "Beverages", pages: 10 },
+                ]).map((section, index) => (
+              <div key={section.id} className="overflow-hidden rounded-[18px] border border-[#ede8dd] bg-white">
+                <div className="aspect-[0.88] bg-[#f7f1e7]">
+                  {menuPreviewImages[index] ? (
+                    <img src={menuPreviewImages[index]} alt={section.title} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full items-center justify-center bg-[radial-gradient(circle_at_top,#fff3e0,#f3eadf)] text-sm font-medium text-[#a28868]">
+                      Menu preview
+                    </div>
+                  )}
+                </div>
+                <div className="px-2 pb-3 pt-2 text-center">
+                  <p className="text-[16px] font-medium leading-tight text-[#2b2218]">{section.title}</p>
+                  <p className="mt-1 text-[12px] text-[#7f7a73]">{section.pages} pages</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section id="restaurant-photos" className="mt-5 border-t border-[#e8e8ef] pt-4">
+          <h2 className="text-[28px] font-black leading-none text-[#23180f]">Photos</h2>
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            {(imageGallery.length > 0 ? imageGallery.slice(0, 4) : menuPreviewImages.slice(0, 2)).map((image, index) => (
+              <div
+                key={`${image || "placeholder"}-${index}`}
+                className={`overflow-hidden rounded-[18px] bg-[#f6efe4] ${
+                  index === 0 ? "col-span-2 aspect-[1.72]" : "aspect-[1.08]"
+                }`}
+              >
+                {image ? (
+                  <img src={image} alt={`${restaurantName} ${index + 1}`} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-sm text-[#a28868]">Photo coming soon</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section id="restaurant-about" className="mt-5 border-t border-[#e8e8ef] pt-4">
+          <h2 className="text-[28px] font-black leading-none text-[#23180f]">About the restaurant</h2>
+
+          <div className="mt-4 rounded-[18px] border border-[#ececf4] bg-[#fafbff] p-4">
+            <div className="space-y-4 text-[14px] text-[#5f6474]">
+              <div className="flex items-start gap-3">
+                <IndianRupee className="mt-0.5 h-4 w-4 shrink-0 text-[#f0b500]" />
+                <p>{costForTwo}</p>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="mt-[7px] h-2 w-2 shrink-0 rounded-full bg-[#8a8f9d]" />
+                <p>{cuisines}</p>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[#ef4c62]" />
+                <p>{address}</p>
+              </div>
+            </div>
+
+            <div className="mt-5 border-t border-[#e8e8ef] pt-4">
+              <h3 className="text-[20px] font-semibold text-[#23180f]">Featured In</h3>
+              <div className="mt-3 overflow-hidden rounded-[16px] bg-white shadow-sm">
+                <div className="aspect-[1.2] bg-[#efe8df]">
+                  {heroImage ? (
+                    <img src={heroImage} alt={restaurantName} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-sm text-[#a28868]">Featured image</div>
+                  )}
+                </div>
+                <div className="-mt-14 bg-[linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,0.72))] p-3 pt-10 text-sm font-medium text-white">
+                  Pan-Asian Restaurants
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 border-t border-[#e8e8ef] pt-4">
+              <h3 className="text-[20px] font-semibold text-[#23180f]">Facilities</h3>
+              <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
+                {facilities.slice(0, 6).map((facility) => (
+                  <div key={facility} className="flex items-center gap-2 text-[14px] text-[#5f6474]">
+                    <span className="inline-block h-[7px] w-[7px] rounded-full border border-[#8a8f9d]" />
+                    <span>{facility}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-[#ebe5da] bg-white/95 p-4 backdrop-blur-xl">
+        <div className="mx-auto max-w-md">
+          <Button
+            onClick={() => setIsBookingSheetOpen(true)}
+            className="h-12 w-full rounded-2xl border border-[#f3b4be] bg-white text-[17px] font-medium text-[#ef4c62] hover:bg-[#fff6f8]"
+          >
+            Book a table
+          </Button>
+        </div>
+      </div>
+
+      {isBookingSheetOpen && (
+        <div className="fixed inset-0 z-40">
+          <button
+            aria-label="Close booking sheet"
+            className="absolute inset-0 bg-black/35"
+            onClick={() => setIsBookingSheetOpen(false)}
+          />
+
+          <div className="absolute bottom-0 left-0 right-0 rounded-t-[28px] bg-white px-4 pb-6 pt-4 shadow-[0_-20px_60px_rgba(15,23,42,0.18)]">
+            <div className="mx-auto mb-4 h-1.5 w-14 rounded-full bg-[#e7e5e4]" />
+
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-xl font-black text-[#23180f]">Select number of guests</h3>
+                <p className="mt-1 text-sm text-[#7b6651]">Choose how many people will be joining.</p>
+              </div>
+              <button
+                onClick={() => setIsBookingSheetOpen(false)}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f5f5f5] text-[#5b5b5b]"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-4 gap-3">
+              {Array.from({ length: Math.min(restaurant?.diningSettings?.maxGuests || 6, 8) }, (_, index) => index + 1).map((count) => (
+                <button
+                  key={`sheet-${count}`}
+                  onClick={() => setSelectedGuests(count)}
+                  className={`rounded-2xl border px-3 py-4 text-sm font-bold transition-colors ${
+                    selectedGuests === count
+                      ? "border-[#ef8f6a] bg-[#fff4f0] text-[#d5541b]"
+                      : "border-[#ece7de] bg-white text-[#23180f]"
+                  }`}
+                >
+                  {count}
+                </button>
+              ))}
+            </div>
+
+            <Button
+              onClick={handleContinueBooking}
+              className="mt-6 h-12 w-full rounded-2xl bg-[#f04f61] text-base font-bold text-white hover:bg-[#e13e52]"
+            >
+              Continue
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

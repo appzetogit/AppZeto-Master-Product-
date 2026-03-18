@@ -19,7 +19,7 @@ const filterOptions = [
   { id: 'under-30-mins', label: 'Under 30 mins' },
   { id: 'price-match', label: 'Price Match', hasIcon: true },
   { id: 'flat-50-off', label: 'Flat 50% OFF', hasIcon: true },
-  { id: 'under-250', label: 'Under ?250' },
+  { id: 'under-250', label: 'Under ₹250' },
   { id: 'rating-4-plus', label: 'Rating 4.0+' },
 ]
 
@@ -210,9 +210,9 @@ export default function SearchResults() {
 
             // Common default values from backend model
             const defaultOffers = [
-              "Flat ?50 OFF above ?199",
+              "Flat ₹50 OFF above ₹199",
               "Flat 50% OFF",
-              "Flat ?40 OFF above ?149"
+              "Flat ₹40 OFF above ₹149"
             ]
             const defaultDeliveryTimes = ["25-30 mins", "20-25 mins", "30-35 mins"]
             const defaultDistances = ["1.2 km", "1 km", "0.8 km"]

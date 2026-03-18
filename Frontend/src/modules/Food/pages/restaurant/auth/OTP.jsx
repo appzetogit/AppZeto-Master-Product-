@@ -239,6 +239,21 @@ export default function RestaurantOTP() {
         err?.response?.data?.error ||
         err?.message ||
         "Invalid OTP. Please try again."
+
+      if (/pending approval/i.test(message)) {
+        const pendingPhone = authData?.phone || authData?.email || contactInfo
+        if (pendingPhone) {
+          setRestaurantPendingPhone(pendingPhone)
+        }
+        sessionStorage.removeItem("restaurantAuthData")
+        sessionStorage.removeItem("restaurantLoginPhone")
+        navigate("/food/restaurant/pending-verification", {
+          replace: true,
+          state: { phone: pendingPhone || "" },
+        })
+        return
+      }
+
       setError(message)
       setOtp(["", "", "", ""])
       hasSubmittedRef.current = false

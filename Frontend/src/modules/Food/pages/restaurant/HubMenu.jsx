@@ -586,8 +586,8 @@ export default function HubMenu() {
 
       if (editingAddon) {
         // Update existing add-on
-        await restaurantAPI.updateAddon(editingAddon.id, addonData)
-        toast.success('Add-on updated successfully! Pending admin approval if previously approved.')
+        await restaurantAPI.updateAddon(editingAddon.id, { draft: addonData })
+        toast.success('Add-on updated successfully! Pending admin approval.')
       } else {
         // Create new add-on
         await restaurantAPI.addAddon(addonData)
@@ -615,10 +615,7 @@ export default function HubMenu() {
 
   // Handle edit add-on
   const handleEditAddon = (addon) => {
-    if (!isPendingApproval(addon?.approvalStatus)) {
-      toast.error("Approved or rejected add-ons cannot be edited")
-      return
-    }
+    // Edits create a new pending draft while keeping old published version visible (if any).
     setEditingAddon(addon)
     setAddonName(addon.name || "")
     setAddonDescription(addon.description || "")
@@ -1248,6 +1245,9 @@ export default function HubMenu() {
                           {addon.approvalStatus === 'rejected' && (
                             <span className="px-2 py-0.5 text-xs font-medium bg-red-100 text-red-800 rounded">Rejected</span>
                           )}
+                          {addon.isAvailable === false && (
+                            <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-700 rounded">Unavailable</span>
+                          )}
                         </div>
                         {addon.description && (
                           <p className="text-sm text-gray-600 mb-2">{addon.description}</p>
@@ -1255,6 +1255,11 @@ export default function HubMenu() {
                         <p className="text-base font-bold text-gray-900">?{addon.price}</p>
                         {isRejectedApproval(addon.approvalStatus) && addon.rejectionReason && (
                           <p className="text-xs text-red-600 mt-1">Reason: {addon.rejectionReason}</p>
+                        )}
+                        {isPendingApproval(addon.approvalStatus) && addon.published && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            User app is still showing the last approved version until this draft is approved.
+                          </p>
                         )}
                       </div>
                       <div className="flex items-start gap-2">
@@ -1269,15 +1274,33 @@ export default function HubMenu() {
                           />
                         )}
                         <div className="flex flex-col gap-2">
-                          {isPendingApproval(addon.approvalStatus) && (
-                            <button
-                              onClick={() => handleEditAddon(addon)}
-                              className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
-                              title="Edit add-on"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </button>
-                          )}
+                          <button
+                            onClick={() => handleEditAddon(addon)}
+                            className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
+                            title="Edit add-on"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={async () => {
+                              try {
+                                await restaurantAPI.updateAddon(addon.id, { isAvailable: addon.isAvailable === false })
+                                toast.success(addon.isAvailable === false ? "Add-on enabled" : "Add-on disabled")
+                                fetchAddons(false)
+                              } catch (error) {
+                                debugError("Error toggling add-on availability:", error)
+                                toast.error(error?.response?.data?.message || "Failed to update availability")
+                              }
+                            }}
+                            className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                              addon.isAvailable === false
+                                ? "bg-green-600 text-white hover:bg-green-700"
+                                : "bg-gray-900 text-white hover:bg-gray-800"
+                            }`}
+                            title="Toggle availability"
+                          >
+                            {addon.isAvailable === false ? "Enable" : "Disable"}
+                          </button>
                           <button
                             onClick={() => handleDeleteAddon(addon)}
                             className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"

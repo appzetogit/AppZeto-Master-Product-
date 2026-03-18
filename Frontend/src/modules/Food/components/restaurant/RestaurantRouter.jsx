@@ -81,6 +81,7 @@ const Login = lazy(() => import("@food/pages/restaurant/auth/Login"))
 const OTP = lazy(() => import("@food/pages/restaurant/auth/OTP"))
 const Signup = lazy(() => import("@food/pages/restaurant/auth/Signup"))
 const ForgotPassword = lazy(() => import("@food/pages/restaurant/auth/ForgotPassword"))
+const VerificationPending = lazy(() => import("@food/pages/restaurant/auth/VerificationPending"))
 
 export default function RestaurantRouter() {
   return (
@@ -92,6 +93,7 @@ export default function RestaurantRouter() {
         <Route path="otp" element={<OTP />} />
         <Route path="signup" element={<Signup />} />
         <Route path="forgot-password" element={<ForgotPassword />} />
+        <Route path="pending-verification" element={<VerificationPending />} />
 
         {/* Protected Routes */}
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><OrdersMain /></ProtectedRoute>} path="" />

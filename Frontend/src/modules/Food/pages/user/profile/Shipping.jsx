@@ -15,7 +15,7 @@ export default function Shipping() {
   const [loading, setLoading] = useState(true)
   const [shippingData, setShippingData] = useState({
     title: 'Shipping Policy',
-    content: '<p>Loading...</p>'
+    content: ''
   })
 
   useEffect(() => {
@@ -27,13 +27,13 @@ export default function Shipping() {
       setLoading(true)
       const response = await api.get(API_ENDPOINTS.ADMIN.SHIPPING_PUBLIC)
       if (response.data.success) {
-        setShippingData(response.data.data)
+        setShippingData(response.data.data || { title: 'Shipping Policy', content: '' })
       }
     } catch (error) {
       debugError('Error fetching shipping data:', error)
       setShippingData({
         title: 'Shipping Policy',
-        content: '<p>Unable to load shipping policy at the moment. Please try again later.</p>'
+        content: ''
       })
     } finally {
       setLoading(false)

@@ -82,6 +82,23 @@ const userSchema = new mongoose.Schema(
         email: {
             type: String
         },
+        profileImage: {
+            type: String,
+            default: ''
+        },
+        dateOfBirth: {
+            type: Date,
+            default: null
+        },
+        anniversary: {
+            type: Date,
+            default: null
+        },
+        gender: {
+            type: String,
+            enum: ['male', 'female', 'other', 'prefer-not-to-say', ''],
+            default: ''
+        },
         referralCode: {
             type: String
         },

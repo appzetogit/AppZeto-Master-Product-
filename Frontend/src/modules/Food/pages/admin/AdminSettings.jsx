@@ -29,6 +29,9 @@ export default function AdminSettings() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
+  const [dispatchMode, setDispatchMode] = useState("manual");
+  const [dispatchLoading, setDispatchLoading] = useState(true);
+  const [dispatchSaving, setDispatchSaving] = useState(false);
 
   // Single API: getAdminProfile (GET /auth/me) for current account display
   useEffect(() => {

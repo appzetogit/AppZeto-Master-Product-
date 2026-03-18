@@ -207,4 +207,16 @@ export const adminSidebarMenu = [
       { type: "link", label: "Dining List", path: "/admin/food/dining-list", icon: "FileText" },
     ],
   },
+  {
+    type: "section",
+    label: "PAGES & SOCIAL MEDIA",
+    items: [
+      { type: "link", label: "About Us", path: "/admin/food/pages-social-media/about", icon: "Globe" },
+      { type: "link", label: "Terms & Conditions", path: "/admin/food/pages-social-media/terms", icon: "FileText" },
+      { type: "link", label: "Privacy Policy", path: "/admin/food/pages-social-media/privacy", icon: "Lock" },
+      { type: "link", label: "Refund Policy", path: "/admin/food/pages-social-media/refund", icon: "Receipt" },
+      { type: "link", label: "Shipping Policy", path: "/admin/food/pages-social-media/shipping", icon: "Truck" },
+      { type: "link", label: "Cancellation Policy", path: "/admin/food/pages-social-media/cancellation", icon: "X" },
+    ],
+  },
 ];

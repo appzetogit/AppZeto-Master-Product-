@@ -414,13 +414,13 @@ export default function TripHistory() {
                   <div>
                     <p className="text-xs text-emerald-700">COD Collected</p>
                     <p className="text-lg font-bold text-emerald-900">
-                      ?{dailyMetrics.codCollected.toFixed(2)}
+                      ₹{dailyMetrics.codCollected.toFixed(2)}
                     </p>
                   </div>
                   <div className="text-right">
                     <p className="text-xs text-emerald-700">Earnings</p>
                     <p className="text-lg font-bold text-emerald-900">
-                      ?{dailyMetrics.totalEarnings.toFixed(2)}
+                      ₹{dailyMetrics.totalEarnings.toFixed(2)}
                     </p>
                   </div>
                 </div>
@@ -494,11 +494,11 @@ export default function TripHistory() {
                   </div>
                   <div className="text-right">
                     <p className="text-xs text-gray-500">COD</p>
-                    <p className="text-sm font-semibold text-black mt-1">?{codAmount.toFixed(2)}</p>
+                    <p className="text-sm font-semibold text-black mt-1">₹{codAmount.toFixed(2)}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-xs text-gray-500">Earning</p>
-                    <p className="text-sm font-semibold text-black mt-1">?{earningAmount.toFixed(2)}</p>
+                    <p className="text-sm font-semibold text-black mt-1">₹{earningAmount.toFixed(2)}</p>
                   </div>
                 </div>
                   )
@@ -573,7 +573,7 @@ export default function TripHistory() {
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex-1">
                             <p className="text-lg font-bold text-black">
-                              ?{transaction.amount?.toFixed(2) || '0.00'}
+                              ₹{transaction.amount?.toFixed(2) || '0.00'}
                             </p>
                             <p className="text-sm text-gray-600 mt-1">
                               {transaction.description || transaction.metadata?.reference || 'Bonus'}

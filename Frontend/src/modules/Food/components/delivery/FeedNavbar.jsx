@@ -60,6 +60,7 @@ function BottomPopup({
 export default function FeedNavbar({ className = "" }) {
   const companyName = useCompanyName()
   const navigate = useNavigate();
+  const normalizePhoneForDial = (value) => String(value || "").replace(/[^\d]/g, "");
 
   // 1) Init from localStorage (no toast on mount)
   const [isOnline, setIsOnline] = useState(() => {
@@ -248,11 +249,16 @@ export default function FeedNavbar({ className = "" }) {
   const [profileImage, setProfileImage] = useState(null);
   const [imageError, setImageError] = useState(false);
 
-  // Fetch emergency help numbers
+  // Fetch emergency help numbers once per mount (no refetch loop)
+  const emergencyHelpFetched = useRef(false);
   useEffect(() => {
-    const fetchEmergencyHelp = async () => {
+    if (emergencyHelpFetched.current) return;
+    emergencyHelpFetched.current = true;
+    let cancelled = false;
+    (async () => {
       try {
         const response = await deliveryAPI.getEmergencyHelp();
+        if (cancelled) return;
         if (response?.data?.success && response?.data?.data) {
           setEmergencyNumbers({
             medicalEmergency: response.data.data.medicalEmergency || "",
@@ -262,12 +268,10 @@ export default function FeedNavbar({ className = "" }) {
           });
         }
       } catch (error) {
-        // Silently fail - use default empty numbers
-        debugError("Error fetching emergency help:", error);
+        if (!cancelled) debugError("Error fetching emergency help:", error);
       }
-    };
-
-    fetchEmergencyHelp();
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   // Emergency options with phone numbers from API
@@ -279,8 +283,9 @@ export default function FeedNavbar({ className = "" }) {
       icon: "ambulance", 
       phone: emergencyNumbers.medicalEmergency,
       onClick: () => {
-        if (emergencyNumbers.medicalEmergency) {
-          window.location.href = `tel:${emergencyNumbers.medicalEmergency}`;
+        const phoneToDial = normalizePhoneForDial(emergencyNumbers.medicalEmergency);
+        if (phoneToDial.length >= 3) {
+          window.location.href = `tel:${phoneToDial}`;
         } else {
           toast.error("Medical emergency number not configured");
         }
@@ -293,8 +298,9 @@ export default function FeedNavbar({ className = "" }) {
       icon: "accident", 
       phone: emergencyNumbers.accidentHelpline,
       onClick: () => {
-        if (emergencyNumbers.accidentHelpline) {
-          window.location.href = `tel:${emergencyNumbers.accidentHelpline}`;
+        const phoneToDial = normalizePhoneForDial(emergencyNumbers.accidentHelpline);
+        if (phoneToDial.length >= 3) {
+          window.location.href = `tel:${phoneToDial}`;
         } else {
           toast.error("Accident helpline number not configured");
         }
@@ -307,8 +313,9 @@ export default function FeedNavbar({ className = "" }) {
       icon: "police", 
       phone: emergencyNumbers.contactPolice,
       onClick: () => {
-        if (emergencyNumbers.contactPolice) {
-          window.location.href = `tel:${emergencyNumbers.contactPolice}`;
+        const phoneToDial = normalizePhoneForDial(emergencyNumbers.contactPolice);
+        if (phoneToDial.length >= 3) {
+          window.location.href = `tel:${phoneToDial}`;
         } else {
           toast.error("Police emergency number not configured");
         }
@@ -321,8 +328,9 @@ export default function FeedNavbar({ className = "" }) {
       icon: "insurance", 
       phone: emergencyNumbers.insurance,
       onClick: () => {
-        if (emergencyNumbers.insurance) {
-          window.location.href = `tel:${emergencyNumbers.insurance}`;
+        const phoneToDial = normalizePhoneForDial(emergencyNumbers.insurance);
+        if (phoneToDial.length >= 3) {
+          window.location.href = `tel:${phoneToDial}`;
         } else {
           toast.error("Insurance helpline number not configured");
         }

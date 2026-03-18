@@ -847,6 +847,48 @@ export const deliveryAPI = {
       { status: isOnline ? "online" : "offline", latitude, longitude },
       { contextModule: "delivery" },
     ),
+  /** GET /food/delivery/wallet - wallet for Pocket/requests page (backend) */
+  getWallet: () =>
+    apiClient.get("/food/delivery/wallet", { contextModule: "delivery" }),
+  /** GET /food/delivery/earnings - earnings summary for Pocket/requests page */
+  getEarnings: (params) =>
+    apiClient.get("/food/delivery/earnings", {
+      params: params ?? {},
+      contextModule: "delivery",
+    }),
+  /** GET /food/delivery/trip-history - completed/cancelled/pending trips for delivery partner */
+  getTripHistory: (params) =>
+    apiClient.get("/food/delivery/trip-history", {
+      params: params ?? {},
+      contextModule: "delivery",
+    }),
+  /** GET /food/delivery/pocket-details - single-call week details (trips + transactions) */
+  getPocketDetails: (params) =>
+    apiClient.get("/food/delivery/pocket-details", {
+      params: params ?? {},
+      contextModule: "delivery",
+    }),
+  /** GET /food/delivery/emergency-help - admin-set emergency numbers for delivery partner */
+  getEmergencyHelp: () =>
+    apiClient.get("/food/delivery/emergency-help", {
+      contextModule: "delivery",
+    }),
+  /** GET /food/delivery/cash-limit - admin-set cash limit for delivery partner */
+  getCashLimit: () =>
+    apiClient.get("/food/delivery/cash-limit", {
+      contextModule: "delivery",
+    }),
+  /** Wallet transactions - from wallet response (no separate backend endpoint) */
+  getWalletTransactions: (params) =>
+    apiClient.get("/food/delivery/wallet", { params: params ?? {}, contextModule: "delivery" }).then((res) => ({
+      ...res,
+      data: {
+        ...res.data,
+        data: {
+          transactions: res?.data?.data?.wallet?.transactions ?? [],
+        },
+      },
+    })),
 };
 
 export const userAPI = {

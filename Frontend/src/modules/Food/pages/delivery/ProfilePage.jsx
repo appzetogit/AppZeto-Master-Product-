@@ -310,7 +310,7 @@ export default function ProfilePage() {
           >
             <CardContent className="p-4 flex items-center justify-between">
               <div>
-                <h3 className="text-base font-medium mb-1">?2000 referral bonus</h3>
+                <h3 className="text-base font-medium mb-1">₹2000 referral bonus</h3>
                 <p className="text-gray-600 text-sm">Refer your friend and earn</p>
               </div>
               <div className="flex items-center justify-center w-12 h-12">

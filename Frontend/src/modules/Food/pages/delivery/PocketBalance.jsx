@@ -260,7 +260,7 @@ export default function PocketBalancePage() {
             <p className="font-semibold">Withdraw currently disabled</p>
             <p className="text-xs">
               {withdrawableAmount <= 0
-                ? "Withdrawable amount is ?0"
+                ? "Withdrawable amount is ₹0"
                 : `Withdrawable amount is minimum (${formatCurrency(withdrawalLimit)}).`}
             </p>
           </div>
@@ -293,7 +293,7 @@ export default function PocketBalancePage() {
           </DialogHeader>
           <div className="px-5 pb-5 space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Amount (?)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Amount (₹)</label>
               <input
                 type="number"
                 min={withdrawalLimit}

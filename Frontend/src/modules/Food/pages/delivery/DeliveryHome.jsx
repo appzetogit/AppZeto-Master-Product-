@@ -10031,7 +10031,7 @@ selectedRestaurant?.lng || null,
               }}
             >
               <div className="relative z-10">
-                <div className="text-white text-3xl font-bold mb-1">?6,000                 <span className="text-white/90 text-base font-medium mb-1">referral bonus</span>
+                <div className="text-white text-3xl font-bold mb-1">₹6,000                 <span className="text-white/90 text-base font-medium mb-1">referral bonus</span>
                  </div>
                 <div className="text-white/80 text-sm">Refer your friends now</div>
               </div>
@@ -10045,10 +10045,10 @@ selectedRestaurant?.lng || null,
               className="w-full rounded-xl p-6 shadow-lg bg-black text-white"
             >
               <div className="flex items-center text-center justify-center gap-2 mb-2">
-                <div className="text-4xl font-bold text-center">?100</div>
+                <div className="text-4xl font-bold text-center">₹100</div>
                 <Lock className="w-5 h-5 text-white" />
               </div>
-              <p className="text-white/90 text-center text-sm mb-4">Complete 1 order to unlock ?100</p>
+              <p className="text-white/90 text-center text-sm mb-4">Complete 1 order to unlock ₹100</p>
               <div className="flex items-center text-center justify-center gap-2 text-white/70 text-xs mb-4">
                 <Clock className="w-4 h-4" />
                 <span className="text-center">Valid till 10 December 2025</span>
@@ -10094,7 +10094,7 @@ selectedRestaurant?.lng || null,
                   </div>
                   {/* Summary Box */}
                   <div className="bg-black text-white px-4 py-3 rounded-lg text-center min-w-[80px]">
-                    <div className="text-2xl font-bold">?{earningsGuaranteeTarget.toFixed(0)}</div>
+                    <div className="text-2xl font-bold">₹{earningsGuaranteeTarget.toFixed(0)}</div>
                     <div className="text-xs text-white/80 mt-1">{earningsGuaranteeOrdersTarget} orders</div>
                   </div>
                 </div>
@@ -10180,7 +10180,7 @@ selectedRestaurant?.lng || null,
                         />
                       </svg>
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-lg font-bold text-gray-900">?{earningsGuaranteeCurrentEarnings.toFixed(2)}</span>
+                        <span className="text-lg font-bold text-gray-900">₹{earningsGuaranteeCurrentEarnings.toFixed(2)}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 mt-3">
@@ -10612,7 +10612,7 @@ selectedRestaurant?.lng || null,
                   <div className="mb-5">
                     <p className="text-gray-500 text-sm mb-1">Estimated earnings</p>
                     <p className="text-4xl font-bold text-gray-900 mb-2">
-                      ?{(() => {
+                      ₹{(() => {
                         const earnings = newOrder?.estimatedEarnings || selectedRestaurant?.estimatedEarnings || 0;
                         const fallback =
                           Number(newOrder?.deliveryFee ?? selectedRestaurant?.deliveryFee ?? selectedRestaurant?.amount) || 0;
@@ -10657,9 +10657,9 @@ selectedRestaurant?.lng || null,
                           <div className="bg-green-50 rounded-lg p-3 mb-2">
                             <p className="text-green-800 text-xs font-medium mb-1">Earnings Breakdown:</p>
                             <p className="text-green-700 text-xs">
-                              Base: ?{earnings.basePayout?.toFixed(0) || '0'}
+                              Base: ₹{earnings.basePayout?.toFixed(0) || '0'}
                               {earnings.distanceCommission > 0 && (
-                                <> + Extra Distance ({Math.max(0, (earnings.distance || 0) - (earnings.minDistance || 0)).toFixed(1)} km � ?{earnings.commissionPerKm?.toFixed(0)}/km) = ?{earnings.distanceCommission?.toFixed(0)}</>
+                                <> + Extra Distance ({Math.max(0, (earnings.distance || 0) - (earnings.minDistance || 0)).toFixed(1)} km × ₹{earnings.commissionPerKm?.toFixed(0)}/km) = ₹{earnings.distanceCommission?.toFixed(0)}</>
                               )}
                             </p>
                             {earnings.distance <= earnings.minDistance && earnings.distanceCommission === 0 && (
@@ -11621,7 +11621,7 @@ selectedRestaurant?.lng || null,
                     </span>
                   </div>
                   <span className={`text-lg font-bold ${isCod ? 'text-amber-700' : 'text-emerald-700'}`}>
-                    ?{total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    ₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
               </div>
@@ -11835,7 +11835,7 @@ selectedRestaurant?.lng || null,
             <div className="px-6 py-8 text-center bg-gray-50">
               <p className="text-gray-600 text-sm mb-2">Earnings from this order</p>
               <p className="text-5xl font-bold text-gray-900">
-                ?{(() => {
+                ₹{(() => {
                   if (orderEarnings > 0) {
                     return orderEarnings.toFixed(2);
                   }
@@ -11847,7 +11847,7 @@ selectedRestaurant?.lng || null,
                   return typeof earnings === 'number' ? earnings.toFixed(2) : '0.00';
                 })()}
               </p>
-              <p className="text-green-600 text-sm mt-2">?? Added to your wallet</p>
+              <p className="text-green-600 text-sm mt-2">₹ Added to your wallet</p>
             </div>
 
             {/* Payment Details */}
@@ -11858,7 +11858,7 @@ selectedRestaurant?.lng || null,
                 <div className="space-y-3">
                   <div className="flex justify-between items-center py-2 border-b border-gray-100">
                     <span className="text-gray-600">Trip pay</span>
-                    <span className="text-gray-900 font-semibold">?{(() => {
+                    <span className="text-gray-900 font-semibold">₹{(() => {
                       let earnings = 0;
                       if (orderEarnings > 0) {
                         earnings = orderEarnings;
@@ -11876,7 +11876,7 @@ selectedRestaurant?.lng || null,
                   
                   <div className="flex justify-between items-center py-2 border-b border-gray-100">
                     <span className="text-gray-600">Long distance return pay</span>
-                    <span className="text-gray-900 font-semibold">?5.00</span>
+                    <span className="text-gray-900 font-semibold">₹5.00</span>
                   </div>
 
                   {(() => {
@@ -11905,7 +11905,7 @@ selectedRestaurant?.lng || null,
                           {isCod ? 'Amount to collect from customer' : 'Amount paid by customer'}
                         </span>
                         <span className={`${isCod ? 'text-amber-700 font-semibold' : 'text-gray-900 font-semibold'}`}>
-                          ?{safeAmount.toFixed(2)}
+                          ₹{safeAmount.toFixed(2)}
                         </span>
                       </div>
                     )
@@ -11913,7 +11913,7 @@ selectedRestaurant?.lng || null,
                   
                   <div className="flex justify-between items-center py-2">
                     <span className="text-lg font-bold text-gray-900">Total Earnings</span>
-                    <span className="text-lg font-bold text-gray-900">?{(() => {
+                    <span className="text-lg font-bold text-gray-900">₹{(() => {
                       if (orderEarnings > 0) {
                         return orderEarnings.toFixed(2);
                       }

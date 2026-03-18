@@ -47,19 +47,20 @@ export default function DeliveryEmergencyHelp() {
 
   const validateForm = () => {
     const errors = {}
-    const phoneRegex = /^\d{10}$/
+    const phoneRegex = /^\d{3,15}$/
+    const normalizeDigits = (value) => String(value || "").replace(/[^\d]/g, "")
 
-    if (formData.medicalEmergency && !phoneRegex.test(formData.medicalEmergency.trim())) {
-      errors.medicalEmergency = "Phone number must be exactly 10 digits"
+    if (formData.medicalEmergency && !phoneRegex.test(normalizeDigits(formData.medicalEmergency))) {
+      errors.medicalEmergency = "Phone number must be 3 to 15 digits"
     }
-    if (formData.accidentHelpline && !phoneRegex.test(formData.accidentHelpline.trim())) {
-      errors.accidentHelpline = "Phone number must be exactly 10 digits"
+    if (formData.accidentHelpline && !phoneRegex.test(normalizeDigits(formData.accidentHelpline))) {
+      errors.accidentHelpline = "Phone number must be 3 to 15 digits"
     }
-    if (formData.contactPolice && !phoneRegex.test(formData.contactPolice.trim())) {
-      errors.contactPolice = "Phone number must be exactly 10 digits"
+    if (formData.contactPolice && !phoneRegex.test(normalizeDigits(formData.contactPolice))) {
+      errors.contactPolice = "Phone number must be 3 to 15 digits"
     }
-    if (formData.insurance && !phoneRegex.test(formData.insurance.trim())) {
-      errors.insurance = "Phone number must be exactly 10 digits"
+    if (formData.insurance && !phoneRegex.test(normalizeDigits(formData.insurance))) {
+      errors.insurance = "Phone number must be 3 to 15 digits"
     }
 
     setFormErrors(errors)
@@ -67,7 +68,7 @@ export default function DeliveryEmergencyHelp() {
   }
 
   const handleInputChange = (field, value) => {
-    const sanitizedValue = value.replace(/\D/g, "").slice(0, 10)
+    const sanitizedValue = String(value || "").replace(/[^\d]/g, "").slice(0, 15)
     setFormData(prev => ({
       ...prev,
       [field]: sanitizedValue
@@ -204,7 +205,7 @@ export default function DeliveryEmergencyHelp() {
                     onChange={(e) => handleInputChange(field.id, e.target.value)}
                     placeholder={field.placeholder}
                     inputMode="numeric"
-                    maxLength={10}
+                    maxLength={15}
                     className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                       formErrors[field.id]
                         ? "border-red-300 focus:ring-red-500"

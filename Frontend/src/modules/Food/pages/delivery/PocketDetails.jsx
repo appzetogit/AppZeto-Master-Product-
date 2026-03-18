@@ -10,7 +10,6 @@ import {
 import { formatCurrency } from "@food/utils/currency"
 import WeekSelector from "@food/components/delivery/WeekSelector"
 import { deliveryAPI } from "@food/api"
-import { fetchWalletTransactions } from "@food/utils/deliveryWalletState"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -43,49 +42,19 @@ export default function PocketDetails() {
       try {
         setLoading(true)
 
-        // 1) Fetch trips for selected week
-        const params = {
-          period: "weekly",
-          date: weekRange.start.toISOString().split("T")[0],
-          status: "Completed",
-          limit: 1000
-        }
-        const response = await deliveryAPI.getTripHistory(params)
-        const trips = response?.data?.data?.trips || []
-
-        // Filter trips within the selected week range
-        const filteredTrips = trips.filter((trip) => {
-          const tripDate = trip.deliveredAt || trip.completedAt || trip.createdAt || trip.date
-          if (!tripDate) return false
-          const d = new Date(tripDate)
-          return d >= weekRange.start && d <= weekRange.end
+        const response = await deliveryAPI.getPocketDetails({
+          date: weekRange.start.toISOString(),
+          limit: 2000
         })
 
-        // 2) Fetch payment transactions (earnings) for mapping by orderId
-        const payments = await fetchWalletTransactions({ type: "payment", limit: 1000 })
-        
-        // Filter payments within the selected week range
-        const filteredPayments = payments.filter((p) => {
-          const paymentDate = p.date || p.createdAt
-          if (!paymentDate) return false
-          const d = new Date(paymentDate)
-          return d >= weekRange.start && d <= weekRange.end && p.status === "Completed"
-        })
+        const payload = response?.data?.data || {}
+        const trips = payload?.trips || payload?.orders || []
+        const payments = payload?.transactions?.payment || []
+        const bonuses = payload?.transactions?.bonus || []
 
-        // 3) Fetch bonus transactions for mapping by orderId
-        const bonus = await fetchWalletTransactions({ type: "bonus", limit: 1000 })
-        
-        // Filter bonuses within the selected week range
-        const filteredBonuses = bonus.filter((b) => {
-          const bonusDate = b.date || b.createdAt
-          if (!bonusDate) return false
-          const d = new Date(bonusDate)
-          return d >= weekRange.start && d <= weekRange.end && b.status === "Completed"
-        })
-
-        setOrders(filteredTrips)
-        setPaymentTransactions(filteredPayments)
-        setBonusTransactions(filteredBonuses)
+        setOrders(Array.isArray(trips) ? trips : [])
+        setPaymentTransactions(Array.isArray(payments) ? payments : [])
+        setBonusTransactions(Array.isArray(bonuses) ? bonuses : [])
       } catch (error) {
         debugError("Error loading pocket details data:", error)
         setOrders([])

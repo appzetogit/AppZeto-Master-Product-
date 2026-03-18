@@ -28,9 +28,7 @@ import {
 import { formatCurrency } from "@food/utils/currency"
 import { useGigStore } from "@food/store/gigStore"
 import { useProgressStore } from "@food/store/progressStore"
-import { getAllDeliveryOrders } from "@food/utils/deliveryOrderStatus"
 import { deliveryAPI } from "@food/api"
-import { API_BASE_URL } from "@food/api/config"
 import FeedNavbar from "@food/components/delivery/FeedNavbar"
 import AvailableCashLimit from "@food/components/delivery/AvailableCashLimit"
 import BottomPopup from "@food/components/delivery/BottomPopup"
@@ -197,8 +195,10 @@ export default function PocketPage() {
   const weeklyOrders = liveWeekStats.orders ?? weeklyOrdersFromWallet
 
   // Fetch real-time week summary so Pocket order count and earning stay updated.
+  // Earnings summary – fetch once, then every 60s when tab visible (no rapid loop)
   useEffect(() => {
     const fetchLiveWeekStats = async () => {
+      if (document.hidden) return
       try {
         const response = await deliveryAPI.getEarnings({
           period: "week",
@@ -206,7 +206,6 @@ export default function PocketPage() {
           page: 1,
           limit: 1000
         })
-
         const summary = response?.data?.data?.summary || {}
         setLiveWeekStats({
           earnings: Number(summary.totalEarnings) || 0,
@@ -221,14 +220,15 @@ export default function PocketPage() {
     }
 
     fetchLiveWeekStats()
-    const intervalId = setInterval(fetchLiveWeekStats, 5000)
-    window.addEventListener("deliveryWalletStateUpdated", fetchLiveWeekStats)
-    window.addEventListener("deliveryOrderStatusUpdated", fetchLiveWeekStats)
+    const intervalId = setInterval(fetchLiveWeekStats, 60000)
+    const onWalletOrOrderUpdate = () => { fetchLiveWeekStats() }
+    window.addEventListener("deliveryWalletStateUpdated", onWalletOrOrderUpdate)
+    window.addEventListener("deliveryOrderStatusUpdated", onWalletOrOrderUpdate)
 
     return () => {
       clearInterval(intervalId)
-      window.removeEventListener("deliveryWalletStateUpdated", fetchLiveWeekStats)
-      window.removeEventListener("deliveryOrderStatusUpdated", fetchLiveWeekStats)
+      window.removeEventListener("deliveryWalletStateUpdated", onWalletOrOrderUpdate)
+      window.removeEventListener("deliveryOrderStatusUpdated", onWalletOrOrderUpdate)
     }
   }, [])
 
@@ -385,22 +385,6 @@ export default function PocketPage() {
     }
   }
 
-  // Debug: Log pocket balance calculation
-  useEffect(() => {
-    const bonusTransactions = walletState?.transactions?.filter(t => t.type === 'bonus' && t.status === 'Completed') || []
-    const calculatedTotalBonus = bonusTransactions.reduce((sum, t) => sum + (t.amount || 0), 0) || 0
-
-    debugLog('?? FINAL Pocket Balance Display:', {
-      pocketBalance: pocketBalance,
-      walletStatePocketBalance: walletState?.pocketBalance,
-      walletStateTotalBalance: walletState?.totalBalance,
-      balancesTotalBalance: balances.totalBalance,
-      totalBonus: calculatedTotalBonus,
-      weeklyEarnings: weeklyEarningsFromWallet,
-      bonusTransactions: bonusTransactions
-    })
-    // Only depend on walletState and balances - totalBonus and weeklyEarnings are derived from these
-  }, [pocketBalance, walletState, balances, weeklyEarningsFromWallet])
   // Available cash limit = remaining limit (global limit - cash in hand)
   const totalCashLimit = Number.isFinite(Number(walletState?.totalCashLimit))
     ? Number(walletState.totalCashLimit)
@@ -458,23 +442,20 @@ export default function PocketPage() {
 
   const payoutPeriod = getPayoutPeriod()
 
-  // Fetch wallet data from API
+  // Fetch wallet data – once on mount, then every 60s when tab visible; no storage listener (was causing repeated calls)
   useEffect(() => {
+    let mounted = true
     const fetchWalletData = async () => {
+      if (document.hidden) return
       try {
         setWalletLoading(true)
         const walletData = await fetchDeliveryWallet()
+        if (!mounted) return
         setWalletState(walletData)
-        debugLog('?? Wallet data fetched:', walletData)
-        debugLog('?? Total Balance from API:', walletData?.totalBalance)
-        debugLog('?? Pocket Balance from API:', walletData?.pocketBalance)
-        debugLog('?? Bonus Transactions:', walletData?.transactions?.filter(t => t.type === 'bonus'))
-        const totalBonus = walletData?.transactions?.filter(t => t.type === 'bonus' && t.status === 'Completed')
-          .reduce((sum, t) => sum + (t.amount || 0), 0) || 0
-        debugLog('?? Total Bonus Amount:', totalBonus)
+        debugLog('?? Wallet data fetched:', walletData?.totalBalance)
       } catch (error) {
+        if (!mounted) return
         debugError('Error fetching wallet data:', error)
-        // Keep empty state on error
         setWalletState({
           totalBalance: 0,
           cashInHand: 0,
@@ -484,44 +465,27 @@ export default function PocketPage() {
           joiningBonusClaimed: false
         })
       } finally {
-        setWalletLoading(false)
+        if (mounted) setWalletLoading(false)
       }
     }
 
     fetchWalletData()
-
-    // Refresh wallet data every 3 seconds to get latest balance (including bonus) - FAST REFRESH
-    const refreshInterval = setInterval(() => {
-      fetchWalletData()
-    }, 3000)
-
-    // INSTANT refresh when page becomes visible (user switches back to tab) - BONUS SHOWS FAST
+    const refreshInterval = setInterval(fetchWalletData, 60000)
     const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        fetchWalletData() // Instant refresh when user comes back
-      }
+      if (!document.hidden) fetchWalletData()
     }
+    const handleFocus = () => { fetchWalletData() }
+    const handleWalletUpdate = () => { fetchWalletData() }
     document.addEventListener('visibilitychange', handleVisibilityChange)
-
-    // INSTANT refresh when window gets focus - BONUS SHOWS FAST
-    const handleFocus = () => {
-      fetchWalletData() // Instant refresh when window gets focus
-    }
     window.addEventListener('focus', handleFocus)
-
-    // Listen for custom wallet update events
-    const handleWalletUpdate = () => {
-      fetchWalletData()
-    }
     window.addEventListener('deliveryWalletStateUpdated', handleWalletUpdate)
-    window.addEventListener('storage', handleWalletUpdate)
 
     return () => {
+      mounted = false
       clearInterval(refreshInterval)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('focus', handleFocus)
       window.removeEventListener('deliveryWalletStateUpdated', handleWalletUpdate)
-      window.removeEventListener('storage', handleWalletUpdate)
     }
   }, [location.pathname])
 
@@ -738,7 +702,7 @@ export default function PocketPage() {
               <div key={slide.id} className="min-w-full">
                 <div className={`${slide.bgColor} px-4 py-3 flex items-center gap-3 min-h-[80px]`}>
                   {/* Icon */}
-                  <div className="flex-shrink-0">
+                  <div className="shrink-0">
                     {slide.icon === "bag" ? (
                       <div className="relative">
                         {/* Delivery Bag Icon - Reduced size */}
@@ -823,7 +787,7 @@ export default function PocketPage() {
 
             {/* Earnings number */}
             <div className="text-black text-3xl font-bold text-center">
-              ?{weeklyEarnings.toFixed(0)}
+              ₹{weeklyEarnings.toFixed(0)}
             </div>
 
           </CardContent>
@@ -853,7 +817,7 @@ export default function PocketPage() {
               </div>
               {/* Summary Box */}
               <div className="bg-black text-white px-4 py-3 rounded-lg text-center min-w-[80px]">
-                <div className="text-2xl font-bold">?{earningsGuaranteeTarget.toFixed(0)}</div>
+                <div className="text-2xl font-bold">₹{earningsGuaranteeTarget.toFixed(0)}</div>
                 <div className="text-xs text-white/80 mt-1">{earningsGuaranteeOrdersTarget} orders</div>
               </div>
             </div>
@@ -939,7 +903,7 @@ export default function PocketPage() {
                     />
                   </svg>
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-lg font-bold text-gray-900">?{earningsGuaranteeCurrentEarnings.toFixed(2)}</span>
+                    <span className="text-lg font-bold text-gray-900">₹{earningsGuaranteeCurrentEarnings.toFixed(2)}</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 mt-3">
@@ -966,7 +930,7 @@ export default function PocketPage() {
               <div onClick={() => navigate("/delivery/pocket-balance")} className="flex items-center justify-between">
                 <span className="text-black text-sm">Pocket balance</span>
                 <div className="flex items-center gap-2">
-                  <span className="text-black text-sm font-medium">?{pocketBalance.toFixed(2)}</span>
+                  <span className="text-black text-sm font-medium">₹{pocketBalance.toFixed(2)}</span>
                   <ArrowRight className="w-4 h-4 text-gray-600" />
                 </div>
               </div>
@@ -977,7 +941,7 @@ export default function PocketPage() {
               <div onClick={() => setShowCashLimitPopup(true)} className="flex items-center justify-between">
                 <span className="text-black text-sm">Available cash limit</span>
                 <div className="flex items-center gap-2">
-                  <span className="text-black text-sm font-medium">?{availableCashLimit.toFixed(2)}</span>
+                  <span className="text-black text-sm font-medium">₹{availableCashLimit.toFixed(2)}</span>
                   <ArrowRight className="w-4 h-4 text-gray-600" />
                 </div>
               </div>
@@ -988,7 +952,7 @@ export default function PocketPage() {
                   <span className="text-yellow-500 text-xs font-bold leading-none">!</span>
                 </div>
                 <p className="text-black text-sm font-medium flex-1">
-                  Deposit ?{depositAmount.toFixed(2)} to avoid getting blocked
+                  Deposit ₹{depositAmount.toFixed(2)} to avoid getting blocked
                 </p>
               </div> */}
 
@@ -1022,7 +986,7 @@ export default function PocketPage() {
               onClick={() => navigate("/delivery/payout")}
             >
               <CardContent className="p-4 flex flex-col items-start text-start">
-                <div className="text-black text-2xl font-bold mb-2">?{payoutAmount}</div>
+                <div className="text-black text-2xl font-bold mb-2">₹{payoutAmount}</div>
                 <div className="text-black text-sm font-medium mb-1">Payout</div>
                 <div className="text-gray-600 text-xs">{payoutPeriod}</div>
               </CardContent>

@@ -6,7 +6,10 @@ const phoneString = z
     .optional()
     .or(z.literal(''))
     .transform((v) => String(v || '').trim())
-    .refine((v) => v === '' || /^\d{10}$/.test(v), { message: 'Phone number must be exactly 10 digits' });
+    .transform((v) => v.replace(/[^\d]/g, ''))
+    .refine((v) => v === '' || /^\d{3,15}$/.test(v), {
+        message: 'Phone number must be 3 to 15 digits'
+    });
 
 const upsertSchema = z.object({
     medicalEmergency: phoneString,

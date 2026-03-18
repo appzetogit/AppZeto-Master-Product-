@@ -1,4 +1,5 @@
-import { registerDeliveryPartner, updateDeliveryPartnerProfile, updateDeliveryPartnerBankDetails, listSupportTicketsByPartner, createSupportTicket, getSupportTicketByIdAndPartner, updateDeliveryPartnerDetails, updateDeliveryPartnerProfilePhotoBase64, updateDeliveryAvailability } from '../services/delivery.service.js';
+import { registerDeliveryPartner, updateDeliveryPartnerProfile, updateDeliveryPartnerBankDetails, listSupportTicketsByPartner, createSupportTicket, getSupportTicketByIdAndPartner, updateDeliveryPartnerDetails, updateDeliveryPartnerProfilePhotoBase64, updateDeliveryAvailability, getDeliveryPartnerWallet, getDeliveryPartnerEarnings, getDeliveryPartnerTripHistory, getDeliveryPocketDetails } from '../services/delivery.service.js';
+import { getDeliveryCashLimitSettings, getDeliveryEmergencyHelp } from '../../admin/services/admin.service.js';
 import { validateDeliveryRegisterDto, validateDeliveryProfileUpdateDto, validateDeliveryBankDetailsDto } from '../validators/delivery.validator.js';
 import { sendResponse } from '../../../../utils/response.js';
 
@@ -101,6 +102,64 @@ export const updateAvailabilityController = async (req, res, next) => {
         const userId = req.user?.userId;
         const data = await updateDeliveryAvailability(userId, req.body || {});
         return sendResponse(res, 200, 'Availability updated successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const getWalletController = async (req, res, next) => {
+    try {
+        const deliveryPartnerId = req.user?.userId;
+        const wallet = await getDeliveryPartnerWallet(deliveryPartnerId);
+        return sendResponse(res, 200, 'Wallet fetched successfully', { wallet });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const getEarningsController = async (req, res, next) => {
+    try {
+        const deliveryPartnerId = req.user?.userId;
+        const data = await getDeliveryPartnerEarnings(deliveryPartnerId, req.query || {});
+        return sendResponse(res, 200, 'Earnings fetched successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const getTripHistoryController = async (req, res, next) => {
+    try {
+        const deliveryPartnerId = req.user?.userId;
+        const data = await getDeliveryPartnerTripHistory(deliveryPartnerId, req.query || {});
+        return sendResponse(res, 200, 'Trip history fetched successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const getPocketDetailsController = async (req, res, next) => {
+    try {
+        const deliveryPartnerId = req.user?.userId;
+        const data = await getDeliveryPocketDetails(deliveryPartnerId, req.query || {});
+        return sendResponse(res, 200, 'Pocket details fetched successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const getEmergencyHelpController = async (req, res, next) => {
+    try {
+        const data = await getDeliveryEmergencyHelp();
+        return sendResponse(res, 200, 'Emergency help fetched successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const getCashLimitController = async (req, res, next) => {
+    try {
+        const data = await getDeliveryCashLimitSettings();
+        return sendResponse(res, 200, 'Cash limit fetched successfully', data);
     } catch (error) {
         next(error);
     }

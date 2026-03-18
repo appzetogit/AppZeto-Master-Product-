@@ -718,7 +718,7 @@ export default function Earnings() {
           {/* Total Earnings */}
           <div className="px-4 pb-4 text-center">
             <p className="text-5xl font-bold text-gray-900">
-              {earningsData.totalEarnings === 0 ? '?0' : `?${Math.round(earningsData.totalEarnings)}`}
+              {earningsData.totalEarnings === 0 ? '₹0' : `₹${Math.round(earningsData.totalEarnings)}`}
             </p>
           </div>
 
@@ -762,7 +762,7 @@ export default function Earnings() {
                       {/* Earnings Label - Above bar */}
                       {hasEarnings && (
                         <span className="text-xs font-semibold text-gray-900">
-                          ?{Math.round(day.earnings)}
+                          ₹{Math.round(day.earnings)}
                         </span>
                       )}
                       
@@ -828,7 +828,7 @@ export default function Earnings() {
                       {/* Earnings Label - Above bar */}
                       {hasEarnings && (
                         <span className="text-xs font-semibold text-gray-900">
-                          ?{Math.round(week.earnings)}
+                          ₹{Math.round(week.earnings)}
                         </span>
                       )}
                       
@@ -878,21 +878,21 @@ export default function Earnings() {
           <div className="bg-white rounded-lg shadow-sm px-4 py-4 flex items-center justify-between">
             <span className="text-base text-gray-900">Order earning</span>
             <span className="text-base font-semibold text-gray-900">
-              {earningsData.orderEarning === 0 ? '?0' : `?${Math.round(earningsData.orderEarning)}`}
+              {earningsData.orderEarning === 0 ? '₹0' : `₹${Math.round(earningsData.orderEarning)}`}
             </span>
           </div>
           
           <div className="bg-white rounded-lg shadow-sm px-4 py-4 flex items-center justify-between">
             <span className="text-base text-gray-900">Incentive</span>
             <span className="text-base font-semibold text-gray-900">
-              {earningsData.incentive === 0 ? '?0' : `?${Math.round(earningsData.incentive)}`}
+              {earningsData.incentive === 0 ? '₹0' : `₹${Math.round(earningsData.incentive)}`}
             </span>
           </div>
           
           <div className="bg-white rounded-lg shadow-sm px-4 py-4 flex items-center justify-between">
             <span className="text-base text-gray-900">Other earnings</span>
             <span className="text-base font-semibold text-gray-900">
-              {earningsData.otherEarnings === 0 ? '?0' : `?${Math.round(earningsData.otherEarnings)}`}
+              {earningsData.otherEarnings === 0 ? '₹0' : `₹${Math.round(earningsData.otherEarnings)}`}
             </span>
           </div>
         </div>

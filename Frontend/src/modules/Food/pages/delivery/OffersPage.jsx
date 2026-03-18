@@ -42,9 +42,9 @@ const generateOffers = () => {
       week: "this",
       incentiveTiers: [
         { label: "Incentive", amount: 0 },
-        { label: "?50", amount: 50 },
-        { label: "?75", amount: 75 },
-        { label: "?125", amount: 125 }
+        { label: "₹50", amount: 50 },
+        { label: "₹75", amount: 75 },
+        { label: "₹125", amount: 125 }
       ],
       gigsProgression: [1, 2, 3],
       ordersProgression: [6, 9, 14],
@@ -76,9 +76,9 @@ const generateOffers = () => {
       week: "next",
       incentiveTiers: [
         { label: "Incentive", amount: 0 },
-        { label: "?50", amount: 50 },
-        { label: "?75", amount: 75 },
-        { label: "?125", amount: 125 }
+        { label: "₹50", amount: 50 },
+        { label: "₹75", amount: 75 },
+        { label: "₹125", amount: 125 }
       ],
       gigsProgression: [1, 2, 3],
       ordersProgression: [6, 9, 14],
@@ -343,7 +343,7 @@ export default function OffersPage() {
                           <span className="text-sm font-medium text-gray-500">Upcoming</span>
                         )}
                         <div className="text-right">
-                          <span className="text-lg font-bold text-gray-900">?{offer.bonusAmount} Extra</span>
+                          <span className="text-lg font-bold text-gray-900">₹{offer.bonusAmount} Extra</span>
                         </div>
                       </div>
                     </div>
@@ -510,7 +510,7 @@ export default function OffersPage() {
                     {formatDateDisplay(selectedOffer.date)}
                   </p>
                   <div className="text-2xl font-bold text-gray-900 mb-4">
-                    ?{selectedOffer.bonusAmount} Extra
+                    ₹{selectedOffer.bonusAmount} Extra
                   </div>
                 </div>
 

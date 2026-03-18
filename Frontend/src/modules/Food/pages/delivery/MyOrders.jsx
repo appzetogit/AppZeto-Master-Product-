@@ -383,7 +383,7 @@ export default function MyOrders() {
                       )}
         </div>
                     <div className="flex items-center">
-                      <span className="text-sm font-semibold text-gray-800">?{orderPrice.toFixed(2)}</span>
+                      <span className="text-sm font-semibold text-gray-800">₹{orderPrice.toFixed(2)}</span>
                       <ChevronRight className="w-4 h-4 text-gray-400 ml-1" />
         </div>
       </div>

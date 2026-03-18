@@ -469,7 +469,7 @@ export default function GigBooking() {
                                 <div className="flex-1">
                                   <h4 className="text-white font-bold text-base mb-1">{category.name}</h4>
                                   <p className="text-white/80 text-xs">
-                                    {categoryTimeRange} ï {gigCount} Gig{gigCount > 1 ? 's' : ''}
+                                    {categoryTimeRange} ù {gigCount} Gig{gigCount > 1 ? 's' : ''}
                                   </p>
                                 </div>
                                 <div className="bg-gray-800 rounded-full p-2.5">
@@ -779,7 +779,7 @@ export default function GigBooking() {
                               <Clock className="w-4 h-4" />
                               <span className="font-semibold text-gray-900">{gig.totalHours} hours</span>
                             </div>
-                            <span className="text-gray-400">ï</span>
+                            <span className="text-gray-400">ù</span>
                             <span className="text-gray-600">{gig.slots.length} slot{gig.slots.length > 1 ? 's' : ''}</span>
                           </div>
                           {gig.status === 'active' && (

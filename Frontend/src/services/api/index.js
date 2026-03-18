@@ -663,26 +663,163 @@ export const restaurantAPI = {
   },
   /** Public: list approved restaurants for user app */
   getRestaurants: (params = {}, config = {}) =>
-    apiClient.get("/food/restaurant/restaurants", {
-      params: { limit: 1000, ...params },
-      ...config,
-    }),
+    getPublicRestaurantsOnce(params, config),
   /** Public: get single approved restaurant by id or slug */
   getRestaurantById: (id, config = {}) =>
     apiClient.get(`/food/restaurant/restaurants/${String(id)}`, { ...config }),
   /** Public: get approved menu by restaurant id or slug */
   getMenuByRestaurantId: (id, config = {}) =>
-    apiClient.get(`/food/restaurant/restaurants/${String(id)}/menu`, {
-      ...config,
-    }),
+    getPublicRestaurantMenuOnce(id, config),
   /** Public: get outlet timings by restaurant id */
   getOutletTimingsByRestaurantId: (id, config = {}) =>
-    apiClient.get(`/food/restaurant/restaurants/${String(id)}/outlet-timings`, {
-      ...config,
-    }),
+    getPublicRestaurantOutletTimingsOnce(id, config),
   /** Public: list coupons/offers created by admin */
   getPublicOffers: (params = {}, config = {}) =>
     apiClient.get("/food/restaurant/offers", { params, ...config }),
+};
+
+function stableStringify(value) {
+  if (value === null || value === undefined) return String(value);
+  if (typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  const keys = Object.keys(value).sort();
+  return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(value[k])}`).join(",")}}`;
+}
+
+function createInFlightCache({ ttlMs }) {
+  const inFlight = new Map();
+  const cached = new Map(); // key -> { t, v }
+
+  const getCached = (key) => {
+    const hit = cached.get(key);
+    if (!hit) return null;
+    if (Date.now() - hit.t > ttlMs) {
+      cached.delete(key);
+      return null;
+    }
+    return hit.v;
+  };
+
+  const getOrCreate = (key, factory) => {
+    const cachedValue = getCached(key);
+    if (cachedValue) return Promise.resolve(cachedValue);
+    if (inFlight.has(key)) return inFlight.get(key);
+    const p = Promise.resolve()
+      .then(factory)
+      .then((res) => {
+        cached.set(key, { t: Date.now(), v: res });
+        return res;
+      })
+      .finally(() => {
+        inFlight.delete(key);
+      });
+    inFlight.set(key, p);
+    return p;
+  };
+
+  return { getOrCreate };
+}
+
+// Public user-app endpoints can be called by multiple components/effects on refresh (and React StrictMode in dev).
+// A small in-flight + short TTL cache collapses duplicate requests without changing functionality.
+const publicRestaurantsCache = createInFlightCache({ ttlMs: 3000 });
+const publicRestaurantMenuCache = createInFlightCache({ ttlMs: 3000 });
+const publicRestaurantOutletTimingsCache = createInFlightCache({ ttlMs: 3000 });
+const publicGenericGetCache = createInFlightCache({ ttlMs: 3000 });
+
+export const publicGetOnce = (url, config = {}) => {
+  const safeUrl = typeof url === "string" ? url.trim() : "";
+  const { noCache, params, ...axiosConfig } = config || {};
+  if (!safeUrl) return Promise.reject(new Error("url is required"));
+
+  if (noCache) {
+    return apiClient.get(safeUrl, { params, ...axiosConfig });
+  }
+
+  const keyParams = params && typeof params === "object" ? { ...params } : params;
+  if (keyParams && typeof keyParams === "object") {
+    // `_ts` is used as a cache-buster in some call sites; ignore it for dedupe purposes.
+    delete keyParams._ts;
+  }
+
+  const key = `GET:${safeUrl}:${stableStringify(keyParams)}`;
+  return publicGenericGetCache.getOrCreate(key, () =>
+    apiClient.get(safeUrl, { params, ...axiosConfig }),
+  );
+};
+
+const getPublicRestaurantsOnce = (params = {}, config = {}) => {
+  const { noCache, ...axiosConfig } = config || {};
+  if (noCache) {
+    return apiClient.get("/food/restaurant/restaurants", {
+      params: { limit: 1000, ...params },
+      ...axiosConfig,
+    });
+  }
+  const keyParams = { limit: 1000, ...params };
+  // `_ts` is an explicit cache-buster in many call sites; ignore it for dedupe purposes.
+  if (keyParams && typeof keyParams === "object") {
+    delete keyParams._ts;
+  }
+  const key = `restaurants:${stableStringify(keyParams)}`;
+  return publicRestaurantsCache.getOrCreate(key, () =>
+    apiClient.get("/food/restaurant/restaurants", {
+      params: { limit: 1000, ...params },
+      ...axiosConfig,
+    }),
+  );
+};
+
+const getPublicRestaurantMenuOnce = (id, config = {}) => {
+  const safeId = String(id || "").trim();
+  const { noCache, ...axiosConfig } = config || {};
+  if (!safeId) {
+    return Promise.resolve({
+      data: { success: false, data: null },
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      config: {},
+    });
+  }
+  if (noCache) {
+    return apiClient.get(`/food/restaurant/restaurants/${safeId}/menu`, {
+      ...axiosConfig,
+    });
+  }
+  const key = `menu:${safeId}`;
+  return publicRestaurantMenuCache.getOrCreate(key, () =>
+    apiClient.get(`/food/restaurant/restaurants/${safeId}/menu`, {
+      ...axiosConfig,
+    }),
+  );
+};
+
+const getPublicRestaurantOutletTimingsOnce = (id, config = {}) => {
+  const safeId = String(id || "").trim();
+  const { noCache, ...axiosConfig } = config || {};
+  if (!safeId) {
+    return Promise.resolve({
+      data: { success: false, data: null },
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      config: {},
+    });
+  }
+  if (noCache) {
+    return apiClient.get(
+      `/food/restaurant/restaurants/${safeId}/outlet-timings`,
+      { ...axiosConfig },
+    );
+  }
+  const key = `outletTimings:${safeId}`;
+  return publicRestaurantOutletTimingsCache.getOrCreate(key, () =>
+    apiClient.get(
+      `/food/restaurant/restaurants/${safeId}/outlet-timings`,
+      { ...axiosConfig },
+    ),
+  );
 };
 
 /** Single in-flight + short cache for restaurant /food/restaurant/current - prevents request storms. */

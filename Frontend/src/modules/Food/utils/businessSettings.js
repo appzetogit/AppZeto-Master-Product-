@@ -5,8 +5,10 @@
 
 import apiClient from "@food/api/axios";
 import { API_ENDPOINTS } from "@food/api/config";
+import { publicGetOnce } from "@food/api";
 
 let cachedSettings = null;
+let inFlightSettingsPromise = null;
 
 /**
  * Load business settings from backend (public endpoint - no auth required)
@@ -17,6 +19,9 @@ export const loadBusinessSettings = async () => {
     if (cachedSettings) {
       return cachedSettings;
     }
+    if (inFlightSettingsPromise) {
+      return await inFlightSettingsPromise;
+    }
 
     // Skip request when endpoint is not configured (avoids GET /api/v1 → 404)
     const endpoint = API_ENDPOINTS.ADMIN.BUSINESS_SETTINGS_PUBLIC;
@@ -24,19 +29,26 @@ export const loadBusinessSettings = async () => {
       return null;
     }
 
-    // Use public endpoint that doesn't require authentication
-    const response = await apiClient.get(endpoint);
-    const settings = response?.data?.data || response?.data;
+    inFlightSettingsPromise = (async () => {
+      // Use public endpoint that doesn't require authentication
+      const response = await publicGetOnce(endpoint);
+      const settings = response?.data?.data || response?.data;
 
-    if (settings) {
-      cachedSettings = settings;
-      updateFavicon(settings.favicon?.url);
-      updateTitle(settings.companyName);
-      return settings;
-    }
+      if (settings) {
+        cachedSettings = settings;
+        updateFavicon(settings.favicon?.url);
+        updateTitle(settings.companyName);
+        return settings;
+      }
+      return null;
+    })();
+
+    return await inFlightSettingsPromise;
   } catch (error) {
     // Silently fail - this is expected if settings don't exist yet
     return null;
+  } finally {
+    inFlightSettingsPromise = null;
   }
 };
 

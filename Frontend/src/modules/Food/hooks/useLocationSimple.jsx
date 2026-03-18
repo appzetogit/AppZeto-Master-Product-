@@ -278,7 +278,7 @@ export function useLocationSimple() {
     }
   }
 
-  // Initialize: Load cached location first, then request fresh location
+  // Initialize: Load cached location; only fetch if missing.
   useEffect(() => {
     // Load cached location immediately (no loading state)
     const cached = localStorage.getItem("userLocation")
@@ -294,21 +294,21 @@ export function useLocationSimple() {
       setLoading(false)
     }
 
-    // Request fresh location in background
-    getCurrentLocation()
-      .then((locationData) => {
-        setLocation(locationData)
-        setPermissionGranted(true)
-        setError(null)
-      })
-      .catch((err) => {
-        // Only set error if we don't have cached location
-        if (!cached) {
+    // IMPORTANT: Do NOT fetch on every reload.
+    // Only fetch once when userLocation is missing; after that, rely on localStorage
+    // unless the user explicitly requests a refresh via requestLocation().
+    if (!cached) {
+      getCurrentLocation()
+        .then((locationData) => {
+          setLocation(locationData)
+          setPermissionGranted(true)
+          setError(null)
+        })
+        .catch((err) => {
           setError(err.message)
           setPermissionGranted(false)
-        }
-        // If we have cached location, silently fail (background request)
-      })
+        })
+    }
   }, [])
 
   return {

@@ -58,10 +58,10 @@ export function useZone(location) {
   // Detect zone when location is available
   const detectZone = useCallback(async (lat, lng) => {
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      setZoneStatus('OUT_OF_SERVICE')
-      setZoneId(null)
-      setZone(null)
-      return
+      setZoneStatus("OUT_OF_SERVICE");
+      setZoneId(null);
+      setZone(null);
+      return;
     }
 
     try {
@@ -99,26 +99,28 @@ export function useZone(location) {
       if (key) zoneCache.set(key, { ts: now, payload: data })
       applyZonePayload(data, { setZoneId, setZone, setZoneStatus })
     } catch (err) {
-      debugError('Error detecting zone:', err)
-      setError(err.response?.data?.message || err.message || 'Failed to detect zone')
-      
+      debugError("Error detecting zone:", err);
+      setError(
+        err.response?.data?.message || err.message || "Failed to detect zone",
+      );
+
       // Try to use cached zone if available
-      const cachedZoneId = localStorage.getItem('userZoneId')
+      const cachedZoneId = localStorage.getItem("userZoneId");
       if (cachedZoneId) {
-        const cachedZone = localStorage.getItem('userZone')
-        setZoneId(cachedZoneId)
-        setZone(cachedZone ? JSON.parse(cachedZone) : null)
-        setZoneStatus('IN_SERVICE')
+        const cachedZone = localStorage.getItem("userZone");
+        setZoneId(cachedZoneId);
+        setZone(cachedZone ? JSON.parse(cachedZone) : null);
+        setZoneStatus("IN_SERVICE");
       } else {
         // Network/CORS/backend failures should not be treated as confirmed out-of-zone.
-        setZoneStatus('loading')
-        setZoneId(null)
-        setZone(null)
+        setZoneStatus("loading");
+        setZoneId(null);
+        setZone(null);
       }
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [])
+  }, []);
 
   // Auto-detect zone when location changes
   useEffect(() => {
@@ -126,12 +128,12 @@ export function useZone(location) {
     const lng = roundCoord(location?.longitude, 6)
 
     // Check if coordinates have changed significantly (threshold: ~10 meters)
-    const coordThreshold = 0.0001 // approximately 10 meters
-    const coordsChanged = 
+    const coordThreshold = 0.0001; // approximately 10 meters
+    const coordsChanged =
       !prevCoordsRef.current.latitude ||
       !prevCoordsRef.current.longitude ||
       Math.abs(prevCoordsRef.current.latitude - (lat || 0)) > coordThreshold ||
-      Math.abs(prevCoordsRef.current.longitude - (lng || 0)) > coordThreshold
+      Math.abs(prevCoordsRef.current.longitude - (lng || 0)) > coordThreshold;
 
     if (Number.isFinite(lat) && Number.isFinite(lng)) {
       // Only detect zone if coordinates changed significantly
@@ -146,16 +148,16 @@ export function useZone(location) {
       }
     } else {
       // Try to use cached zone if location not available
-      const cachedZoneId = localStorage.getItem('userZoneId')
+      const cachedZoneId = localStorage.getItem("userZoneId");
       if (cachedZoneId) {
-        const cachedZone = localStorage.getItem('userZone')
-        setZoneId(cachedZoneId)
-        setZone(cachedZone ? JSON.parse(cachedZone) : null)
-        setZoneStatus('IN_SERVICE')
+        const cachedZone = localStorage.getItem("userZone");
+        setZoneId(cachedZoneId);
+        setZone(cachedZone ? JSON.parse(cachedZone) : null);
+        setZoneStatus("IN_SERVICE");
       } else {
-        setZoneStatus('OUT_OF_SERVICE')
-        setZoneId(null)
-        setZone(null)
+        setZoneStatus("OUT_OF_SERVICE");
+        setZoneId(null);
+        setZone(null);
       }
     }
     return () => {
@@ -168,12 +170,12 @@ export function useZone(location) {
 
   // Manual refresh zone
   const refreshZone = useCallback(() => {
-    const lat = location?.latitude
-    const lng = location?.longitude
+    const lat = location?.latitude;
+    const lng = location?.longitude;
     if (Number.isFinite(lat) && Number.isFinite(lng)) {
-      detectZone(lat, lng)
+      detectZone(lat, lng);
     }
-  }, [location?.latitude, location?.longitude, detectZone])
+  }, [location?.latitude, location?.longitude, detectZone]);
 
   return {
     zoneId,
@@ -181,9 +183,8 @@ export function useZone(location) {
     zoneStatus,
     loading,
     error,
-    isInService: zoneStatus === 'IN_SERVICE',
-    isOutOfService: zoneStatus === 'OUT_OF_SERVICE',
-    refreshZone
-  }
+    isInService: zoneStatus === "IN_SERVICE",
+    isOutOfService: zoneStatus === "OUT_OF_SERVICE",
+    refreshZone,
+  };
 }
-

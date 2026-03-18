@@ -9,7 +9,6 @@ import {
   Plus,
   MapPin,
   Clock,
-  Phone,
   Star,
   ChevronRight,
   X,
@@ -842,17 +841,7 @@ export default function OutletInfo() {
             <ChevronRight className="w-5 h-5 text-blue-600" />
           </button>
 
-          {/* Contact Details Card */}
-          <button
-            onClick={() => navigate("/restaurant/contact-details")}
-            className="w-full bg-blue-100/50 rounded-lg p-4 border border-blue-300 flex items-center justify-between hover:bg-gray-50 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <Phone className="w-5 h-5 text-blue-600" />
-              <span className="text-base font-semibold text-gray-900">Contact Details</span>
-            </div>
-            <ChevronRight className="w-5 h-5 text-blue-600" />
-          </button>
+          {/* Staff/contact details removed */}
         </motion.div>
       </div>
 

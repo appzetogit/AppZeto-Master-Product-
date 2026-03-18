@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
-import { ArrowLeft, Edit, Phone, Users, ChevronDown, X, ArrowRight } from "lucide-react"
+import { ArrowLeft, Edit, Phone, Users, ChevronDown, X } from "lucide-react"
 
 export default function PhoneNumbersPage() {
   const navigate = useNavigate()
@@ -216,14 +216,7 @@ export default function PhoneNumbersPage() {
           </div>
         </div>
 
-        {/* Manage contact details link */}
-        <button
-          onClick={() => navigate("/restaurant/contact-details")}
-          className="w-full flex items-center justify-between py-4 text-blue-600 hover:text-blue-700 transition-colors"
-        >
-          <span className="text-sm font-medium">Manage contact details for your staff</span>
-          <ArrowRight className="w-5 h-5" />
-        </button>
+        {/* Staff management removed */}
       </div>
 
       {/* Edit Phone Number Popup */}

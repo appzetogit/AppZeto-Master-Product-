@@ -5,7 +5,9 @@ const windowMs = config.rateLimitWindowMinutes * 60 * 1000;
 
 export const apiRateLimiter = rateLimit({
     windowMs,
-    max: config.rateLimitMaxRequests,
+    // Dev UX: local UI can generate lots of background API calls (location, polling, etc).
+    // Keep production strict, but avoid blocking local development.
+    max: config.nodeEnv === 'development' ? Math.max(config.rateLimitMaxRequests, 2000) : config.rateLimitMaxRequests,
     standardHeaders: true,
     legacyHeaders: false,
     message: {

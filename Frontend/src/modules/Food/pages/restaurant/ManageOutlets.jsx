@@ -28,9 +28,6 @@ export default function ManageOutlets() {
       case "Timings":
         navigate("/restaurant/outlet-timings")
         break
-      case "Contacts":
-        navigate("/restaurant/contact-details")
-        break
       case "FSSAI Food License":
         navigate("/restaurant/fssai")
         break

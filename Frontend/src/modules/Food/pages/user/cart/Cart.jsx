@@ -616,11 +616,14 @@ export default function Cart() {
           isVeg: item.isVeg !== false
         }))
 
+        const resolvedRestaurantId = restaurantData?.restaurantId || restaurantData?._id || restaurantId || undefined
+        const resolvedCouponCode = appliedCoupon?.code || couponCode || undefined
+
         const response = await orderAPI.calculateOrder({
           items,
-          restaurantId: restaurantData?.restaurantId || restaurantData?._id || restaurantId || null,
+          restaurantId: resolvedRestaurantId,
           deliveryAddress: defaultAddress,
-          couponCode: appliedCoupon?.code || couponCode || null,
+          couponCode: resolvedCouponCode,
           deliveryFleet: deliveryFleet || 'standard'
         })
 
@@ -1220,7 +1223,7 @@ export default function Cart() {
         items: orderItems,
         address: defaultAddress,
         restaurantId: finalRestaurantId,
-        restaurantName: finalRestaurantName,
+        restaurantName: finalRestaurantName || undefined,
         pricing: orderPricing,
         deliveryFleet: deliveryFleet || 'standard',
         note: note || "",

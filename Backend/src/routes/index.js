@@ -7,6 +7,7 @@ import { getPublicDiningCategories, getPublicDiningRestaurants } from '../module
 import uploadRoutes from '../modules/uploads/routes/upload.routes.js';
 import restaurantAdminRoutes from '../modules/food/admin/routes/admin.routes.js';
 import userRoutes from '../modules/food/user/routes/user.routes.js';
+import orderUserRoutes from '../modules/food/orders/order.routes.user.js';
 import { authMiddleware } from '../core/auth/auth.middleware.js';
 import { requireRoles } from '../core/roles/role.middleware.js';
 import { getQueuesController } from '../controllers/admin.controller.js';
@@ -31,6 +32,7 @@ router.get('/v1/food/dining/restaurants/public', getPublicDiningRestaurants);
 router.use('/v1/uploads', uploadRoutes);
 router.use('/v1/food/admin', authMiddleware, requireRoles('ADMIN'), restaurantAdminRoutes);
 router.use('/v1/food/user', authMiddleware, requireRoles('USER'), userRoutes);
+router.use('/v1/food/orders', authMiddleware, requireRoles('USER'), orderUserRoutes);
 
 router.get('/v1/admin/queues', authMiddleware, requireRoles('ADMIN'), getQueuesController);
 

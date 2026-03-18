@@ -3,6 +3,7 @@ import { AuthError } from '../../../../core/auth/errors.js';
 import * as adminController from '../controllers/admin.controller.js';
 import * as foodApprovalController from '../controllers/foodApproval.controller.js';
 import * as diningAdminController from '../../dining/controllers/diningAdmin.controller.js';
+import * as orderController from '../../orders/order.controller.js';
 
 const router = express.Router();
 
@@ -118,5 +119,12 @@ router.patch('/dining/categories/:id', diningAdminController.updateDiningCategor
 router.delete('/dining/categories/:id', diningAdminController.deleteDiningCategory);
 router.get('/dining/restaurants', diningAdminController.getDiningRestaurants);
 router.patch('/dining/restaurants/:restaurantId', diningAdminController.updateDiningRestaurant);
+
+// ----- Orders & Dispatch Settings -----
+router.get('/orders', orderController.listOrdersAdminController);
+router.get('/orders/:orderId', orderController.getOrderByIdAdminController);
+router.patch('/orders/:orderId/assign-delivery', orderController.assignDeliveryPartnerController);
+router.get('/settings/dispatch', orderController.getDispatchSettingsController);
+router.patch('/settings/dispatch', orderController.updateDispatchSettingsController);
 
 export default router;

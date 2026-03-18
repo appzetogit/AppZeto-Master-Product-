@@ -211,6 +211,35 @@ export const adminAPI = {
   /** Categories (admin) */
   getCategories: (params = {}) =>
     apiClient.get("/food/admin/categories", { params, contextModule: "admin" }),
+  /** Dining categories (admin) */
+  getDiningCategories: (params = {}) =>
+    apiClient.get("/food/admin/dining/categories", {
+      params,
+      contextModule: "admin",
+    }),
+  createDiningCategory: (body) =>
+    apiClient.post("/food/admin/dining/categories", body ?? {}, {
+      contextModule: "admin",
+    }),
+  updateDiningCategory: (id, body) =>
+    apiClient.patch(`/food/admin/dining/categories/${String(id)}`, body ?? {}, {
+      contextModule: "admin",
+    }),
+  deleteDiningCategory: (id) =>
+    apiClient.delete(`/food/admin/dining/categories/${String(id)}`, {
+      contextModule: "admin",
+    }),
+  getDiningRestaurants: (params = {}) =>
+    apiClient.get("/food/admin/dining/restaurants", {
+      params,
+      contextModule: "admin",
+    }),
+  updateRestaurantDiningSettings: (restaurantId, body) =>
+    apiClient.patch(
+      `/food/admin/dining/restaurants/${String(restaurantId)}`,
+      body ?? {},
+      { contextModule: "admin" },
+    ),
   createCategory: (body) =>
     apiClient.post("/food/admin/categories", body ?? {}, {
       contextModule: "admin",

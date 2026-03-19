@@ -75,6 +75,7 @@ const toRestaurantProfile = (doc) => {
         ownerEmail: doc.ownerEmail || '',
         ownerPhone: doc.ownerPhone || '',
         primaryContactNumber: doc.primaryContactNumber || '',
+        pureVegRestaurant: Boolean(doc.pureVegRestaurant),
         profileImage: doc.profileImage ? { url: doc.profileImage } : null,
         menuImages,
         coverImages: [],
@@ -125,6 +126,7 @@ export const registerRestaurant = async (payload, files) => {
         ownerEmail,
         ownerPhone,
         primaryContactNumber,
+        pureVegRestaurant,
         addressLine1,
         addressLine2,
         area,
@@ -203,6 +205,7 @@ export const registerRestaurant = async (payload, files) => {
             ownerPhoneDigits,
             ownerPhoneLast10,
             primaryContactNumber,
+            pureVegRestaurant: pureVegRestaurant === true,
             zoneId: zoneId && mongoose.Types.ObjectId.isValid(String(zoneId).trim())
                 ? new mongoose.Types.ObjectId(String(zoneId).trim())
                 : undefined,
@@ -270,6 +273,7 @@ export const getCurrentRestaurantProfile = async (restaurantId) => {
                 'ownerEmail',
                 'ownerPhone',
                 'primaryContactNumber',
+                'pureVegRestaurant',
                 'profileImage',
                 'menuImages',
                 'openingTime',
@@ -310,6 +314,7 @@ export const updateRestaurantAcceptingOrders = async (restaurantId, isAcceptingO
                 'ownerEmail',
                 'ownerPhone',
                 'primaryContactNumber',
+                'pureVegRestaurant',
                 'profileImage',
                 'menuImages',
                 'openingTime',
@@ -374,6 +379,23 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
     if (body.primaryContactNumber !== undefined) {
         const { digits } = normalizePhone(body.primaryContactNumber);
         update.primaryContactNumber = digits || String(body.primaryContactNumber || '').trim();
+    }
+
+    if (body.pureVegRestaurant !== undefined) {
+        if (typeof body.pureVegRestaurant === 'boolean') {
+            update.pureVegRestaurant = body.pureVegRestaurant;
+        } else if (typeof body.pureVegRestaurant === 'string') {
+            const normalized = body.pureVegRestaurant.trim().toLowerCase();
+            if (normalized === 'true' || normalized === '1' || normalized === 'yes') {
+                update.pureVegRestaurant = true;
+            } else if (normalized === 'false' || normalized === '0' || normalized === 'no') {
+                update.pureVegRestaurant = false;
+            } else {
+                throw new ValidationError('pureVegRestaurant must be a boolean');
+            }
+        } else {
+            throw new ValidationError('pureVegRestaurant must be a boolean');
+        }
     }
 
     if (body.name !== undefined || body.restaurantName !== undefined) {
@@ -455,6 +477,7 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
                     'ownerEmail',
                     'ownerPhone',
                     'primaryContactNumber',
+                    'pureVegRestaurant',
                     'profileImage',
                     'menuImages',
                     'openingTime',
@@ -483,7 +506,7 @@ export const uploadRestaurantProfileImage = async (restaurantId, file) => {
     const doc = await FoodRestaurant.findByIdAndUpdate(
         restaurantId,
         { $set: { profileImage: url } },
-        { new: true, projection: 'profileImage restaurantName cuisines menuImages addressLine1 addressLine2 area city state pincode landmark ownerName ownerEmail ownerPhone primaryContactNumber openingTime closingTime openDays status createdAt updatedAt' }
+        { new: true, projection: 'profileImage restaurantName cuisines menuImages addressLine1 addressLine2 area city state pincode landmark ownerName ownerEmail ownerPhone primaryContactNumber pureVegRestaurant openingTime closingTime openDays status createdAt updatedAt' }
     ).lean();
 
     if (!doc) throw new ValidationError('Restaurant not found');
@@ -577,6 +600,7 @@ export const listApprovedRestaurants = async (query = {}) => {
         totalRatings: 1,
         isAcceptingOrders: 1,
         status: 1,
+        pureVegRestaurant: 1,
         createdAt: 1,
         location: 1
     };

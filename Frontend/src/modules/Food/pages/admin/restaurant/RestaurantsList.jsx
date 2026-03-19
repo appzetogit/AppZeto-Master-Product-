@@ -6,7 +6,6 @@ import { clearModuleAuth } from "@food/utils/auth"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@food/components/ui/dropdown-menu"
 import { exportRestaurantsToPDF } from "@food/components/admin/restaurants/restaurantsExportUtils"
 import { getGoogleMapsApiKey } from "@food/utils/googleMapsApiKey"
-import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability"
 
 // Import icons from Dashboard-icons
 import locationIcon from "@food/assets/Dashboard-icons/image1.png"
@@ -19,6 +18,24 @@ const debugError = (...args) => {}
 // Inline placeholder (no external request, avoids referrer policy / 500 from via.placeholder)
 const PLACEHOLDER_40 = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect fill='%23e2e8f0' width='40' height='40'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%2394a3b8' font-size='12' font-family='sans-serif'%3E?%3C/text%3E%3C/svg%3E"
 const PLACEHOLDER_128 = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Crect fill='%23e2e8f0' width='128' height='128'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%2394a3b8' font-size='32' font-family='sans-serif'%3E?%3C/text%3E%3C/svg%3E"
+
+const normalizeApprovalStatus = (restaurant) => {
+  const raw = String(restaurant?.status || "").trim().toLowerCase()
+  if (raw === "approved" || raw === "pending" || raw === "rejected") return raw
+  return "pending"
+}
+
+const approvalStatusLabel = (status) => {
+  if (status === "approved") return "Approved"
+  if (status === "rejected") return "Rejected"
+  return "Pending"
+}
+
+const approvalStatusBadgeClass = (status) => {
+  if (status === "approved") return "bg-emerald-100 text-emerald-700"
+  if (status === "rejected") return "bg-rose-100 text-rose-700"
+  return "bg-amber-100 text-amber-700"
+}
 
 
 export default function RestaurantsList() {
@@ -39,6 +56,7 @@ export default function RestaurantsList() {
   const [savingDetails, setSavingDetails] = useState(false)
   const [detailsForm, setDetailsForm] = useState({
     name: "",
+    pureVegRestaurant: false,
     ownerName: "",
     ownerEmail: "",
     ownerPhone: "",
@@ -59,7 +77,6 @@ export default function RestaurantsList() {
   const [locationEditError, setLocationEditError] = useState("")
   const [zones, setZones] = useState([])
   const [zonesLoading, setZonesLoading] = useState(false)
-  const [availabilityTick, setAvailabilityTick] = useState(() => Date.now())
   const [locationForm, setLocationForm] = useState({
     zoneId: "",
     latitude: "",
@@ -174,10 +191,8 @@ export default function RestaurantsList() {
             ownerName: restaurant.ownerName || "N/A",
             ownerPhone: restaurant.ownerPhone || restaurant.phone || "N/A",
             zone: zoneLabelFromRestaurant(restaurant),
-            cuisine: Array.isArray(restaurant.cuisines) && restaurant.cuisines.length > 0
-              ? restaurant.cuisines[0]
-              : (restaurant.cuisine || "N/A"),
-            status: restaurant.status === "approved",
+            approvalStatus: normalizeApprovalStatus(restaurant),
+            isActive: restaurant.isActive !== false,
             rating: restaurant.ratings?.average || restaurant.rating || 0,
             logo: typeof restaurant.profileImage === "string" ? restaurant.profileImage : (restaurant.profileImage?.url || restaurant.logo || PLACEHOLDER_40),
             originalData: restaurant,
@@ -211,22 +226,13 @@ export default function RestaurantsList() {
     return () => { cancelled = true }
   }, [])
 
-  useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      setAvailabilityTick(Date.now())
-    }, 60000)
-
-    return () => window.clearInterval(intervalId)
-  }, [])
   const [filters, setFilters] = useState({
     all: "All",
     businessModel: "",
-    cuisine: "",
     zone: "",
   })
 
   const filteredRestaurants = useMemo(() => {
-    const now = new Date(availabilityTick)
     let result = [...restaurants]
 
     if (searchQuery.trim()) {
@@ -240,16 +246,10 @@ export default function RestaurantsList() {
 
     if (filters.all !== "All") {
       if (filters.all === "Active") {
-        result = result.filter(restaurant => restaurant.status === true)
+        result = result.filter(restaurant => restaurant.isActive === true)
       } else if (filters.all === "Inactive") {
-        result = result.filter(restaurant => restaurant.status === false)
+        result = result.filter(restaurant => restaurant.isActive !== true)
       }
-    }
-
-    if (filters.cuisine) {
-      result = result.filter(restaurant =>
-        restaurant.cuisine.toLowerCase().includes(filters.cuisine.toLowerCase())
-      )
     }
 
     if (filters.zone) {
@@ -278,13 +278,9 @@ export default function RestaurantsList() {
             aValue = a.zone.toLowerCase();
             bValue = b.zone.toLowerCase();
             break;
-          case 'cuisine':
-            aValue = a.cuisine.toLowerCase();
-            bValue = b.cuisine.toLowerCase();
-            break;
           case 'status':
-            aValue = getRestaurantAvailabilityStatus(a.originalData || a, now).isOpen ? 1 : 0;
-            bValue = getRestaurantAvailabilityStatus(b.originalData || b, now).isOpen ? 1 : 0;
+            aValue = String(a.approvalStatus || "").toLowerCase();
+            bValue = String(b.approvalStatus || "").toLowerCase();
             break;
           default:
             return 0;
@@ -296,11 +292,8 @@ export default function RestaurantsList() {
       });
     }
 
-    return result.map((restaurant) => ({
-      ...restaurant,
-      availability: getRestaurantAvailabilityStatus(restaurant.originalData || restaurant, now),
-    }))
-  }, [restaurants, searchQuery, filters, sortConfig, availabilityTick])
+    return result
+  }, [restaurants, searchQuery, filters, sortConfig])
 
   const handleSort = (key) => {
     let direction = "asc"
@@ -311,18 +304,8 @@ export default function RestaurantsList() {
   }
 
   const totalRestaurants = restaurants.length
-  const activeRestaurants = restaurants.filter(r => r.status).length
-  const inactiveRestaurants = restaurants.filter(r => !r.status).length
-
-  // Get unique cuisines from restaurants for filter dropdown
-  const uniqueCuisines = useMemo(() => {
-    const cuisines = restaurants
-      .map(r => r.cuisine)
-      .filter(c => c && c !== "N/A")
-      .filter((value, index, self) => self.indexOf(value) === index)
-      .sort()
-    return cuisines
-  }, [restaurants])
+  const activeRestaurants = restaurants.filter(r => r.isActive === true).length
+  const inactiveRestaurants = restaurants.filter(r => r.isActive !== true).length
 
   // Show full phone number without masking
   const formatPhone = (phone) => {
@@ -721,6 +704,7 @@ export default function RestaurantsList() {
     if (!restaurant) {
       return {
         name: "",
+        pureVegRestaurant: false,
         ownerName: "",
         ownerEmail: "",
         ownerPhone: "",
@@ -737,6 +721,10 @@ export default function RestaurantsList() {
 
     return {
       name: restaurant.name || "",
+      pureVegRestaurant:
+        typeof restaurant.pureVegRestaurant === "boolean"
+          ? restaurant.pureVegRestaurant
+          : false,
       ownerName: restaurant.ownerName || "",
       ownerEmail: restaurant.ownerEmail || "",
       ownerPhone: restaurant.ownerPhone || "",
@@ -786,6 +774,7 @@ export default function RestaurantsList() {
 
       const payload = {
         name: detailsForm.name.trim(),
+        pureVegRestaurant: detailsForm.pureVegRestaurant === true,
         ownerName: detailsForm.ownerName.trim(),
         ownerEmail: detailsForm.ownerEmail.trim(),
         ownerPhone: detailsForm.ownerPhone.trim(),
@@ -819,11 +808,9 @@ export default function RestaurantsList() {
                 name: updatedRestaurant.name || item.name,
                 ownerName: updatedRestaurant.ownerName || item.ownerName,
                 ownerPhone: updatedRestaurant.ownerPhone || updatedRestaurant.phone || item.ownerPhone,
-                cuisine: Array.isArray(updatedRestaurant.cuisines) && updatedRestaurant.cuisines.length > 0
-                  ? updatedRestaurant.cuisines[0]
-                  : item.cuisine,
                 zone: updatedRestaurant.location?.area || updatedRestaurant.location?.city || item.zone,
-                status: updatedRestaurant.isActive !== false,
+                isActive: updatedRestaurant.isActive !== false,
+                approvalStatus: normalizeApprovalStatus(updatedRestaurant),
                 logo: updatedRestaurant.profileImage?.url || item.logo,
                 originalData: {
                   ...(item.originalData || {}),
@@ -858,7 +845,7 @@ export default function RestaurantsList() {
 
   // Handle ban/unban restaurant
   const handleBanRestaurant = (restaurant) => {
-    const isBanned = !restaurant.status
+    const isBanned = !restaurant.isActive
     setBanConfirmDialog({
       restaurant,
       action: isBanned ? 'unban' : 'ban'
@@ -884,7 +871,7 @@ export default function RestaurantsList() {
         setRestaurants(prevRestaurants =>
           prevRestaurants.map(r =>
             r.id === restaurant.id || r._id === restaurant._id
-              ? { ...r, status: newStatus }
+              ? { ...r, isActive: newStatus }
               : r
           )
         )
@@ -900,7 +887,7 @@ export default function RestaurantsList() {
         setRestaurants(prevRestaurants =>
           prevRestaurants.map(r =>
             r.id === restaurant.id || r._id === restaurant._id
-              ? { ...r, status: newStatus }
+              ? { ...r, isActive: newStatus }
               : r
           )
         )
@@ -1134,15 +1121,6 @@ export default function RestaurantsList() {
                     </th>
                     <th
                       className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors"
-                      onClick={() => handleSort('cuisine')}
-                    >
-                      <div className="flex items-center gap-1">
-                        <span>Cuisine</span>
-                        <ArrowUpDown className={`w-3 h-3 ${sortConfig.key === 'cuisine' ? 'text-blue-600' : 'text-slate-400'}`} />
-                      </div>
-                    </th>
-                    <th
-                      className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors"
                       onClick={() => handleSort('status')}
                     >
                       <div className="flex items-center gap-1">
@@ -1156,7 +1134,7 @@ export default function RestaurantsList() {
                 <tbody className="bg-white divide-y divide-slate-100">
                   {filteredRestaurants.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-20 text-center">
+                      <td colSpan={6} className="px-6 py-20 text-center">
                         <div className="flex flex-col items-center justify-center">
                           <p className="text-lg font-semibold text-slate-700 mb-1">No Data Found</p>
                           <p className="text-sm text-slate-500">No restaurants match your search</p>
@@ -1201,26 +1179,13 @@ export default function RestaurantsList() {
                           <span className="text-sm text-slate-700">{restaurant.zone}</span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm text-slate-700">{restaurant.cuisine}</span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex flex-col gap-1">
-                            <span className={`inline-flex w-fit items-center rounded-full px-2.5 py-1 text-xs font-semibold ${restaurant.availability?.isOpen ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>
-                              {restaurant.availability?.isOpen ? "Online" : "Offline"}
+                            <span className={`inline-flex w-fit items-center rounded-full px-2.5 py-1 text-xs font-semibold ${approvalStatusBadgeClass(restaurant.approvalStatus)}`}>
+                              {approvalStatusLabel(restaurant.approvalStatus)}
                             </span>
-                            {restaurant.availability?.closingCountdownLabel ? (
-                              <span className="text-[11px] text-slate-500">
-                                {restaurant.availability.closingCountdownLabel}
-                              </span>
-                            ) : (restaurant.availability?.openingTime && restaurant.availability?.closingTime) || (restaurant.openingTime && restaurant.closingTime) ? (
-                              <span className="text-[11px] text-slate-500">
-                                {(restaurant.availability?.openingTime || restaurant.openingTime) || "—"} – {(restaurant.availability?.closingTime || restaurant.closingTime) || "—"}
-                              </span>
-                            ) : (
-                              <span className="text-[11px] text-slate-500">
-                                No timings
-                              </span>
-                            )}
+                            <span className="text-[11px] text-slate-500">
+                              Outlet: {restaurant.isActive ? "Active" : "Inactive"}
+                            </span>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center">
@@ -1245,11 +1210,11 @@ export default function RestaurantsList() {
                             </button>
                             <button
                               onClick={() => handleBanRestaurant(restaurant)}
-                              className={`p-1.5 rounded transition-colors ${!restaurant.status
+                              className={`p-1.5 rounded transition-colors ${!restaurant.isActive
                                 ? "text-green-600 hover:bg-green-50"
                                 : "text-red-600 hover:bg-red-50"
                                 }`}
-                              title={!restaurant.status ? "Unban Restaurant" : "Ban Restaurant"}
+                              title={!restaurant.isActive ? "Unban Restaurant" : "Ban Restaurant"}
                             >
                               <ShieldX className="w-4 h-4" />
                             </button>
@@ -1371,6 +1336,33 @@ export default function RestaurantsList() {
                       <input type="text" value={detailsForm.name} onChange={(e) => setDetailsForm((prev) => ({ ...prev, name: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
                     </div>
                     <div>
+                      <label className="block text-xs text-slate-500 mb-1">Pure Veg</label>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setDetailsForm((prev) => ({ ...prev, pureVegRestaurant: true }))}
+                          className={`px-3 py-1.5 text-xs rounded-full border ${
+                            detailsForm.pureVegRestaurant === true
+                              ? "bg-green-600 text-white border-green-600"
+                              : "bg-white text-slate-700 border-slate-300"
+                          }`}
+                        >
+                          Yes
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDetailsForm((prev) => ({ ...prev, pureVegRestaurant: false }))}
+                          className={`px-3 py-1.5 text-xs rounded-full border ${
+                            detailsForm.pureVegRestaurant === false
+                              ? "bg-slate-900 text-white border-slate-900"
+                              : "bg-white text-slate-700 border-slate-300"
+                          }`}
+                        >
+                          No
+                        </button>
+                      </div>
+                    </div>
+                    <div>
                       <label className="block text-xs text-slate-500 mb-1">Restaurant Email</label>
                       <input type="email" value={detailsForm.email} onChange={(e) => setDetailsForm((prev) => ({ ...prev, email: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
                     </div>
@@ -1427,6 +1419,7 @@ export default function RestaurantsList() {
               )}
               {!loadingDetails && !isEditingDetails && (restaurantDetails || selectedRestaurant) && (() => {
                 const r = restaurantDetails || selectedRestaurant?.originalData || selectedRestaurant
+                const detailsApprovalStatus = normalizeApprovalStatus(r)
                 const profileImgUrl = typeof r?.profileImage === "string" ? r.profileImage : (r?.profileImage?.url || r?.logo || r?.restaurantImage)
                 const hasFlatAddress = r?.addressLine1 || r?.area || r?.city || r?.state || r?.pincode
                 const flatAddress = [r?.addressLine1, r?.addressLine2, r?.area, r?.city, r?.state, r?.pincode, r?.landmark].filter(Boolean).join(", ")
@@ -1684,9 +1677,8 @@ export default function RestaurantsList() {
                         )}
                         <div>
                           <p className="text-xs text-slate-500 mb-1">Status</p>
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getRestaurantAvailabilityStatus(r).isOpen ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
-                            }`}>
-                            {getRestaurantAvailabilityStatus(r).isOpen ? "Online" : "Offline"}
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${approvalStatusBadgeClass(detailsApprovalStatus)}`}>
+                            {approvalStatusLabel(detailsApprovalStatus)}
                           </span>
                           <p className="mt-2 text-xs text-slate-500">
                             Outlet: {(r?.isActive !== false) ? "Active" : "Inactive"}
@@ -2399,4 +2391,5 @@ export default function RestaurantsList() {
     </div>
   )
 }
+
 

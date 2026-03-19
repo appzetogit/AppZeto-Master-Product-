@@ -107,6 +107,7 @@ function mapDiningRestaurant(restaurant, diningDoc, categoriesById) {
         restaurantName: restaurant.restaurantName || restaurant.name || 'N/A',
         ownerName: restaurant.ownerName || 'N/A',
         ownerPhone: restaurant.ownerPhone || restaurant.phone || 'N/A',
+        pureVegRestaurant: diningDoc?.pureVegRestaurant === true || restaurant?.pureVegRestaurant === true,
         zone: getRestaurantZone(restaurant),
         city: restaurant?.location?.city || restaurant?.city || '',
         status: restaurant.status,
@@ -119,6 +120,7 @@ function mapDiningRestaurant(restaurant, diningDoc, categoriesById) {
         diningSettings: {
             isEnabled: Boolean(diningDoc?.isEnabled),
             maxGuests: Math.max(1, Number(diningDoc?.maxGuests) || 6),
+            pureVegRestaurant: diningDoc?.pureVegRestaurant === true || restaurant?.pureVegRestaurant === true,
             diningType: primaryCategory?.slug || restaurant?.diningSettings?.diningType || ''
         }
     };
@@ -209,6 +211,10 @@ export async function deleteDiningCategory(id) {
         if (doc.primaryCategoryId && String(doc.primaryCategoryId) === id) {
             doc.primaryCategoryId = doc.categoryIds[0] || null;
         }
+        if (typeof doc.pureVegRestaurant !== 'boolean') {
+            const sourceRestaurant = await FoodRestaurant.findById(doc.restaurantId).select('pureVegRestaurant').lean();
+            doc.pureVegRestaurant = sourceRestaurant?.pureVegRestaurant === true;
+        }
         await doc.save();
         await syncRestaurantDiningSettings(doc.restaurantId, doc);
     }
@@ -220,10 +226,10 @@ export async function listDiningRestaurantsAdmin() {
     const [restaurants, diningDocs, categories] = await Promise.all([
         FoodRestaurant.find({})
             .sort({ createdAt: -1 })
-            .select('restaurantName ownerName ownerPhone profileImage location area city status rating diningSettings')
+            .select('restaurantName ownerName ownerPhone profileImage location area city status rating pureVegRestaurant diningSettings')
             .lean(),
         FoodDiningRestaurant.find({})
-            .select('restaurantId categoryIds primaryCategoryId isEnabled maxGuests')
+            .select('restaurantId categoryIds primaryCategoryId isEnabled maxGuests pureVegRestaurant')
             .lean(),
         FoodDiningCategory.find({}).select('name slug imageUrl').lean()
     ]);
@@ -246,7 +252,10 @@ export async function updateDiningRestaurant(restaurantId, body = {}) {
 
     let diningDoc = await FoodDiningRestaurant.findOne({ restaurantId });
     if (!diningDoc) {
-        diningDoc = new FoodDiningRestaurant({ restaurantId });
+        diningDoc = new FoodDiningRestaurant({
+            restaurantId,
+            pureVegRestaurant: restaurant.pureVegRestaurant === true
+        });
     }
 
     const categoryIds = body.categoryIds !== undefined
@@ -267,6 +276,18 @@ export async function updateDiningRestaurant(restaurantId, body = {}) {
     if (body.maxGuests !== undefined) {
         diningDoc.maxGuests = Math.max(1, parseInt(body.maxGuests, 10) || 6);
     }
+    if (body.pureVegRestaurant !== undefined) {
+        if (typeof body.pureVegRestaurant === 'boolean') {
+            diningDoc.pureVegRestaurant = body.pureVegRestaurant;
+        } else if (typeof body.pureVegRestaurant === 'string') {
+            const normalized = body.pureVegRestaurant.trim().toLowerCase();
+            if (normalized === 'true' || normalized === '1' || normalized === 'yes') {
+                diningDoc.pureVegRestaurant = true;
+            } else if (normalized === 'false' || normalized === '0' || normalized === 'no') {
+                diningDoc.pureVegRestaurant = false;
+            }
+        }
+    }
 
     if (body.primaryCategoryId !== undefined) {
         diningDoc.primaryCategoryId = mongoose.Types.ObjectId.isValid(body.primaryCategoryId)
@@ -279,6 +300,9 @@ export async function updateDiningRestaurant(restaurantId, body = {}) {
 
     if (!primaryCategoryIsAllowed) {
         diningDoc.primaryCategoryId = validCategoryIds[0] || null;
+    }
+    if (typeof diningDoc.pureVegRestaurant !== 'boolean') {
+        diningDoc.pureVegRestaurant = restaurant.pureVegRestaurant === true;
     }
 
     await diningDoc.save();
@@ -341,6 +365,7 @@ export async function listDiningRestaurantsPublic(query = {}) {
             diningSettings: {
                 isEnabled: true,
                 maxGuests: Math.max(1, Number(doc.maxGuests) || 6),
+                pureVegRestaurant: doc.pureVegRestaurant === true || doc.restaurantId?.pureVegRestaurant === true,
                 diningType: doc.categoryIds?.[0]?.slug || doc.restaurantId?.diningSettings?.diningType || ''
             }
         }));

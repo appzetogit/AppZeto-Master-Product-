@@ -27,6 +27,11 @@ const diningRestaurantSchema = new mongoose.Schema(
             type: Number,
             default: 6,
             min: 1
+        },
+        pureVegRestaurant: {
+            type: Boolean,
+            required: true,
+            default: false
         }
     },
     {

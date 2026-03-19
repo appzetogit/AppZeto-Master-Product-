@@ -7,6 +7,7 @@ import { FoodZone } from '../models/zone.model.js';
 import { FoodCategory } from '../models/category.model.js';
 import { FoodItem } from '../models/food.model.js';
 import { FoodOffer } from '../models/offer.model.js';
+import { FoodOfferUsage } from '../models/offerUsage.model.js';
 import { DeliveryBonusTransaction } from '../models/deliveryBonusTransaction.model.js';
 import { FoodEarningAddon } from '../models/earningAddon.model.js';
 import { FoodEarningAddonHistory } from '../models/earningAddonHistory.model.js';
@@ -1052,6 +1053,9 @@ export async function getAllOffers(_query = {}) {
         .lean();
 
     const offers = list.map((o, index) => {
+        const now = Date.now();
+        const endTs = o.endDate ? new Date(o.endDate).getTime() : null;
+        const isExpired = Boolean(endTs && now >= endTs);
         const restaurantName =
             o.restaurantScope === 'selected'
                 ? (o.restaurantId?.restaurantName || 'Selected Restaurant')
@@ -1059,7 +1063,6 @@ export async function getAllOffers(_query = {}) {
 
         const discountPercentage = o.discountType === 'percentage' ? Number(o.discountValue) : 0;
 
-        // UI expects dish-level fields; for admin-created coupons we treat as "All Items".
         const originalPrice = o.discountType === 'flat-price' ? Number(o.discountValue) : 0;
         const discountedPrice = 0;
 
@@ -1075,9 +1078,15 @@ export async function getAllOffers(_query = {}) {
             discountPercentage,
             originalPrice,
             discountedPrice,
-            status: o.status || 'active',
+            status: isExpired ? 'inactive' : (o.status || 'active'),
             showInCart: o.showInCart !== false,
-            endDate: o.endDate || null
+            endDate: o.endDate || null,
+            // Additional info for admin UI (backward compatible)
+            minOrderValue: o.minOrderValue ?? 0,
+            maxDiscount: o.maxDiscount ?? null,
+            usageLimit: o.usageLimit ?? null,
+            usedCount: o.usedCount ?? 0,
+            restaurantScope: o.restaurantScope
         };
     });
 
@@ -1097,8 +1106,14 @@ export async function createAdminOffer(body) {
         customerScope: body.customerScope,
         restaurantScope: body.restaurantScope,
         restaurantId: body.restaurantScope === 'selected' ? body.restaurantId : undefined,
+        minOrderValue: body.minOrderValue ?? 0,
+        maxDiscount: body.maxDiscount ?? null,
+        usageLimit: body.usageLimit ?? null,
+        perUserLimit: body.perUserLimit ?? null,
+        startDate: body.startDate,
+        isFirstOrderOnly: body.isFirstOrderOnly ?? false,
         endDate: body.endDate,
-        status: 'active',
+        status: body.endDate && new Date(body.endDate).getTime() <= Date.now() ? 'inactive' : 'active',
         showInCart: true
     });
     return doc.toObject();
@@ -1106,7 +1121,6 @@ export async function createAdminOffer(body) {
 
 export async function updateAdminOfferCartVisibility(offerId, itemId, showInCart) {
     if (!offerId || !mongoose.Types.ObjectId.isValid(offerId)) return null;
-    // We currently store a single showInCart flag per coupon; itemId is kept for frontend compatibility.
     if (!itemId) return null;
     const updated = await FoodOffer.findByIdAndUpdate(
         offerId,
@@ -1116,6 +1130,21 @@ export async function updateAdminOfferCartVisibility(offerId, itemId, showInCart
     return updated;
 }
 
+export async function deleteAdminOffer(id) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+    const deleted = await FoodOffer.findByIdAndDelete(id).lean();
+    if (!deleted) return null;
+    await FoodOfferUsage.deleteMany({ offerId: new mongoose.Types.ObjectId(id) });
+    return { id };
+}
+
+export async function expireExpiredOffers() {
+    const now = new Date();
+    await FoodOffer.updateMany(
+        { status: 'active', endDate: { $lte: now } },
+        { $set: { status: 'inactive' } }
+    );
+}
 // ----- Delivery join requests -----
 export async function getDeliveryJoinRequests(query) {
     const { status = 'pending', page = 1, limit = 1000, search, zone, vehicleType } = query;

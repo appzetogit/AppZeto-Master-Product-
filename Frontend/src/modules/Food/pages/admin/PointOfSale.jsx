@@ -266,7 +266,7 @@ export default function PointOfSale() {
   }
 
   const formatCurrency = (amount) => {
-    return `? ${amount?.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}`
+    return `\u20B9 ${amount?.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}`
   }
 
   const formatNumber = (num) => {

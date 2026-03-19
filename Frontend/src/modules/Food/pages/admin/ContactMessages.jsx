@@ -493,13 +493,13 @@ export default function ContactMessages() {
                              </p>
                              {item.price && (
                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                 ?{item.price} each
+                                 {"\u20B9"}{item.price} each
                                </p>
                              )}
                            </div>
                            {item.price && (
                              <p className="text-sm font-bold text-slate-900 dark:text-white">
-                               ?{(item.price * item.quantity).toFixed(2)}
+                               {"\u20B9"}{(item.price * item.quantity).toFixed(2)}
                              </p>
                            )}
                          </div>

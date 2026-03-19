@@ -14,10 +14,10 @@ const debugError = (...args) => {}
 const formatBonusAmount = (transaction) => {
   // Use raw amount if available, otherwise clean the bonus string
   if (transaction.amount !== undefined && transaction.amount !== null) {
-    return `?${parseFloat(transaction.amount).toFixed(2)}`
+    return `\u20B9${parseFloat(transaction.amount).toFixed(2)}`
   }
   
-  if (!transaction.bonus) return '?0.00'
+  if (!transaction.bonus) return '\u20B90.00'
   
   // Clean the bonus string - remove superscript characters
   let cleaned = transaction.bonus.toString()
@@ -29,10 +29,10 @@ const formatBonusAmount = (transaction) => {
   const numericMatch = cleaned.match(/[\d.]+/)
   if (numericMatch) {
     const amount = parseFloat(numericMatch[0])
-    return `?${amount.toFixed(2)}`
+    return `\u20B9${amount.toFixed(2)}`
   }
   
-  return '?0.00'
+  return '\u20B90.00'
 }
 
 export default function DeliverymanBonus() {

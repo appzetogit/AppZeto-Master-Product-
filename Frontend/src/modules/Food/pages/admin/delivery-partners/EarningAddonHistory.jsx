@@ -475,7 +475,7 @@ export default function EarningAddonHistory() {
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center gap-1">
                               <DollarSign className="w-4 h-4 text-emerald-500" />
-                              <span className="text-sm font-medium text-slate-900">?{item.totalEarning?.toFixed(2) || item.earningAmount?.toFixed(2) || '0.00'}</span>
+                              <span className="text-sm font-medium text-slate-900">{"\u20B9"}{item.totalEarning?.toFixed(2) || item.earningAmount?.toFixed(2) || '0.00'}</span>
                             </div>
                           </td>
                         )}
@@ -585,7 +585,7 @@ export default function EarningAddonHistory() {
                   <div className="flex-1">
                     <p className="text-xs font-medium text-emerald-700 uppercase tracking-wide mb-1">Amount to Credit</p>
                     <p className="text-2xl font-bold text-emerald-600">
-                      ?{selectedHistory.totalEarning?.toFixed(2) || selectedHistory.earningAmount?.toFixed(2) || '0.00'}
+                      {"\u20B9"}{selectedHistory.totalEarning?.toFixed(2) || selectedHistory.earningAmount?.toFixed(2) || '0.00'}
                     </p>
                   </div>
                 </div>

@@ -379,6 +379,22 @@ export async function updateAdminOfferCartVisibility(req, res, next) {
     }
 }
 
+export async function deleteAdminOffer(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid offer id' });
+        }
+        const result = await adminService.deleteAdminOffer(id);
+        if (!result) {
+            return res.status(404).json({ success: false, message: 'Offer not found' });
+        }
+        res.status(200).json({ success: true, message: 'Offer deleted successfully', data: result });
+    } catch (error) {
+        next(error);
+    }
+}
+
 export async function getPendingRestaurants(req, res, next) {
     try {
         const pending = await adminService.getPendingRestaurants();

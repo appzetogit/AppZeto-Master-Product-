@@ -9,8 +9,13 @@ const createOfferSchema = z.object({
     customerScope: z.enum(['all', 'first-time']).default('all'),
     restaurantScope: z.enum(['all', 'selected']).default('all'),
     restaurantId: z.string().optional(),
-    // Admin UI sends YYYY-MM-DD (from <input type="date">)
-    endDate: z.string().optional().or(z.literal('')).or(z.undefined())
+    endDate: z.string().optional().or(z.literal('')).or(z.undefined()),
+    startDate: z.string().optional().or(z.literal('')).or(z.undefined()),
+    minOrderValue: z.number().min(0).optional(),
+    maxDiscount: z.number().min(0).optional(),
+    usageLimit: z.number().min(0).optional(),
+    perUserLimit: z.number().min(0).optional(),
+    isFirstOrderOnly: z.boolean().optional()
 });
 
 export const validateCreateOfferDto = (body) => {
@@ -22,7 +27,13 @@ export const validateCreateOfferDto = (body) => {
         customerScope: body?.customerScope,
         restaurantScope: body?.restaurantScope,
         restaurantId: body?.restaurantId ? String(body.restaurantId) : undefined,
-        endDate: body?.endDate ? String(body.endDate) : undefined
+        endDate: body?.endDate ? String(body.endDate) : undefined,
+        startDate: body?.startDate ? String(body.startDate) : undefined,
+        minOrderValue: body?.minOrderValue !== undefined ? Number(body.minOrderValue) : undefined,
+        maxDiscount: body?.maxDiscount !== undefined ? Number(body.maxDiscount) : undefined,
+        usageLimit: body?.usageLimit !== undefined ? Number(body.usageLimit) : undefined,
+        perUserLimit: body?.perUserLimit !== undefined ? Number(body.perUserLimit) : undefined,
+        isFirstOrderOnly: body?.isFirstOrderOnly !== undefined ? Boolean(body.isFirstOrderOnly) : undefined
     };
 
     const result = createOfferSchema.safeParse(normalized);
@@ -40,6 +51,26 @@ export const validateCreateOfferDto = (body) => {
     if (endDate && Number.isNaN(endDate.getTime())) {
         throw new ValidationError('Invalid endDate');
     }
+    const startDate = result.data.startDate ? new Date(`${result.data.startDate}T00:00:00.000Z`) : undefined;
+    if (startDate && Number.isNaN(startDate.getTime())) {
+        throw new ValidationError('Invalid startDate');
+    }
+    if (endDate && startDate && endDate.getTime() <= startDate.getTime()) {
+        throw new ValidationError('endDate must be after startDate');
+    }
+    if (endDate && endDate.getTime() <= Date.now()) {
+        throw new ValidationError('endDate must be a future date');
+    }
+    // Business rule: percentage coupon must have maxDiscount; flat ignores it
+    let maxDiscount = result.data.maxDiscount;
+    if (result.data.discountType === 'percentage') {
+        if (maxDiscount === undefined || maxDiscount === null || Number.isNaN(Number(maxDiscount))) {
+            throw new ValidationError('maxDiscount is required for percentage coupons');
+        }
+        maxDiscount = Math.max(0, Number(maxDiscount) || 0);
+    } else {
+        maxDiscount = undefined; // ignore for flat-price
+    }
 
     return {
         couponCode: result.data.couponCode.trim().toUpperCase(),
@@ -48,7 +79,13 @@ export const validateCreateOfferDto = (body) => {
         customerScope: result.data.customerScope,
         restaurantScope: result.data.restaurantScope,
         restaurantId: result.data.restaurantScope === 'selected' ? result.data.restaurantId : undefined,
-        endDate
+        endDate,
+        startDate,
+        minOrderValue: result.data.minOrderValue,
+        maxDiscount,
+        usageLimit: result.data.usageLimit,
+        perUserLimit: result.data.perUserLimit,
+        isFirstOrderOnly: result.data.isFirstOrderOnly
     };
 };
 
@@ -64,4 +101,3 @@ export const validateUpdateOfferCartVisibilityDto = (body) => {
     }
     return result.data;
 };
-

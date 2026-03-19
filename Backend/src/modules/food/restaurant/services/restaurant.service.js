@@ -684,7 +684,10 @@ export const listPublicOffers = async () => {
     const now = new Date();
     const filter = {
         status: 'active',
-        $or: [{ endDate: { $exists: false } }, { endDate: null }, { endDate: { $gt: now } }]
+        $and: [
+            { $or: [{ startDate: { $exists: false } }, { startDate: null }, { startDate: { $lte: now } }] },
+            { $or: [{ endDate: { $exists: false } }, { endDate: null }, { endDate: { $gt: now } }] }
+        ]
     };
 
     const list = await FoodOffer.find(filter)
@@ -712,6 +715,7 @@ export const listPublicOffers = async () => {
             title,
             discountType: o.discountType,
             discountValue: o.discountValue,
+            maxDiscount: o.maxDiscount ?? null,
             customerScope: o.customerScope,
             restaurantScope: o.restaurantScope,
             restaurantId: restaurant?._id ? String(restaurant._id) : (o.restaurantScope === 'selected' ? String(o.restaurantId) : null),
@@ -721,7 +725,8 @@ export const listPublicOffers = async () => {
             deliveryTime: restaurant?.estimatedDeliveryTime || null,
             restaurantRating: typeof restaurant?.rating === 'number' ? restaurant.rating : 0,
             endDate: o.endDate || null,
-            showInCart: o.showInCart !== false
+            showInCart: o.showInCart !== false,
+            minOrderValue: o.minOrderValue ?? 0
         };
     });
 

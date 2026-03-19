@@ -79,6 +79,7 @@ router.patch('/foods/:id/reject', foodApprovalController.rejectFoodItemControlle
 router.get('/offers', adminController.getAllOffers);
 router.post('/offers', adminController.createAdminOffer);
 router.patch('/offers/:id/cart-visibility', adminController.updateAdminOfferCartVisibility);
+router.delete('/offers/:id', adminController.deleteAdminOffer);
 
 // ----- Fee Settings -----
 router.get('/fee-settings', adminController.getFeeSettings);

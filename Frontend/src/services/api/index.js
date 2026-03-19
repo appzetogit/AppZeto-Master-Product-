@@ -408,6 +408,10 @@ export const adminAPI = {
       { itemId: String(itemId), showInCart: Boolean(showInCart) },
       { contextModule: "admin" },
     ),
+  deleteAdminOffer: (offerId) =>
+    apiClient.delete(`/food/admin/offers/${String(offerId)}`, {
+      contextModule: "admin",
+    }),
 
   /** Delivery Partner Bonus (admin) */
   getDeliveryPartnerBonusTransactions: (params = {}) =>
@@ -736,6 +740,43 @@ export const restaurantAPI = {
       contextModule: "restaurant",
     });
   },
+  /** Public Offers for users (global/selected restaurant) */
+  getPublicOffers: () =>
+    apiClient.get("/food/restaurant/offers"),
+  /** Backward-compat helper used by Cart: returns coupons array for an item by adapting public offers */
+  getCouponsByItemIdPublic: (restaurantId, _itemId) =>
+    apiClient.get("/food/restaurant/offers").then((res) => {
+      const list = res?.data?.data?.allOffers || res?.data?.allOffers || [];
+      const now = Date.now();
+      const coupons = list
+        .filter((o) => {
+          // Guard: respect selected restaurant scope
+          if (String(o?.restaurantScope) === "selected") {
+            if (!restaurantId) return false;
+            return String(o.restaurantId || "") === String(restaurantId || "");
+          }
+          return true;
+        })
+        .map((o) => {
+          const isPct = o.discountType === "percentage";
+          return {
+            couponCode: o.couponCode,
+            discountType: o.discountType,
+            discountPercentage: isPct ? Number(o.discountValue) || 0 : 0,
+            originalPrice: 0,
+            discountedPrice: 0,
+            minOrderValue: Number(o.minOrderValue || 0),
+            minOrder: Number(o.minOrderValue || 0),
+            maxDiscount: o.maxDiscount != null ? Number(o.maxDiscount) : null,
+            customerGroup: o.customerScope || "all",
+            isGlobalCoupon: true,
+            endDate: o.endDate || null,
+            showInCart: o.showInCart !== false,
+            _ts: now,
+          };
+        });
+      return { data: { success: true, data: { coupons } } };
+    }),
   /** Categories (restaurant dashboard) */
   getCategories: (params = {}) =>
     // Compact payload for item creation forms (id + name only).

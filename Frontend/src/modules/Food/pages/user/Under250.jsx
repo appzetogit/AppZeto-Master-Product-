@@ -19,6 +19,7 @@ import OptimizedImage from "@food/components/OptimizedImage"
 import api from "@food/api"
 import { restaurantAPI } from "@food/api"
 import { isModuleAuthenticated } from "@food/utils/auth"
+import { flattenMenuItems, getMenuFromResponse } from "@food/utils/menuItems"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -168,13 +169,71 @@ export default function Under250() {
     const fetchRestaurantsUnder250 = async () => {
       try {
         setLoadingRestaurants(true)
-        // Optional: Add zoneId if available (for sorting/filtering, but show all restaurants)
-        const response = await restaurantAPI.getRestaurantsUnder250(zoneId)
-        if (response.data.success && response.data.data.restaurants) {
-          setUnder250Restaurants(response.data.data.restaurants)
-        } else {
-          setUnder250Restaurants([])
-        }
+        const response = await restaurantAPI.getRestaurants(zoneId ? { zoneId } : {})
+        const restaurantsRaw = Array.isArray(response?.data?.data?.restaurants)
+          ? response.data.data.restaurants
+          : []
+
+        const restaurantsWithUnder250Dishes = await Promise.all(
+          restaurantsRaw.map(async (restaurant) => {
+            const restaurantId = restaurant?.restaurantId || restaurant?._id
+            if (!restaurantId) return null
+
+            try {
+              const menuResponse = await restaurantAPI.getMenuByRestaurantId(restaurantId)
+              const menu = getMenuFromResponse(menuResponse)
+              const menuItems = flattenMenuItems(menu)
+                .filter((item) => Number(item?.price || 0) <= 250 && item?.isAvailable !== false)
+                .map((item) => {
+                  const foodType = String(item?.foodType || "").toLowerCase()
+                  const isVeg = foodType.includes("veg") && !foodType.includes("non")
+                  return {
+                    ...item,
+                    id: String(item?.id || item?._id || `${restaurantId}-${item?.name || "dish"}`),
+                    price: Number(item?.price || 0),
+                    isVeg,
+                    image:
+                      item?.image ||
+                      restaurant?.coverImages?.[0]?.url ||
+                      restaurant?.coverImages?.[0] ||
+                      restaurant?.menuImages?.[0]?.url ||
+                      restaurant?.menuImages?.[0] ||
+                      restaurant?.profileImage?.url ||
+                      "",
+                  }
+                })
+
+              if (menuItems.length === 0) return null
+
+              const deliveryMinutes =
+                Number(restaurant?.estimatedDeliveryTimeMinutes) ||
+                Number(restaurant?.estimatedDeliveryTime) ||
+                null
+
+              return {
+                id: String(restaurantId),
+                restaurantId: String(restaurantId),
+                slug:
+                  restaurant?.slug ||
+                  String(restaurant?.restaurantName || restaurant?.name || "")
+                    .toLowerCase()
+                    .replace(/\s+/g, "-"),
+                name: restaurant?.restaurantName || restaurant?.name || "Restaurant",
+                rating: Number(restaurant?.rating || 0),
+                totalRatings: Number(restaurant?.totalRatings || restaurant?.ratingCount || 0),
+                deliveryTime:
+                  restaurant?.estimatedDeliveryTime ||
+                  (deliveryMinutes ? `${deliveryMinutes} mins` : "30 mins"),
+                distance: restaurant?.distance || "",
+                menuItems,
+              }
+            } catch {
+              return null
+            }
+          })
+        )
+
+        setUnder250Restaurants(restaurantsWithUnder250Dishes.filter(Boolean))
       } catch (error) {
         debugError('Error fetching restaurants under 250:', error)
         setUnder250Restaurants([])

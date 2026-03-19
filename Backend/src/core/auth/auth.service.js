@@ -46,6 +46,11 @@ export const verifyUserOtpAndLogin = async (phone, otp, ref) => {
         await userDoc.save();
     }
 
+    // Block login for deactivated users
+    if (userDoc.isActive === false) {
+        throw new AuthError('Your account has been deactivated. Please contact support.');
+    }
+
     // Ensure referralCode exists (used for share links on older accounts).
     if (!userDoc.referralCode) {
         userDoc.referralCode = String(userDoc._id);
@@ -550,6 +555,14 @@ export const refreshAccessToken = async (token) => {
         throw new AuthError('Invalid refresh token');
     }
 
+    // If deactivated user, do not issue fresh access tokens (forces logout on client)
+    if (payload?.role === 'USER') {
+        const u = await FoodUser.findById(payload.userId).select('isActive').lean();
+        if (!u || u.isActive === false) {
+            throw new AuthError('User account is deactivated');
+        }
+    }
+
     const newAccessToken = signAccessToken({
         userId: payload.userId,
         role: payload.role
@@ -557,4 +570,3 @@ export const refreshAccessToken = async (token) => {
 
     return { accessToken: newAccessToken };
 };
-

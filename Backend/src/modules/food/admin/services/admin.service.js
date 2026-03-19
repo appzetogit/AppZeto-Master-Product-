@@ -15,12 +15,30 @@ import { FoodRestaurantCommission } from '../models/restaurantCommission.model.j
 import { FoodDeliveryCommissionRule } from '../models/deliveryCommissionRule.model.js';
 import { FoodFeeSettings } from '../models/feeSettings.model.js';
 import { FoodUser } from '../../../../core/users/user.model.js';
+import { FoodRefreshToken } from '../../../../core/refreshTokens/refreshToken.model.js';
 import { FoodDeliveryCashLimit } from '../models/deliveryCashLimit.model.js';
 import { FoodDeliveryEmergencyHelp } from '../models/deliveryEmergencyHelp.model.js';
 import { FoodReferralSettings } from '../models/referralSettings.model.js';
 import { FoodReferralLog } from '../models/referralLog.model.js';
 import { FoodSafetyEmergencyReport } from '../models/safetyEmergencyReport.model.js';
 import { FoodAddon } from '../../restaurant/models/foodAddon.model.js';
+import { FoodSupportTicket } from '../../user/models/supportTicket.model.js';
+
+const parseBooleanLike = (value, fieldName) => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (['true', '1', 'yes', 'y', 'on', 'active'].includes(normalized)) return true;
+        if (['false', '0', 'no', 'n', 'off', 'inactive'].includes(normalized)) return false;
+    }
+    throw new ValidationError(`${fieldName} must be a boolean`);
+};
+
+const toFiniteNumber = (value) => {
+    if (value === null || value === undefined || value === '') return null;
+    const num = typeof value === 'number' ? value : Number(String(value).trim());
+    return Number.isFinite(num) ? num : null;
+};
 
 // ----- Restaurants -----
 export async function getRestaurants(query) {
@@ -95,13 +113,19 @@ export async function getCustomers(query = {}) {
         FoodUser.countDocuments(filter)
     ]);
 
+    const sanitizeUrl = (s) => {
+        if (!s) return '';
+        const str = String(s).trim();
+        return str.replace(/^`+|`+$/g, '').trim();
+    };
+
     let customers = docs.map((u) => ({
         id: u._id,
         _id: u._id,
         name: u.name || 'Unnamed',
         email: u.email || '',
         phone: u.phone || '',
-        profileImage: u.profileImage || '',
+        profileImage: sanitizeUrl(u.profileImage || ''),
         countryCode: u.countryCode || '+91',
         status: u.isActive !== false,
         isActive: u.isActive !== false,
@@ -124,13 +148,18 @@ export async function getCustomerById(id) {
     if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
     const u = await FoodUser.findById(id).select('-__v').lean();
     if (!u) return null;
+    const sanitizeUrl = (s) => {
+        if (!s) return '';
+        const str = String(s).trim();
+        return str.replace(/^`+|`+$/g, '').trim();
+    };
     return {
         id: u._id,
         _id: u._id,
         name: u.name || 'Unnamed',
         email: u.email || '',
         phone: u.phone || '',
-        profileImage: u.profileImage || '',
+        profileImage: sanitizeUrl(u.profileImage || ''),
         countryCode: u.countryCode || '+91',
         status: u.isActive !== false,
         isActive: u.isActive !== false,
@@ -143,11 +172,119 @@ export async function getCustomerById(id) {
 
 export async function updateCustomerStatus(id, isActive) {
     if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
-    const updated = await FoodUser.findByIdAndUpdate(
+    const updatedDoc = await FoodUser.findByIdAndUpdate(
         id,
         { $set: { isActive: Boolean(isActive) } },
         { new: true }
-    ).lean();
+    );
+    if (!updatedDoc) return null;
+    const updated = updatedDoc.toObject();
+    if (updated.isActive === false) {
+        await FoodRefreshToken.deleteMany({ userId: updated._id });
+    }
+    return updated;
+}
+
+export async function getSupportTickets(query = {}) {
+    const limit = Math.min(Math.max(parseInt(query.limit, 10) || 50, 1), 1000);
+    const page = Math.max(parseInt(query.page, 10) || 1, 1);
+    const skip = (page - 1) * limit;
+    const filter = {};
+    if (query.status && ['open', 'in-progress', 'resolved'].includes(String(query.status))) {
+        filter.status = String(query.status);
+    }
+    if (query.type && ['order', 'restaurant', 'other'].includes(String(query.type))) {
+        filter.type = String(query.type);
+    }
+    const [list, total] = await Promise.all([
+        FoodSupportTicket.find(filter)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .populate('userId', 'name phone email')
+            .populate('restaurantId', 'restaurantName city area')
+            .populate({
+                path: 'orderId',
+                select: 'restaurantId',
+                populate: { path: 'restaurantId', select: 'restaurantName city area' }
+            })
+            .lean(),
+        FoodSupportTicket.countDocuments(filter)
+    ]);
+    const tickets = list.map((t) => {
+        const user =
+            t.userId && typeof t.userId === 'object' && t.userId !== null
+                ? {
+                      _id: t.userId._id,
+                      name: t.userId.name || '',
+                      phone: t.userId.phone || '',
+                      email: t.userId.email || ''
+                  }
+                : null;
+        const userId =
+            t.userId && typeof t.userId === 'object' && t.userId !== null ? String(t.userId._id) : String(t.userId);
+
+        let restaurantDoc = null;
+        if (t.restaurantId && typeof t.restaurantId === 'object' && t.restaurantId !== null) {
+            restaurantDoc = t.restaurantId;
+        } else if (t.orderId && typeof t.orderId === 'object' && t.orderId !== null) {
+            const rid = t.orderId.restaurantId;
+            if (rid && typeof rid === 'object' && rid !== null) {
+                restaurantDoc = rid;
+            }
+        }
+
+        const restaurant =
+            restaurantDoc && typeof restaurantDoc === 'object'
+                ? {
+                      _id: restaurantDoc._id,
+                      name: restaurantDoc.restaurantName || '',
+                      city: restaurantDoc.city || '',
+                      area: restaurantDoc.area || ''
+                  }
+                : null;
+
+        const restaurantId =
+            restaurant && restaurant._id
+                ? String(restaurant._id)
+                : t.restaurantId
+                ? String(t.restaurantId)
+                : t.orderId && typeof t.orderId === 'object' && t.orderId !== null && t.orderId.restaurantId
+                ? String(t.orderId.restaurantId)
+                : null;
+
+        const restaurantName = restaurant ? restaurant.name : '';
+
+        return {
+            _id: t._id,
+            userId,
+            type: t.type,
+            orderId: t.orderId || null,
+            restaurantId,
+            issueType: t.issueType,
+            description: t.description,
+            status: t.status,
+            adminResponse: t.adminResponse,
+            createdAt: t.createdAt,
+            updatedAt: t.updatedAt,
+            user,
+            restaurant,
+            restaurantName
+        };
+    });
+    return { tickets, total, page, limit };
+}
+
+export async function updateSupportTicket(id, body = {}) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+    const set = {};
+    if (body.status && ['open', 'in-progress', 'resolved'].includes(String(body.status))) {
+        set.status = String(body.status);
+    }
+    if (typeof body.adminResponse === 'string') {
+        set.adminResponse = body.adminResponse;
+    }
+    const updated = await FoodSupportTicket.findByIdAndUpdate(id, { $set: set }, { new: true }).lean();
     return updated || null;
 }
 
@@ -571,6 +708,160 @@ export async function updateRestaurantMenuById(id, menu) {
 
 export async function getPendingRestaurants() {
     return FoodRestaurant.find({ status: 'pending' }).sort({ createdAt: -1 }).lean();
+}
+
+export async function updateRestaurantById(id, body = {}) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+    const doc = await FoodRestaurant.findById(id);
+    if (!doc) return null;
+
+    const toStr = (v) => (v != null ? String(v).trim() : '');
+
+    if (body.name !== undefined || body.restaurantName !== undefined) {
+        const name = toStr(body.name !== undefined ? body.name : body.restaurantName);
+        if (!name) throw new ValidationError('Restaurant name cannot be empty');
+        doc.restaurantName = name;
+    }
+
+    if (body.ownerName !== undefined) doc.ownerName = toStr(body.ownerName);
+    if (body.ownerEmail !== undefined) doc.ownerEmail = toStr(body.ownerEmail).toLowerCase();
+    if (body.ownerPhone !== undefined) doc.ownerPhone = toStr(body.ownerPhone);
+    if (body.primaryContactNumber !== undefined) doc.primaryContactNumber = toStr(body.primaryContactNumber);
+
+    if (body.pureVegRestaurant !== undefined) {
+        doc.pureVegRestaurant = parseBooleanLike(body.pureVegRestaurant, 'pureVegRestaurant');
+    }
+
+    if (body.cuisines !== undefined) {
+        if (Array.isArray(body.cuisines)) {
+            doc.cuisines = body.cuisines
+                .map((c) => toStr(c))
+                .filter(Boolean)
+                .slice(0, 50);
+        } else if (typeof body.cuisines === 'string') {
+            doc.cuisines = body.cuisines
+                .split(',')
+                .map((c) => toStr(c))
+                .filter(Boolean)
+                .slice(0, 50);
+        } else {
+            throw new ValidationError('cuisines must be an array or comma-separated string');
+        }
+    }
+
+    if (body.openingTime !== undefined) doc.openingTime = toStr(body.openingTime);
+    if (body.closingTime !== undefined) doc.closingTime = toStr(body.closingTime);
+    if (body.offer !== undefined) doc.offer = toStr(body.offer);
+
+    if (body.estimatedDeliveryTime !== undefined) {
+        doc.estimatedDeliveryTime = toStr(body.estimatedDeliveryTime);
+    }
+    if (body.estimatedDeliveryTimeMinutes !== undefined) {
+        const minutes = toFiniteNumber(body.estimatedDeliveryTimeMinutes);
+        if (minutes === null) {
+            doc.estimatedDeliveryTimeMinutes = undefined;
+        } else if (minutes < 0) {
+            throw new ValidationError('estimatedDeliveryTimeMinutes must be >= 0');
+        } else {
+            doc.estimatedDeliveryTimeMinutes = Math.round(minutes);
+        }
+    }
+
+    if (body.profileImage !== undefined) {
+        const imageUrl = body.profileImage && typeof body.profileImage === 'object'
+            ? String(body.profileImage.url || '').trim()
+            : toStr(body.profileImage);
+        doc.profileImage = imageUrl || undefined;
+    }
+
+    await doc.save();
+    return FoodRestaurant.findById(id).select('-__v').populate('zoneId', 'name zoneName serviceLocation isActive').lean();
+}
+
+export async function updateRestaurantStatus(id, body = {}) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+    const raw = body.status !== undefined ? body.status : body.isActive;
+    const isActive = parseBooleanLike(raw, 'status');
+    const status = isActive ? 'approved' : 'rejected';
+
+    return FoodRestaurant.findByIdAndUpdate(
+        id,
+        {
+            $set: {
+                status,
+                approvedAt: isActive ? new Date() : undefined,
+                rejectedAt: isActive ? undefined : new Date(),
+                rejectionReason: isActive ? undefined : 'Disabled by admin'
+            }
+        },
+        { new: true, runValidators: false }
+    ).lean();
+}
+
+export async function updateRestaurantLocation(id, body = {}) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+    const doc = await FoodRestaurant.findById(id);
+    if (!doc) return null;
+
+    const source = (body.location && typeof body.location === 'object') ? body.location : body;
+    const toStr = (v) => (v != null ? String(v).trim() : '');
+
+    const coordinates = Array.isArray(source.coordinates) ? source.coordinates : [];
+    const lngFromCoordinates = toFiniteNumber(coordinates[0]);
+    const latFromCoordinates = toFiniteNumber(coordinates[1]);
+    const latitude = toFiniteNumber(source.latitude ?? latFromCoordinates);
+    const longitude = toFiniteNumber(source.longitude ?? lngFromCoordinates);
+
+    const addressLine1 = toStr(source.addressLine1 || source.formattedAddress || source.address);
+    const addressLine2 = toStr(source.addressLine2);
+    const area = toStr(source.area);
+    const city = toStr(source.city);
+    const state = toStr(source.state);
+    const pincode = toStr(source.pincode || source.zipCode || source.postalCode);
+    const landmark = toStr(source.landmark);
+    const formattedAddress = toStr(source.formattedAddress || source.address || addressLine1);
+
+    if (!doc.location || typeof doc.location !== 'object') {
+        doc.location = { type: 'Point' };
+    }
+    doc.location.type = 'Point';
+    if (latitude !== null && longitude !== null) {
+        doc.location.latitude = latitude;
+        doc.location.longitude = longitude;
+        doc.location.coordinates = [longitude, latitude];
+    }
+    doc.location.formattedAddress = formattedAddress;
+    doc.location.address = toStr(source.address || formattedAddress);
+    doc.location.addressLine1 = addressLine1;
+    doc.location.addressLine2 = addressLine2;
+    doc.location.area = area;
+    doc.location.city = city;
+    doc.location.state = state;
+    doc.location.pincode = pincode;
+    doc.location.landmark = landmark;
+
+    // Keep flat fields in sync for legacy readers.
+    doc.addressLine1 = addressLine1;
+    doc.addressLine2 = addressLine2;
+    doc.area = area;
+    doc.city = city;
+    doc.state = state;
+    doc.pincode = pincode;
+    doc.landmark = landmark;
+
+    if (body.zoneId !== undefined) {
+        const zoneId = String(body.zoneId || '').trim();
+        if (!zoneId) {
+            doc.zoneId = undefined;
+        } else if (!mongoose.Types.ObjectId.isValid(zoneId)) {
+            throw new ValidationError('Invalid zoneId');
+        } else {
+            doc.zoneId = new mongoose.Types.ObjectId(zoneId);
+        }
+    }
+
+    await doc.save();
+    return FoodRestaurant.findById(id).select('-__v').populate('zoneId', 'name zoneName serviceLocation isActive').lean();
 }
 
 // ----- Categories -----
@@ -1229,7 +1520,7 @@ export async function getSupportTicketStats() {
     };
 }
 
-export async function getSupportTickets(query) {
+export async function getDeliverySupportTickets(query = {}) {
     const { status, priority, search, page = 1, limit = 100 } = query;
     const filter = {};
     if (status && String(status).trim()) filter.status = String(status).trim();
@@ -1289,7 +1580,7 @@ export async function getSupportTickets(query) {
     };
 }
 
-export async function updateSupportTicket(id, body) {
+export async function updateDeliverySupportTicket(id, body = {}) {
     const ticket = await DeliverySupportTicket.findById(id);
     if (!ticket) return null;
     const { status, adminResponse } = body || {};

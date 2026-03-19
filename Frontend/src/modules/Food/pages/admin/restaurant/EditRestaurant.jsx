@@ -67,6 +67,10 @@ const normalizeLocationFormFromRestaurant = (restaurant) => {
 const normalizeDetailsFormFromRestaurant = (restaurant) => {
   return {
     name: restaurant?.name || restaurant?.restaurantName || "",
+    pureVegRestaurant:
+      typeof restaurant?.pureVegRestaurant === "boolean"
+        ? restaurant.pureVegRestaurant
+        : false,
     ownerName: restaurant?.ownerName || "",
     ownerEmail: restaurant?.ownerEmail || "",
     ownerPhone: restaurant?.ownerPhone || "",
@@ -298,6 +302,7 @@ export default function EditRestaurant() {
 
       const payload = {
         name: detailsForm.name,
+        pureVegRestaurant: detailsForm.pureVegRestaurant === true,
         ownerName: detailsForm.ownerName,
         ownerEmail: detailsForm.ownerEmail,
         ownerPhone: detailsForm.ownerPhone,
@@ -426,6 +431,33 @@ export default function EditRestaurant() {
                 <div>
                   <Label>Restaurant Name</Label>
                   <Input value={detailsForm.name} onChange={(e) => setDetailsForm((p) => ({ ...p, name: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>Pure Veg</Label>
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setDetailsForm((p) => ({ ...p, pureVegRestaurant: true }))}
+                      className={`px-3 py-1.5 text-xs rounded-full border ${
+                        detailsForm.pureVegRestaurant === true
+                          ? "bg-green-600 text-white border-green-600"
+                          : "bg-white text-slate-700 border-slate-300"
+                      }`}
+                    >
+                      Yes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDetailsForm((p) => ({ ...p, pureVegRestaurant: false }))}
+                      className={`px-3 py-1.5 text-xs rounded-full border ${
+                        detailsForm.pureVegRestaurant === false
+                          ? "bg-slate-900 text-white border-slate-900"
+                          : "bg-white text-slate-700 border-slate-300"
+                      }`}
+                    >
+                      No
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <Label>Primary Email</Label>

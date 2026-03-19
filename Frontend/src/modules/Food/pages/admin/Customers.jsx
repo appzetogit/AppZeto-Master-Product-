@@ -86,6 +86,25 @@ export default function Customers() {
     setFilters(prev => ({ ...prev, [field]: value }))
   }
 
+  const formatDateTime = (value) => {
+    if (!value) return "-"
+    try {
+      const d = new Date(value)
+      if (Number.isNaN(d.getTime())) return String(value)
+      const day = String(d.getDate()).padStart(2, "0")
+      const month = d.toLocaleString("en-GB", { month: "short" })
+      const year = d.getFullYear()
+      const time = d.toLocaleString("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      })
+      return `${day} ${month} ${year}, ${time}`
+    } catch {
+      return String(value)
+    }
+  }
+
   // Fetch customers from API
   useEffect(() => {
     let cancelled = false
@@ -455,7 +474,7 @@ export default function Customers() {
                         <span className="text-sm font-medium text-slate-900">{"\u20B9"} {(customer.totalOrderAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm text-slate-700">{customer.joiningDate}</span>
+                        <span className="text-sm text-slate-700">{formatDateTime(customer.joiningDate)}</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <button
@@ -538,7 +557,7 @@ export default function Customers() {
                       </div>
                       <div className="flex items-center gap-2 text-sm text-slate-600">
                         <CalendarIcon className="w-4 h-4" />
-                        <span>Joined: {userDetails.joiningDate}</span>
+                        <span>Joined: {formatDateTime(userDetails.joiningDate)}</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm text-slate-600">
                         <User className="w-4 h-4" />
@@ -572,7 +591,7 @@ export default function Customers() {
                     <CalendarIcon className="w-4 h-4 text-purple-600" />
                     <span className="text-xs font-semibold text-slate-700">Member Since</span>
                   </div>
-                  <p className="text-base font-bold text-purple-600">{userDetails.joiningDate}</p>
+                  <p className="text-base font-bold text-purple-600">{formatDateTime(userDetails.joiningDate)}</p>
                 </div>
               </div>
 

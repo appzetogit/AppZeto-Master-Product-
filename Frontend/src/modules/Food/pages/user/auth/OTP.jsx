@@ -215,11 +215,20 @@ export default function OTP() {
         navigate("/food/user")
       }, 500)
     } catch (err) {
-      const message =
+      const status = err?.response?.status
+      let message =
         err?.response?.data?.message ||
         err?.response?.data?.error ||
         err?.message ||
         "Failed to verify OTP. Please try again."
+      if (status === 401) {
+        // Friendlier copy for deactivated users or auth errors
+        if (/deactivat(ed|e)/i.test(String(message))) {
+          message = "Your account is deactivated. Please contact support."
+        } else {
+          message = "Invalid or expired code, or account not active."
+        }
+      }
       setError(message)
     } finally {
       setIsLoading(false)

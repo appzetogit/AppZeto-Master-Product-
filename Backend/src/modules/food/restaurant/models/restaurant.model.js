@@ -72,6 +72,11 @@ const restaurantSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    pureVegRestaurant: {
+      type: Boolean,
+      required: true,
+      default: false,
+    },
     addressLine1: {
       type: String,
     },

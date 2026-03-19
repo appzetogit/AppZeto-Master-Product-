@@ -395,6 +395,29 @@ export async function deleteAdminOffer(req, res, next) {
     }
 }
 
+export async function getSupportTicketsController(req, res, next) {
+    try {
+        const data = await adminService.getSupportTickets(req.query || {});
+        res.status(200).json({ success: true, message: 'Support tickets fetched successfully', data });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function updateSupportTicketController(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid ticket id' });
+        }
+        const updated = await adminService.updateSupportTicket(id, req.body || {});
+        if (!updated) return res.status(404).json({ success: false, message: 'Ticket not found' });
+        res.status(200).json({ success: true, message: 'Support ticket updated successfully', data: { ticket: updated } });
+    } catch (error) {
+        next(error);
+    }
+}
+
 export async function getPendingRestaurants(req, res, next) {
     try {
         const pending = await adminService.getPendingRestaurants();
@@ -906,7 +929,7 @@ export async function getSupportTicketStats(req, res, next) {
 
 export async function getSupportTickets(req, res, next) {
     try {
-        const data = await adminService.getSupportTickets(req.query);
+        const data = await adminService.getDeliverySupportTickets(req.query);
         res.status(200).json({
             success: true,
             message: 'Support tickets fetched successfully',
@@ -919,7 +942,7 @@ export async function getSupportTickets(req, res, next) {
 
 export async function updateSupportTicket(req, res, next) {
     try {
-        const ticket = await adminService.updateSupportTicket(req.params.id, req.body);
+        const ticket = await adminService.updateDeliverySupportTicket(req.params.id, req.body);
         if (!ticket) {
             return res.status(404).json({
                 success: false,

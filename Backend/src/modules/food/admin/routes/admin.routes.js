@@ -30,6 +30,10 @@ router.put('/safety-emergency-reports/:id/status', adminController.updateSafetyE
 router.put('/safety-emergency-reports/:id/priority', adminController.updateSafetyEmergencyPriority);
 router.delete('/safety-emergency-reports/:id', adminController.deleteSafetyEmergencyReport);
 
+// ----- Support Tickets (users) -----
+router.get('/support-tickets', adminController.getSupportTicketsController);
+router.patch('/support-tickets/:id', adminController.updateSupportTicketController);
+
 // ----- Restaurants -----
 router.get('/restaurants', adminController.getRestaurants);
 router.get('/restaurants/pending', adminController.getPendingRestaurants);

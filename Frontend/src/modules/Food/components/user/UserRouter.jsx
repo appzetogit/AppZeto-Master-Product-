@@ -61,7 +61,7 @@ const Payments = lazy(() => import("@food/pages/user/profile/Payments"))
 const AddPayment = lazy(() => import("@food/pages/user/profile/AddPayment"))
 const EditPayment = lazy(() => import("@food/pages/user/profile/EditPayment"))
 const Favorites = lazy(() => import("@food/pages/user/profile/Favorites"))
-const Settings = lazy(() => import("@food/pages/user/profile/Settings"))
+const Support = lazy(() => import("@food/pages/user/profile/Support"))
 const Coupons = lazy(() => import("@food/pages/user/profile/Coupons"))
 const About = lazy(() => import("@food/pages/user/profile/About"))
 const Terms = lazy(() => import("@food/pages/user/profile/Terms"))
@@ -229,10 +229,10 @@ export default function UserRouter() {
             }
           />
           <Route
-            path="profile/settings"
+            path="profile/support"
             element={
               <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
-                <Settings />
+                <Support />
               </ProtectedRoute>
             }
           />

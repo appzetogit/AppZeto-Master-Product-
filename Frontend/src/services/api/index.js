@@ -105,6 +105,17 @@ export const authAPI = {
   },
 };
 
+export const supportAPI = {
+  createTicket: (body) =>
+    apiClient.post("/food/user/support/ticket", body ?? {}, { contextModule: "user" }),
+  getMyTickets: (params = {}) =>
+    apiClient.get("/food/user/support/my-tickets", { params, contextModule: "user" }),
+  getSupportTicketsAdmin: (params = {}) =>
+    apiClient.get("/food/admin/support-tickets", { params, contextModule: "admin" }),
+  updateSupportTicketAdmin: (id, body = {}) =>
+    apiClient.patch(`/food/admin/support-tickets/${String(id)}`, body ?? {}, { contextModule: "admin" }),
+};
+
 /** Admin API - new backend only (GET /auth/me, PATCH /auth/admin/profile, POST /auth/admin/change-password) */
 export const adminAPI = {
   login: (email, password) => authService.adminLogin(email, password),

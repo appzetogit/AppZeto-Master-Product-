@@ -7,6 +7,15 @@ const phoneSchema = z
     .max(15, 'Phone must be at most 15 digits');
 
 const emailSchema = z.string().email('Invalid email').optional().or(z.literal(''));
+const requiredBooleanSchema = z.preprocess((value) => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (normalized === 'true' || normalized === '1' || normalized === 'yes') return true;
+        if (normalized === 'false' || normalized === '0' || normalized === 'no') return false;
+    }
+    return value;
+}, z.boolean({ required_error: 'Please select whether the restaurant is pure veg' }));
 
 const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
 
@@ -16,6 +25,7 @@ const restaurantRegisterSchema = z.object({
     ownerEmail: emailSchema,
     ownerPhone: phoneSchema.optional(),
     primaryContactNumber: phoneSchema.optional(),
+    pureVegRestaurant: requiredBooleanSchema,
     addressLine1: z.string().optional(),
     addressLine2: z.string().optional(),
     area: z.string().optional(),

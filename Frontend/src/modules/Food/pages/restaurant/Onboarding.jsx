@@ -348,6 +348,7 @@ export default function RestaurantOnboarding() {
 
   const [step1, setStep1] = useState({
     restaurantName: "",
+    pureVegRestaurant: null,
     ownerName: "",
     ownerEmail: "",
     ownerPhone: "",
@@ -580,6 +581,10 @@ export default function RestaurantOnboarding() {
       if (localData.step1) {
         setStep1({
           restaurantName: localData.step1.restaurantName || "",
+          pureVegRestaurant:
+            typeof localData.step1.pureVegRestaurant === "boolean"
+              ? localData.step1.pureVegRestaurant
+              : null,
           ownerName: localData.step1.ownerName || "",
           ownerEmail: localData.step1.ownerEmail || "",
           ownerPhone: localData.step1.ownerPhone || "",
@@ -715,9 +720,14 @@ export default function RestaurantOnboarding() {
           if (data.step1) {
             setStep1((prev) => ({
               restaurantName: data.step1.restaurantName || "",
+              pureVegRestaurant:
+                typeof data.step1.pureVegRestaurant === "boolean"
+                  ? data.step1.pureVegRestaurant
+                  : null,
               ownerName: data.step1.ownerName || "",
               ownerEmail: data.step1.ownerEmail || "",
               ownerPhone: data.step1.ownerPhone || "",
+              zoneId: data.step1.zoneId || prev.zoneId || "",
               primaryContactNumber: data.step1.primaryContactNumber || "",
               location: {
                 formattedAddress: data.step1.location?.formattedAddress || "",
@@ -821,6 +831,9 @@ export default function RestaurantOnboarding() {
 
     if (!step1.restaurantName?.trim()) {
       errors.push("Restaurant name is required")
+    }
+    if (typeof step1.pureVegRestaurant !== "boolean") {
+      errors.push("Please select whether your restaurant is pure veg")
     }
     if (!step1.ownerName?.trim()) {
       errors.push("Owner name is required")
@@ -1031,6 +1044,7 @@ export default function RestaurantOnboarding() {
     if (step === 1) {
       setStep1({
         restaurantName: "Test Restaurant",
+        pureVegRestaurant: true,
         ownerName: "John Doe",
         ownerEmail: "john.doe@example.com",
         ownerPhone: "+91 9876543210",
@@ -1140,6 +1154,10 @@ export default function RestaurantOnboarding() {
 
         // Step 1
         formData.append("restaurantName", step1.restaurantName || "")
+        formData.append(
+          "pureVegRestaurant",
+          step1.pureVegRestaurant === true ? "true" : "false",
+        )
         formData.append("ownerName", step1.ownerName || "")
         formData.append("ownerEmail", step1.ownerEmail || "")
         formData.append("ownerPhone", normalizePhoneDigits(step1.ownerPhone))
@@ -1268,6 +1286,36 @@ export default function RestaurantOnboarding() {
               className="mt-1 bg-white text-sm text-black placeholder-black"
               placeholder="Customers will see this name"
             />
+          </div>
+          <div>
+            <Label className="text-xs text-gray-700">Pure veg restaurant?*</Label>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setStep1({ ...step1, pureVegRestaurant: true })}
+                className={`px-3 py-1.5 text-xs rounded-full border ${
+                  step1.pureVegRestaurant === true
+                    ? "bg-green-600 text-white border-green-600"
+                    : "bg-white text-gray-700 border-gray-200"
+                }`}
+              >
+                Yes, Pure Veg
+              </button>
+              <button
+                type="button"
+                onClick={() => setStep1({ ...step1, pureVegRestaurant: false })}
+                className={`px-3 py-1.5 text-xs rounded-full border ${
+                  step1.pureVegRestaurant === false
+                    ? "bg-gray-900 text-white border-gray-900"
+                    : "bg-white text-gray-700 border-gray-200"
+                }`}
+              >
+                No, Mixed Menu
+              </button>
+            </div>
+            <p className="text-[11px] text-gray-500 mt-1">
+              This helps users filter restaurants by dietary preference.
+            </p>
           </div>
         </div>
       </section>

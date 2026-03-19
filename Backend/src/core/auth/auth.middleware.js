@@ -1,5 +1,6 @@
 import { verifyAccessToken } from './token.util.js';
 import { sendError } from '../../utils/response.js';
+import { FoodUser } from '../users/user.model.js';
 
 export const requireAdmin = (req, res, next) => {
     if (req.user?.role !== 'ADMIN') {
@@ -22,9 +23,18 @@ export const authMiddleware = (req, res, next) => {
             userId: decoded.userId,
             role: decoded.role
         };
-        next();
+        if (decoded.role === 'USER') {
+            // Enforce active status in real-time - deactivated users are logged out on next request.
+            FoodUser.findById(decoded.userId).select('isActive').lean().then((doc) => {
+                if (!doc || doc.isActive === false) {
+                    return sendError(res, 401, 'User account is deactivated');
+                }
+                next();
+            }).catch(() => sendError(res, 401, 'Authentication failed'));
+            return;
+        }
+        return next();
     } catch (error) {
         return sendError(res, 401, 'Invalid or expired token');
     }
 };
-

@@ -14,6 +14,52 @@ export default function PointOfSale() {
   const [restaurantData, setRestaurantData] = useState(null)
   const [showSearchResults, setShowSearchResults] = useState(false)
 
+  const getRestaurantName = (restaurant) => {
+    return String(
+      restaurant?.name ||
+      restaurant?.restaurantName ||
+      restaurant?.restaurant?.name ||
+      '',
+    ).trim()
+  }
+
+  const getRestaurantCode = (restaurant) => {
+    return String(
+      restaurant?.restaurantId ||
+      restaurant?.restaurantCode ||
+      restaurant?.restaurant?.restaurantId ||
+      restaurant?._id ||
+      '',
+    ).trim()
+  }
+
+  const normalizeRestaurants = (rawList) => {
+    if (!Array.isArray(rawList)) return []
+
+    return rawList
+      .map((restaurant) => {
+        const id = String(
+          restaurant?._id ||
+          restaurant?.id ||
+          restaurant?.restaurant?._id ||
+          restaurant?.restaurantId ||
+          '',
+        ).trim()
+        if (!id) return null
+
+        const resolvedName = getRestaurantName(restaurant) || `Restaurant ${id.slice(-6)}`
+        const resolvedCode = getRestaurantCode(restaurant)
+
+        return {
+          ...restaurant,
+          _id: id,
+          name: resolvedName,
+          restaurantId: resolvedCode,
+        }
+      })
+      .filter(Boolean)
+  }
+
   // Default analytics shape before the API responds
   const [analyticsData, setAnalyticsData] = useState({
     totalOrders: 0,
@@ -83,16 +129,17 @@ export default function PointOfSale() {
       setLoading(true)
       const response = await adminAPI.getRestaurants({ limit: 1000, isActive: true })
       if (response?.data?.success) {
-        setRestaurants(response.data.data?.restaurants || response.data.data || [])
+        const rawRestaurants = response.data.data?.restaurants || response.data.data || []
+        setRestaurants(normalizeRestaurants(rawRestaurants))
       }
     } catch (error) {
       debugError('Error fetching restaurants:', error)
       // Fallback to a minimal local list when the API is unavailable
-      setRestaurants([
+      setRestaurants(normalizeRestaurants([
         { _id: '1', name: 'Spice Garden', restaurantId: 'RST001' },
         { _id: '2', name: 'Tandoor Express', restaurantId: 'RST002' },
         { _id: '3', name: 'Coastal Delights', restaurantId: 'RST003' }
-      ])
+      ]))
     } finally {
       setLoading(false)
     }
@@ -247,7 +294,7 @@ export default function PointOfSale() {
     setSelectedRestaurant(restaurantId)
     const selected = restaurants.find(r => r._id === restaurantId)
     if (selected) {
-      setSearchQuery(`${selected.name} (${selected.restaurantId || selected._id})`)
+      setSearchQuery(selected.name)
     }
     setShowSearchResults(false)
   }
@@ -363,7 +410,7 @@ export default function PointOfSale() {
                     setSelectedRestaurant(e.target.value)
                     const selected = restaurants.find(r => r._id === e.target.value)
                     if (selected) {
-                      setSearchQuery(`${selected.name} (${selected.restaurantId || selected._id})`)
+                      setSearchQuery(selected.name)
                     }
                   }}
                         className="w-full h-11 rounded-md border border-[#e3e6ef] bg-white px-3 pr-10 text-sm text-[#4a5671] focus:outline-none focus:ring-1 focus:ring-[#006fbd]"
@@ -371,7 +418,7 @@ export default function PointOfSale() {
                   <option value="">Select Restaurant</option>
                   {restaurants.map(restaurant => (
                     <option key={restaurant._id} value={restaurant._id}>
-                      {restaurant.name} ({restaurant.restaurantId || restaurant._id})
+                      {restaurant.name}
                           </option>
                         ))}
                       </select>

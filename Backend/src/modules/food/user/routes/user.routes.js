@@ -22,6 +22,10 @@ import {
     createSafetyEmergencyReportController,
     listMySafetyEmergencyReportsController
 } from '../controllers/userSafetyEmergency.controller.js';
+import {
+    createSupportTicketController,
+    listMySupportTicketsController
+} from '../controllers/supportTicket.controller.js';
 
 const router = express.Router();
 
@@ -41,6 +45,10 @@ router.get('/referrals/stats', getUserReferralStatsController);
 router.post('/safety-emergency-reports', createSafetyEmergencyReportController);
 router.get('/safety-emergency-reports', listMySafetyEmergencyReportsController);
 
+// Support tickets (Bearer USER)
+router.post('/support/ticket', createSupportTicketController);
+router.get('/support/my-tickets', listMySupportTicketsController);
+
 router.get('/addresses', listAddressesController);
 router.post('/addresses', addAddressController);
 router.patch('/addresses/:addressId', updateAddressController);
@@ -48,4 +56,3 @@ router.delete('/addresses/:addressId', deleteAddressController);
 router.patch('/addresses/:addressId/default', setDefaultAddressController);
 
 export default router;
-

@@ -70,7 +70,15 @@ export default function UnifiedOTPFastLogin() {
       toast.success("Login successful!")
       navigate("/food/user", { replace: true })
     } catch (err) {
-      const msg = err?.response?.data?.message || err?.message || "Invalid OTP. Please try again."
+      const status = err?.response?.status
+      let msg = err?.response?.data?.message || err?.response?.data?.error || err?.message || "Invalid OTP. Please try again."
+      if (status === 401) {
+        if (/deactivat(ed|e)/i.test(String(msg))) {
+          msg = "Your account is deactivated. Please contact support."
+        } else {
+          msg = "Invalid or expired code, or account not active."
+        }
+      }
       toast.error(msg)
     } finally {
       setLoading(false)

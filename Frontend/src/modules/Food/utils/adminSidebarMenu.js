@@ -127,6 +127,12 @@ export const adminSidebarMenu = [
         path: "/admin/food/customers",
         icon: "Users",
       },
+      {
+        type: "link",
+        label: "Support Tickets",
+        path: "/admin/food/support-tickets",
+        icon: "MessageSquare",
+      },
     ],
   },
   {

@@ -13,6 +13,7 @@ const isStepComplete = (stepData, stepNumber) => {
   if (stepNumber === 1) {
     return (
       stepData.restaurantName &&
+      typeof stepData.pureVegRestaurant === "boolean" &&
       stepData.ownerName &&
       stepData.ownerEmail &&
       stepData.ownerPhone &&
@@ -81,6 +82,10 @@ const buildOnboardingLikeDataFromRestaurant = (restaurant) => {
     completedSteps: onboarding.completedSteps,
     step1: onboarding.step1 || {
       restaurantName: restaurant?.restaurantName || restaurant?.name,
+      pureVegRestaurant:
+        typeof restaurant?.pureVegRestaurant === "boolean"
+          ? restaurant.pureVegRestaurant
+          : null,
       ownerName: restaurant?.ownerName,
       ownerEmail: restaurant?.ownerEmail || restaurant?.email,
       ownerPhone: restaurant?.ownerPhone || restaurant?.phone,

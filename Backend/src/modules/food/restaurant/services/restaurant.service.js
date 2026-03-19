@@ -262,6 +262,7 @@ export const getCurrentRestaurantProfile = async (restaurantId) => {
             [
                 'restaurantName',
                 'cuisines',
+                'location',
                 'addressLine1',
                 'addressLine2',
                 'area',
@@ -303,6 +304,7 @@ export const updateRestaurantAcceptingOrders = async (restaurantId, isAcceptingO
             projection: [
                 'restaurantName',
                 'cuisines',
+                'location',
                 'addressLine1',
                 'addressLine2',
                 'area',
@@ -466,6 +468,7 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
                 projection: [
                     'restaurantName',
                     'cuisines',
+                    'location',
                     'addressLine1',
                     'addressLine2',
                     'area',
@@ -506,7 +509,7 @@ export const uploadRestaurantProfileImage = async (restaurantId, file) => {
     const doc = await FoodRestaurant.findByIdAndUpdate(
         restaurantId,
         { $set: { profileImage: url } },
-        { new: true, projection: 'profileImage restaurantName cuisines menuImages addressLine1 addressLine2 area city state pincode landmark ownerName ownerEmail ownerPhone primaryContactNumber pureVegRestaurant openingTime closingTime openDays status createdAt updatedAt' }
+        { new: true, projection: 'profileImage restaurantName cuisines location menuImages addressLine1 addressLine2 area city state pincode landmark ownerName ownerEmail ownerPhone primaryContactNumber pureVegRestaurant openingTime closingTime openDays status createdAt updatedAt' }
     ).lean();
 
     if (!doc) throw new ValidationError('Restaurant not found');

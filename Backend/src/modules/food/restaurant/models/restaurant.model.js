@@ -88,7 +88,7 @@ const restaurantSchema = new mongoose.Schema(
     },
     city: {
       type: String,
-    },
+    },e e
     state: {
       type: String,
     },

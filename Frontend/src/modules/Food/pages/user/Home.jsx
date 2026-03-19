@@ -107,6 +107,21 @@ const placeholders = [
 
 const WEBVIEW_SESSION_CACHE_BUSTER = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+const getRestaurantDisplayName = (restaurant) => {
+  const nameCandidates = [
+    restaurant?.name,
+    restaurant?.restaurantName,
+    restaurant?.restaurantName?.english,
+    restaurant?.restaurantName?.value,
+    restaurant?.onboarding?.step1?.restaurantName,
+  ];
+  const resolvedName = nameCandidates.find(
+    (candidate) =>
+      typeof candidate === "string" && candidate.trim().length > 0,
+  );
+  return resolvedName ? resolvedName.trim() : "Restaurant";
+};
+
 // Restaurant Image Carousel Component
 const RestaurantImageCarousel = React.memo(
   ({ restaurant, priority = false, backendOrigin = "" }) => {
@@ -1510,7 +1525,7 @@ export default function Home() {
               return {
                 id: restaurant.restaurantId || restaurant._id,
                 mongoId: restaurant._id || null,
-                name: restaurant.name,
+                name: getRestaurantDisplayName(restaurant),
                 cuisine: cuisine,
                 cuisines: Array.isArray(restaurant.cuisines)
                   ? restaurant.cuisines
@@ -2060,7 +2075,7 @@ export default function Home() {
       return {
         id: restaurant?.restaurantId || restaurantId,
         mongoId: restaurantId,
-        name: restaurant?.name || "Restaurant",
+        name: getRestaurantDisplayName(restaurant),
         cuisine,
         rating: Number(restaurant?.rating) || 4.0,
         distance: "",

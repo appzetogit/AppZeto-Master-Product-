@@ -278,6 +278,10 @@ export default function RestaurantsList() {
             aValue = a.zone.toLowerCase();
             bValue = b.zone.toLowerCase();
             break;
+          case 'rating':
+            aValue = Number(a.rating) || 0;
+            bValue = Number(b.rating) || 0;
+            break;
           case 'status':
             aValue = String(a.approvalStatus || "").toLowerCase();
             bValue = String(b.approvalStatus || "").toLowerCase();
@@ -1121,6 +1125,15 @@ export default function RestaurantsList() {
                     </th>
                     <th
                       className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors"
+                      onClick={() => handleSort('rating')}
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>Rating</span>
+                        <ArrowUpDown className={`w-3 h-3 ${sortConfig.key === 'rating' ? 'text-blue-600' : 'text-slate-400'}`} />
+                      </div>
+                    </th>
+                    <th
+                      className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors"
                       onClick={() => handleSort('status')}
                     >
                       <div className="flex items-center gap-1">
@@ -1134,7 +1147,7 @@ export default function RestaurantsList() {
                 <tbody className="bg-white divide-y divide-slate-100">
                   {filteredRestaurants.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-20 text-center">
+                      <td colSpan={7} className="px-6 py-20 text-center">
                         <div className="flex flex-col items-center justify-center">
                           <p className="text-lg font-semibold text-slate-700 mb-1">No Data Found</p>
                           <p className="text-sm text-slate-500">No restaurants match your search</p>
@@ -1177,6 +1190,14 @@ export default function RestaurantsList() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="text-sm text-slate-700">{restaurant.zone}</span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                            <span className="text-sm font-semibold text-slate-900">
+                              {(Number(restaurant.rating) || 0).toFixed(1)}
+                            </span>
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex flex-col gap-1">

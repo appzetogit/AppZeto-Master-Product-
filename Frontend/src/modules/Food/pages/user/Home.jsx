@@ -409,7 +409,7 @@ export default function Home() {
   const [loadingRealCategories, setLoadingRealCategories] = useState(true);
   const [menuCategories, setMenuCategories] = useState([]);
   const [loadingMenuCategories, setLoadingMenuCategories] = useState(false);
-  const [restaurantDietMeta, setRestaurantDietMeta] = useState({});
+  const [, setRestaurantDietMeta] = useState({});
   const [showAllCategoriesModal, setShowAllCategoriesModal] = useState(false);
   const [availabilityTick, setAvailabilityTick] = useState(Date.now());
   const publicCategoriesCacheRef = useRef(new Map());
@@ -1546,6 +1546,7 @@ export default function Home() {
                 offer: offerText,
                 slug: restaurant.slug,
                 restaurantId: restaurant.restaurantId,
+                pureVegRestaurant: restaurant.pureVegRestaurant === true,
                 location: restaurant.location, // Store location for distance recalculation
                 isActive: restaurant.isActive !== false, // Default to true if not specified
                 isAcceptingOrders: restaurant.isAcceptingOrders !== false, // Default to true if not specified
@@ -1910,17 +1911,9 @@ export default function Home() {
   const matchesVegMode = useCallback(
     (restaurant) => {
       if (!vegMode) return true;
-
-      const key = String(restaurant?.restaurantId || restaurant?.id || "");
-      const dietMeta = restaurantDietMeta[key];
-      if (!dietMeta) return true;
-
-      if (vegModeOption === "pure-veg") {
-        return dietMeta.isPureVeg;
-      }
-      return dietMeta.hasVeg;
+      return restaurant?.pureVegRestaurant === true;
     },
-    [vegMode, vegModeOption, restaurantDietMeta],
+    [vegMode],
   );
 
   // Filter restaurants and foods based on active filters
@@ -2084,6 +2077,7 @@ export default function Home() {
         images: imageCandidates.length > 0 ? imageCandidates : [foodImages[0]],
         slug: restaurant?.slug || restaurant?.restaurantId || restaurantId,
         offer: null,
+        pureVegRestaurant: restaurant?.pureVegRestaurant === true,
         isActive: true,
         isAcceptingOrders: true,
       };

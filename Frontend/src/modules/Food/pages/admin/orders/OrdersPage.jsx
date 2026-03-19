@@ -622,7 +622,7 @@ export default function OrdersPage({ statusKey = "all" }) {
       if (response.data?.success) {
         const isWalletPayment = order.paymentType === "Wallet" || order.payment?.method === "wallet";
         toast.success(response.data?.message || (isWalletPayment 
-          ? `Wallet refund of ?${refundAmount || order.totalAmount} processed successfully for order ${order.orderId}`
+          ? `Wallet refund of \u20B9${refundAmount || order.totalAmount} processed successfully for order ${order.orderId}`
           : `Refund initiated successfully for order ${order.orderId}`))
         // Update the order in the local state immediately to show "Refunded" status
         setOrders(prevOrders => 

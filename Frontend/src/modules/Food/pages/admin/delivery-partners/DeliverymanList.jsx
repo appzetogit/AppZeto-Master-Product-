@@ -10,8 +10,8 @@ const debugError = () => {}
 
 const formatCurrency = (amount) => {
   const numericAmount = Number(amount)
-  if (!Number.isFinite(numericAmount)) return "?0.00"
-  return `?${numericAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  if (!Number.isFinite(numericAmount)) return "\u20B90.00"
+  return `\u20B9${numericAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 export default function DeliverymanList() {

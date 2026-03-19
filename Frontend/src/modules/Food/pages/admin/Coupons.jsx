@@ -17,6 +17,8 @@ export default function Coupons() {
   const [submitError, setSubmitError] = useState("")
   const [submitSuccess, setSubmitSuccess] = useState("")
   const [updatingCartVisibility, setUpdatingCartVisibility] = useState({})
+  const [deletingOffer, setDeletingOffer] = useState({})
+  const [errors, setErrors] = useState({})
   const [formData, setFormData] = useState({
     couponCode: "",
     discountType: "percentage",
@@ -25,6 +27,12 @@ export default function Coupons() {
     restaurantScope: "all",
     restaurantId: "",
     endDate: "",
+    startDate: "",
+    minOrderValue: "",
+    maxDiscount: "",
+    usageLimit: "",
+    perUserLimit: "",
+    isFirstOrderOnly: false,
   })
 
   const fetchOffers = useCallback(async () => {
@@ -73,8 +81,77 @@ export default function Coupons() {
     fetchRestaurants()
   }, [])
 
-  const handleFormChange = (field, value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
+  const todayYMD = () => {
+    const d = new Date()
+    const m = String(d.getMonth() + 1).padStart(2, "0")
+    const day = String(d.getDate()).padStart(2, "0")
+    return `${d.getFullYear()}-${m}-${day}`
+  }
+
+  const validateForm = (draft) => {
+    const e = {}
+    const f = draft || formData
+    const pct = f.discountType === "percentage"
+    const value = Number(f.discountValue)
+    if (!String(f.couponCode || "").trim()) e.couponCode = "Coupon code is required"
+    if (!Number.isFinite(value) || value <= 0) e.discountValue = "Discount must be greater than 0"
+    if (pct && (f.maxDiscount === "" || f.maxDiscount === null || f.maxDiscount === undefined)) {
+      e.maxDiscount = "Max discount is required for percentage coupons"
+    }
+    if (f.minOrderValue !== "" && Number(f.minOrderValue) < 0) e.minOrderValue = "Min order cannot be negative"
+    if (f.usageLimit !== "" && Number(f.usageLimit) < 1) e.usageLimit = "Usage limit must be at least 1"
+    if (f.perUserLimit !== "" && Number(f.perUserLimit) < 1) e.perUserLimit = "Per user limit must be at least 1"
+    const start = f.startDate ? new Date(`${f.startDate}T00:00:00`) : null
+    const end = f.endDate ? new Date(`${f.endDate}T00:00:00`) : null
+    const now = new Date()
+    if (end && end < new Date(now.getFullYear(), now.getMonth(), now.getDate())) {
+      e.endDate = "End date cannot be in the past"
+    }
+    if (start && end && start > end) {
+      e.startDate = "Start date must be before end date"
+      e.endDate = "End date must be after start date"
+    }
+    setErrors(e)
+    return { valid: Object.keys(e).length === 0, e }
+  }
+
+  const handleFormChange = (field, rawValue) => {
+    let value = rawValue
+    if (field === "couponCode") {
+      value = String(value || "").toUpperCase()
+    }
+    if (field === "discountType") {
+      // When switching to flat-price, clear and disable maxDiscount
+      if (value === "flat-price") {
+        setFormData((prev) => {
+          const next = { ...prev, discountType: value, maxDiscount: "" }
+          validateForm(next)
+          return next
+        })
+        if (submitError) setSubmitError("")
+        if (submitSuccess) setSubmitSuccess("")
+        return
+      }
+    }
+    const next = { ...formData, [field]: value }
+    // Date constraints
+    if (field === "startDate" && next.endDate) {
+      // Ensure startDate <= endDate
+      const s = next.startDate ? new Date(`${next.startDate}T00:00:00`) : null
+      const e = new Date(`${next.endDate}T00:00:00`)
+      if (s && s > e) {
+        // keep but will show error
+      }
+    }
+    if (field === "endDate" && next.startDate) {
+      const s = new Date(`${next.startDate}T00:00:00`)
+      const e = next.endDate ? new Date(`${next.endDate}T00:00:00`) : null
+      if (e && e < s) {
+        // keep but will show error
+      }
+    }
+    setFormData(next)
+    validateForm(next)
     if (submitError) {
       setSubmitError("")
     }
@@ -92,6 +169,12 @@ export default function Coupons() {
       restaurantScope: "all",
       restaurantId: "",
       endDate: "",
+      startDate: "",
+      minOrderValue: "",
+      maxDiscount: "",
+      usageLimit: "",
+      perUserLimit: "",
+      isFirstOrderOnly: false,
     })
   }
 
@@ -99,6 +182,11 @@ export default function Coupons() {
     e.preventDefault()
     setSubmitError("")
     setSubmitSuccess("")
+    const { valid } = validateForm()
+    if (!valid) {
+      setSubmitError("Please fix the highlighted errors")
+      return
+    }
 
     if (!formData.couponCode.trim()) {
       setSubmitError("Coupon code is required")
@@ -118,7 +206,7 @@ export default function Coupons() {
 
     try {
       setIsSubmitting(true)
-      await adminAPI.createAdminOffer({
+      const payload = {
         couponCode: formData.couponCode.trim(),
         discountType: formData.discountType,
         discountValue: parsedDiscountValue,
@@ -126,7 +214,14 @@ export default function Coupons() {
         restaurantScope: formData.restaurantScope,
         restaurantId: formData.restaurantScope === "selected" ? formData.restaurantId : undefined,
         endDate: formData.endDate || undefined,
-      })
+        startDate: formData.startDate || undefined,
+        minOrderValue: formData.minOrderValue !== "" ? Number(formData.minOrderValue) : undefined,
+        maxDiscount: formData.discountType === "percentage" && formData.maxDiscount !== "" ? Number(formData.maxDiscount) : undefined,
+        usageLimit: formData.usageLimit !== "" ? Number(formData.usageLimit) : undefined,
+        perUserLimit: formData.perUserLimit !== "" ? Number(formData.perUserLimit) : undefined,
+        isFirstOrderOnly: Boolean(formData.isFirstOrderOnly),
+      }
+      await adminAPI.createAdminOffer(payload)
 
       setSubmitSuccess("Coupon created successfully")
       resetForm()
@@ -156,6 +251,20 @@ export default function Coupons() {
       debugError("Error updating cart visibility:", err)
     } finally {
       setUpdatingCartVisibility((prev) => ({ ...prev, [key]: false }))
+    }
+  }
+
+  const handleDeleteOffer = async (offerId) => {
+    if (!offerId) return
+    if (deletingOffer[offerId]) return
+    try {
+      setDeletingOffer((prev) => ({ ...prev, [offerId]: true }))
+      await adminAPI.deleteAdminOffer(offerId)
+      setOffers((prev) => prev.filter((o) => o.offerId !== offerId))
+    } catch (err) {
+      debugError("Error deleting offer:", err)
+    } finally {
+      setDeletingOffer((prev) => ({ ...prev, [offerId]: false }))
     }
   }
 
@@ -224,7 +333,7 @@ export default function Coupons() {
                   </select>
                 </div>
 
-                <div>
+                <div title={formData.discountType === "flat-price" ? "Max discount is not applicable for flat coupons" : ""}>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">
                     {formData.discountType === "percentage" ? "Discount (%)" : "Discount Amount"}
                   </label>
@@ -235,8 +344,9 @@ export default function Coupons() {
                     value={formData.discountValue}
                     onChange={(e) => handleFormChange("discountValue", e.target.value)}
                     placeholder={formData.discountType === "percentage" ? "e.g. 20" : "e.g. 100"}
-                    className="w-full px-3 py-2.5 text-sm rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className={`w-full px-3 py-2.5 text-sm rounded-lg border ${errors.discountValue ? "border-red-500" : "border-slate-300"} bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
                   />
+                  {errors.discountValue && <p className="mt-1 text-xs text-red-600">{errors.discountValue}</p>}
                 </div>
 
                 <div>
@@ -269,9 +379,91 @@ export default function Coupons() {
                     type="date"
                     value={formData.endDate}
                     onChange={(e) => handleFormChange("endDate", e.target.value)}
-                    className="w-full px-3 py-2.5 text-sm rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  min={formData.startDate || todayYMD()}
+                  className={`w-full px-3 py-2.5 text-sm rounded-lg border ${errors.endDate ? "border-red-500" : "border-slate-300"} bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
                   />
+                {errors.endDate && <p className="mt-1 text-xs text-red-600">{errors.endDate}</p>}
                 </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Start Date (Optional)</label>
+                <input
+                  type="date"
+                  value={formData.startDate}
+                  onChange={(e) => handleFormChange("startDate", e.target.value)}
+                  min={todayYMD()}
+                  className={`w-full px-3 py-2.5 text-sm rounded-lg border ${errors.startDate ? "border-red-500" : "border-slate-300"} bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
+                />
+                {errors.startDate && <p className="mt-1 text-xs text-red-600">{errors.startDate}</p>}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Min Order Value (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={formData.minOrderValue}
+                  onChange={(e) => handleFormChange("minOrderValue", e.target.value)}
+                  placeholder="e.g. 199"
+                  className={`w-full px-3 py-2.5 text-sm rounded-lg border ${errors.minOrderValue ? "border-red-500" : "border-slate-300"} bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
+                />
+                {errors.minOrderValue && <p className="mt-1 text-xs text-red-600">{errors.minOrderValue}</p>}
+              </div>
+
+                <div title={formData.discountType === "flat-price" ? "Max discount is not applicable for flat coupons" : ""}>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Max Discount (₹, optional)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                    value={formData.maxDiscount}
+                    onChange={(e) => handleFormChange("maxDiscount", e.target.value)}
+                  placeholder="e.g. 100"
+                    disabled={formData.discountType === "flat-price"}
+                    className={`w-full px-3 py-2.5 text-sm rounded-lg border ${errors.maxDiscount ? "border-red-500" : "border-slate-300"} bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
+                />
+                  {formData.discountType === "percentage" && errors.maxDiscount && <p className="mt-1 text-xs text-red-600">{errors.maxDiscount}</p>}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Usage Limit (global)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={formData.usageLimit}
+                  onChange={(e) => handleFormChange("usageLimit", e.target.value)}
+                  placeholder="e.g. 1000"
+                  className={`w-full px-3 py-2.5 text-sm rounded-lg border ${errors.usageLimit ? "border-red-500" : "border-slate-300"} bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
+                />
+                {errors.usageLimit && <p className="mt-1 text-xs text-red-600">{errors.usageLimit}</p>}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Per User Limit</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={formData.perUserLimit}
+                  onChange={(e) => handleFormChange("perUserLimit", e.target.value)}
+                  placeholder="e.g. 1"
+                  className={`w-full px-3 py-2.5 text-sm rounded-lg border ${errors.perUserLimit ? "border-red-500" : "border-slate-300"} bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
+                />
+                {errors.perUserLimit && <p className="mt-1 text-xs text-red-600">{errors.perUserLimit}</p>}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  id="isFirstOrderOnly"
+                  type="checkbox"
+                  checked={formData.isFirstOrderOnly}
+                  onChange={(e) => handleFormChange("isFirstOrderOnly", e.target.checked)}
+                  className="h-4 w-4"
+                />
+                <label htmlFor="isFirstOrderOnly" className="text-sm text-slate-700">First order only</label>
+              </div>
 
                 {formData.restaurantScope === "selected" && (
                   <div className="md:col-span-2 lg:col-span-3">
@@ -301,7 +493,7 @@ export default function Coupons() {
               <div className="mt-4">
                 <button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || Object.keys(errors).length > 0}
                   className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
                 >
                   {isSubmitting ? "Creating..." : "Create Coupon"}
@@ -356,16 +548,19 @@ export default function Coupons() {
               <table className="w-full">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">SI</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Restaurant</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Dish</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Coupon Code</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Customer Scope</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Discount</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Price</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Show In Cart</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">Valid Until</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">SI</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Restaurant</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Dish</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Coupon Code</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Customer Scope</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Discount</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Price</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Min Order</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Usage</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Status</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Show In Cart</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Valid Until</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-slate-100">
@@ -374,14 +569,18 @@ export default function Coupons() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="text-sm font-medium text-slate-700">{offer.sl}</span>
                       </td>
-                      <td className="px-6 py-4">
-                        <span className="text-sm font-medium text-slate-900">{offer.restaurantName}</span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-sm text-slate-700">{offer.dishName}</span>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm font-medium text-slate-900">
+                          {offer.restaurantScope === "all" || offer.restaurantName === "All Restaurants" ? "All Restaurants" : offer.restaurantName}
+                        </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm font-mono font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                        <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                          {offer.dishName}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm font-mono font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded whitespace-nowrap">
                           {offer.couponCode}
                         </span>
                       </td>
@@ -395,28 +594,52 @@ export default function Coupons() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm text-slate-700 whitespace-nowrap">
+                          {offer.discountType === 'flat-price'
+                            ? `\u20B9${offer.originalPrice - offer.discountedPrice} OFF`
+                            : `${offer.discountPercentage}% OFF${Number(offer.maxDiscount) ? ` (up to \u20B9${Number(offer.maxDiscount)})` : ""}`}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
                         <span className="text-sm text-slate-700">
-                          {offer.discountType === 'flat-price' 
-                            ? `?${offer.originalPrice - offer.discountedPrice} OFF`
-                            : `${offer.discountPercentage}% OFF`}
+                          {offer.dishId === "all"
+                            ? (Number(offer.minOrderValue) ? `Min \u20B9${Number(offer.minOrderValue)}` : "All Items")
+                            : (
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-400 line-through">{"\u20B9"}{offer.originalPrice}</span>
+                                <span className="text-sm font-semibold text-green-600">{"\u20B9"}{offer.discountedPrice}</span>
+                              </div>
+                            )}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-slate-400 line-through">?{offer.originalPrice}</span>
-                          <span className="text-sm font-semibold text-green-600">?{offer.discountedPrice}</span>
-                        </div>
+                        <span className="text-sm text-slate-700">
+                          {Number(offer.minOrderValue) ? `\u20B9${Number(offer.minOrderValue)}` : "—"}
+                        </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          offer.status === 'active' 
-                            ? 'bg-green-100 text-green-700' 
-                            : offer.status === 'paused'
-                            ? 'bg-orange-100 text-orange-700'
-                            : 'bg-gray-100 text-gray-700'
-                        }`}>
-                          {offer.status || 'Inactive'}
+                        <span className="text-sm text-slate-700">
+                          {`${Number(offer.usedCount || 0)} / ${Number(offer.usageLimit || 0) > 0 ? Number(offer.usageLimit) : "∞"}`}
                         </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {(() => {
+                          const expired = offer.endDate ? (new Date(offer.endDate).getTime() < new Date(new Date().toDateString()).getTime()) : false
+                          const status = expired ? 'expired' : (offer.status || 'inactive')
+                          const cls =
+                            status === 'active'
+                              ? 'bg-green-100 text-green-700'
+                              : status === 'paused'
+                              ? 'bg-orange-100 text-orange-700'
+                              : status === 'expired'
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-gray-100 text-gray-700'
+                          return (
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${cls}`}>
+                              {status}
+                            </span>
+                          )
+                        })()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <button
@@ -435,9 +658,27 @@ export default function Coupons() {
                         </button>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm text-slate-700">
-                          {offer.endDate ? new Date(offer.endDate).toLocaleDateString() : 'No expiry'}
+                        <span className="text-sm text-slate-700 whitespace-nowrap">
+                          {offer.endDate
+                            ? (() => {
+                                const d = new Date(offer.endDate)
+                                const dd = String(d.getDate()).padStart(2, '0')
+                                const month = d.toLocaleString('en-US', { month: 'short' })
+                                const yyyy = d.getFullYear()
+                                return `${dd} ${month} ${yyyy}`
+                              })()
+                            : 'No expiry'}
                         </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteOffer(offer.offerId)}
+                          disabled={!!deletingOffer[offer.offerId]}
+                          className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-semibold hover:bg-red-700 disabled:opacity-60"
+                        >
+                          {deletingOffer[offer.offerId] ? "Deleting..." : "Delete"}
+                        </button>
                       </td>
                     </tr>
                   ))}

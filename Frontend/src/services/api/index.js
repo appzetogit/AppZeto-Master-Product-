@@ -408,6 +408,10 @@ export const adminAPI = {
       { itemId: String(itemId), showInCart: Boolean(showInCart) },
       { contextModule: "admin" },
     ),
+  deleteAdminOffer: (offerId) =>
+    apiClient.delete(`/food/admin/offers/${String(offerId)}`, {
+      contextModule: "admin",
+    }),
 
   /** Delivery Partner Bonus (admin) */
   getDeliveryPartnerBonusTransactions: (params = {}) =>

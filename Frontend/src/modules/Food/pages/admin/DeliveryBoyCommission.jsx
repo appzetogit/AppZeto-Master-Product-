@@ -427,7 +427,7 @@ export default function DeliveryBoyCommission() {
                 <p className="font-semibold text-blue-900 mb-1">Fixed + Extra Distance Commission</p>
                 <p className="text-slate-600">
                   Commission is calculated as: <strong>Base payout for 0-{formulaMinDistance} km + Extra per km after {formulaMinDistance} km</strong>.
-                  Example: if base is ?25 and extra is ?5/km, then 6 km earns ?25 + (2 ? ?5) = ?35.
+                  Example: if base is \u20B925 and extra is \u20B95/km, then 6 km earns \u20B925 + (2 x \u20B95) = \u20B935.
                 </p>
               </div>
             </div>
@@ -461,10 +461,10 @@ export default function DeliveryBoyCommission() {
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Distance Slab (km)</th>
                   )}
                   {visibleColumns.commissionPerKm && (
-                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Amount Per/Km (?)</th>
+                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Amount Per/Km (₹)</th>
                   )}
                   {visibleColumns.basePayout && (
-                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Base Payout (?)</th>
+                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Base Payout (₹)</th>
                   )}
                   {visibleColumns.status && (
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Status</th>
@@ -513,12 +513,12 @@ export default function DeliveryBoyCommission() {
                       )}
                       {visibleColumns.commissionPerKm && (
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm font-semibold text-green-700">?{commission.commissionPerKm}</span>
+                          <span className="text-sm font-semibold text-green-700">{"\u20B9"}{commission.commissionPerKm}</span>
                         </td>
                       )}
                       {visibleColumns.basePayout && (
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm font-semibold text-blue-700">?{commission.basePayout}</span>
+                          <span className="text-sm font-semibold text-blue-700">{"\u20B9"}{commission.basePayout}</span>
                         </td>
                       )}
                       {visibleColumns.status && (
@@ -659,7 +659,7 @@ export default function DeliveryBoyCommission() {
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Extra Per Kilometer after {formulaMinDistance} km (?) <span className="text-red-500">*</span>
+                Extra Per Kilometer after {formulaMinDistance} km (₹) <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -676,7 +676,7 @@ export default function DeliveryBoyCommission() {
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Fixed Payout for 0-{formulaMinDistance} km (?) <span className="text-red-500">*</span>
+                Fixed Payout for 0-{formulaMinDistance} km (₹) <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"

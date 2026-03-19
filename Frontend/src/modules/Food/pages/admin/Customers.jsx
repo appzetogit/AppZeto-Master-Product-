@@ -452,7 +452,7 @@ export default function Customers() {
                         <span className="text-sm text-slate-700">{customer.totalOrder || 0}</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm font-medium text-slate-900">? {(customer.totalOrderAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        <span className="text-sm font-medium text-slate-900">{"\u20B9"} {(customer.totalOrderAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="text-sm text-slate-700">{customer.joiningDate}</span>
@@ -564,7 +564,7 @@ export default function Customers() {
                     <span className="text-xs font-semibold text-slate-700">Total Spent</span>
                   </div>
                   <p className="text-xl font-bold text-green-600">
-                    ?{(userDetails.totalOrderAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {"\u20B9"}{(userDetails.totalOrderAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
                 <div className="bg-purple-50 rounded-lg p-3">
@@ -622,7 +622,7 @@ export default function Customers() {
                           <p className="text-xs text-slate-600">{order.restaurantName}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-sm font-semibold text-slate-900">?{(order.total || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                          <p className="text-sm font-semibold text-slate-900">{"\u20B9"}{(order.total || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                           <p className="text-xs text-slate-600 capitalize">{order.status}</p>
                         </div>
                       </div>

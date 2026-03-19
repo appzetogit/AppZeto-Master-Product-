@@ -132,6 +132,23 @@ const statusHistorySchema = new mongoose.Schema(
     { _id: false }
 );
 
+const orderEntityRatingSchema = new mongoose.Schema(
+    {
+        rating: { type: Number, min: 1, max: 5 },
+        comment: { type: String, default: '', trim: true },
+        ratedAt: { type: Date, default: Date.now }
+    },
+    { _id: false }
+);
+
+const orderRatingsSchema = new mongoose.Schema(
+    {
+        restaurant: { type: orderEntityRatingSchema, default: undefined },
+        deliveryPartner: { type: orderEntityRatingSchema, default: undefined }
+    },
+    { _id: false }
+);
+
 const orderSchema = new mongoose.Schema(
     {
         orderId: {
@@ -202,6 +219,10 @@ const orderSchema = new mongoose.Schema(
         statusHistory: {
             type: [statusHistorySchema],
             default: []
+        },
+        ratings: {
+            type: orderRatingsSchema,
+            default: () => ({})
         },
         note: { type: String, default: '', trim: true },
         sendCutlery: { type: Boolean, default: true },

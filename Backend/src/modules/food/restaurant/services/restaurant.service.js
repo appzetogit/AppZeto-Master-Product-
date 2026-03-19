@@ -20,6 +20,18 @@ const normalizePhone = (value) => {
     };
 };
 
+const normalizeRatingValue = (value) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return 0;
+    return Math.max(0, Math.min(5, Number(numeric.toFixed(1))));
+};
+
+const normalizeTotalRatingsValue = (value) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return 0;
+    return Math.max(0, Math.floor(numeric));
+};
+
 const toUrl = (v) => (v && (typeof v === 'string' ? v : v.url)) ? (typeof v === 'string' ? v : v.url) : '';
 
 const toRestaurantProfile = (doc) => {
@@ -86,8 +98,8 @@ const toRestaurantProfile = (doc) => {
         status: doc.status || null,
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
-        rating: typeof doc.rating === 'number' ? doc.rating : 0,
-        totalRatings: typeof doc.totalRatings === 'number' ? doc.totalRatings : 0
+        rating: normalizeRatingValue(doc.rating),
+        totalRatings: normalizeTotalRatingsValue(doc.totalRatings)
     };
 };
 
@@ -680,6 +692,8 @@ export const listApprovedRestaurants = async (query = {}) => {
         restaurantId: r._id,
         id: r._id,
         name: r.restaurantName || '',
+        rating: normalizeRatingValue(r.rating),
+        totalRatings: normalizeTotalRatingsValue(r.totalRatings),
         profileImage: r.profileImage ? { url: r.profileImage } : null,
         // Keep menuImages as an array for fallbacks; allow both string and {url} on client.
         menuImages: Array.isArray(r.menuImages) ? r.menuImages : []
@@ -694,17 +708,29 @@ export const getApprovedRestaurantByIdOrSlug = async (idOrSlug) => {
 
     // ObjectId path
     if (/^[0-9a-fA-F]{24}$/.test(value)) {
-        return FoodRestaurant.findOne({ _id: value, status: 'approved' }).lean();
+        const doc = await FoodRestaurant.findOne({ _id: value, status: 'approved' }).lean();
+        if (!doc) return null;
+        return {
+            ...doc,
+            rating: normalizeRatingValue(doc.rating),
+            totalRatings: normalizeTotalRatingsValue(doc.totalRatings)
+        };
     }
 
     // Slug path: use normalized field for index-friendly exact match.
     const restaurantNameNormalized = normalizeName(value);
     if (!restaurantNameNormalized) return null;
 
-    return FoodRestaurant.findOne({
+    const doc = await FoodRestaurant.findOne({
         status: 'approved',
         restaurantNameNormalized
     }).lean();
+    if (!doc) return null;
+    return {
+        ...doc,
+        rating: normalizeRatingValue(doc.rating),
+        totalRatings: normalizeTotalRatingsValue(doc.totalRatings)
+    };
 };
 
 export const listPublicOffers = async () => {

@@ -141,3 +141,17 @@ export function validateDispatchSettingsDto(body) {
     }
     return result.data;
 }
+
+export function validateOrderRatingsDto(body) {
+    const schema = z.object({
+        restaurantRating: z.number().min(1).max(5),
+        deliveryPartnerRating: z.number().min(1).max(5).optional(),
+        restaurantComment: z.string().max(500).optional(),
+        deliveryPartnerComment: z.string().max(500).optional()
+    });
+    const result = schema.safeParse(body || {});
+    if (!result.success) {
+        throw new ValidationError(result.error.errors?.[0]?.message || 'Validation failed');
+    }
+    return result.data;
+}

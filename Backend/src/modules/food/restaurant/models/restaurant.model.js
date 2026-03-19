@@ -1,5 +1,11 @@
 import mongoose from "mongoose";
 
+const normalizeRatingValue = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(0, Math.min(5, Number(numeric.toFixed(1))));
+};
+
 const geoPointSchema = new mongoose.Schema(
   {
     type: { type: String, enum: ["Point"], default: "Point" },
@@ -191,7 +197,14 @@ const restaurantSchema = new mongoose.Schema(
     featuredPrice: { type: Number },
     offer: { type: String },
     /** Rating fields for filtering/sorting (defaults to 0 if never rated). */
-    rating: { type: Number, default: 0, min: 0, max: 5, index: true },
+    rating: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 5,
+      index: true,
+      set: normalizeRatingValue,
+    },
     totalRatings: { type: Number, default: 0, min: 0 },
     diningSettings: {
       isEnabled: { type: Boolean, default: false },

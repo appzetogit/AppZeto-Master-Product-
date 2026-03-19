@@ -1653,6 +1653,8 @@ export const orderAPI = {
     apiClient.get(`/food/orders/${String(orderId)}`, { contextModule: "user" }),
   cancelOrder: (orderId, body = {}) =>
     apiClient.patch(`/food/orders/${String(orderId)}/cancel`, body ?? {}, { contextModule: "user" }),
+  submitOrderRatings: (orderId, body = {}) =>
+    apiClient.patch(`/food/orders/${String(orderId)}/ratings`, body ?? {}, { contextModule: "user" }),
 };
 
 const DINING_BOOKINGS_STORAGE_KEY = "food_dining_bookings_v1";

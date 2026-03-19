@@ -7,7 +7,8 @@ import {
     validateCancelOrderDto,
     validateOrderStatusDto,
     validateAssignDeliveryDto,
-    validateDispatchSettingsDto
+    validateDispatchSettingsDto,
+    validateOrderRatingsDto
 } from './order.validator.js';
 
 export async function calculateOrderController(req, res, next) {
@@ -71,6 +72,18 @@ export async function cancelOrderController(req, res, next) {
         const dto = validateCancelOrderDto(req.body);
         const order = await orderService.cancelOrder(orderId, userId, dto.reason);
         return sendResponse(res, 200, 'Order cancelled', { order });
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function submitOrderRatingsController(req, res, next) {
+    try {
+        const userId = req.user?.userId;
+        const orderId = req.params.orderId;
+        const dto = validateOrderRatingsDto(req.body);
+        const order = await orderService.submitOrderRatings(orderId, userId, dto);
+        return sendResponse(res, 200, 'Ratings submitted successfully', { order });
     } catch (err) {
         next(err);
     }

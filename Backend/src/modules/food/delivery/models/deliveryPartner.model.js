@@ -1,5 +1,11 @@
 import mongoose from 'mongoose';
 
+const normalizeRatingValue = (value) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return 0;
+    return Math.max(0, Math.min(5, Number(numeric.toFixed(1))));
+};
+
 const deliveryPartnerSchema = new mongoose.Schema(
     {
         name: {
@@ -82,7 +88,15 @@ const deliveryPartnerSchema = new mongoose.Schema(
             default: null,
             index: true
         },
-        referralCount: { type: Number, default: 0, min: 0 }
+        referralCount: { type: Number, default: 0, min: 0 },
+        rating: {
+            type: Number,
+            default: 0,
+            min: 0,
+            max: 5,
+            set: normalizeRatingValue
+        },
+        totalRatings: { type: Number, default: 0, min: 0 }
     },
     {
         collection: 'food_delivery_partners',

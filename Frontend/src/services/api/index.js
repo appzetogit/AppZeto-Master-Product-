@@ -300,6 +300,11 @@ export const adminAPI = {
   /** Get single restaurant by id (full details for View Details modal). */
   getRestaurantById: (id) =>
     apiClient.get(`/food/admin/restaurants/${id}`, { contextModule: "admin" }),
+  /** Get restaurant analytics for POS. */
+  getRestaurantAnalytics: (id) =>
+    apiClient.get(`/food/admin/restaurants/${id}/analytics`, {
+      contextModule: "admin",
+    }),
   /** Update restaurant basic details (admin). */
   updateRestaurant: (id, body) =>
     apiClient.patch(`/food/admin/restaurants/${String(id)}`, body ?? {}, { contextModule: "admin" }),

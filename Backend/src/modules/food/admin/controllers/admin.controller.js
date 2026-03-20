@@ -138,6 +138,26 @@ export async function getRestaurantById(req, res, next) {
     }
 }
 
+export async function getRestaurantAnalytics(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid restaurant id' });
+        }
+        const data = await adminService.getRestaurantAnalytics(id);
+        if (!data) {
+            return res.status(404).json({ success: false, message: 'Restaurant not found' });
+        }
+        res.status(200).json({
+            success: true,
+            message: 'Restaurant analytics fetched successfully',
+            data
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
 export async function getRestaurantMenuById(req, res, next) {
     try {
         const { id } = req.params;

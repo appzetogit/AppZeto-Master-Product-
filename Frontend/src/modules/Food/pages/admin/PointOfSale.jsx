@@ -134,12 +134,6 @@ export default function PointOfSale() {
       }
     } catch (error) {
       debugError('Error fetching restaurants:', error)
-      // Fallback to a minimal local list when the API is unavailable
-      setRestaurants(normalizeRestaurants([
-        { _id: '1', name: 'Spice Garden', restaurantId: 'RST001' },
-        { _id: '2', name: 'Tandoor Express', restaurantId: 'RST002' },
-        { _id: '3', name: 'Coastal Delights', restaurantId: 'RST003' }
-      ]))
     } finally {
       setLoading(false)
     }

@@ -41,7 +41,7 @@ const PromotionalBanner = lazy(() => import("@food/pages/admin/PromotionalBanner
 const NewAdvertisement = lazy(() => import("@food/pages/admin/advertisement/NewAdvertisement"));
 const AdRequests = lazy(() => import("@food/pages/admin/advertisement/AdRequests"));
 const AdsList = lazy(() => import("@food/pages/admin/advertisement/AdsList"));
-const PushNotification = lazy(() => import("@food/pages/admin/PushNotification"));
+
 // Help & Support
 const Chattings = lazy(() => import("@food/pages/admin/Chattings"));
 const ContactMessages = lazy(() => import("@food/pages/admin/ContactMessages"));
@@ -117,8 +117,6 @@ const PageMetaData = lazy(() => import("@food/pages/admin/system/PageMetaData"))
 const ReactSite = lazy(() => import("@food/pages/admin/system/ReactSite"));
 const CleanDatabase = lazy(() => import("@food/pages/admin/system/CleanDatabase"));
 const AddonActivation = lazy(() => import("@food/pages/admin/system/AddonActivation"));
-// ENV Setup (formerly System Addons)
-const SystemAddons = lazy(() => import("@food/pages/admin/system/SystemAddons"));
 const LandingPageManagement = lazy(() => import("@food/pages/admin/system/LandingPageManagement"));
 const DiningManagement = lazy(() => import("@food/pages/admin/system/DiningManagement"));
 const DiningList = lazy(() => import("@food/pages/admin/system/DiningList"));
@@ -207,7 +205,6 @@ export default function AdminRouter() {
             <Route path="advertisement" element={<AdsList />} />
             <Route path="advertisement/new" element={<NewAdvertisement />} />
             <Route path="advertisement/requests" element={<AdRequests />} />
-            <Route path="push-notification" element={<PushNotification />} />
             
             <Route path="chattings" element={<Chattings />} />
             <Route path="contact-messages" element={<ContactMessages />} />
@@ -287,7 +284,6 @@ export default function AdminRouter() {
             <Route path="react-site" element={<ReactSite />} />
             <Route path="clean-database" element={<CleanDatabase />} />
             <Route path="addon-activation" element={<AddonActivation />} />
-            <Route path="system-addons" element={<SystemAddons />} />
             <Route path="hero-banner-management" element={<LandingPageManagement />} />
             <Route path="dining-management" element={<DiningManagement />} />
             <Route path="dining-list" element={<DiningList />} />

@@ -952,6 +952,84 @@ export async function getRestaurantById(id) {
         .lean();
 }
 
+export async function getRestaurantAnalytics(restaurantId) {
+    if (!restaurantId || !mongoose.Types.ObjectId.isValid(restaurantId)) return null;
+    const rId = new mongoose.Types.ObjectId(restaurantId);
+
+    const [restaurant, commissionDoc, orders] = await Promise.all([
+        FoodRestaurant.findById(rId).lean(),
+        FoodRestaurantCommission.findOne({ restaurantId: rId, status: { $ne: false } }).lean(),
+        FoodOrder.find({ restaurantId: rId }).lean()
+    ]);
+
+    if (!restaurant) return null;
+
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    const completedOrders = orders.filter(o => o.orderStatus === 'delivered');
+    const cancelledOrders = orders.filter(o => ['cancelled_by_user', 'cancelled_by_restaurant', 'cancelled_by_admin'].includes(o.orderStatus));
+
+    const totalRevenue = completedOrders.reduce((sum, o) => sum + (o.pricing?.total || 0), 0);
+    const totalCommission = completedOrders.reduce((sum, o) => sum + (o.platformProfit || o.pricing?.platformFee || 0), 0);
+    const restaurantEarning = totalRevenue - totalCommission;
+
+    const monthlyOrdersList = orders.filter(o => {
+        const d = new Date(o.createdAt);
+        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    });
+    const monthlyCompletedOrders = monthlyOrdersList.filter(o => o.orderStatus === 'delivered');
+    const monthlyProfit = monthlyCompletedOrders.reduce((sum, o) => sum + (o.pricing?.total || 0), 0) -
+        monthlyCompletedOrders.reduce((sum, o) => sum + (o.platformProfit || o.pricing?.platformFee || 0), 0);
+
+    const yearlyOrdersList = orders.filter(o => {
+        const d = new Date(o.createdAt);
+        return d.getFullYear() === currentYear;
+    });
+    const yearlyCompletedOrders = yearlyOrdersList.filter(o => o.orderStatus === 'delivered');
+    const yearlyProfit = yearlyCompletedOrders.reduce((sum, o) => sum + (o.pricing?.total || 0), 0) -
+        yearlyCompletedOrders.reduce((sum, o) => sum + (o.platformProfit || o.pricing?.platformFee || 0), 0);
+
+    const totalOrdersCount = orders.length;
+    const avgOrderValue = totalOrdersCount > 0 ? totalRevenue / completedOrders.length || 0 : 0;
+
+    const uniqueCustomers = new Set(orders.map(o => String(o.userId))).size;
+    const customerOrderCounts = orders.reduce((acc, o) => {
+        const uid = String(o.userId);
+        acc[uid] = (acc[uid] || 0) + 1;
+        return acc;
+    }, {});
+    const repeatCustomers = Object.values(customerOrderCounts).filter(count => count > 1).length;
+
+    const analytics = {
+        totalOrders: totalOrdersCount,
+        cancelledOrders: cancelledOrders.length,
+        completedOrders: completedOrders.length,
+        averageRating: Number(restaurant.rating || 0),
+        totalRatings: Number(restaurant.totalRatings || 0),
+        commissionPercentage: commissionDoc?.defaultCommission?.value || 0,
+        monthlyProfit,
+        yearlyProfit,
+        averageOrderValue: avgOrderValue,
+        totalRevenue,
+        totalCommission,
+        restaurantEarning,
+        monthlyOrders: monthlyOrdersList.length,
+        yearlyOrders: yearlyOrdersList.length,
+        averageMonthlyProfit: monthlyProfit, // Placeholder: can be improved if historical data exists
+        averageYearlyProfit: yearlyProfit,   // Placeholder: can be improved if historical data exists
+        status: restaurant.status === 'approved' ? 'active' : 'inactive',
+        joinDate: restaurant.createdAt,
+        totalCustomers: uniqueCustomers,
+        repeatCustomers,
+        cancellationRate: totalOrdersCount > 0 ? (cancelledOrders.length / totalOrdersCount) * 100 : 0,
+        completionRate: totalOrdersCount > 0 ? (completedOrders.length / totalOrdersCount) * 100 : 0
+    };
+
+    return { restaurant, analytics };
+}
+
 export async function getRestaurantMenuById(id) {
     if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
     const doc = await FoodRestaurant.findById(id).select('menu').lean();

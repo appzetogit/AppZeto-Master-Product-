@@ -215,11 +215,23 @@ export default function CategoryPage() {
   const getCategoryKeywords = (categoryId) => {
     const raw = String(categoryId || "").trim().toLowerCase()
     const fromAdmin = categoryKeywords[raw]
-    if (Array.isArray(fromAdmin) && fromAdmin.length > 0) return fromAdmin
-    // Fallback: derive keywords from the slug in URL (e.g. "samosha" -> ["samosha"])
-    // This prevents "no data" when admin categories don't include the slug.
-    const parts = raw.split(/[\s-]+/).filter(Boolean)
-    return parts.length > 0 ? Array.from(new Set([raw, ...parts])) : []
+    let keywords = []
+    if (Array.isArray(fromAdmin) && fromAdmin.length > 0) {
+      keywords = [...fromAdmin]
+    } else {
+      // Fallback: derive keywords from the slug in URL (e.g. "samosha" -> ["samosha"])
+      // This prevents "no data" when admin categories don't include the slug.
+      const parts = raw.split(/[\s-]+/).filter(Boolean)
+      keywords = parts.length > 0 ? Array.from(new Set([raw, ...parts])) : []
+    }
+
+    // Add common variations/misspellings (e.g. "samosha" vs "samosa")
+    if (keywords.includes('samosha') || keywords.includes('samosa')) {
+      if (!keywords.includes('samosa')) keywords.push('samosa')
+      if (!keywords.includes('samosha')) keywords.push('samosha')
+    }
+
+    return keywords
   }
 
   const checkCategoryInMenu = (menu, categoryId) => {
@@ -450,9 +462,12 @@ export default function CategoryPage() {
                 featuredPrice = null
               }
 
+              const restaurantName = (restaurant.restaurantName || restaurant.name || "").toLowerCase()
+              if (restaurantName.includes("dummy") || restaurantName.includes("test")) return null
+
               return {
                 id: restaurantId,
-                name: restaurant.name,
+                name: restaurant.restaurantName || restaurant.name,
                 cuisine: cuisine,
                 rating: restaurant.rating || null,
                 deliveryTime: deliveryTime,
@@ -463,12 +478,12 @@ export default function CategoryPage() {
                 featuredDish: featuredDish,
                 featuredPrice: featuredPrice,
                 offer: offer,
-                slug: restaurant.slug || restaurant.name?.toLowerCase().replace(/\s+/g, '-'),
+                slug: restaurant.slug || (restaurant.restaurantName || restaurant.name)?.toLowerCase().replace(/\s+/g, '-'),
                 restaurantId: restaurantId,
                 hasPaneer: false,
                 category: 'all',
               }
-            })
+            }).filter(Boolean)
 
           startTransition(() => {
             setRestaurantsData(restaurantsWithIds)
@@ -660,6 +675,7 @@ export default function CategoryPage() {
     // Filter by category - Dynamic filtering based on menu items
     if (selectedCategory && selectedCategory !== 'all') {
       const expandedDishes = []
+      const keywords = getCategoryKeywords(selectedCategory)
 
       filtered.forEach(r => {
         if (r.menu) {
@@ -685,8 +701,6 @@ export default function CategoryPage() {
                   categoryDishImage: dishForCard.image,
                 })
               }
-            } else {
-              // If no dishes found but menu exists, skip this restaurant
             }
           }
         } else {
@@ -695,20 +709,17 @@ export default function CategoryPage() {
             expandedDishes.push(r)
           } else if (selectedCategory === 'paneer-tikka' && r.hasPaneer) {
             expandedDishes.push(r)
-          } else {
-            const keywords = categoryKeywords[selectedCategory] || []
-            if (keywords.length > 0) {
-              const featuredDishLower = (r.featuredDish || '').toLowerCase()
-              const cuisineLower = (r.cuisine || '').toLowerCase()
-              const nameLower = (r.name || '').toLowerCase()
+          } else if (keywords.length > 0) {
+            const featuredDishLower = (r.featuredDish || '').toLowerCase()
+            const cuisineLower = (r.cuisine || '').toLowerCase()
+            const nameLower = (r.name || '').toLowerCase()
 
-              if (keywords.some(keyword =>
-                featuredDishLower.includes(keyword) ||
-                cuisineLower.includes(keyword) ||
-                nameLower.includes(keyword)
-              )) {
-                expandedDishes.push(r)
-              }
+            if (keywords.some(keyword =>
+              featuredDishLower.includes(keyword) ||
+              cuisineLower.includes(keyword) ||
+              nameLower.includes(keyword)
+            )) {
+              expandedDishes.push(r)
             }
           }
         }
@@ -753,6 +764,7 @@ export default function CategoryPage() {
     // If category is selected, expand restaurants into dish cards (one card per matching dish)
     if (selectedCategory && selectedCategory !== 'all') {
       const expandedDishes = []
+      const keywords = getCategoryKeywords(selectedCategory)
 
       filtered.forEach(r => {
         if (r.menu) {
@@ -786,20 +798,17 @@ export default function CategoryPage() {
             expandedDishes.push(r)
           } else if (selectedCategory === 'paneer-tikka' && r.hasPaneer) {
             expandedDishes.push(r)
-          } else {
-            const keywords = categoryKeywords[selectedCategory] || []
-            if (keywords.length > 0) {
-              const featuredDishLower = (r.featuredDish || '').toLowerCase()
-              const cuisineLower = (r.cuisine || '').toLowerCase()
-              const nameLower = (r.name || '').toLowerCase()
+          } else if (keywords.length > 0) {
+            const featuredDishLower = (r.featuredDish || '').toLowerCase()
+            const cuisineLower = (r.cuisine || '').toLowerCase()
+            const nameLower = (r.name || '').toLowerCase()
 
-              if (keywords.some(keyword =>
-                featuredDishLower.includes(keyword) ||
-                cuisineLower.includes(keyword) ||
-                nameLower.includes(keyword)
-              )) {
-                expandedDishes.push(r)
-              }
+            if (keywords.some(keyword =>
+              featuredDishLower.includes(keyword) ||
+              cuisineLower.includes(keyword) ||
+              nameLower.includes(keyword)
+            )) {
+              expandedDishes.push(r)
             }
           }
         }

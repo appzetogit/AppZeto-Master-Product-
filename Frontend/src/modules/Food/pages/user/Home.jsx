@@ -1413,8 +1413,13 @@ export default function Home() {
           const userLng = location?.longitude;
 
           // Transform API data to match expected format
-          const transformedRestaurants = restaurantsArray.map(
-            (restaurant, index) => {
+          const transformedRestaurants = restaurantsArray
+            .filter((restaurant) => {
+              const name = (restaurant.restaurantName || restaurant.name || "").toLowerCase()
+              if (name.includes("dummy") || name.includes("test")) return false
+              return true
+            })
+            .map((restaurant, index) => {
               // Use restaurant data if available, otherwise use defaults
               const deliveryTime =
                 restaurant.estimatedDeliveryTime || "25-30 mins";
@@ -1544,6 +1549,8 @@ export default function Home() {
                   : [],
                 deliveryTimings: restaurant.deliveryTimings || null,
                 outletTimings: restaurant.outletTimings || null,
+                openingTime: restaurant.openingTime || null,
+                closingTime: restaurant.closingTime || null,
               };
             },
           );

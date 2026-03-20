@@ -91,6 +91,17 @@ export async function deleteSafetyEmergencyReport(req, res, next) {
     }
 }
 
+export async function updateRestaurantComplaint(req, res, next) {
+    try {
+        const { id } = req.params;
+        const { status, adminResponse } = req.body;
+        const updated = await adminService.updateRestaurantComplaint(id, { status, adminResponse });
+        res.status(200).json({ success: true, message: 'Complaint updated successfully', data: { complaint: updated } });
+    } catch (error) {
+        next(error);
+    }
+}
+
 // ----- Restaurants -----
 export async function getRestaurantComplaints(req, res, next) {
     try {

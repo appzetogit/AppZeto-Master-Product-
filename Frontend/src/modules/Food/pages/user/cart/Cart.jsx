@@ -17,6 +17,7 @@ import { API_BASE_URL } from "@food/api/config"
 import { initRazorpayPayment } from "@food/utils/razorpay"
 import { toast } from "sonner"
 import { getCompanyNameAsync } from "@food/utils/businessSettings"
+import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability"
 import zoopSound from "@food/assets/audio/zomato_sms.mp3"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -193,6 +194,70 @@ export default function Cart() {
     gstRate: 5,
   })
 
+
+  const availableTimeSlots = useMemo(() => {
+    if (!isScheduled || !scheduledDate || !restaurantData) return []
+
+    try {
+      const targetDate = new Date(scheduledDate)
+      const status = getRestaurantAvailabilityStatus(restaurantData, targetDate)
+      
+      let openingHour = 9
+      let closingHour = 22
+      
+      if (status.openingTime) {
+        const [h] = status.openingTime.split(':')
+        openingHour = parseInt(h, 10)
+      }
+      
+      if (status.closingTime) {
+        const [h] = status.closingTime.split(':')
+        closingHour = parseInt(h, 10)
+      }
+
+      if (closingHour < openingHour) {
+        closingHour += 24 // Handle overnight slots
+      }
+
+      const slots = []
+      const now = new Date()
+      // Fix timezone date comparison by comparing date strings YYYY-MM-DD
+      const nowStr = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
+      const targetStr = scheduledDate
+      const isToday = targetStr === nowStr
+      const currentHour = now.getHours()
+
+      for (let h = openingHour; h <= closingHour; h++) {
+        const actualHour = h % 24
+        // Skip past hours if today. Add 1 hour buffer so they can't order right at the boundary
+        if (isToday && h <= currentHour) continue
+
+        const period = actualHour >= 12 ? 'PM' : 'AM'
+        const display12 = actualHour % 12 || 12
+        const timeString = `${String(actualHour).padStart(2, '0')}:00`
+        const displayString = `${display12}:00 ${period}`
+        
+        slots.push({ value: timeString, label: displayString })
+      }
+      
+      return slots
+    } catch {
+      return []
+    }
+  }, [isScheduled, scheduledDate, restaurantData])
+
+  // Reset scheduledTime if it's no longer valid in the new slots
+  useEffect(() => {
+    if (isScheduled && availableTimeSlots.length > 0) {
+      const isValid = availableTimeSlots.some(slot => slot.value === scheduledTime)
+      if (!isValid) {
+        setScheduledTime(availableTimeSlots[0].value)
+      }
+    } else if (!isScheduled) {
+      setScheduledDate("")
+      setScheduledTime("")
+    }
+  }, [isScheduled, availableTimeSlots, scheduledTime])
 
   const cartCount = getCartCount()
   const getAddressId = (address) => address?.id || address?._id || null
@@ -1924,12 +1989,24 @@ export default function Cart() {
                     </div>
                     <div className="flex-1">
                       <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Time</label>
-                      <input 
-                        type="time" 
-                        value={scheduledTime}
-                        onChange={(e) => setScheduledTime(e.target.value)}
-                        className="w-full text-sm p-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-[#0a0a0a] text-gray-800 dark:text-gray-200 focus:outline-none focus:border-[#EB590E]"
-                      />
+                      {availableTimeSlots.length > 0 ? (
+                        <div className="relative">
+                          <select 
+                            value={scheduledTime}
+                            onChange={(e) => setScheduledTime(e.target.value)}
+                            className="w-full text-sm p-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-[#0a0a0a] text-gray-800 dark:text-gray-200 focus:outline-none focus:border-[#EB590E] appearance-none pr-8"
+                          >
+                            {availableTimeSlots.map(slot => (
+                              <option key={slot.value} value={slot.value}>{slot.label}</option>
+                            ))}
+                          </select>
+                          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 pointer-events-none" />
+                        </div>
+                      ) : (
+                        <div className="w-full text-sm p-2 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 rounded-md text-center border border-gray-200 dark:border-gray-700">
+                          {scheduledDate ? "No slots available" : "Select date first"}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

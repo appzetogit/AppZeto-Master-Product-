@@ -56,7 +56,32 @@ export default function UnifiedOTPFastLogin() {
     submitting.current = true
     setLoading(true)
     try {
-      const response = await authAPI.verifyOTP(phoneNumber, otpDigits, "login", null, null, "user", null, null)
+      // Try to get FCM token before verifying OTP
+      let fcmToken = null;
+      let platform = "web";
+      try {
+        if (typeof window !== "undefined") {
+          if (window.flutter_inappwebview) {
+            platform = "mobile";
+            const handlerNames = ["getFcmToken", "getFCMToken", "getPushToken", "getFirebaseToken"];
+            for (const handlerName of handlerNames) {
+              try {
+                const t = await window.flutter_inappwebview.callHandler(handlerName, { module: "user" });
+                if (t && typeof t === "string" && t.length > 20) {
+                  fcmToken = t.trim();
+                  break;
+                }
+              } catch (e) {}
+            }
+          } else {
+            fcmToken = localStorage.getItem("fcm_web_registered_token_user") || null;
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to get FCM token during login", e);
+      }
+
+      const response = await authAPI.verifyOTP(phoneNumber, otpDigits, "login", null, null, "user", null, null, fcmToken, platform)
       const data = response?.data?.data || response?.data || {}
       const accessToken = data.accessToken
       const refreshToken = data.refreshToken || null

@@ -8,9 +8,11 @@ import uploadRoutes from '../modules/uploads/routes/upload.routes.js';
 import restaurantAdminRoutes from '../modules/food/admin/routes/admin.routes.js';
 import userRoutes from '../modules/food/user/routes/user.routes.js';
 import orderUserRoutes from '../modules/food/orders/order.routes.user.js';
+import fcmRoutes from '../core/notifications/fcm.routes.js';
 import { authMiddleware } from '../core/auth/auth.middleware.js';
 import { requireRoles } from '../core/roles/role.middleware.js';
 import { getQueuesController } from '../controllers/admin.controller.js';
+import { getPublicEnvController } from '../modules/food/landing/controllers/publicEnv.controller.js';
 
 const router = express.Router();
 
@@ -33,6 +35,11 @@ router.use('/v1/uploads', uploadRoutes);
 router.use('/v1/food/admin', authMiddleware, requireRoles('ADMIN'), restaurantAdminRoutes);
 router.use('/v1/food/user', authMiddleware, requireRoles('USER'), userRoutes);
 router.use('/v1/food/orders', authMiddleware, requireRoles('USER'), orderUserRoutes);
+router.use('/v1/fcm-tokens', fcmRoutes);
+router.use('/fcm-tokens', fcmRoutes);
+
+router.get('/v1/env/public', getPublicEnvController);
+router.get('/env/public', getPublicEnvController);
 
 router.get('/v1/admin/queues', authMiddleware, requireRoles('ADMIN'), getQueuesController);
 

@@ -11,6 +11,7 @@
     "worker:notification": "node src/queues/workers/notification.worker.js",
     "worker:order": "node src/queues/workers/order.worker.js",
     "worker:payment": "node src/queues/workers/payment.worker.js",
+    "migrate:fcm-tokens": "node scripts/migrate-fcm-tokens-to-profile-models.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

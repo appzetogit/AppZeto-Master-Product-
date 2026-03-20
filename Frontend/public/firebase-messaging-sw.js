@@ -75,8 +75,11 @@ async function hasVisibleClientForTarget(payload = {}) {
 }
 
 async function loadFirebaseWebConfig() {
-  const candidates = ["/api/env/public"];
-  // Removed localhost:5000 candidate for static mode
+  const candidates = [
+    "/api/v1/food/public/env",
+    "/api/v1/env/public",
+    "/api/env/public",
+  ];
   for (const url of candidates) {
     try {
       const response = await fetch(url, { cache: "no-store" });
@@ -84,13 +87,13 @@ async function loadFirebaseWebConfig() {
       const json = await response.json();
       const data = (json && json.data) || {};
       const config = {
-        apiKey: sanitize(data.FIREBASE_API_KEY),
-        authDomain: sanitize(data.FIREBASE_AUTH_DOMAIN),
-        projectId: sanitize(data.FIREBASE_PROJECT_ID),
-        appId: sanitize(data.FIREBASE_APP_ID),
-        messagingSenderId: sanitize(data.FIREBASE_MESSAGING_SENDER_ID),
-        storageBucket: sanitize(data.FIREBASE_STORAGE_BUCKET),
-        measurementId: sanitize(data.MEASUREMENT_ID),
+        apiKey: sanitize(data.VITE_FIREBASE_API_KEY || data.FIREBASE_API_KEY),
+        authDomain: sanitize(data.VITE_FIREBASE_AUTH_DOMAIN || data.FIREBASE_AUTH_DOMAIN),
+        projectId: sanitize(data.VITE_FIREBASE_PROJECT_ID || data.FIREBASE_PROJECT_ID),
+        appId: sanitize(data.VITE_FIREBASE_APP_ID || data.FIREBASE_APP_ID),
+        messagingSenderId: sanitize(data.VITE_FIREBASE_MESSAGING_SENDER_ID || data.FIREBASE_MESSAGING_SENDER_ID),
+        storageBucket: sanitize(data.VITE_FIREBASE_STORAGE_BUCKET || data.FIREBASE_STORAGE_BUCKET),
+        measurementId: sanitize(data.VITE_FIREBASE_MEASUREMENT_ID || data.FIREBASE_MEASUREMENT_ID),
       };
 
       if (config.apiKey && config.projectId && config.appId && config.messagingSenderId) {
@@ -117,27 +120,17 @@ async function loadFirebaseWebConfig() {
 
   messaging.onBackgroundMessage(async (payload) => {
     pushDebugLog(PUSH_DEBUG_PREFIX, "Received Firebase background message", { payload });
-    const visibleClient = await hasVisibleClientForTarget(payload);
-    if (visibleClient) {
-      // Foreground/visible tab should render the notification itself.
-      // Only relay to page, and never show service-worker notification here.
-      await notifyOpenClients(payload);
-      pushDebugLog(PUSH_DEBUG_PREFIX, "Skipping service worker notification because app tab is visible");
-      return;
-    }
-
-    if (payload?.notification?.title || payload?.notification?.body) {
-      pushDebugLog(PUSH_DEBUG_PREFIX, "Skipping manual showNotification because payload already has notification");
-      return;
-    }
-
-    const title = payload?.data?.title || "New Notification";
-    const body = payload?.data?.body || "";
+    
+    // Always show system notification for background messages
+    const title = payload?.notification?.title || payload?.data?.title || "New Notification";
+    const body = payload?.notification?.body || payload?.data?.body || "";
     const image =
+      payload?.notification?.image ||
       payload?.data?.image ||
       payload?.data?.imageUrl ||
       undefined;
     const notificationKey = getNotificationKey(payload);
+    
     pushDebugLog(PUSH_DEBUG_PREFIX, "Showing service worker notification", {
       title,
       body,
@@ -156,6 +149,12 @@ async function loadFirebaseWebConfig() {
       vibrate: [200, 100, 200, 100, 300],
       data: payload?.data || {},
     });
+
+    // Still try to notify clients if they are open but hidden
+    const visibleClient = await hasVisibleClientForTarget(payload);
+    if (!visibleClient) {
+      await notifyOpenClients(payload);
+    }
   });
 })();
 

@@ -86,6 +86,14 @@ const userSchema = new mongoose.Schema(
             type: String,
             default: ''
         },
+        fcmTokens: {
+            type: [String],
+            default: []
+        },
+        fcmTokenMobile: {
+            type: [String],
+            default: []
+        },
         dateOfBirth: {
             type: Date,
             default: null

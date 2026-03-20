@@ -177,6 +177,31 @@ export default function OTP() {
       const providedName = authData?.isSignUp ? authData?.name || null : null
       const referralCode = authData?.referralCode || null
 
+      // Try to get FCM token before verifying OTP
+      let fcmToken = null;
+      let platform = "web";
+      try {
+        if (typeof window !== "undefined") {
+          if (window.flutter_inappwebview) {
+            platform = "mobile";
+            const handlerNames = ["getFcmToken", "getFCMToken", "getPushToken", "getFirebaseToken"];
+            for (const handlerName of handlerNames) {
+              try {
+                const t = await window.flutter_inappwebview.callHandler(handlerName, { module: "user" });
+                if (t && typeof t === "string" && t.length > 20) {
+                  fcmToken = t.trim();
+                  break;
+                }
+              } catch (e) {}
+            }
+          } else {
+            fcmToken = localStorage.getItem("fcm_web_registered_token_user") || null;
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to get FCM token during login", e);
+      }
+
       const response = await authAPI.verifyOTP(
         phone,
         code4,
@@ -186,6 +211,8 @@ export default function OTP() {
         "user",
         null,
         referralCode,
+        fcmToken,
+        platform
       )
       const data = response?.data?.data || response?.data || {}
 

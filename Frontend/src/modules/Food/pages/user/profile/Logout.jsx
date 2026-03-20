@@ -23,7 +23,30 @@ export default function Logout() {
     try {
       // Call backend logout API to invalidate refresh token
       try {
-        await authAPI.logout()
+        let fcmToken = null;
+        let platform = "web";
+        try {
+          if (typeof window !== "undefined") {
+            if (window.flutter_inappwebview) {
+              platform = "mobile";
+              const handlerNames = ["getFcmToken", "getFCMToken", "getPushToken", "getFirebaseToken"];
+              for (const handlerName of handlerNames) {
+                try {
+                  const t = await window.flutter_inappwebview.callHandler(handlerName, { module: "user" });
+                  if (t && typeof t === "string" && t.length > 20) {
+                    fcmToken = t.trim();
+                    break;
+                  }
+                } catch (e) {}
+              }
+            } else {
+              fcmToken = localStorage.getItem("fcm_web_registered_token_user") || null;
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to get FCM token during logout", e);
+        }
+        await authAPI.logout(null, fcmToken, platform)
       } catch (apiError) {
         // Continue with logout even if API call fails (network issues, etc.)
         debugWarn("Logout API call failed, continuing with local cleanup:", apiError)

@@ -66,6 +66,22 @@ export async function createRestaurantFood(restaurantId, body = {}) {
         requestedAt: new Date()
     });
 
+    try {
+        const { notifyAdminsSafely } = await import('../../../../core/notifications/firebase.service.js');
+        void notifyAdminsSafely({
+            title: 'New Product Approval Request 🍔',
+            body: `Restaurant has submitted a new item "${doc.name}" for approval.`,
+            data: {
+                type: 'approval_request',
+                subType: 'food',
+                id: String(doc._id)
+            }
+        });
+    } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error('Failed to notify admins of new food approval request:', e);
+    }
+
     return doc.toObject();
 }
 

@@ -1423,6 +1423,27 @@ export async function approveRestaurantAddon(addonId) {
         { new: true }
     ).lean();
 
+    if (updated?.restaurantId) {
+        try {
+            const { notifyOwnersSafely } = await import('../../../core/notifications/firebase.service.js');
+            await notifyOwnersSafely(
+                [{ ownerType: 'RESTAURANT', ownerId: updated.restaurantId }],
+                {
+                    title: 'Addon Approved! ✅',
+                    body: `Your addon "${updated.published?.name || 'New Addon'}" has been approved and is now live.`,
+                    image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
+                    data: {
+                        type: 'addon_approved',
+                        addonId: String(updated._id),
+                        restaurantId: String(updated.restaurantId)
+                    }
+                }
+            );
+        } catch (e) {
+            console.error('Failed to send addon approval notification:', e);
+        }
+    }
+
     return updated || null;
 }
 
@@ -1444,6 +1465,29 @@ export async function rejectRestaurantAddon(addonId, reason) {
         },
         { new: true }
     ).lean();
+
+    if (updated?.restaurantId) {
+        try {
+            const { notifyOwnersSafely } = await import('../../../core/notifications/firebase.service.js');
+            await notifyOwnersSafely(
+                [{ ownerType: 'RESTAURANT', ownerId: updated.restaurantId }],
+                {
+                    title: 'Addon Rejected ❌',
+                    body: `Your addon request for "${updated.draft?.name || 'New Addon'}" was rejected. Reason: ${rejectionReason}`,
+                    image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
+                    data: {
+                        type: 'addon_rejected',
+                        addonId: String(updated._id),
+                        restaurantId: String(updated.restaurantId),
+                        reason: rejectionReason
+                    }
+                }
+            );
+        } catch (e) {
+            console.error('Failed to send addon rejection notification:', e);
+        }
+    }
+
     return updated || null;
 }
 
@@ -1647,7 +1691,7 @@ export async function createRestaurantByAdmin(body) {
 
 export async function approveRestaurant(id) {
     if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
-    return FoodRestaurant.findByIdAndUpdate(
+    const updated = await FoodRestaurant.findByIdAndUpdate(
         id,
         {
             $set: {
@@ -1659,11 +1703,32 @@ export async function approveRestaurant(id) {
         },
         { new: true, runValidators: false }
     ).lean();
+
+    if (updated) {
+        try {
+            const { notifyOwnersSafely } = await import('../../../core/notifications/firebase.service.js');
+            await notifyOwnersSafely(
+                [{ ownerType: 'RESTAURANT', ownerId: updated._id }],
+                {
+                    title: 'Congratulations! 🎉',
+                    body: `Your restaurant "${updated.restaurantName}" has been approved. You can now start receiving orders!`,
+                    image: updated.profileImage || 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
+                    data: {
+                        type: 'restaurant_approved',
+                        restaurantId: String(updated._id)
+                    }
+                }
+            );
+        } catch (e) {
+            console.error('Failed to send restaurant approval notification:', e);
+        }
+    }
+    return updated;
 }
 
 export async function rejectRestaurant(id, reason) {
     if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
-    return FoodRestaurant.findByIdAndUpdate(
+    const updated = await FoodRestaurant.findByIdAndUpdate(
         id,
         {
             $set: {
@@ -1675,6 +1740,28 @@ export async function rejectRestaurant(id, reason) {
         },
         { new: true, runValidators: false }
     ).lean();
+
+    if (updated) {
+        try {
+            const { notifyOwnersSafely } = await import('../../../core/notifications/firebase.service.js');
+            await notifyOwnersSafely(
+                [{ ownerType: 'RESTAURANT', ownerId: updated._id }],
+                {
+                    title: 'Update on Registration 📋',
+                    body: `Your restaurant registration for "${updated.restaurantName}" has been rejected. Reason: ${reason || 'Incomplete documents'}.`,
+                    image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
+                    data: {
+                        type: 'restaurant_rejected',
+                        restaurantId: String(updated._id),
+                        reason: reason || ''
+                    }
+                }
+            );
+        } catch (e) {
+            console.error('Failed to send restaurant rejection notification:', e);
+        }
+    }
+    return updated;
 }
 
 // ----- Offers & Coupons -----
@@ -1748,6 +1835,28 @@ export async function createAdminOffer(body) {
         status: body.endDate && new Date(body.endDate).getTime() <= Date.now() ? 'inactive' : 'active',
         showInCart: true
     });
+
+    if (doc.restaurantScope === 'selected' && doc.restaurantId) {
+        try {
+            const { notifyOwnersSafely } = await import('../../../core/notifications/firebase.service.js');
+            await notifyOwnersSafely(
+                [{ ownerType: 'RESTAURANT', ownerId: doc.restaurantId }],
+                {
+                    title: 'New Campaign Invitation! 📢',
+                    body: `You have been invited to join a new campaign: "${doc.couponCode}". Check it out now!`,
+                    image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
+                    data: {
+                        type: 'campaign_invitation',
+                        offerId: String(doc._id),
+                        couponCode: doc.couponCode
+                    }
+                }
+            );
+        } catch (e) {
+            console.error('Failed to send campaign invitation notification:', e);
+        }
+    }
+
     return doc.toObject();
 }
 
@@ -2080,6 +2189,25 @@ export async function addDeliveryPartnerBonus(body, adminUser) {
         createdByAdminId: adminUser?._id
     });
 
+    try {
+        const { notifyOwnerSafely } = await import('../../../core/notifications/firebase.service.js');
+        await notifyOwnerSafely(
+            { ownerType: 'DELIVERY_PARTNER', ownerId: body.deliveryPartnerId },
+            {
+                title: 'Bonus Credited! 🎊',
+                body: `You have received a bonus of ₹${body.amount}. ${body.reference || 'Great job!'}`,
+                image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
+                data: {
+                    type: 'bonus_credited',
+                    amount: String(body.amount),
+                    transactionId: created.transactionId
+                }
+            }
+        );
+    } catch (e) {
+        console.error('Failed to send bonus notification:', e);
+    }
+
     return created.toObject();
 }
 
@@ -2218,25 +2346,65 @@ export async function getEarningAddonHistory(query = {}) {
 
 export async function creditEarningAddonHistory(historyId, notes) {
     if (!historyId || !mongoose.Types.ObjectId.isValid(historyId)) return null;
-    const doc = await FoodEarningAddonHistory.findById(historyId);
+    const doc = await FoodEarningAddonHistory.findById(historyId).populate('offerId');
     if (!doc) return null;
     if (doc.status !== 'pending') return doc.toObject();
     doc.status = 'credited';
     doc.creditedAt = new Date();
     doc.creditedNotes = typeof notes === 'string' ? notes.trim() : '';
     await doc.save();
+
+    try {
+        const { notifyOwnerSafely } = await import('../../../core/notifications/firebase.service.js');
+        await notifyOwnerSafely(
+            { ownerType: 'DELIVERY_PARTNER', ownerId: doc.deliveryPartnerId },
+            {
+                title: 'Incentive Credited! 🎯',
+                body: `Your incentive for "${doc.offerId?.title || 'Earning Addon'}" has been approved and moved to your pocket.`,
+                image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
+                data: {
+                    type: 'incentive_credited',
+                    historyId: String(doc._id),
+                    amount: String(doc.earningAmount || 0)
+                }
+            }
+        );
+    } catch (e) {
+        console.error('Failed to send incentive credited notification:', e);
+    }
+
     return doc.toObject();
 }
 
 export async function cancelEarningAddonHistory(historyId, reason) {
     if (!historyId || !mongoose.Types.ObjectId.isValid(historyId)) return null;
-    const doc = await FoodEarningAddonHistory.findById(historyId);
+    const doc = await FoodEarningAddonHistory.findById(historyId).populate('offerId');
     if (!doc) return null;
     if (doc.status !== 'pending') return doc.toObject();
     doc.status = 'cancelled';
     doc.cancelledAt = new Date();
     doc.cancelReason = typeof reason === 'string' ? reason.trim() : '';
     await doc.save();
+
+    try {
+        const { notifyOwnerSafely } = await import('../../../core/notifications/firebase.service.js');
+        await notifyOwnerSafely(
+            { ownerType: 'DELIVERY_PARTNER', ownerId: doc.deliveryPartnerId },
+            {
+                title: 'Incentive Update 📋',
+                body: `Your incentive request for "${doc.offerId?.title || 'Earning Addon'}" was not approved. Reason: ${doc.cancelReason || 'Ineligible'}`,
+                image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
+                data: {
+                    type: 'incentive_rejected',
+                    historyId: String(doc._id),
+                    reason: doc.cancelReason
+                }
+            }
+        );
+    } catch (e) {
+        console.error('Failed to send incentive rejection notification:', e);
+    }
+
     return doc.toObject();
 }
 
@@ -2300,6 +2468,24 @@ export async function approveDeliveryPartner(id) {
     partner.rejectionReason = undefined;
     await partner.save();
 
+    try {
+        const { notifyOwnerSafely } = await import('../../../core/notifications/firebase.service.js');
+        await notifyOwnerSafely(
+            { ownerType: 'DELIVERY_PARTNER', ownerId: partner._id },
+            {
+                title: 'Welcome Aboard! 🚲',
+                body: `Your delivery partner application has been approved. You can now go online and start earning!`,
+                image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
+                data: {
+                    type: 'onboarding_approved',
+                    partnerId: String(partner._id)
+                }
+            }
+        );
+    } catch (e) {
+        console.error('Failed to send delivery partner approval notification:', e);
+    }
+
     // Referral crediting: on approval, credit the referrer partner's pocket balance via DeliveryBonusTransaction.
     try {
         const referrerId = partner.referredBy ? String(partner.referredBy) : '';
@@ -2348,13 +2534,41 @@ export async function approveDeliveryPartner(id) {
 }
 
 export async function rejectDeliveryPartner(id, reason) {
-    const partner = await FoodDeliveryPartner.findById(id);
-    if (!partner) return null;
-    partner.status = 'rejected';
-    partner.rejectedAt = new Date();
-    partner.rejectionReason = reason || undefined;
-    await partner.save();
-    return partner.toObject();
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+    const updated = await FoodDeliveryPartner.findByIdAndUpdate(
+        id,
+        {
+            $set: {
+                status: 'rejected',
+                rejectedAt: new Date(),
+                rejectionReason: typeof reason === 'string' ? reason.trim() : undefined,
+                approvedAt: null
+            }
+        },
+        { new: true }
+    ).lean();
+
+    if (updated) {
+        try {
+            const { notifyOwnerSafely } = await import('../../../core/notifications/firebase.service.js');
+            await notifyOwnerSafely(
+                { ownerType: 'DELIVERY_PARTNER', ownerId: updated._id },
+                {
+                    title: 'Onboarding Update 📋',
+                    body: `Your application to join as a delivery partner was rejected. Reason: ${reason || 'Incomplete documents'}.`,
+                    image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
+                    data: {
+                        type: 'onboarding_rejected',
+                        partnerId: String(updated._id),
+                        reason: reason || ''
+                    }
+                }
+            );
+        } catch (e) {
+            console.error('Failed to send delivery partner rejection notification:', e);
+        }
+    }
+    return updated;
 }
 
 // ----- Zones CRUD -----

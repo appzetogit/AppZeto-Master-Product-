@@ -46,7 +46,10 @@ export function requestUserOtp(phone) {
   if (!/^\d+$/.test(digits)) {
     return Promise.reject(new Error("Phone must contain only digits"));
   }
-  const normalized = digits.length > USER_PHONE_LENGTH ? digits.slice(-USER_PHONE_LENGTH) : digits;
+  const normalized =
+    digits.length > USER_PHONE_LENGTH
+      ? digits.slice(-USER_PHONE_LENGTH)
+      : digits;
   if (normalized.length !== USER_PHONE_LENGTH) {
     return Promise.reject(new Error("Phone number must be exactly 10 digits"));
   }
@@ -60,16 +63,27 @@ export function requestUserOtp(phone) {
  * @param {string} phone - Same format as request
  * @param {string} otp - 4-digit OTP only
  */
-export function verifyUserOtp(phone, otp, ref) {
+export function verifyUserOtp(
+  phone,
+  otp,
+  ref,
+  fcmToken = null,
+  platform = "web",
+) {
   const digits = normalizePhone(phone);
   if (!digits) {
     return Promise.reject(new Error("Phone number is required"));
   }
-  const normalized = digits.length > USER_PHONE_LENGTH ? digits.slice(-USER_PHONE_LENGTH) : digits;
+  const normalized =
+    digits.length > USER_PHONE_LENGTH
+      ? digits.slice(-USER_PHONE_LENGTH)
+      : digits;
   if (normalized.length !== USER_PHONE_LENGTH) {
     return Promise.reject(new Error("Phone number must be exactly 10 digits"));
   }
-  const otpStr = String(otp ?? "").replace(/\D/g, "").slice(0, 4);
+  const otpStr = String(otp ?? "")
+    .replace(/\D/g, "")
+    .slice(0, 4);
   if (!otpStr) {
     return Promise.reject(new Error("OTP is required"));
   }
@@ -81,6 +95,7 @@ export function verifyUserOtp(phone, otp, ref) {
     phone: normalized,
     otp: otpStr,
     ...(refValue ? { ref: refValue } : {}),
+    ...(fcmToken ? { fcmToken, platform } : {}),
   });
 }
 
@@ -104,7 +119,10 @@ export function adminLogin(email, password) {
   if (passwordStr.length < 6) {
     return Promise.reject(new Error("Password must be at least 6 characters"));
   }
-  return apiClient.post(AUTH.ADMIN_LOGIN, { email: trimmedEmail, password: passwordStr });
+  return apiClient.post(AUTH.ADMIN_LOGIN, {
+    email: trimmedEmail,
+    password: passwordStr,
+  });
 }
 
 /**
@@ -113,17 +131,27 @@ export function adminLogin(email, password) {
  * @returns {Promise<{ data }>} data.accessToken
  */
 export function refreshToken(refreshToken) {
-  if (!refreshToken) return Promise.reject(new Error("Refresh token is required"));
+  if (!refreshToken)
+    return Promise.reject(new Error("Refresh token is required"));
   return apiClient.post(AUTH.REFRESH_TOKEN, { refreshToken });
 }
 
 /**
  * Logout (invalidate refresh token).
  * @param {string} refreshToken
+ * @param {string} fcmToken
+ * @param {string} platform
  */
-export function logout(refreshToken) {
+export function logout(refreshToken, fcmToken = null, platform = "web") {
   if (!refreshToken) return Promise.resolve({ data: { success: true } });
-  return apiClient.post(AUTH.LOGOUT, { refreshToken });
+
+  const payload = { refreshToken };
+  if (fcmToken) {
+    payload.fcmToken = fcmToken;
+    payload.platform = platform;
+  }
+
+  return apiClient.post(AUTH.LOGOUT, payload);
 }
 
 /**
@@ -196,7 +224,10 @@ export function verifyRestaurantOtp(phone, otp) {
   if (!normalized || otpStr.length < 4) {
     return Promise.reject(new Error("Phone and 4-digit OTP are required"));
   }
-  return apiClient.post(AUTH.RESTAURANT_VERIFY_OTP, { phone: normalized, otp: otpStr });
+  return apiClient.post(AUTH.RESTAURANT_VERIFY_OTP, {
+    phone: normalized,
+    otp: otpStr,
+  });
 }
 
 /**
@@ -216,5 +247,8 @@ export function verifyDeliveryOtp(phone, otp) {
   if (!normalized || otpStr.length < 4) {
     return Promise.reject(new Error("Phone and 4-digit OTP are required"));
   }
-  return apiClient.post(AUTH.DELIVERY_VERIFY_OTP, { phone: normalized, otp: otpStr });
+  return apiClient.post(AUTH.DELIVERY_VERIFY_OTP, {
+    phone: normalized,
+    otp: otpStr,
+  });
 }

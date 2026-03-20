@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react"
-import { Link, useNavigate } from "react-router-dom"
-import { motion } from "framer-motion"
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import {
   ArrowLeft,
   ChevronRight,
@@ -22,141 +22,172 @@ import {
   Power,
   ShoppingCart,
   MapPin,
-  Share2
-} from "lucide-react"
+  Share2,
+} from "lucide-react";
 
-import AnimatedPage from "@food/components/user/AnimatedPage"
-import { Card, CardContent } from "@food/components/ui/card"
-import { Button } from "@food/components/ui/button"
-import { useProfile } from "@food/context/ProfileContext"
-import { useLocationSelector } from "@food/components/user/UserLayout"
-import { Avatar, AvatarFallback, AvatarImage } from "@food/components/ui/avatar"
-import { useCompanyName } from "@food/hooks/useCompanyName"
-import OptimizedImage from "@food/components/OptimizedImage"
+import AnimatedPage from "@food/components/user/AnimatedPage";
+import { Card, CardContent } from "@food/components/ui/card";
+import { Button } from "@food/components/ui/button";
+import { useProfile } from "@food/context/ProfileContext";
+import { useLocationSelector } from "@food/components/user/UserLayout";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from "@food/components/ui/avatar";
+import { useCompanyName } from "@food/hooks/useCompanyName";
+import OptimizedImage from "@food/components/OptimizedImage";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@food/components/ui/dialog"
-import { authAPI, userAPI } from "@food/api"
-import { firebaseAuth } from "@food/firebase"
-import { clearModuleAuth } from "@food/utils/auth"
-const debugLog = (...args) => {}
-const debugWarn = (...args) => {}
-const debugError = (...args) => {}
+} from "@food/components/ui/dialog";
+import { authAPI, userAPI } from "@food/api";
+import { firebaseAuth } from "@food/firebase";
+import { clearModuleAuth } from "@food/utils/auth";
+import { toast } from "sonner";
+const debugLog = (...args) => {};
+const debugWarn = (...args) => {};
+const debugError = (...args) => {};
 
+import { registerWebPushForCurrentModule } from "@food/utils/firebaseMessaging";
 
 export default function Profile() {
-  const { userProfile, vegMode, setVegMode, getDefaultAddress, addresses } = useProfile()
-  const { openLocationSelector } = useLocationSelector()
-  const navigate = useNavigate()
-  const companyName = useCompanyName()
-  const defaultAddress = getDefaultAddress?.()
+  const { userProfile, vegMode, setVegMode, getDefaultAddress, addresses } =
+    useProfile();
+  const { openLocationSelector } = useLocationSelector();
+  const navigate = useNavigate();
+  const companyName = useCompanyName();
+  const defaultAddress = getDefaultAddress?.();
   const savedAddressSummary = defaultAddress
     ? [
-      defaultAddress.street,
-      defaultAddress.additionalDetails,
-      defaultAddress.city,
-      defaultAddress.state,
-      defaultAddress.zipCode
-    ].filter(Boolean).join(", ")
-    : "No address saved. Tap to save Home, Work, or Other."
+        defaultAddress.street,
+        defaultAddress.additionalDetails,
+        defaultAddress.city,
+        defaultAddress.state,
+        defaultAddress.zipCode,
+      ]
+        .filter(Boolean)
+        .join(", ")
+    : "No address saved. Tap to save Home, Work, or Other.";
 
   // Popup states
-  const [vegModeOpen, setVegModeOpen] = useState(false)
-  const [appearanceOpen, setAppearanceOpen] = useState(false)
-  const [isLoggingOut, setIsLoggingOut] = useState(false)
-  const [referralReward, setReferralReward] = useState(0)
-  const [walletBalance, setWalletBalance] = useState(0)
+  const [vegModeOpen, setVegModeOpen] = useState(false);
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [referralReward, setReferralReward] = useState(0);
+  const [walletBalance, setWalletBalance] = useState(0);
+
+  // Trigger web push registration when profile mounts to ensure FCM token is saved
+  useEffect(() => {
+    registerWebPushForCurrentModule().catch(console.error);
+  }, []);
 
   const handleVegModeUpdate = (nextValue) => {
-    setVegMode(nextValue)
-    localStorage.setItem("userVegMode", String(nextValue))
-  }
+    setVegMode(nextValue);
+    localStorage.setItem("userVegMode", String(nextValue));
+  };
 
   // Settings states
   const [appearance, setAppearance] = useState(() => {
     // Load theme from localStorage or default to 'light'
-    return localStorage.getItem('appTheme') || 'light'
-  })
+    return localStorage.getItem("appTheme") || "light";
+  });
 
   // Apply theme to document
   useEffect(() => {
-    const root = document.documentElement
-    if (appearance === 'dark') {
-      root.classList.add('dark')
+    const root = document.documentElement;
+    if (appearance === "dark") {
+      root.classList.add("dark");
     } else {
-      root.classList.remove('dark')
+      root.classList.remove("dark");
     }
     // Save to localStorage
-    localStorage.setItem('appTheme', appearance)
-  }, [appearance])
+    localStorage.setItem("appTheme", appearance);
+  }, [appearance]);
 
   // Get first letter of name for avatar
-  const avatarInitial = userProfile?.name?.charAt(0)?.toUpperCase() || userProfile?.phone?.charAt(1)?.toUpperCase() || 'U'
-  const displayName = userProfile?.name || userProfile?.phone || 'User'
+  const avatarInitial =
+    userProfile?.name?.charAt(0)?.toUpperCase() ||
+    userProfile?.phone?.charAt(1)?.toUpperCase() ||
+    "U";
+  const displayName = userProfile?.name || userProfile?.phone || "User";
   // Only show email if it exists and is valid, otherwise show phone or "Not available"
-  const hasValidEmail = userProfile?.email && userProfile.email.trim() !== '' && userProfile.email.includes('@')
-  const displayEmail = hasValidEmail ? userProfile.email : (userProfile?.phone || 'Not available')
+  const hasValidEmail =
+    userProfile?.email &&
+    userProfile.email.trim() !== "" &&
+    userProfile.email.includes("@");
+  const displayEmail = hasValidEmail
+    ? userProfile.email
+    : userProfile?.phone || "Not available";
 
   // Calculate profile completion percentage
   const calculateProfileCompletion = () => {
-    if (!userProfile) return 0
+    if (!userProfile) return 0;
 
     // Helper function to check if date field is filled (handles Date objects, date strings, ISO strings)
     const isDateFilled = (dateField) => {
-      if (!dateField) return false
+      if (!dateField) return false;
 
       // Check if it's a Date object
       if (dateField instanceof Date) {
-        return !isNaN(dateField.getTime())
+        return !isNaN(dateField.getTime());
       }
 
       // Check if it's a string
-      if (typeof dateField === 'string') {
-        const trimmed = dateField.trim()
-        if (trimmed === '' || trimmed === 'null' || trimmed === 'undefined') return false
+      if (typeof dateField === "string") {
+        const trimmed = dateField.trim();
+        if (trimmed === "" || trimmed === "null" || trimmed === "undefined")
+          return false;
 
         // Try to parse as date (handles various formats: YYYY-MM-DD, ISO strings, etc.)
-        const date = new Date(trimmed)
+        const date = new Date(trimmed);
         if (!isNaN(date.getTime())) {
           // Valid date
-          return true
+          return true;
         }
       }
 
-      return false
-    }
+      return false;
+    };
 
     // Check name - must have value
-    const hasName = !!(userProfile.name &&
-      typeof userProfile.name === 'string' &&
-      userProfile.name.trim() !== '')
+    const hasName = !!(
+      userProfile.name &&
+      typeof userProfile.name === "string" &&
+      userProfile.name.trim() !== ""
+    );
 
     // Check contact - phone OR email (at least one)
-    const hasPhone = !!(userProfile.phone &&
-      typeof userProfile.phone === 'string' &&
-      userProfile.phone.trim() !== '')
-    const hasContact = hasPhone || hasValidEmail
+    const hasPhone = !!(
+      userProfile.phone &&
+      typeof userProfile.phone === "string" &&
+      userProfile.phone.trim() !== ""
+    );
+    const hasContact = hasPhone || hasValidEmail;
 
     // Check profile image - must have URL string
-    const hasImage = !!(userProfile.profileImage &&
-      typeof userProfile.profileImage === 'string' &&
-      userProfile.profileImage.trim() !== '' &&
-      userProfile.profileImage !== 'null' &&
-      userProfile.profileImage !== 'undefined')
+    const hasImage = !!(
+      userProfile.profileImage &&
+      typeof userProfile.profileImage === "string" &&
+      userProfile.profileImage.trim() !== "" &&
+      userProfile.profileImage !== "null" &&
+      userProfile.profileImage !== "undefined"
+    );
 
     // Check date of birth
-    const hasDateOfBirth = isDateFilled(userProfile.dateOfBirth)
+    const hasDateOfBirth = isDateFilled(userProfile.dateOfBirth);
 
     // Check gender - must be valid value
-    const validGenders = ['male', 'female', 'other', 'prefer-not-to-say']
-    const hasGender = !!(userProfile.gender &&
-      typeof userProfile.gender === 'string' &&
-      userProfile.gender.trim() !== '' &&
-      validGenders.includes(userProfile.gender.trim().toLowerCase()))
+    const validGenders = ["male", "female", "other", "prefer-not-to-say"];
+    const hasGender = !!(
+      userProfile.gender &&
+      typeof userProfile.gender === "string" &&
+      userProfile.gender.trim() !== "" &&
+      validGenders.includes(userProfile.gender.trim().toLowerCase())
+    );
 
     // Required fields only (anniversary is NOT counted - it's optional)
     // Only these 5 fields count towards 100%
@@ -166,174 +197,258 @@ export default function Profile() {
       profileImage: hasImage,
       dateOfBirth: hasDateOfBirth,
       gender: hasGender,
-    }
+    };
 
-    const totalRequiredFields = 5 // Fixed: name, contact, profileImage, dateOfBirth, gender
-    const completedRequiredFields = Object.values(requiredFields).filter(Boolean).length
+    const totalRequiredFields = 5; // Fixed: name, contact, profileImage, dateOfBirth, gender
+    const completedRequiredFields =
+      Object.values(requiredFields).filter(Boolean).length;
 
     // Calculate percentage based ONLY on required fields (anniversary NOT included)
-    const percentage = Math.round((completedRequiredFields / totalRequiredFields) * 100)
+    const percentage = Math.round(
+      (completedRequiredFields / totalRequiredFields) * 100,
+    );
 
     // Always log for debugging (remove in production if needed)
-    debugLog('?? Profile completion check:', {
+    debugLog("?? Profile completion check:", {
       requiredFields,
       completedRequiredFields,
       totalRequiredFields,
       percentage,
       fieldStatus: {
-        name: hasName ? '?' : '?',
-        contact: hasContact ? '?' : '?',
-        profileImage: hasImage ? '?' : '?',
-        dateOfBirth: hasDateOfBirth ? '?' : '?',
-        gender: hasGender ? '?' : '?',
+        name: hasName ? "?" : "?",
+        contact: hasContact ? "?" : "?",
+        profileImage: hasImage ? "?" : "?",
+        dateOfBirth: hasDateOfBirth ? "?" : "?",
+        gender: hasGender ? "?" : "?",
       },
       rawData: {
-        name: userProfile.name || 'missing',
-        phone: userProfile.phone || 'missing',
-        email: userProfile.email || 'missing',
-        profileImage: userProfile.profileImage ? 'exists' : 'missing',
-        dateOfBirth: userProfile.dateOfBirth ? String(userProfile.dateOfBirth) : 'missing',
-        gender: userProfile.gender || 'missing',
-      }
-    })
+        name: userProfile.name || "missing",
+        phone: userProfile.phone || "missing",
+        email: userProfile.email || "missing",
+        profileImage: userProfile.profileImage ? "exists" : "missing",
+        dateOfBirth: userProfile.dateOfBirth
+          ? String(userProfile.dateOfBirth)
+          : "missing",
+        gender: userProfile.gender || "missing",
+      },
+    });
 
-    return percentage
-  }
+    return percentage;
+  };
 
-  const profileCompletion = calculateProfileCompletion()
-  const isComplete = profileCompletion === 100
+  const profileCompletion = calculateProfileCompletion();
+  const isComplete = profileCompletion === 100;
   useEffect(() => {
-    let mounted = true
+    let mounted = true;
     userAPI
       .getReferralStats()
       .then((res) => {
-        const reward = res?.data?.data?.stats?.rewardAmount
-        if (mounted) setReferralReward(Number(reward) || 0)
+        const reward = res?.data?.data?.stats?.rewardAmount;
+        if (mounted) setReferralReward(Number(reward) || 0);
       })
-      .catch(() => {})
+      .catch(() => {});
     return () => {
-      mounted = false
-    }
-  }, [])
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
-    let mounted = true
+    let mounted = true;
     userAPI
       .getWallet()
       .then((res) => {
-        const w = res?.data?.data?.wallet || res?.data?.wallet
-        const bal = Number(w?.balance)
-        if (mounted) setWalletBalance(Number.isFinite(bal) ? bal : 0)
+        const w = res?.data?.data?.wallet || res?.data?.wallet;
+        const bal = Number(w?.balance);
+        if (mounted) setWalletBalance(Number.isFinite(bal) ? bal : 0);
       })
-      .catch(() => {})
+      .catch(() => {});
     return () => {
-      mounted = false
-    }
-  }, [])
+      mounted = false;
+    };
+  }, []);
 
   const refId =
-    userProfile?._id ||
-    userProfile?.id ||
-    userProfile?.referralCode ||
-    ""
+    userProfile?._id || userProfile?.id || userProfile?.referralCode || "";
   const referralLink = refId
     ? `${window.location.origin}/food/user/auth/login?ref=${encodeURIComponent(String(refId))}`
-    : ""
+    : "";
 
   const handleShareReferral = async () => {
-    if (!referralLink) return
-    const rewardText = referralReward > 0 ? `₹${referralReward}` : "rewards"
-    const shareText = `Join ${companyName} and earn ${rewardText}.`
+    if (!referralLink) return;
+    const rewardText = referralReward > 0 ? `₹${referralReward}` : "rewards";
+    const shareText = `Join ${companyName} and earn ${rewardText}.`;
     try {
       if (navigator.share) {
         await navigator.share({
           title: `${companyName} referral`,
           text: shareText,
           url: referralLink,
-        })
+        });
       } else {
-        const fallbackUrl = `https://wa.me/?text=${encodeURIComponent(`${shareText} ${referralLink}`)}`
-        window.open(fallbackUrl, "_blank", "noopener,noreferrer")
+        const fallbackUrl = `https://wa.me/?text=${encodeURIComponent(`${shareText} ${referralLink}`)}`;
+        window.open(fallbackUrl, "_blank", "noopener,noreferrer");
       }
     } catch (error) {
-      debugError("Failed to share referral:", error)
+      debugError("Failed to share referral:", error);
     }
-  }
+  };
 
   // Handle logout
   const handleLogout = async () => {
-    if (isLoggingOut) return // Prevent multiple clicks
+    if (isLoggingOut) return; // Prevent multiple clicks
 
-    setIsLoggingOut(true)
+    setIsLoggingOut(true);
 
     try {
       // Call backend logout API to invalidate refresh token
       try {
-        await authAPI.logout()
+        let fcmToken = null;
+        let platform = "web";
+        try {
+          if (typeof window !== "undefined") {
+            if (window.flutter_inappwebview) {
+              platform = "mobile";
+              const handlerNames = [
+                "getFcmToken",
+                "getFCMToken",
+                "getPushToken",
+                "getFirebaseToken",
+              ];
+              for (const handlerName of handlerNames) {
+                try {
+                  const t = await window.flutter_inappwebview.callHandler(
+                    handlerName,
+                    { module: "user" },
+                  );
+                  if (t && typeof t === "string" && t.length > 20) {
+                    fcmToken = t.trim();
+                    break;
+                  }
+                } catch (e) {}
+              }
+            } else {
+              fcmToken =
+                localStorage.getItem("fcm_web_registered_token_user") || null;
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to get FCM token during logout", e);
+        }
+        await authAPI.logout(null, fcmToken, platform);
       } catch (apiError) {
         // Continue with logout even if API call fails (network issues, etc.)
-        debugWarn("Logout API call failed, continuing with local cleanup:", apiError)
+        debugWarn(
+          "Logout API call failed, continuing with local cleanup:",
+          apiError,
+        );
       }
 
       // Sign out from Firebase if user logged in via Google
       try {
-        const { signOut } = await import("firebase/auth")
-        const currentUser = firebaseAuth.currentUser
+        const { signOut } = await import("firebase/auth");
+        const currentUser = firebaseAuth.currentUser;
         if (currentUser) {
-          await signOut(firebaseAuth)
+          await signOut(firebaseAuth);
         }
       } catch (firebaseError) {
         // Continue even if Firebase logout fails
-        debugWarn("Firebase logout failed, continuing with local cleanup:", firebaseError)
+        debugWarn(
+          "Firebase logout failed, continuing with local cleanup:",
+          firebaseError,
+        );
       }
 
       // Clear user module authentication data using utility function
-      clearModuleAuth("user")
+      clearModuleAuth("user");
 
       // Clear legacy token data for backward compatibility
-      localStorage.removeItem("accessToken")
-      localStorage.removeItem("user_authenticated")
-      localStorage.removeItem("user_user")
-      localStorage.removeItem("user")
-      localStorage.removeItem("cart")
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("user_authenticated");
+      localStorage.removeItem("user_user");
+      localStorage.removeItem("user");
+      localStorage.removeItem("cart");
 
       // Dispatch auth change event to notify other components
-      window.dispatchEvent(new Event("userAuthChanged"))
+      window.dispatchEvent(new Event("userAuthChanged"));
 
       // Navigate to sign in page
-      navigate("/user/auth/login", { replace: true })
+      navigate("/user/auth/login", { replace: true });
     } catch (err) {
       // Even if there's an error, we should still clear local data and logout
-      debugError("Error during logout:", err)
+      debugError("Error during logout:", err);
 
       // Clear local data anyway using utility function
-      clearModuleAuth("user")
+      clearModuleAuth("user");
 
       // Clear legacy token data for backward compatibility
-      localStorage.removeItem("accessToken")
-      localStorage.removeItem("user_authenticated")
-      localStorage.removeItem("user_user")
-      localStorage.removeItem("user")
-      localStorage.removeItem("cart")
-      window.dispatchEvent(new Event("userAuthChanged"))
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("user_authenticated");
+      localStorage.removeItem("user_user");
+      localStorage.removeItem("user");
+      localStorage.removeItem("cart");
+      window.dispatchEvent(new Event("userAuthChanged"));
 
       // Still navigate to login page
-      navigate("/user/auth/login", { replace: true })
+      navigate("/user/auth/login", { replace: true });
     } finally {
-      setIsLoggingOut(false)
+      setIsLoggingOut(false);
     }
-  }
+  };
 
   return (
     <AnimatedPage className="min-h-screen bg-[#f5f5f5] dark:bg-[#0a0a0a]">
       <div className="max-w-md md:max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 py-4 sm:py-6 md:py-8 lg:py-10 pb-20 sm:pb-24">
-        {/* Back Arrow */}
-        <div className="mb-4">
+        {/* Header: Back Arrow & Test Push Button */}
+        <div className="flex items-center justify-between mb-4">
           <Link to="/user">
             <Button variant="ghost" size="icon" className="h-8 w-8 p-0">
               <ArrowLeft className="h-5 w-5 text-black dark:text-white" />
             </Button>
           </Link>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              try {
+                if (
+                  typeof Notification !== "undefined" &&
+                  Notification.permission !== "granted"
+                ) {
+                  const perm = await Notification.requestPermission();
+                  if (perm !== "granted") {
+                    toast.error("Please enable browser notifications to test.");
+                    return;
+                  }
+                  // If permission just granted, try to register to get token
+                  await registerWebPushForCurrentModule();
+                }
+
+                let platform = "web";
+                if (
+                  typeof window !== "undefined" &&
+                  window.flutter_inappwebview
+                ) {
+                  platform = "mobile";
+                }
+                toast.loading("Sending test notification...", {
+                  duration: 1500,
+                });
+                const res = await userAPI.testFcmNotification({ platform });
+                if (res?.data?.data?.successCount === 0) {
+                  toast.error(
+                    "Failed to send: Ensure FCM token is registered.",
+                  );
+                }
+                // Note: The actual notification will be displayed by the service worker
+                // or the foreground message listener.
+              } catch (e) {
+                console.error("Failed to send test notification", e);
+                toast.error("Failed to send test notification");
+              }
+            }}
+            className="text-xs border-blue-500 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20">
+            Test Push Notification
+          </Button>
         </div>
 
         {/* Profile Info Card */}
@@ -342,12 +457,16 @@ export default function Profile() {
             <div className="flex items-start gap-4 mb-4">
               <motion.div
                 whileHover={{ scale: 1.1, rotate: 5 }}
-                transition={{ duration: 0.3, type: "spring", stiffness: 300 }}
-              >
+                transition={{ duration: 0.3, type: "spring", stiffness: 300 }}>
                 <Avatar className="h-16 w-16 bg-blue-300 border-0">
                   {userProfile?.profileImage && (
                     <AvatarImage
-                      src={userProfile.profileImage && userProfile.profileImage.trim() ? userProfile.profileImage : undefined}
+                      src={
+                        userProfile.profileImage &&
+                        userProfile.profileImage.trim()
+                          ? userProfile.profileImage
+                          : undefined
+                      }
                       alt={displayName}
                     />
                   )}
@@ -357,17 +476,24 @@ export default function Profile() {
                 </Avatar>
               </motion.div>
               <div className="flex-1 pt-1">
-                <h2 className="text-xl font-bold text-black dark:text-white mb-1">{displayName}</h2>
+                <h2 className="text-xl font-bold text-black dark:text-white mb-1">
+                  {displayName}
+                </h2>
                 {hasValidEmail && (
-                  <p className="text-sm text-black dark:text-gray-300 mb-1">{userProfile.email}</p>
+                  <p className="text-sm text-black dark:text-gray-300 mb-1">
+                    {userProfile.email}
+                  </p>
                 )}
                 {userProfile?.phone && (
-                  <p className={`text-sm ${hasValidEmail ? 'text-gray-600 dark:text-gray-400' : 'text-black dark:text-white'} mb-3`}>
+                  <p
+                    className={`text-sm ${hasValidEmail ? "text-gray-600 dark:text-gray-400" : "text-black dark:text-white"} mb-3`}>
                     {userProfile.phone}
                   </p>
                 )}
                 {!hasValidEmail && !userProfile?.phone && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">Not available</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                    Not available
+                  </p>
                 )}
                 {/* <Link to="/user/profile/activity" className="flex items-center gap-1 text-green-600 text-sm font-medium">
                   View activity
@@ -378,27 +504,24 @@ export default function Profile() {
           </CardContent>
         </Card>
 
-
-
         {/* Account Options */}
         <div className="space-y-2 mb-3 mt-3">
-
           <Link to="/user/wallet" className="block">
             <motion.div
               whileHover={{ x: 4, scale: 1.01 }}
-              transition={{ duration: 0.2, type: "spring", stiffness: 300 }}
-            >
+              transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
               <Card className="bg-white dark:bg-[#1a1a1a] py-0 rounded-xl shadow-sm border-0 dark:border-gray-800 cursor-pointer">
                 <CardContent className="p-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <motion.div
                       className="bg-gray-100 dark:bg-gray-800 rounded-full p-2"
                       whileHover={{ rotate: 15, scale: 1.1 }}
-                      transition={{ duration: 0.3 }}
-                    >
+                      transition={{ duration: 0.3 }}>
                       <Wallet className="h-5 w-5 text-gray-700 dark:text-gray-300" />
                     </motion.div>
-                    <span className="text-base font-medium text-gray-900 dark:text-white">{companyName} Money</span>
+                    <span className="text-base font-medium text-gray-900 dark:text-white">
+                      {companyName} Money
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-base font-semibold text-green-600 dark:text-green-400">
@@ -406,8 +529,7 @@ export default function Profile() {
                     </span>
                     <motion.div
                       whileHover={{ x: 4 }}
-                      transition={{ duration: 0.2 }}
-                    >
+                      transition={{ duration: 0.2 }}>
                       <ChevronRight className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                     </motion.div>
                   </div>
@@ -419,24 +541,23 @@ export default function Profile() {
           <Link to="/user/profile/coupons" className="block">
             <motion.div
               whileHover={{ x: 4, scale: 1.01 }}
-              transition={{ duration: 0.2, type: "spring", stiffness: 300 }}
-            >
+              transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
               <Card className="bg-white dark:bg-[#1a1a1a] py-0 rounded-xl shadow-sm border-0 dark:border-gray-800 cursor-pointer">
                 <CardContent className="p-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <motion.div
                       className="bg-gray-100 dark:bg-gray-800 rounded-full p-2"
                       whileHover={{ rotate: 15, scale: 1.1 }}
-                      transition={{ duration: 0.3 }}
-                    >
+                      transition={{ duration: 0.3 }}>
                       <Tag className="h-5 w-5 text-gray-700 dark:text-gray-300" />
                     </motion.div>
-                    <span className="text-base font-medium text-gray-900 dark:text-white">Your coupons</span>
+                    <span className="text-base font-medium text-gray-900 dark:text-white">
+                      Your coupons
+                    </span>
                   </div>
                   <motion.div
                     whileHover={{ x: 4 }}
-                    transition={{ duration: 0.2 }}
-                  >
+                    transition={{ duration: 0.2 }}>
                     <ChevronRight className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                   </motion.div>
                 </CardContent>
@@ -447,24 +568,23 @@ export default function Profile() {
           <Link to="/user/cart" className="block">
             <motion.div
               whileHover={{ x: 4, scale: 1.01 }}
-              transition={{ duration: 0.2, type: "spring", stiffness: 300 }}
-            >
+              transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
               <Card className="bg-white dark:bg-[#1a1a1a] py-0 rounded-xl shadow-sm border-0 dark:border-gray-800 cursor-pointer">
                 <CardContent className="p-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <motion.div
                       className="bg-gray-100 dark:bg-gray-800 rounded-full p-2"
                       whileHover={{ rotate: 15, scale: 1.1 }}
-                      transition={{ duration: 0.3 }}
-                    >
+                      transition={{ duration: 0.3 }}>
                       <ShoppingCart className="h-5 w-5 text-gray-700 dark:text-gray-300" />
                     </motion.div>
-                    <span className="text-base font-medium text-gray-900 dark:text-white">Your cart</span>
+                    <span className="text-base font-medium text-gray-900 dark:text-white">
+                      Your cart
+                    </span>
                   </div>
                   <motion.div
                     whileHover={{ x: 4 }}
-                    transition={{ duration: 0.2 }}
-                  >
+                    transition={{ duration: 0.2 }}>
                     <ChevronRight className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                   </motion.div>
                 </CardContent>
@@ -474,8 +594,7 @@ export default function Profile() {
 
           <motion.div
             whileHover={{ x: 4, scale: 1.01 }}
-            transition={{ duration: 0.2, type: "spring", stiffness: 300 }}
-          >
+            transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
             <Card className="bg-white dark:bg-[#1a1a1a] py-0 rounded-xl shadow-sm border-0 dark:border-gray-800">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-2">
@@ -483,11 +602,12 @@ export default function Profile() {
                     <motion.div
                       className="bg-gray-100 dark:bg-gray-800 rounded-full p-2"
                       whileHover={{ rotate: 15, scale: 1.1 }}
-                      transition={{ duration: 0.3 }}
-                    >
+                      transition={{ duration: 0.3 }}>
                       <Tag className="h-5 w-5 text-gray-700 dark:text-gray-300" />
                     </motion.div>
-                    <span className="text-base font-medium text-gray-900 dark:text-white">Share & Earn</span>
+                    <span className="text-base font-medium text-gray-900 dark:text-white">
+                      Share & Earn
+                    </span>
                   </div>
                   {referralReward > 0 && (
                     <span className="text-xs font-semibold px-2 py-1 rounded bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300">
@@ -497,18 +617,18 @@ export default function Profile() {
                 </div>
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Invite a friend. Reward is added to your wallet when they sign up.
+                    Invite a friend. Reward is added to your wallet when they
+                    sign up.
                   </p>
                   <button
                     type="button"
                     onClick={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      handleShareReferral()
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleShareReferral();
                     }}
                     className="inline-flex items-center gap-1 text-xs text-[#EB590E] font-medium ml-2 px-2 py-1 rounded-md"
-                    disabled={!referralLink}
-                  >
+                    disabled={!referralLink}>
                     <Share2 className="h-3.5 w-3.5" />
                     Share
                   </button>
@@ -519,23 +639,22 @@ export default function Profile() {
 
           <motion.div
             whileHover={{ x: 4, scale: 1.01 }}
-            transition={{ duration: 0.2, type: "spring", stiffness: 300 }}
-          >
+            transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
             <Card
               className="bg-white dark:bg-[#1a1a1a] py-0 rounded-xl shadow-sm border-0 dark:border-gray-800 cursor-pointer"
-              onClick={openLocationSelector}
-            >
+              onClick={openLocationSelector}>
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-3 min-w-0">
                   <motion.div
                     className="bg-gray-100 dark:bg-gray-800 rounded-full p-2"
                     whileHover={{ rotate: 15, scale: 1.1 }}
-                    transition={{ duration: 0.3 }}
-                  >
+                    transition={{ duration: 0.3 }}>
                     <MapPin className="h-5 w-5 text-gray-700 dark:text-gray-300" />
                   </motion.div>
                   <div className="min-w-0">
-                    <p className="text-base font-medium text-gray-900 dark:text-white">Saved addresses</p>
+                    <p className="text-base font-medium text-gray-900 dark:text-white">
+                      Saved addresses
+                    </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                       {savedAddressSummary}
                     </p>
@@ -547,8 +666,7 @@ export default function Profile() {
                   </span>
                   <motion.div
                     whileHover={{ x: 4 }}
-                    transition={{ duration: 0.2 }}
-                  >
+                    transition={{ duration: 0.2 }}>
                     <ChevronRight className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                   </motion.div>
                 </div>
@@ -556,39 +674,37 @@ export default function Profile() {
             </Card>
           </motion.div>
 
-
           <Link to="/user/profile/edit" className="block">
             <motion.div
               whileHover={{ x: 4, scale: 1.01 }}
-              transition={{ duration: 0.2, type: "spring", stiffness: 300 }}
-            >
+              transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
               <Card className="bg-white dark:bg-[#1a1a1a] py-0 rounded-xl shadow-sm border-0 dark:border-gray-800 cursor-pointer">
                 <CardContent className="p-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <motion.div
                       className="bg-gray-100 dark:bg-gray-800 rounded-full p-2"
                       whileHover={{ rotate: 15, scale: 1.1 }}
-                      transition={{ duration: 0.3 }}
-                    >
+                      transition={{ duration: 0.3 }}>
                       <User className="h-5 w-5 text-gray-700 dark:text-gray-300" />
                     </motion.div>
-                    <span className="text-base font-medium text-gray-900 dark:text-white">Your profile</span>
+                    <span className="text-base font-medium text-gray-900 dark:text-white">
+                      Your profile
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <motion.span
-                      className={`text-xs font-medium px-2 py-1 rounded ${isComplete
-                        ? 'bg-green-100 text-green-700 border border-green-300'
-                        : 'bg-orange-100 text-orange-800'
-                        }`}
+                      className={`text-xs font-medium px-2 py-1 rounded ${
+                        isComplete
+                          ? "bg-green-100 text-green-700 border border-green-300"
+                          : "bg-orange-100 text-orange-800"
+                      }`}
                       whileHover={{ scale: 1.1 }}
-                      transition={{ duration: 0.2 }}
-                    >
+                      transition={{ duration: 0.2 }}>
                       {profileCompletion}% completed
                     </motion.span>
                     <motion.div
                       whileHover={{ x: 4 }}
-                      transition={{ duration: 0.2 }}
-                    >
+                      transition={{ duration: 0.2 }}>
                       <ChevronRight className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                     </motion.div>
                   </div>
@@ -599,35 +715,32 @@ export default function Profile() {
 
           <motion.div
             whileHover={{ x: 4, scale: 1.01 }}
-            transition={{ duration: 0.2, type: "spring", stiffness: 300 }}
-          >
+            transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
             <Card
               className="bg-white dark:bg-[#1a1a1a] py-0 rounded-xl shadow-sm border-0 dark:border-gray-800 cursor-pointer"
-              onClick={() => setVegModeOpen(true)}
-            >
+              onClick={() => setVegModeOpen(true)}>
               <CardContent className="p-4  flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <motion.div
                     className="bg-gray-100 dark:bg-gray-800 rounded-full p-2"
                     whileHover={{ rotate: 15, scale: 1.1 }}
-                    transition={{ duration: 0.3 }}
-                  >
+                    transition={{ duration: 0.3 }}>
                     <Leaf className="h-5 w-5 text-gray-700 dark:text-gray-300" />
                   </motion.div>
-                  <span className="text-base font-medium text-gray-900 dark:text-white">Veg Mode</span>
+                  <span className="text-base font-medium text-gray-900 dark:text-white">
+                    Veg Mode
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <motion.span
                     className="text-base font-medium text-gray-900 dark:text-white"
                     whileHover={{ scale: 1.1 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    {vegMode ? 'ON' : 'OFF'}
+                    transition={{ duration: 0.2 }}>
+                    {vegMode ? "ON" : "OFF"}
                   </motion.span>
                   <motion.div
                     whileHover={{ x: 4 }}
-                    transition={{ duration: 0.2 }}
-                  >
+                    transition={{ duration: 0.2 }}>
                     <ChevronRight className="h-5 w-5 text-gray-400" />
                   </motion.div>
                 </div>
@@ -637,71 +750,68 @@ export default function Profile() {
 
           <motion.div
             whileHover={{ x: 4, scale: 1.01 }}
-            transition={{ duration: 0.2, type: "spring", stiffness: 300 }}
-          >
+            transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
             <Card
               className="bg-white dark:bg-[#1a1a1a] py-0 rounded-xl shadow-sm border-0 dark:border-gray-800 cursor-pointer"
-              onClick={() => setAppearanceOpen(true)}
-            >
+              onClick={() => setAppearanceOpen(true)}>
               <CardContent className="p-4  flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <motion.div
                     className="bg-gray-100 dark:bg-gray-800 rounded-full p-2"
                     whileHover={{ rotate: 15, scale: 1.1 }}
-                    transition={{ duration: 0.3 }}
-                  >
+                    transition={{ duration: 0.3 }}>
                     <Palette className="h-5 w-5 text-gray-700 dark:text-gray-300" />
                   </motion.div>
-                  <span className="text-base font-medium text-gray-900 dark:text-white">Appearance</span>
+                  <span className="text-base font-medium text-gray-900 dark:text-white">
+                    Appearance
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <motion.span
                     className="text-base font-medium text-gray-900 dark:text-white capitalize"
                     whileHover={{ scale: 1.1 }}
-                    transition={{ duration: 0.2 }}
-                  >
+                    transition={{ duration: 0.2 }}>
                     {appearance}
                   </motion.span>
                   <motion.div
                     whileHover={{ x: 4 }}
-                    transition={{ duration: 0.2 }}
-                  >
+                    transition={{ duration: 0.2 }}>
                     <ChevronRight className="h-5 w-5 text-gray-400" />
                   </motion.div>
                 </div>
               </CardContent>
             </Card>
           </motion.div>
-
         </div>
 
         {/* Collections Section */}
         <div className="mb-3">
           <div className="flex items-center gap-2 mb-2 px-1">
             <div className="w-1 h-4 bg-[#EB590E] rounded"></div>
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Collections</h3>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+              Collections
+            </h3>
           </div>
           <Link to="/user/profile/favorites">
             <motion.div
               whileHover={{ x: 4, scale: 1.01 }}
-              transition={{ duration: 0.2, type: "spring", stiffness: 300 }}
-            >
+              transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
               <Card className="bg-white dark:bg-[#1a1a1a] py-0 rounded-xl shadow-sm border-0 dark:border-gray-800 cursor-pointer">
                 <CardContent className="p-4  flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <motion.div
                       className="bg-gray-100 dark:bg-gray-800 rounded-full p-2"
                       whileHover={{ rotate: 15, scale: 1.1 }}
-                      transition={{ duration: 0.3 }}
-                    >
+                      transition={{ duration: 0.3 }}>
                       <Bookmark className="h-5 w-5 text-gray-700 dark:text-gray-300" />
                     </motion.div>
-                    <span className="text-base font-medium text-gray-900 dark:text-white">Your collections</span>
+                    <span className="text-base font-medium text-gray-900 dark:text-white">
+                      Your collections
+                    </span>
                   </div>
                   <motion.div
                     whileHover={{ x: 4 }}
-                    transition={{ duration: 0.2 }}
-                  >
+                    transition={{ duration: 0.2 }}>
                     <ChevronRight className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                   </motion.div>
                 </CardContent>
@@ -714,30 +824,31 @@ export default function Profile() {
         <div className="mb-3">
           <div className="flex items-center gap-2 mb-2 px-1">
             <div className="w-1 h-4 bg-[#EB590E] rounded"></div>
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Food Orders</h3>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+              Food Orders
+            </h3>
           </div>
           <div className="space-y-2">
             <Link to="/user/orders" className="block">
               <motion.div
                 whileHover={{ x: 4, scale: 1.01 }}
-                transition={{ duration: 0.2, type: "spring", stiffness: 300 }}
-              >
+                transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
                 <Card className="bg-white dark:bg-[#1a1a1a] py-0 rounded-xl shadow-sm border-0 dark:border-gray-800 cursor-pointer">
                   <CardContent className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <motion.div
                         className="bg-gray-100 dark:bg-gray-800 rounded-full p-2"
                         whileHover={{ rotate: 15, scale: 1.1 }}
-                        transition={{ duration: 0.3 }}
-                      >
+                        transition={{ duration: 0.3 }}>
                         <Building2 className="h-5 w-5 text-gray-700 dark:text-gray-300" />
                       </motion.div>
-                      <span className="text-base font-medium text-gray-900 dark:text-white">Your orders</span>
+                      <span className="text-base font-medium text-gray-900 dark:text-white">
+                        Your orders
+                      </span>
                     </div>
                     <motion.div
                       whileHover={{ x: 4 }}
-                      transition={{ duration: 0.2 }}
-                    >
+                      transition={{ duration: 0.2 }}>
                       <ChevronRight className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                     </motion.div>
                   </CardContent>
@@ -751,30 +862,31 @@ export default function Profile() {
         <div className="mb-8 pb-8">
           <div className="flex items-center gap-2 mb-2 px-1">
             <div className="w-1 h-4 bg-[#EB590E] rounded"></div>
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white">More</h3>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+              More
+            </h3>
           </div>
           <div className="space-y-2">
             <Link to="/user/profile/support" className="block">
               <motion.div
                 whileHover={{ x: 4, scale: 1.01 }}
-                transition={{ duration: 0.2, type: "spring", stiffness: 300 }}
-              >
+                transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
                 <Card className="bg-white dark:bg-[#1a1a1a] py-0 rounded-xl shadow-sm border-0 dark:border-gray-800 cursor-pointer">
                   <CardContent className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <motion.div
                         className="bg-gray-100 dark:bg-gray-800 rounded-full p-2"
                         whileHover={{ rotate: 15, scale: 1.1 }}
-                        transition={{ duration: 0.3 }}
-                      >
+                        transition={{ duration: 0.3 }}>
                         <SettingsIcon className="h-5 w-5 text-gray-700 dark:text-gray-300" />
                       </motion.div>
-                      <span className="text-base font-medium text-gray-900 dark:text-white">Help & Support</span>
+                      <span className="text-base font-medium text-gray-900 dark:text-white">
+                        Help & Support
+                      </span>
                     </div>
                     <motion.div
                       whileHover={{ x: 4 }}
-                      transition={{ duration: 0.2 }}
-                    >
+                      transition={{ duration: 0.2 }}>
                       <ChevronRight className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                     </motion.div>
                   </CardContent>
@@ -785,24 +897,23 @@ export default function Profile() {
             <Link to="/user/profile/about" className="block">
               <motion.div
                 whileHover={{ x: 4, scale: 1.01 }}
-                transition={{ duration: 0.2, type: "spring", stiffness: 300 }}
-              >
+                transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
                 <Card className="bg-white dark:bg-[#1a1a1a] py-0 rounded-xl shadow-sm border-0 dark:border-gray-800 cursor-pointer">
                   <CardContent className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <motion.div
                         className="bg-gray-100 dark:bg-gray-800 rounded-full p-2"
                         whileHover={{ rotate: 15, scale: 1.1 }}
-                        transition={{ duration: 0.3 }}
-                      >
+                        transition={{ duration: 0.3 }}>
                         <Info className="h-5 w-5 text-gray-700 dark:text-gray-300" />
                       </motion.div>
-                      <span className="text-base font-medium text-gray-900 dark:text-white">About</span>
+                      <span className="text-base font-medium text-gray-900 dark:text-white">
+                        About
+                      </span>
                     </div>
                     <motion.div
                       whileHover={{ x: 4 }}
-                      transition={{ duration: 0.2 }}
-                    >
+                      transition={{ duration: 0.2 }}>
                       <ChevronRight className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                     </motion.div>
                   </CardContent>
@@ -813,24 +924,23 @@ export default function Profile() {
             <Link to="/user/profile/report-safety-emergency" className="block">
               <motion.div
                 whileHover={{ x: 4, scale: 1.01 }}
-                transition={{ duration: 0.2, type: "spring", stiffness: 300 }}
-              >
+                transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
                 <Card className="bg-white dark:bg-[#1a1a1a] py-0 rounded-xl shadow-sm border-0 dark:border-gray-800 cursor-pointer">
                   <CardContent className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <motion.div
                         className="bg-gray-100 dark:bg-gray-800 rounded-full p-2"
                         whileHover={{ rotate: 15, scale: 1.1 }}
-                        transition={{ duration: 0.3 }}
-                      >
+                        transition={{ duration: 0.3 }}>
                         <AlertTriangle className="h-5 w-5 text-gray-700 dark:text-gray-300" />
                       </motion.div>
-                      <span className="text-base font-medium text-gray-900 dark:text-white">Report a safety emergency</span>
+                      <span className="text-base font-medium text-gray-900 dark:text-white">
+                        Report a safety emergency
+                      </span>
                     </div>
                     <motion.div
                       whileHover={{ x: 4 }}
-                      transition={{ duration: 0.2 }}
-                    >
+                      transition={{ duration: 0.2 }}>
                       <ChevronRight className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                     </motion.div>
                   </CardContent>
@@ -838,33 +948,29 @@ export default function Profile() {
               </motion.div>
             </Link>
 
-            
-
             <motion.div
               whileHover={{ x: 4, scale: 1.01 }}
-              transition={{ duration: 0.2, type: "spring", stiffness: 300 }}
-            >
+              transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
               <Card
                 className="bg-white dark:bg-[#1a1a1a] py-0 rounded-xl shadow-sm border-0 dark:border-gray-800 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                onClick={handleLogout}
-              >
+                onClick={handleLogout}>
                 <CardContent className="p-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <motion.div
                       className="bg-gray-100 dark:bg-gray-800 rounded-full p-2"
                       whileHover={{ rotate: 15, scale: 1.1 }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      <Power className={`h-5 w-5 text-gray-700 dark:text-gray-300 ${isLoggingOut ? 'animate-pulse' : ''}`} />
+                      transition={{ duration: 0.3 }}>
+                      <Power
+                        className={`h-5 w-5 text-gray-700 dark:text-gray-300 ${isLoggingOut ? "animate-pulse" : ""}`}
+                      />
                     </motion.div>
                     <span className="text-base font-medium text-gray-900 dark:text-white">
-                      {isLoggingOut ? 'Logging out...' : 'Log out'}
+                      {isLoggingOut ? "Logging out..." : "Log out"}
                     </span>
                   </div>
                   <motion.div
                     whileHover={{ x: 4 }}
-                    transition={{ duration: 0.2 }}
-                  >
+                    transition={{ duration: 0.2 }}>
                     <ChevronRight className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                   </motion.div>
                 </CardContent>
@@ -878,7 +984,9 @@ export default function Profile() {
       <Dialog open={vegModeOpen} onOpenChange={setVegModeOpen}>
         <DialogContent className="max-w-sm md:max-w-md lg:max-w-lg w-[calc(100%-2rem)] rounded-2xl p-0 overflow-hidden">
           <DialogHeader className="p-5 pb-3">
-            <DialogTitle className="text-lg font-bold text-gray-900">Veg Mode</DialogTitle>
+            <DialogTitle className="text-lg font-bold text-gray-900">
+              Veg Mode
+            </DialogTitle>
             <DialogDescription className="text-sm text-gray-500">
               Filter restaurants and dishes based on your dietary preferences
             </DialogDescription>
@@ -886,43 +994,57 @@ export default function Profile() {
           <div className="space-y-2 px-5 pb-5">
             <button
               onClick={() => {
-                handleVegModeUpdate(true)
-                setVegModeOpen(false)
+                handleVegModeUpdate(true);
+                setVegModeOpen(false);
               }}
-              className={`w-full p-3 rounded-xl border-2 transition-all flex items-center justify-between ${vegMode
-                ? 'border-green-600 bg-green-50'
-                : 'border-gray-200 bg-white hover:border-gray-300'
-                }`}
-            >
+              className={`w-full p-3 rounded-xl border-2 transition-all flex items-center justify-between ${
+                vegMode
+                  ? "border-green-600 bg-green-50"
+                  : "border-gray-200 bg-white hover:border-gray-300"
+              }`}>
               <div className="flex items-center gap-3">
-                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${vegMode ? 'border-green-600 bg-green-600' : 'border-gray-300'
+                <div
+                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                    vegMode
+                      ? "border-green-600 bg-green-600"
+                      : "border-gray-300"
                   }`}>
                   {vegMode && <Check className="h-3 w-3 text-white" />}
                 </div>
                 <div className="text-left">
-                  <p className="font-medium text-gray-900 text-sm">Veg Mode ON</p>
-                  <p className="text-xs text-gray-500">Show only vegetarian options</p>
+                  <p className="font-medium text-gray-900 text-sm">
+                    Veg Mode ON
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Show only vegetarian options
+                  </p>
                 </div>
               </div>
-              <Leaf className={`h-5 w-5 ${vegMode ? 'text-green-600' : 'text-gray-400'}`} />
+              <Leaf
+                className={`h-5 w-5 ${vegMode ? "text-green-600" : "text-gray-400"}`}
+              />
             </button>
             <button
               onClick={() => {
-                handleVegModeUpdate(false)
-                setVegModeOpen(false)
+                handleVegModeUpdate(false);
+                setVegModeOpen(false);
               }}
-              className={`w-full p-3 rounded-xl border-2 transition-all flex items-center justify-between ${!vegMode
-                ? 'border-red-600 bg-red-50'
-                : 'border-gray-200 bg-white hover:border-gray-300'
-                }`}
-            >
+              className={`w-full p-3 rounded-xl border-2 transition-all flex items-center justify-between ${
+                !vegMode
+                  ? "border-red-600 bg-red-50"
+                  : "border-gray-200 bg-white hover:border-gray-300"
+              }`}>
               <div className="flex items-center gap-3">
-                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${!vegMode ? 'border-red-600 bg-red-600' : 'border-gray-300'
+                <div
+                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                    !vegMode ? "border-red-600 bg-red-600" : "border-gray-300"
                   }`}>
                   {!vegMode && <Check className="h-3 w-3 text-white" />}
                 </div>
                 <div className="text-left">
-                  <p className="font-medium text-gray-900 text-sm">Veg Mode OFF</p>
+                  <p className="font-medium text-gray-900 text-sm">
+                    Veg Mode OFF
+                  </p>
                   <p className="text-xs text-gray-500">Show all options</p>
                 </div>
               </div>
@@ -935,7 +1057,9 @@ export default function Profile() {
       <Dialog open={appearanceOpen} onOpenChange={setAppearanceOpen}>
         <DialogContent className="max-w-sm md:max-w-md lg:max-w-lg w-[calc(100%-2rem)] rounded-2xl p-0 overflow-hidden bg-white dark:bg-[#1a1a1a] border-gray-200 dark:border-gray-800">
           <DialogHeader className="p-5 pb-3">
-            <DialogTitle className="text-lg font-bold text-gray-900 dark:text-white">Appearance</DialogTitle>
+            <DialogTitle className="text-lg font-bold text-gray-900 dark:text-white">
+              Appearance
+            </DialogTitle>
             <DialogDescription className="text-sm text-gray-500 dark:text-gray-400">
               Choose your preferred theme
             </DialogDescription>
@@ -943,48 +1067,67 @@ export default function Profile() {
           <div className="space-y-2 px-5 pb-5">
             <button
               onClick={() => {
-                setAppearance('light')
-                setAppearanceOpen(false)
+                setAppearance("light");
+                setAppearanceOpen(false);
               }}
-              className={`w-full p-3 rounded-xl border-2 transition-all flex items-center gap-3 ${appearance === 'light'
-                ? 'border-blue-600 bg-blue-50 dark:border-blue-500 dark:bg-blue-900/20'
-                : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600'
-                }`}
-            >
-              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${appearance === 'light' ? 'border-blue-600 bg-blue-600 dark:border-blue-500 dark:bg-blue-500' : 'border-gray-300 dark:border-gray-600'
+              className={`w-full p-3 rounded-xl border-2 transition-all flex items-center gap-3 ${
+                appearance === "light"
+                  ? "border-blue-600 bg-blue-50 dark:border-blue-500 dark:bg-blue-900/20"
+                  : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600"
+              }`}>
+              <div
+                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                  appearance === "light"
+                    ? "border-blue-600 bg-blue-600 dark:border-blue-500 dark:bg-blue-500"
+                    : "border-gray-300 dark:border-gray-600"
                 }`}>
-                {appearance === 'light' && <Check className="h-3 w-3 text-white" />}
+                {appearance === "light" && (
+                  <Check className="h-3 w-3 text-white" />
+                )}
               </div>
               <Sun className="h-5 w-5 text-yellow-500 dark:text-yellow-400 flex-shrink-0" />
               <div className="text-left">
-                <p className="font-medium text-gray-900 dark:text-white text-sm">Light</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Default light theme</p>
+                <p className="font-medium text-gray-900 dark:text-white text-sm">
+                  Light
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Default light theme
+                </p>
               </div>
             </button>
             <button
               onClick={() => {
-                setAppearance('dark')
-                setAppearanceOpen(false)
+                setAppearance("dark");
+                setAppearanceOpen(false);
               }}
-              className={`w-full p-3 rounded-xl border-2 transition-all flex items-center gap-3 ${appearance === 'dark'
-                ? 'border-blue-600 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600'
-                }`}
-            >
-              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${appearance === 'dark' ? 'border-blue-600 bg-blue-600 dark:border-blue-500 dark:bg-blue-500' : 'border-gray-300 dark:border-gray-600'
+              className={`w-full p-3 rounded-xl border-2 transition-all flex items-center gap-3 ${
+                appearance === "dark"
+                  ? "border-blue-600 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                  : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600"
+              }`}>
+              <div
+                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                  appearance === "dark"
+                    ? "border-blue-600 bg-blue-600 dark:border-blue-500 dark:bg-blue-500"
+                    : "border-gray-300 dark:border-gray-600"
                 }`}>
-                {appearance === 'dark' && <Check className="h-3 w-3 text-white" />}
+                {appearance === "dark" && (
+                  <Check className="h-3 w-3 text-white" />
+                )}
               </div>
               <Moon className="h-5 w-5 text-gray-600 dark:text-gray-300 flex-shrink-0" />
               <div className="text-left">
-                <p className="font-medium text-gray-900 dark:text-white text-sm">Dark</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Dark theme</p>
+                <p className="font-medium text-gray-900 dark:text-white text-sm">
+                  Dark
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Dark theme
+                </p>
               </div>
             </button>
           </div>
         </DialogContent>
       </Dialog>
-
     </AnimatedPage>
-  )
+  );
 }

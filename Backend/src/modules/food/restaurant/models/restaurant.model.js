@@ -170,6 +170,14 @@ const restaurantSchema = new mongoose.Schema(
     profileImage: {
       type: String,
     },
+    fcmTokens: {
+      type: [String],
+      default: [],
+    },
+    fcmTokenMobile: {
+      type: [String],
+      default: [],
+    },
     /** GeoJSON point used for distance queries. */
     location: {
       type: geoPointSchema,

@@ -119,6 +119,22 @@ export async function createRestaurantAddon(restaurantId, body) {
         isDeleted: false
     });
 
+    try {
+        const { notifyAdminsSafely } = await import('../../../../core/notifications/firebase.service.js');
+        void notifyAdminsSafely({
+            title: 'New Addon Approval Request 🍟',
+            body: `Restaurant has submitted a new addon "${name}" for approval.`,
+            data: {
+                type: 'approval_request',
+                subType: 'addon',
+                id: String(doc._id)
+            }
+        });
+    } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error('Failed to notify admins of new addon approval request:', e);
+    }
+
     return normalizeAddonDoc(doc.toObject());
 }
 

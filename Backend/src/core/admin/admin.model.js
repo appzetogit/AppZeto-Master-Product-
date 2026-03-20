@@ -18,6 +18,14 @@ const adminSchema = new mongoose.Schema(
         name: { type: String, trim: true, default: '' },
         phone: { type: String, trim: true, default: '' },
         profileImage: { type: String, trim: true, default: '' },
+        fcmTokens: {
+            type: [String],
+            default: []
+        },
+        fcmTokenMobile: {
+            type: [String],
+            default: []
+        },
         role: {
             type: String,
             default: 'ADMIN'

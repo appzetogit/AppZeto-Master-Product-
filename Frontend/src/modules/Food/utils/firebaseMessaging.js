@@ -437,17 +437,17 @@ function setSavedToken(moduleName, token) {
   localStorage.setItem(`${tokenCachePrefix}${moduleName}`, token);
 }
 
-async function saveTokenByModule(moduleName, token) {
+async function saveTokenByModule(moduleName, token, platform = "web") {
   if (moduleName === "restaurant") {
-    await restaurantAPI.saveFcmToken(token, "web");
+    await restaurantAPI.saveFcmToken(token, platform);
     return;
   }
   if (moduleName === "delivery") {
-    await deliveryAPI.saveFcmToken(token, "web");
+    await deliveryAPI.saveFcmToken(token, platform);
     return;
   }
   if (moduleName === "user") {
-    await userAPI.saveFcmToken(token, { platform: "web", channel: "web" });
+    await userAPI.saveFcmToken(token, { platform });
   }
 }
 
@@ -463,7 +463,7 @@ async function registerNativeWebViewFcmToken(moduleName) {
 
       const lastSavedToken = getSavedToken(moduleName);
       if (lastSavedToken !== normalizedToken) {
-        await saveTokenByModule(moduleName, normalizedToken);
+        await saveTokenByModule(moduleName, normalizedToken, "mobile");
         setSavedToken(moduleName, normalizedToken);
       }
 
@@ -507,6 +507,7 @@ function showForegroundNotification(payload = {}) {
 
   playPushSound(payload);
 
+  // Force system notification even when the tab is in focus
   if (typeof Notification !== "undefined" && Notification.permission === "granted") {
     try {
       pushDebugLog(PUSH_DEBUG_PREFIX, "Showing browser notification from page", {
@@ -515,12 +516,44 @@ function showForegroundNotification(payload = {}) {
         image,
         notificationKey,
       });
-      new Notification(title, {
-        body,
-        icon: "/favicon.ico",
-        image,
-        tag: notificationKey || undefined,
-      });
+      // Use service worker to show native system notification to ensure it bypasses focus checks
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistration().then(registration => {
+          if (registration) {
+            registration.showNotification(title, {
+              body,
+              icon: "/favicon.ico",
+              image,
+              tag: notificationKey || undefined,
+              data: payload?.data || {},
+              requireInteraction: true,
+              vibrate: [200, 100, 200, 100, 300]
+            });
+          } else {
+            new Notification(title, {
+              body,
+              icon: "/favicon.ico",
+              image,
+              tag: notificationKey || undefined,
+              requireInteraction: true
+            });
+          }
+        }).catch(() => {
+          new Notification(title, {
+            body,
+            icon: "/favicon.ico",
+            image,
+            tag: notificationKey || undefined,
+          });
+        });
+      } else {
+        new Notification(title, {
+          body,
+          icon: "/favicon.ico",
+          image,
+          tag: notificationKey || undefined,
+        });
+      }
     } catch (error) {
       pushDebugWarn(PUSH_DEBUG_PREFIX, "Browser notification creation failed", {
         error: error?.message || error,
@@ -528,10 +561,13 @@ function showForegroundNotification(payload = {}) {
     }
   }
 
-  if (body) {
-    toast.success(`${title}: ${body}`);
-  } else {
-    toast.success(title);
+  // Still show in-app toast for immediate context if we are in focus
+  if (typeof document !== "undefined" && document.visibilityState === "visible") {
+    if (body) {
+      toast.success(`${title}: ${body}`);
+    } else {
+      toast.success(title);
+    }
   }
 }
 
@@ -645,70 +681,81 @@ export async function registerWebPushForCurrentModule(pathname = window.location
   const accessToken = localStorage.getItem(`${moduleName}_accessToken`);
   if (!accessToken) return;
 
-  // Flutter WebView fallback: register native token when available.
-  // This keeps restaurant/delivery FCM alerts working even when Web Push APIs are limited.
-  await registerNativeWebViewFcmToken(moduleName);
+  const supportsBrowserPush = isSupportedBrowser() && isSecureContextForPush();
 
-  if (!isSupportedBrowser() || !isSecureContextForPush()) return;
+  if (supportsBrowserPush) {
+    if (registrationInFlight) return registrationInFlight;
 
-  if (registrationInFlight) return registrationInFlight;
-
-  registrationInFlight = (async () => {
+    registrationInFlight = (async () => {
       const firebasePublicEnv = await getFirebasePublicEnv();
-    if (!firebasePublicEnv?.vapidKey) {
-      console.warn("FCM web registration skipped: FIREBASE_VAPID_KEY is missing in env setup.");
-      return;
-    }
+      if (!firebasePublicEnv?.vapidKey) {
+        console.warn("FCM web registration skipped: FIREBASE_VAPID_KEY is missing in env setup.");
+        return;
+      }
 
-    const app = getMessagingFirebaseApp(firebasePublicEnv);
-    if (!app) {
-      console.warn("FCM web registration skipped: Firebase public web config is incomplete.");
-      return;
-    }
+      const app = getMessagingFirebaseApp(firebasePublicEnv);
+      if (!app) {
+        console.warn("FCM web registration skipped: Firebase public web config is incomplete.");
+        return;
+      }
 
-    const permission =
-      Notification.permission === "default"
-        ? await Notification.requestPermission()
-        : Notification.permission;
+      const permission =
+        Notification.permission === "default"
+          ? await Notification.requestPermission()
+          : Notification.permission;
 
-    if (permission !== "granted") return;
+      if (permission !== "granted") {
+        console.warn("FCM web registration skipped: Notification permission not granted.", permission);
+        return;
+      }
 
-    const { getMessaging, getToken, isSupported } = await import("firebase/messaging");
-    const supported = await isSupported().catch(() => false);
-    if (!supported) return;
+      const { getMessaging, getToken, isSupported } = await import("firebase/messaging");
+      const supported = await isSupported().catch(() => false);
+      if (!supported) return;
 
-    const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js");
-    pushDebugLog(PUSH_DEBUG_PREFIX, "Service worker registered for push", {
-      scope: registration.scope,
-      moduleName,
-    });
-    const messaging = getMessaging(app);
+      const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js");
+      pushDebugLog(PUSH_DEBUG_PREFIX, "Service worker registered for push", {
+        scope: registration.scope,
+        moduleName,
+      });
+      const messaging = getMessaging(app);
 
-    const token = await getToken(messaging, {
-      vapidKey: firebasePublicEnv.vapidKey,
-      serviceWorkerRegistration: registration,
-    });
+      const token = await getToken(messaging, {
+        vapidKey: firebasePublicEnv.vapidKey,
+        serviceWorkerRegistration: registration,
+      });
 
-    if (!token) return;
-    pushDebugLog(PUSH_DEBUG_PREFIX, "FCM token resolved", {
-      moduleName,
-      tokenPreview: `${token.slice(0, 12)}...`,
-    });
+      if (!token) return;
+      pushDebugLog(PUSH_DEBUG_PREFIX, "FCM token resolved", {
+        moduleName,
+        tokenPreview: `${token.slice(0, 12)}...`,
+      });
 
-    const lastSavedToken = getSavedToken(moduleName);
-    if (lastSavedToken === token) {
+      const lastSavedToken = getSavedToken(moduleName);
+      if (lastSavedToken !== token) {
+        try {
+          await saveTokenByModule(moduleName, token);
+          setSavedToken(moduleName, token);
+          pushDebugLog(PUSH_DEBUG_PREFIX, "FCM token saved to backend");
+        } catch (e) {
+          pushDebugWarn(PUSH_DEBUG_PREFIX, "Failed to save FCM token to backend", e);
+        }
+      }
+      
       await attachForegroundListener(app);
-      return;
-    }
-
-    await saveTokenByModule(moduleName, token);
-    setSavedToken(moduleName, token);
-    await attachForegroundListener(app);
-  })()
-    .catch(() => {})
+    })()
+    .catch((e) => {
+      console.error("FCM web registration failed:", e);
+    })
     .finally(() => {
       registrationInFlight = null;
     });
 
-  return registrationInFlight;
+    return registrationInFlight;
+  }
+
+  // Flutter WebView fallback: register native token when browser web push isn't available.
+  // This keeps restaurant/delivery FCM alerts working even when Web Push APIs are limited.
+  await registerNativeWebViewFcmToken(moduleName);
+  return null;
 }

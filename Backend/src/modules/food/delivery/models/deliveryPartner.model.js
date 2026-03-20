@@ -53,6 +53,14 @@ const deliveryPartnerSchema = new mongoose.Schema(
         profilePhoto: {
             type: String
         },
+        fcmTokens: {
+            type: [String],
+            default: []
+        },
+        fcmTokenMobile: {
+            type: [String],
+            default: []
+        },
         aadharPhoto: {
             type: String
         },

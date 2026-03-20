@@ -257,6 +257,21 @@ export const registerRestaurant = async (payload, files) => {
             ...images
         });
 
+        try {
+            const { notifyAdminsSafely } = await import('../../../../core/notifications/firebase.service.js');
+            void notifyAdminsSafely({
+                title: 'New Restaurant Registration 🏪',
+                body: `A new restaurant "${restaurant.restaurantName}" has registered and is pending approval.`,
+                data: {
+                    type: 'new_registration',
+                    subType: 'restaurant',
+                    id: String(restaurant._id)
+                }
+            });
+        } catch (e) {
+            console.error('Failed to notify admins of new restaurant registration:', e);
+        }
+
         return restaurant.toObject();
     } catch (err) {
         // Handle uniqueness conflicts deterministically (race-safe).

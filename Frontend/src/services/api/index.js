@@ -179,7 +179,15 @@ export const adminAPI = {
       contextModule: "admin",
     }),
   updateRestaurantComplaint: (id, body) =>
-    apiClient.patch(`/food/admin/restaurants/complaints/${id}`, body, { contextModule: "admin" }),
+    apiClient.patch(`/food/admin/restaurants/complaints/${id}`, body, {
+      contextModule: "admin",
+    }),
+  /** Global universal search (admin). */
+  globalSearch: (query) =>
+    apiClient.get("/food/admin/global-search", {
+      params: { query },
+      contextModule: "admin",
+    }),
   approveRestaurant: (id) =>
     apiClient.patch(
       `/food/admin/restaurants/${id}/approve`,

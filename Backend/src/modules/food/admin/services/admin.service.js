@@ -82,6 +82,77 @@ export async function getRestaurantComplaints(query = {}) {
     return { complaints, total, page, limit };
 }
 
+export async function globalSearch(query = '') {
+    const term = String(query).trim();
+    if (!term) return [];
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = { $regex: escaped, $options: 'i' };
+
+    const [orders, users, restaurants, items] = await Promise.all([
+        FoodOrder.find({
+            $or: [{ orderId: regex }, { orderStatus: regex }]
+        })
+            .limit(5)
+            .select('orderId orderStatus createdAt')
+            .lean(),
+        FoodUser.find({
+            $or: [{ name: regex }, { email: regex }, { phone: regex }],
+            role: 'USER'
+        })
+            .limit(5)
+            .select('name email phone')
+            .lean(),
+        FoodRestaurant.find({
+            $or: [{ restaurantName: regex }, { ownerName: regex }, { city: regex }]
+        })
+            .limit(5)
+            .select('restaurantName city area status')
+            .lean(),
+        FoodItem.find({
+            $or: [{ name: regex }, { description: regex }]
+        })
+            .limit(5)
+            .select('name description price')
+            .lean()
+    ]);
+
+    const results = [];
+
+    orders.forEach(o => results.push({
+        id: o._id,
+        type: 'Order',
+        title: `#${o.orderId}`,
+        description: `Status: ${o.orderStatus}`,
+        path: `/admin/food/orders/${o._id}`
+    }));
+
+    users.forEach(u => results.push({
+        id: u._id,
+        type: 'User',
+        title: u.name || 'Unnamed',
+        description: `${u.email || u.phone || ''}`,
+        path: `/admin/food/customers/${u._id}`
+    }));
+
+    restaurants.forEach(r => results.push({
+        id: r._id,
+        type: 'Restaurant',
+        title: r.restaurantName,
+        description: `${r.area || ''}, ${r.city || ''} (${r.status})`,
+        path: `/admin/food/restaurants/${r._id}`
+    }));
+
+    items.forEach(i => results.push({
+        id: i._id,
+        type: 'Product',
+        title: i.name,
+        description: `Price: ₹${i.price}`,
+        path: `/admin/food/foods`
+    }));
+
+    return results;
+}
+
 export async function updateRestaurantComplaint(id, updateData) {
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
         throw new ValidationError('Invalid complaint ID');
@@ -648,7 +719,33 @@ export async function getCustomers(query = {}) {
         return str.replace(/^`+|`+$/g, '').trim();
     };
 
-    let customers = docs.map((u) => ({
+    const userIds = docs.map((u) => u._id).filter(Boolean);
+    const orderStats = userIds.length > 0
+        ? await FoodOrder.aggregate([
+            { $match: { userId: { $in: userIds } } },
+            {
+                $group: {
+                    _id: '$userId',
+                    totalOrder: { $sum: 1 },
+                    totalOrderAmount: { $sum: { $ifNull: ['$pricing.total', 0] } }
+                }
+            }
+        ])
+        : [];
+
+    const orderStatsMap = new Map(
+        orderStats.map((x) => [
+            String(x._id),
+            {
+                totalOrder: Number(x.totalOrder || 0),
+                totalOrderAmount: Number(x.totalOrderAmount || 0)
+            }
+        ])
+    );
+
+    let customers = docs.map((u) => {
+        const stats = orderStatsMap.get(String(u._id)) || { totalOrder: 0, totalOrderAmount: 0 };
+        return ({
         id: u._id,
         _id: u._id,
         name: u.name || 'Unnamed',
@@ -659,11 +756,12 @@ export async function getCustomers(query = {}) {
         status: u.isActive !== false,
         isActive: u.isActive !== false,
         isVerified: u.isVerified === true,
-        totalOrder: 0,
-        totalOrderAmount: 0,
+        totalOrder: stats.totalOrder,
+        totalOrderAmount: stats.totalOrderAmount,
         joiningDate: u.createdAt,
         createdAt: u.createdAt
-    }));
+        });
+    });
 
     const chooseFirst = parseInt(query.chooseFirst, 10);
     if (Number.isFinite(chooseFirst) && chooseFirst > 0) {
@@ -677,6 +775,18 @@ export async function getCustomerById(id) {
     if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
     const u = await FoodUser.findById(id).select('-__v').lean();
     if (!u) return null;
+    const customerObjectId = new mongoose.Types.ObjectId(id);
+    const orderStats = await FoodOrder.aggregate([
+        { $match: { userId: customerObjectId } },
+        {
+            $group: {
+                _id: '$userId',
+                totalOrders: { $sum: 1 },
+                totalOrderAmount: { $sum: { $ifNull: ['$pricing.total', 0] } }
+            }
+        }
+    ]);
+    const stats = orderStats?.[0] || {};
     const sanitizeUrl = (s) => {
         if (!s) return '';
         const str = String(s).trim();
@@ -693,6 +803,9 @@ export async function getCustomerById(id) {
         status: u.isActive !== false,
         isActive: u.isActive !== false,
         isVerified: u.isVerified === true,
+        totalOrders: Number(stats.totalOrders || 0),
+        totalOrder: Number(stats.totalOrders || 0),
+        totalOrderAmount: Number(stats.totalOrderAmount || 0),
         joiningDate: u.createdAt,
         createdAt: u.createdAt,
         updatedAt: u.updatedAt

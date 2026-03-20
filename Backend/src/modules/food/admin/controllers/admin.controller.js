@@ -106,9 +106,19 @@ export async function updateRestaurantComplaint(req, res, next) {
 export async function getRestaurantComplaints(req, res, next) {
     try {
         const data = await adminService.getRestaurantComplaints(req.query || {});
+        res.status(200).json({ success: true, message: 'Restaurant complaints fetched successfully', data });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function globalSearch(req, res, next) {
+    try {
+        const { query } = req.query;
+        const data = await adminService.globalSearch(query);
         res.status(200).json({
             success: true,
-            message: 'Restaurant complaints fetched successfully',
+            message: 'Global search results fetched successfully',
             data
         });
     } catch (error) {

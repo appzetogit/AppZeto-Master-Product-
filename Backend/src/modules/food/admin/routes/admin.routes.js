@@ -33,6 +33,7 @@ router.delete('/safety-emergency-reports/:id', adminController.deleteSafetyEmerg
 // ----- Support Tickets (users) -----
 router.get('/support-tickets', adminController.getSupportTicketsController);
 router.patch('/support-tickets/:id', adminController.updateSupportTicketController);
+router.get('/global-search', adminController.globalSearch);
 router.get('/restaurants/complaints', adminController.getRestaurantComplaints);
 router.patch('/restaurants/complaints/:id', adminController.updateRestaurantComplaint);
 

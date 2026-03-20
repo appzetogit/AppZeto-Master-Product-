@@ -25,7 +25,7 @@ export default function AddToCartAnimation({
   bottomOffset = 96,
   pillClassName = '',
   hideOnPages = true,
-  linkTo = '/cart',
+  linkTo = '/food/user/cart',
   dynamicBottom = null,
 }) {
   const { items, itemCount, total, lastAddEvent, lastRemoveEvent } = useCart();

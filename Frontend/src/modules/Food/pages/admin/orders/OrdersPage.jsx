@@ -817,7 +817,7 @@ export default function OrdersPage({ statusKey = "all" }) {
         orderStatus: displayStatus,
         deliveryPartnerName,
         deliveryPartnerPhone,
-        deliveryType: order.deliveryType || (order.deliveryFleet === "standard" ? "Home Delivery" : "Express Delivery"),
+        deliveryType: order.deliveryType || "Home Delivery",
         address: order.address || order.customerAddress || order.deliveryAddress,
       }
     })

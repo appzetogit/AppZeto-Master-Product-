@@ -34,6 +34,7 @@ import { useProfile } from "@food/context/ProfileContext"
 import { useLocation as useUserLocation } from "@food/hooks/useLocation"
 import DeliveryTrackingMap from "@food/components/user/DeliveryTrackingMap"
 import { orderAPI, restaurantAPI } from "@food/api"
+import { useCompanyName } from "@food/hooks/useCompanyName"
 import circleIcon from "@food/assets/circleicon.png"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -376,6 +377,7 @@ function isFoodOrderCancelledStatus(statusRaw) {
 }
 
 export default function OrderTracking() {
+  const companyName = useCompanyName()
   const { orderId } = useParams()
   const [searchParams] = useSearchParams()
   const confirmed = searchParams.get("confirmed") === "true"
@@ -851,8 +853,8 @@ export default function OrderTracking() {
     try {
       if (navigator.share) {
         await navigator.share({
-          title: `Track my order from ${order?.restaurant || 'Quick Spicy'}`,
-          text: `Hey! Track my order from ${order?.restaurant || 'Quick Spicy'} with ID #${order?.orderId || order?.id}.`,
+          title: `Track my order from ${order?.restaurant || companyName}`,
+          text: `Hey! Track my order from ${order?.restaurant || companyName} with ID #${order?.orderId || order?.id}.`,
           url: window.location.href,
         });
       } else {

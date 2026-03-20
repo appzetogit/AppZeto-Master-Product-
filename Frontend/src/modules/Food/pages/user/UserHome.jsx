@@ -1,6 +1,8 @@
 import { Utensils, Zap } from "lucide-react"
+import { useCompanyName } from "@food/hooks/useCompanyName"
 
 export default function UserHome() {
+  const companyName = useCompanyName()
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-orange-50/30 via-white to-yellow-50/20 p-4 md:p-6 lg:p-8">
       <div className="text-center max-w-md md:max-w-2xl lg:max-w-4xl">
@@ -16,7 +18,7 @@ export default function UserHome() {
 
         {/* Title */}
         <h1 className="text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold mb-3 md:mb-4 lg:mb-5 bg-gradient-to-r from-[#EB590E] to-[#D94F0C] bg-clip-text text-transparent">
-          Quick Spicy
+          {companyName}
         </h1>
         
         {/* Subtitle */}

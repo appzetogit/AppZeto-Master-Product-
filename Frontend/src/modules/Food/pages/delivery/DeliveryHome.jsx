@@ -9557,7 +9557,7 @@ selectedRestaurant?.lng || null,
                       
                       // Show success message
                       if (earnings > 0) {
-                        toast.success(`?${earnings.toFixed(2)} added to your wallet! ??`)
+                        toast.success(`₹${earnings.toFixed(2)} added to your wallet! 🎉💰`)
                       }
                       
                       // Close review popup and show payment page

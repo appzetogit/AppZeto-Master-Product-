@@ -72,17 +72,18 @@ const blobToDataUrl = (blob) =>
 const imageUrlToDataUrl = async (url) => {
   if (!url) return null
   if (url.startsWith("data:")) return url
-  // Do not fetch from backend - only external/same-origin assets allowed
-  const u = String(url).trim().toLowerCase()
-  if (u.startsWith("http://localhost") || u.startsWith("https://localhost") || u.startsWith("http://127.0.0.1")) return null
-  if (u.startsWith("/api")) return null
+  
+  const u = String(url).trim()
+  // Allow all valid URLs but handle errors gracefully
+  if (!u.startsWith("http") && !u.startsWith("/")) return null
 
   try {
-    const response = await fetch(url, { cache: "force-cache" })
+    const response = await fetch(url, { mode: 'cors', cache: "force-cache" })
     if (!response.ok) return null
     const blob = await response.blob()
     return await blobToDataUrl(blob)
-  } catch {
+  } catch (err) {
+    debugError('Error converting image to data URL:', err)
     return null
   }
 }

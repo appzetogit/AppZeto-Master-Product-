@@ -217,6 +217,13 @@ export const adminSidebarMenu = [
   },
   {
     type: "section",
+    label: "SYSTEM SETTINGS",
+    items: [
+      { type: "link", label: "Business Setup", path: "/admin/food/business-setup", icon: "Settings" },
+    ],
+  },
+  {
+    type: "section",
     label: "PAGES & SOCIAL MEDIA",
     items: [
       { type: "link", label: "About Us", path: "/admin/food/pages-social-media/about", icon: "Globe" },

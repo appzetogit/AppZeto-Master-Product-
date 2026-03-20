@@ -2905,7 +2905,7 @@ export default function Home() {
                               {/* Featured Dish Badge - Top Left */}
                               <div className="absolute top-3 left-3 md:top-4 md:left-4 flex items-center z-10 transform transition-transform duration-300 group-hover:scale-105 group-hover:-translate-y-0.5">
                                 <div className="bg-gray-800/90 backdrop-blur-sm text-white px-2 py-1 md:px-4 md:py-1.5 rounded-md text-xs font-medium flex items-center shadow-lg">
-                                  {restaurant.featuredDish} � ?
+                                  {restaurant.featuredDish} • ₹
                                   {restaurant.featuredPrice}
                                 </div>
                               </div>

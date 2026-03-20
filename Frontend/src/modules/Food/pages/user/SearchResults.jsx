@@ -988,13 +988,13 @@ export default function SearchResults() {
                         if (selectedCategory && selectedCategory !== 'all' && restaurant.menu) {
                           const categoryDish = getCategoryDishFromMenu(restaurant.menu, selectedCategory)
                           if (categoryDish && restaurant.featuredPrice) {
-                            displayText = `${categoryDish} � ?${restaurant.featuredPrice}`
+                            displayText = `${categoryDish} • ₹${restaurant.featuredPrice}`
                           }
                         }
 
                         // Fallback to featured dish
                         if (!displayText && restaurant.featuredDish && restaurant.featuredPrice) {
-                          displayText = `${restaurant.featuredDish} � ?${restaurant.featuredPrice}`
+                          displayText = `${restaurant.featuredDish} • ₹${restaurant.featuredPrice}`
                         }
 
                         return displayText ? (

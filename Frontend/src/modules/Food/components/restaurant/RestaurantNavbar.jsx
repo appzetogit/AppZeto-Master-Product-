@@ -2,6 +2,8 @@ import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { Search, Menu, ChevronRight, MapPin, X, Bell } from "lucide-react"
 import { restaurantAPI } from "@food/api"
+import { getCachedSettings, loadBusinessSettings } from "@food/utils/businessSettings"
+
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -28,6 +30,36 @@ export default function RestaurantNavbar({
   const [status, setStatus] = useState("Offline")
   const [restaurantData, setRestaurantData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [companyName, setCompanyName] = useState("")
+  const [logoUrl, setLogoUrl] = useState(null)
+
+  // Load business settings for branding
+  useEffect(() => {
+    const loadSettings = async () => {
+      const cached = getCachedSettings()
+      if (cached) {
+        if (cached.companyName) setCompanyName(cached.companyName)
+        if (cached.logo?.url) setLogoUrl(cached.logo.url)
+      } else {
+        const settings = await loadBusinessSettings()
+        if (settings) {
+          if (settings.companyName) setCompanyName(settings.companyName)
+          if (settings.logo?.url) setLogoUrl(settings.logo.url)
+        }
+      }
+    }
+    loadSettings()
+
+    const handleSettingsUpdate = () => {
+      const cached = getCachedSettings()
+      if (cached) {
+        if (cached.companyName) setCompanyName(cached.companyName)
+        if (cached.logo?.url) setLogoUrl(cached.logo.url)
+      }
+    }
+    window.addEventListener('businessSettingsUpdated', handleSettingsUpdate)
+    return () => window.removeEventListener('businessSettingsUpdated', handleSettingsUpdate)
+  }, [])
 
   // Fetch restaurant data on mount
   useEffect(() => {
@@ -287,21 +319,25 @@ export default function RestaurantNavbar({
   return (
     <div className="w-full bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
       {/* Left Side - Restaurant Info */}
-      <div className="flex-1 min-w-0 pr-4">
-        {/* Restaurant Name */}
-        <h1 className="text-base font-bold text-gray-900 truncate">
-          {loading ? "Loading..." : restaurantName}
-        </h1>
-        
-        {/* Location */}
-        {!loading && location && location.trim() !== "" && (
-          <div className="flex items-start gap-1.5 mt-0.5">
-            <MapPin className="w-3 h-3 text-gray-500 shrink-0 mt-0.5" />
-            <p className="text-xs text-gray-600 leading-snug break-words" title={location}>
-              {location}
-            </p>
-          </div>
+      <div className="flex-1 min-w-0 pr-4 flex items-center gap-3">
+        {logoUrl && (
+          <img src={logoUrl} alt="Logo" className="h-10 w-10 object-contain rounded-lg" />
         )}
+        <div className="min-w-0">
+          {/* Restaurant Name */}
+          <h1 className="text-base font-bold text-gray-900 truncate">
+            {loading ? "Loading..." : restaurantName}
+          </h1>
+          <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">{companyName || "Restaurant Partner"}</p>
+          {!loading && location && location.trim() !== "" && (
+            <div className="flex items-start gap-1.5 mt-0.5">
+              <MapPin className="w-3 h-3 text-gray-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-gray-600 leading-snug break-words" title={location}>
+                {location}
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Right Side - Interactive Elements */}

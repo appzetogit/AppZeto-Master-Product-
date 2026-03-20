@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Info, Phone, Upload, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { adminAPI } from "@food/api";
-import { clearCache, updateFavicon, updateTitle } from "@food/utils/businessSettings";
+import { setCachedSettings, updateFavicon, updateTitle } from "@food/utils/businessSettings";
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -82,12 +82,33 @@ export default function BusinessSetup() {
         toast.error("Company name is required");
         return;
       }
+      if (formData.companyName.trim().length < 2) {
+        toast.error("Company name must be at least 2 characters long");
+        return;
+      }
+
       if (!formData.email.trim()) {
         toast.error("Email is required");
         return;
       }
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email.trim())) {
+        toast.error("Please enter a valid email address");
+        return;
+      }
+
       if (!formData.phoneNumber.trim()) {
         toast.error("Phone number is required");
+        return;
+      }
+      const phoneRegex = /^\d{7,15}$/;
+      if (!phoneRegex.test(formData.phoneNumber.trim())) {
+        toast.error("Please enter a valid phone number (7-15 digits)");
+        return;
+      }
+
+      if (formData.pincode.trim() && !/^\d{4,10}$/.test(formData.pincode.trim())) {
+        toast.error("Please enter a valid pincode (4-10 digits)");
         return;
       }
 
@@ -118,8 +139,8 @@ export default function BusinessSetup() {
       const updatedSettings = response?.data?.data || response?.data;
 
       if (updatedSettings) {
-        // Clear cache to force reload
-        clearCache();
+        // Update global cache immediately
+        setCachedSettings(updatedSettings);
 
         // Update previews with new URLs if files were uploaded
         if (updatedSettings.logo?.url) {
@@ -129,19 +150,13 @@ export default function BusinessSetup() {
         if (updatedSettings.favicon?.url) {
           setFaviconPreview(updatedSettings.favicon.url);
           setFaviconFile(null);
-          // Update favicon in document
-          updateFavicon(updatedSettings.favicon.url);
-        }
-        // Update page title
-        if (updatedSettings.companyName) {
-          updateTitle(updatedSettings.companyName);
         }
       }
 
       toast.success("Business settings saved successfully");
 
-      // Dispatch event to notify other components (like AdminNavbar)
-      window.dispatchEvent(new Event('businessSettingsUpdated'));
+      // Dispatch custom event to notify other components (like Sidebar)
+      window.dispatchEvent(new CustomEvent('businessSettingsUpdated'));
     } catch (error) {
       debugError("Error saving business settings:", error);
       toast.error(error?.response?.data?.message || "Failed to save business settings");
@@ -213,6 +228,7 @@ export default function BusinessSetup() {
                   type="text"
                   placeholder="Enter Your Company Name"
                   value={formData.companyName}
+                  maxLength={50}
                   onChange={(e) => handleInputChange("companyName", e.target.value)}
                   className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
@@ -226,6 +242,7 @@ export default function BusinessSetup() {
                   type="email"
                   placeholder="Enter Your Email"
                   value={formData.email}
+                  maxLength={100}
                   onChange={(e) => handleInputChange("email", e.target.value)}
                   className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
@@ -468,7 +485,11 @@ export default function BusinessSetup() {
                     type="text"
                     placeholder="Enter Your Phone Number"
                     value={formData.phoneNumber}
-                    onChange={(e) => handleInputChange("phoneNumber", e.target.value)}
+                    maxLength={15}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, "");
+                      handleInputChange("phoneNumber", val);
+                    }}
                     className="flex-1 px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
@@ -482,6 +503,7 @@ export default function BusinessSetup() {
                   rows={2}
                   placeholder="Enter Your Addresss"
                   value={formData.address}
+                  maxLength={250}
                   onChange={(e) => handleInputChange("address", e.target.value)}
                   className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
                 />
@@ -495,6 +517,7 @@ export default function BusinessSetup() {
                   type="text"
                   placeholder="Enter Your State"
                   value={formData.state}
+                  maxLength={50}
                   onChange={(e) => handleInputChange("state", e.target.value)}
                   className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
@@ -508,7 +531,11 @@ export default function BusinessSetup() {
                   type="text"
                   placeholder="Enter Your Pincode"
                   value={formData.pincode}
-                  onChange={(e) => handleInputChange("pincode", e.target.value)}
+                  maxLength={10}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, "");
+                    handleInputChange("pincode", val);
+                  }}
                   className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>

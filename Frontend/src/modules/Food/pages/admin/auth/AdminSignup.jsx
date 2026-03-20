@@ -53,6 +53,17 @@ export default function AdminSignup() {
       }
     }
     fetchLogo()
+
+    // Listen for business settings updates
+    const handleSettingsUpdate = async () => {
+      // Force reload settings from backend
+      const settings = await loadBusinessSettings();
+      if (settings?.logo?.url) {
+        setLogoUrl(settings.logo.url);
+      }
+    };
+    window.addEventListener('businessSettingsUpdated', handleSettingsUpdate);
+    return () => window.removeEventListener('businessSettingsUpdated', handleSettingsUpdate);
   }, [])
 
   const handleFormSubmit = async (e) => {
@@ -236,7 +247,7 @@ export default function AdminSignup() {
             <div className="flex w-full items-center gap-4 sm:gap-5">
               <div className="flex h-14 w-28 shrink-0 items-center justify-center rounded-xl bg-gray-900/5 ring-1 ring-neutral-200">
                 <img
-                  src={logoUrl}
+                  src={logoUrl || quickSpicyLogo}
                   alt="Logo"
                   className="h-10 w-24 object-contain"
                   loading="lazy"

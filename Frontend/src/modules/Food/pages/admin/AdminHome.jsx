@@ -23,7 +23,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-import { Activity, ArrowUpRight, ShoppingBag, CreditCard, Truck, Receipt, DollarSign, Store, UserCheck, Package, UserCircle, Clock, CheckCircle, Plus } from "lucide-react"
+import { Activity, ArrowUpRight, ShoppingBag, CreditCard, Truck, Receipt, DollarSign, Store, UserCheck, Package, UserCircle, Clock, CheckCircle, Plus, XCircle } from "lucide-react"
 import { adminAPI } from "@food/api"
 const debugLog = () => {}
 const debugError = () => {}
@@ -156,7 +156,7 @@ export default function AdminHome() {
     fill: item.color,
   }))
 
-  const activityFeed = []
+  const activityFeed = dashboardData?.liveSignals || []
   const totalRevenueHelper = [
     `Commission ${formatCurrency(commissionTotal, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
     `Platform ${formatCurrency(platformFeeTotal, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
@@ -473,7 +473,7 @@ export default function AdminHome() {
             <Card className="min-w-0 border-neutral-200 bg-white">
               <CardHeader className="flex items-center justify-between border-b border-neutral-200 pb-4">
                 <CardTitle className="text-lg text-neutral-900">Momentum snapshot</CardTitle>
-                <span className="text-xs text-neutral-500">No data available</span>
+                <span className="text-xs text-neutral-500">Summary: {ordersTotal} Orders</span>
               </CardHeader>
               <CardContent className="min-w-0 pt-4">
                 <div className="h-64 w-full min-w-0">
@@ -501,19 +501,69 @@ export default function AdminHome() {
                 <CardTitle className="text-lg text-neutral-900">Live signals</CardTitle>
                 <p className="text-sm text-neutral-500">Ops notes and service health</p>
               </CardHeader>
-              <CardContent className="space-y-3 pt-4">
-                {activityFeed.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-start justify-between rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-3"
-                  >
-                    <div>
-                      <p className="text-sm font-semibold text-neutral-900">{item.title}</p>
-                      <p className="text-xs text-neutral-600">{item.detail}</p>
-                    </div>
-                    <span className="text-xs text-neutral-500">{item.time}</span>
+              <CardContent className="space-y-3 pt-4 h-[300px] overflow-y-auto custom-scrollbar">
+                {activityFeed.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full py-10 text-neutral-400">
+                    <Activity className="h-10 w-10 mb-2 opacity-20" />
+                    <p className="text-sm">No recent signals</p>
                   </div>
-                ))}
+                ) : (
+                  activityFeed.map((item, idx) => {
+                    const getIcon = (type) => {
+                      switch (type) {
+                        case "order_pending":
+                          return <Clock className="h-4 w-4 text-amber-600" />
+                        case "order_delivered":
+                          return <CheckCircle className="h-4 w-4 text-emerald-600" />
+                        case "order_cancelled":
+                          return <XCircle className="h-4 w-4 text-red-600" />
+                        case "restaurant":
+                          return <Store className="h-4 w-4 text-blue-600" />
+                        case "delivery":
+                          return <Truck className="h-4 w-4 text-purple-600" />
+                        case "customer":
+                          return <UserCircle className="h-4 w-4 text-pink-600" />
+                        default:
+                          return <Activity className="h-4 w-4 text-neutral-600" />
+                      }
+                    }
+
+                    const getBg = (type) => {
+                      switch (type) {
+                        case "order_pending":
+                          return "bg-amber-50"
+                        case "order_delivered":
+                          return "bg-emerald-50"
+                        case "order_cancelled":
+                          return "bg-red-50"
+                        case "restaurant":
+                          return "bg-blue-50"
+                        case "delivery":
+                          return "bg-purple-50"
+                        case "customer":
+                          return "bg-pink-50"
+                        default:
+                          return "bg-neutral-50"
+                      }
+                    }
+
+                    return (
+                      <div
+                        key={idx}
+                        className={`flex items-start gap-3 rounded-xl border border-neutral-200 ${getBg(item.type)} px-3 py-3 hover:border-neutral-300 transition-all`}
+                      >
+                        <div className="mt-0.5">{getIcon(item.type)}</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-semibold text-neutral-900 truncate">{item.title}</p>
+                            <span className="text-[10px] text-neutral-400 whitespace-nowrap">{item.time}</span>
+                          </div>
+                          <p className="text-xs text-neutral-600 line-clamp-1">{item.detail}</p>
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
               </CardContent>
             </Card>
 

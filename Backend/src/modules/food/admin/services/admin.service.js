@@ -265,7 +265,13 @@ export async function getDashboardStats(query = {}) {
         deliveryPending,
         foodsTotal,
         addonsTotal,
-        customersTotal
+        customersTotal,
+        recentPendingRestaurants,
+        recentPendingDelivery,
+        recentPendingOrders,
+        recentDeliveredOrders,
+        recentCancelledOrders,
+        recentCustomers
     ] = await Promise.all([
         FoodOrder.aggregate([
             { $match: orderMatch },
@@ -335,8 +341,80 @@ export async function getDashboardStats(query = {}) {
         FoodDeliveryPartner.countDocuments({ status: 'pending' }),
         FoodItem.countDocuments({}),
         FoodAddon.countDocuments({}),
-        FoodUser.countDocuments({})
+        FoodUser.countDocuments({}),
+        FoodRestaurant.find({ status: 'pending' }).sort({ createdAt: -1 }).limit(5).select('restaurantName createdAt').lean(),
+        FoodDeliveryPartner.find({ status: 'pending' }).sort({ createdAt: -1 }).limit(5).select('name createdAt').lean(),
+        FoodOrder.find({ orderStatus: { $in: PENDING_ORDER_STATUSES } }).sort({ createdAt: -1 }).limit(5).select('orderId createdAt').lean(),
+        FoodOrder.find({ orderStatus: 'delivered' }).sort({ updatedAt: -1 }).limit(5).select('orderId updatedAt').lean(),
+        FoodOrder.find({ orderStatus: { $in: CANCELLED_ORDER_STATUSES } }).sort({ updatedAt: -1 }).limit(5).select('orderId updatedAt').lean(),
+        FoodUser.find({}).sort({ createdAt: -1 }).limit(5).select('name createdAt').lean()
     ]);
+
+    const liveSignals = [];
+    
+    (recentPendingRestaurants || []).forEach(r => {
+        liveSignals.push({
+            type: 'restaurant',
+            title: 'New Restaurant Request',
+            detail: `${r.restaurantName} is waiting for approval`,
+            time: formatTimeAgo(r.createdAt),
+            timestamp: r.createdAt
+        });
+    });
+
+    (recentPendingDelivery || []).forEach(d => {
+        liveSignals.push({
+            type: 'delivery',
+            title: 'New Delivery Partner',
+            detail: `${d.name} requested to join`,
+            time: formatTimeAgo(d.createdAt),
+            timestamp: d.createdAt
+        });
+    });
+
+    (recentPendingOrders || []).forEach(o => {
+        liveSignals.push({
+            type: 'order_pending',
+            title: 'New Order Received',
+            detail: `Order #${o.orderId} is pending`,
+            time: formatTimeAgo(o.createdAt),
+            timestamp: o.createdAt
+        });
+    });
+
+    (recentDeliveredOrders || []).forEach(o => {
+        liveSignals.push({
+            type: 'order_delivered',
+            title: 'Order Delivered',
+            detail: `Order #${o.orderId} was successful`,
+            time: formatTimeAgo(o.updatedAt),
+            timestamp: o.updatedAt
+        });
+    });
+
+    (recentCancelledOrders || []).forEach(o => {
+        liveSignals.push({
+            type: 'order_cancelled',
+            title: 'Order Cancelled',
+            detail: `Order #${o.orderId} was cancelled`,
+            time: formatTimeAgo(o.updatedAt),
+            timestamp: o.updatedAt
+        });
+    });
+
+    (recentCustomers || []).forEach(c => {
+        liveSignals.push({
+            type: 'customer',
+            title: 'New Customer',
+            detail: `${c.name} just registered`,
+            time: formatTimeAgo(c.createdAt),
+            timestamp: c.createdAt
+        });
+    });
+
+    // Sort by timestamp and take top 15
+    liveSignals.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    const finalLiveSignals = liveSignals.slice(0, 15);
 
     const totals = orderTotalsAgg?.[0] || {};
 
@@ -397,8 +475,25 @@ export async function getDashboardStats(query = {}) {
             pending: Number(totals.pending || 0),
             completed: Number(totals.delivered || 0)
         },
-        monthlyData
+        monthlyData,
+        liveSignals: finalLiveSignals
     };
+}
+
+function formatTimeAgo(date) {
+    if (!date) return '';
+    const seconds = Math.floor((new Date() - new Date(date)) / 1000);
+    let interval = seconds / 31536000;
+    if (interval > 1) return Math.floor(interval) + ' years ago';
+    interval = seconds / 2592000;
+    if (interval > 1) return Math.floor(interval) + ' months ago';
+    interval = seconds / 86400;
+    if (interval > 1) return Math.floor(interval) + ' days ago';
+    interval = seconds / 3600;
+    if (interval > 1) return Math.floor(interval) + ' hours ago';
+    interval = seconds / 60;
+    if (interval > 1) return Math.floor(interval) + ' minutes ago';
+    return Math.floor(seconds) + ' seconds ago';
 }
 
 export async function getTransactionReport(query = {}) {

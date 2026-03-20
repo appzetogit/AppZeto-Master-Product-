@@ -5,7 +5,7 @@ import { Button } from "@food/components/ui/button"
 import { Card, CardContent } from "@food/components/ui/card"
 import { useState } from "react"
 import { authAPI } from "@food/api"
-import { firebaseAuth } from "@food/firebase"
+import { firebaseAuth, ensureFirebaseInitialized } from "@food/firebase"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -55,6 +55,8 @@ export default function Logout() {
       // Sign out from Firebase if user logged in via Google
       try {
         const { signOut } = await import("firebase/auth")
+        // Firebase Auth is lazy-initialized now; ensure it before accessing firebaseAuth.currentUser
+        ensureFirebaseInitialized({ enableAuth: true, enableRealtimeDb: false })
         const currentUser = firebaseAuth.currentUser
         if (currentUser) {
           await signOut(firebaseAuth)

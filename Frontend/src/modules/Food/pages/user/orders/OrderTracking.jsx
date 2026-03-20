@@ -331,7 +331,30 @@ const transformOrderForTracking = (apiOrder, previousOrder = null, explicitResta
     gst: apiOrder?.pricing?.gst || apiOrder?.gst || previousOrder?.gst || 0,
     paymentMethod: apiOrder?.paymentMethod || apiOrder?.payment?.method || previousOrder?.paymentMethod || null,
     payment: apiOrder?.payment || previousOrder?.payment || null,
-    deliveryVerification: apiOrder?.deliveryVerification || previousOrder?.deliveryVerification || null
+    // Preserve delivery OTP code received via socket event.
+    // API responses intentionally strip the secret code for security,
+    // so without preserving it the UI would lose the OTP on each poll refresh.
+    deliveryVerification: (() => {
+      const prevDV = previousOrder?.deliveryVerification || null
+      const apiDV = apiOrder?.deliveryVerification || null
+      if (!prevDV && !apiDV) return null
+
+      const prevDropOtp = prevDV?.dropOtp || null
+      const apiDropOtp = apiDV?.dropOtp || null
+      const merged = {
+        ...(prevDV || {}),
+        ...(apiDV || {})
+      }
+
+      if (prevDropOtp || apiDropOtp) {
+        merged.dropOtp = {
+          ...(prevDropOtp || {}),
+          ...(apiDropOtp || {}),
+          code: prevDropOtp?.code ?? apiDropOtp?.code
+        }
+      }
+      return merged
+    })()
   }
 }
 
@@ -401,6 +424,82 @@ export default function OrderTracking() {
   const [timerNow, setTimerNow] = useState(Date.now())
   const lastRealtimeRefreshRef = useRef(0)
   const trackingOrderIdsRef = useRef(new Set())
+
+  // Delivery handover OTP received via socket event.
+  // Kept separately so UI still renders even if the event arrives
+  // before the order API poll populates `order` state.
+  const [socketDropOtpCode, setSocketDropOtpCode] = useState(null)
+
+  // OTP received via socket event (deliveryDropOtp)
+  useEffect(() => {
+    const handleDeliveryDropOtp = (event) => {
+      const detail = event?.detail || {}
+      const otp = detail?.otp != null ? String(detail.otp) : null
+      const evtOrderId = detail?.orderId != null ? String(detail.orderId) : null
+      const evtOrderMongoId =
+        detail?.orderMongoId != null ? String(detail.orderMongoId) : null
+
+      if (!otp) return
+
+      // If the order is already loaded, match by either orderId or mongoId.
+      // Otherwise, match against the current URL param.
+      const currentIds = [String(orderId)]
+      if (order?.orderId) currentIds.push(String(order.orderId))
+      if (order?.mongoId) currentIds.push(String(order.mongoId))
+      if (order?._id) currentIds.push(String(order._id))
+
+      const matches =
+        (evtOrderId && currentIds.includes(evtOrderId)) ||
+        (evtOrderMongoId && currentIds.includes(evtOrderMongoId))
+
+      if (!matches) return
+
+      // Always store so UI can render even if `order` hasn't loaded yet.
+      setSocketDropOtpCode(otp)
+
+      setOrder((prev) => {
+        if (!prev) return prev
+        const prevDV = prev.deliveryVerification || {}
+        const prevDropOtp = prevDV.dropOtp || {}
+        return {
+          ...prev,
+          deliveryVerification: {
+            ...prevDV,
+            dropOtp: {
+              ...prevDropOtp,
+              required: true,
+              verified: false,
+              code: otp
+            }
+          }
+        }
+      })
+    }
+
+    window.addEventListener('deliveryDropOtp', handleDeliveryDropOtp)
+    return () => window.removeEventListener('deliveryDropOtp', handleDeliveryDropOtp)
+  }, [orderId, order])
+
+  // Clear OTP when order is finalized.
+  useEffect(() => {
+    if (!order) return
+    if (orderStatus === 'delivered' || orderStatus === 'cancelled') {
+      setSocketDropOtpCode(null)
+      setOrder((prev) => {
+        if (!prev?.deliveryVerification?.dropOtp?.code) return prev
+        return {
+          ...prev,
+          deliveryVerification: {
+            ...(prev.deliveryVerification || {}),
+            dropOtp: {
+              ...(prev.deliveryVerification?.dropOtp || {}),
+              code: null
+            }
+          }
+        }
+      })
+    }
+  }, [orderStatus, order])
 
   const defaultAddress = getDefaultAddress()
   const fallbackCustomerCoords = useMemo(() => {
@@ -511,9 +610,10 @@ export default function OrderTracking() {
   }
 
   const customerDeliveryOtp = useMemo(() => {
-    const code = order?.deliveryVerification?.dropOtp?.code
+    const codeFromOrder = order?.deliveryVerification?.dropOtp?.code
+    const code = codeFromOrder ?? socketDropOtpCode
     return code ? String(code) : null
-  }, [order?.deliveryVerification?.dropOtp?.code])
+  }, [order?.deliveryVerification?.dropOtp?.code, socketDropOtpCode])
 
   useEffect(() => {
     if (!isEditWindowOpen) return
@@ -1107,7 +1207,9 @@ export default function OrderTracking() {
         <DeliveryMap
           orderId={orderId}
           order={order}
-          isVisible={!showConfirmation && order !== null}
+          // Don't hide the map while the "Order Confirmed" splash is visible;
+          // the modal should overlay only, not block map initialization.
+          isVisible={order !== null}
           fallbackCustomerCoords={fallbackCustomerCoords}
           userLiveCoords={userLiveCoords}
           userLocationAccuracy={userLiveLocation?.accuracy ?? null}

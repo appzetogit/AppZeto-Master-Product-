@@ -144,7 +144,10 @@ export default function PocketPage() {
     debugLog('?? Total Balance (includes bonus):', walletState?.totalBalance || balances.totalBalance)
     debugLog('?? Cash In Hand:', walletState?.cashInHand || balances.cashInHand)
     // Check for bonus transactions
-    const bonusTransactions = walletState?.transactions?.filter(t => t.type === 'bonus' && t.status === 'Completed') || []
+    const bonusTransactions =
+      walletState?.transactions?.filter(
+        (t) => (t.type === 'bonus' || t.type === 'earning_addon') && t.status === 'Completed',
+      ) || []
     debugLog('?? Bonus Transactions:', bonusTransactions)
     if (bonusTransactions.length > 0) {
       const totalBonus = bonusTransactions.reduce((sum, t) => sum + (t.amount || 0), 0)
@@ -356,9 +359,12 @@ export default function PocketPage() {
   const isOfferLive = activeEarningAddon?.isValid || activeEarningAddon?.isUpcoming || false
 
   // Calculate total bonus amount from all bonus transactions
-  const totalBonus = walletState?.transactions
-    ?.filter(t => t.type === 'bonus' && t.status === 'Completed')
-    .reduce((sum, t) => sum + (t.amount || 0), 0) || 0
+  const totalBonus =
+    walletState?.transactions
+      ?.filter(
+        (t) => (t.type === 'bonus' || t.type === 'earning_addon') && t.status === 'Completed',
+      )
+      .reduce((sum, t) => sum + (t.amount || 0), 0) || 0
 
   // Pocket balance - shows total balance (includes bonus)
   // Total balance = all earnings + bonus - withdrawals
@@ -378,7 +384,7 @@ export default function PocketPage() {
     // Verify pocket balance includes bonus
     // Calculate expected: Earnings + Bonus - Withdrawals
     const totalWithdrawn = balances.totalWithdrawn || 0
-    const expectedBalance = weeklyEarningsFromWallet + totalBonus - totalWithdrawn
+    const expectedBalance = (balances.totalEarnings || 0) + totalBonus - totalWithdrawn
     // Use the higher value to ensure bonus is included
     if (expectedBalance > pocketBalance) {
       pocketBalance = expectedBalance

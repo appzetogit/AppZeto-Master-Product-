@@ -3092,8 +3092,9 @@ export default function DeliveryHome() {
         }
 
         try {
-          // Prefer string orderId (ORD-xxx) for URL; backend accepts both _id and orderId
-          const orderIdForApi = selectedRestaurant?.orderId || selectedRestaurant?.id
+          // Prefer MongoDB _id for API calls (more reliable than readable FOD-xxx),
+          // backend `buildOrderIdentityFilter()` supports both.
+          const orderIdForApi = selectedRestaurant?.id || selectedRestaurant?.orderId
           const confirmedOrderIdForApi = selectedRestaurant?.orderId || (orderIdForApi && String(orderIdForApi).startsWith('ORD-') ? orderIdForApi : undefined)
 
           // Call backend API to confirm order ID with bill image
@@ -3412,13 +3413,9 @@ export default function DeliveryHome() {
       setShowreachedPickupPopup(false)
       setShowOrderIdConfirmationPopup(false)
 
-      // Complete delivery immediately (no customer review flow in delivery partner app)
-      try {
-        await deliveryAPI.completeDelivery(orderIdForApi, { rating: null, review: "" })
-      } catch (error) {
-        // Even if completion API fails, proceed to payment page to avoid blocking the rider UI
-        debugError("? Failed to complete delivery:", error)
-      }
+      // Do NOT complete delivery/payment here.
+      // Payment overlay will call `completeDelivery` only after rider taps `Complete`,
+      // ensuring QR COD can be auto-verified via backend when needed.
 
       setShowPaymentPage(true)
 
@@ -4438,7 +4435,25 @@ export default function DeliveryHome() {
 
     const intervalId = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
-      if (showNewOrderPopup || activeOrder || selectedRestaurant) {
+
+      const orderStatus = selectedRestaurant?.orderStatus || selectedRestaurant?.status || ''
+      const deliveryPhase =
+        selectedRestaurant?.deliveryPhase ||
+        selectedRestaurant?.deliveryState?.currentPhase ||
+        ''
+
+      const normalizedOrderStatus = String(orderStatus || '').toLowerCase()
+      const normalizedDeliveryPhase = String(deliveryPhase || '').toLowerCase()
+
+      // Don't block polling for terminal/stale selected orders.
+      const selectedIsTerminal =
+        normalizedOrderStatus === 'delivered' ||
+        normalizedOrderStatus.includes('cancel') ||
+        normalizedOrderStatus.includes('completed') ||
+        normalizedDeliveryPhase === 'delivered' ||
+        normalizedDeliveryPhase === 'completed'
+
+      if (showNewOrderPopup || activeOrder || (selectedRestaurant && !selectedIsTerminal)) {
         return
       }
 
@@ -6377,6 +6392,21 @@ export default function DeliveryHome() {
                 verifiedOrder?.pricing?.total ??
                 verifiedOrder?.total ??
                 activeOrderData.restaurantInfo?.total ??
+                0
+              ) || 0,
+            // Needed for payment overlay: show correct partner earnings even before `completeDelivery`.
+            estimatedEarnings:
+              Number(
+                verifiedOrder?.riderEarning ??
+                activeOrderData.restaurantInfo?.estimatedEarnings ??
+                activeOrderData.restaurantInfo?.amount ??
+                0
+              ) || 0,
+            amount:
+              Number(
+                verifiedOrder?.riderEarning ??
+                activeOrderData.restaurantInfo?.amount ??
+                activeOrderData.restaurantInfo?.estimatedEarnings ??
                 0
               ) || 0,
             paymentMethod:
@@ -9529,11 +9559,17 @@ selectedRestaurant?.lng || null,
                 // Save review by calling completeDelivery API with rating and review
                 if (orderIdForApi) {
                   try {
-                    debugLog('?? Submitting review and completing delivery:', {
+                    // Customer review UI is not tied to payment finalization here.
+                    // We defer `completeDelivery` until rider taps `Complete` in Payment overlay,
+                    // so QR COD can be auto-verified securely.
+                    debugLog('?? Customer review submitted (UI only):', {
                       orderId: orderIdForApi,
                       rating: customerRating,
                       review: customerReviewText
                     })
+
+                    setShowCustomerReviewPopup(false)
+                    setShowPaymentPage(true)
                     
                     // Call completeDelivery API with rating and review
                     const response = await deliveryAPI.completeDelivery(orderIdForApi, {
@@ -9600,7 +9636,46 @@ selectedRestaurant?.lng || null,
         isGeneratingCollectQr={isGeneratingCollectQr}
         setIsGeneratingCollectQr={setIsGeneratingCollectQr}
         deliveryAPI={deliveryAPI}
-        onComplete={() => {
+        onComplete={async () => {
+          const orderIdForApi =
+            selectedRestaurant?.id ||
+            newOrder?.orderMongoId ||
+            newOrder?._id ||
+            selectedRestaurant?.orderId ||
+            newOrder?.orderId
+
+          if (!orderIdForApi) {
+            toast.error("Order details not found for completion.")
+            return
+          }
+
+          // Secure: complete delivery/payment only after rider confirms.
+          // Backend will block completion for `razorpay_qr` unless Razorpay QR is paid.
+          try {
+            const response = await deliveryAPI.completeDelivery(orderIdForApi, {
+              rating: null,
+              review: "",
+            })
+            const earnings =
+              response.data?.data?.earnings?.amount ||
+              response.data?.data?.totalEarning ||
+              orderEarnings ||
+              0
+
+            setOrderEarnings(earnings)
+
+            // Notify wallet listeners (Pocket balance, Pocket page).
+            window.dispatchEvent(new Event("deliveryWalletStateUpdated"))
+
+            if (Number(earnings) > 0) {
+              toast.success(`${Number(earnings).toFixed(2)} added to your wallet!`)
+            }
+          } catch (error) {
+            debugError("? Failed to complete delivery:", error)
+            toast.error(error?.response?.data?.message || "Payment/OTP not verified yet. Please try again.")
+            return
+          }
+
           setShowPaymentPage(false)
           // CRITICAL: Clear all order-related popups and states when completing
           setShowreachedPickupPopup(false)

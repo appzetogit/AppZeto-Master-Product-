@@ -2481,7 +2481,9 @@ export default function Home() {
             <PageNavbar textColor="black" zIndex={50} />
           </div>
 
-          <div className="px-3 sm:px-6 pb-2 min-h-[48px] flex items-center">
+          <div
+            className={`px-3 sm:px-6 flex items-center ${hasLiveLocation ? "pb-0 min-h-0" : "pb-2 min-h-[48px]"}`}
+          >
             {!hasLiveLocation ? (
               <button
                 type="button"
@@ -2500,7 +2502,7 @@ export default function Home() {
           </div>
 
           <div className="px-3 sm:px-6 pb-3 flex items-center gap-3">
-            <div className="flex-1 relative -mt-3">
+            <div className="flex-1 relative -mt-4">
               <div 
                     className="relative bg-white/90 dark:bg-[#1a1a1a]/90 backdrop-blur-sm rounded-xl border border-gray-200 focus-within:border-[#EB590E] transition-all p-2 shadow-sm"
                 onClick={handleSearchFocus}
@@ -2559,7 +2561,7 @@ export default function Home() {
                 <PageNavbar textColor="black" zIndex={50} />
               </div>
               <div className="px-3 sm:px-6 pb-2 flex items-center gap-3">
-                <div className="flex-1 bg-gray-100 rounded-lg p-2.5 flex items-center gap-2 -mt-3" onClick={handleSearchFocus}>
+                <div className="flex-1 bg-gray-100 rounded-lg p-2.5 flex items-center gap-2 -mt-4" onClick={handleSearchFocus}>
                   <Search className="h-3.5 w-3.5 text-[#EB590E]" />
                   <span className="text-xs font-semibold text-gray-400 truncate">{placeholders[placeholderIndex]}</span>
                 </div>

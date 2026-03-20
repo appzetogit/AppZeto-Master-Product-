@@ -57,3 +57,25 @@ export function verifyPaymentSignature(orderId, paymentId, signature) {
     const expected = crypto.createHmac('sha256', KEY_SECRET).update(body).digest('hex');
     return expected === signature;
 }
+
+/**
+ * Fetch Razorpay payment (server-side) for additional validation (amount/status/order match).
+ * @param {string} paymentId
+ */
+export async function fetchRazorpayPayment(paymentId) {
+    const instance = getRazorpayInstance();
+    if (!instance) throw new Error('Razorpay not configured');
+    if (!paymentId) throw new Error('paymentId is required');
+    return instance.payments.fetch(String(paymentId));
+}
+
+/**
+ * Fetch Razorpay payment-link to check status (used for Razorpay QR auto verification).
+ * @param {string} paymentLinkId
+ */
+export async function fetchRazorpayPaymentLink(paymentLinkId) {
+    const instance = getRazorpayInstance();
+    if (!instance) throw new Error('Razorpay not configured');
+    if (!paymentLinkId) throw new Error('paymentLinkId is required');
+    return instance.paymentLink.fetch(String(paymentLinkId));
+}

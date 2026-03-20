@@ -48,9 +48,9 @@ import { authAPI, userAPI } from "@food/api";
 import { firebaseAuth } from "@food/firebase";
 import { clearModuleAuth } from "@food/utils/auth";
 import { toast } from "sonner";
-const debugLog = (...args) => {};
-const debugWarn = (...args) => {};
-const debugError = (...args) => {};
+const debugLog = (...args) => { };
+const debugWarn = (...args) => { };
+const debugError = (...args) => { };
 
 import { registerWebPushForCurrentModule } from "@food/utils/firebaseMessaging";
 
@@ -63,14 +63,14 @@ export default function Profile() {
   const defaultAddress = getDefaultAddress?.();
   const savedAddressSummary = defaultAddress
     ? [
-        defaultAddress.street,
-        defaultAddress.additionalDetails,
-        defaultAddress.city,
-        defaultAddress.state,
-        defaultAddress.zipCode,
-      ]
-        .filter(Boolean)
-        .join(", ")
+      defaultAddress.street,
+      defaultAddress.additionalDetails,
+      defaultAddress.city,
+      defaultAddress.state,
+      defaultAddress.zipCode,
+    ]
+      .filter(Boolean)
+      .join(", ")
     : "No address saved. Tap to save Home, Work, or Other.";
 
   // Popup states
@@ -246,7 +246,7 @@ export default function Profile() {
         const reward = res?.data?.data?.stats?.rewardAmount;
         if (mounted) setReferralReward(Number(reward) || 0);
       })
-      .catch(() => {});
+      .catch(() => { });
     return () => {
       mounted = false;
     };
@@ -261,7 +261,7 @@ export default function Profile() {
         const bal = Number(w?.balance);
         if (mounted) setWalletBalance(Number.isFinite(bal) ? bal : 0);
       })
-      .catch(() => {});
+      .catch(() => { });
     return () => {
       mounted = false;
     };
@@ -324,7 +324,7 @@ export default function Profile() {
                     fcmToken = t.trim();
                     break;
                   }
-                } catch (e) {}
+                } catch (e) { }
               }
             } else {
               fcmToken =
@@ -419,7 +419,7 @@ export default function Profile() {
                     <AvatarImage
                       src={
                         userProfile.profileImage &&
-                        userProfile.profileImage.trim()
+                          userProfile.profileImage.trim()
                           ? userProfile.profileImage
                           : undefined
                       }
@@ -649,11 +649,10 @@ export default function Profile() {
                   </div>
                   <div className="flex items-center gap-2">
                     <motion.span
-                      className={`text-xs font-medium px-2 py-1 rounded ${
-                        isComplete
+                      className={`text-xs font-medium px-2 py-1 rounded ${isComplete
                           ? "bg-green-100 text-green-700 border border-green-300"
                           : "bg-orange-100 text-orange-800"
-                      }`}
+                        }`}
                       whileHover={{ scale: 1.1 }}
                       transition={{ duration: 0.2 }}>
                       {profileCompletion}% completed
@@ -953,18 +952,16 @@ export default function Profile() {
                 handleVegModeUpdate(true);
                 setVegModeOpen(false);
               }}
-              className={`w-full p-3 rounded-xl border-2 transition-all flex items-center justify-between ${
-                vegMode
+              className={`w-full p-3 rounded-xl border-2 transition-all flex items-center justify-between ${vegMode
                   ? "border-green-600 bg-green-50"
                   : "border-gray-200 bg-white hover:border-gray-300"
-              }`}>
+                }`}>
               <div className="flex items-center gap-3">
                 <div
-                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                    vegMode
+                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${vegMode
                       ? "border-green-600 bg-green-600"
                       : "border-gray-300"
-                  }`}>
+                    }`}>
                   {vegMode && <Check className="h-3 w-3 text-white" />}
                 </div>
                 <div className="text-left">
@@ -985,16 +982,14 @@ export default function Profile() {
                 handleVegModeUpdate(false);
                 setVegModeOpen(false);
               }}
-              className={`w-full p-3 rounded-xl border-2 transition-all flex items-center justify-between ${
-                !vegMode
+              className={`w-full p-3 rounded-xl border-2 transition-all flex items-center justify-between ${!vegMode
                   ? "border-red-600 bg-red-50"
                   : "border-gray-200 bg-white hover:border-gray-300"
-              }`}>
+                }`}>
               <div className="flex items-center gap-3">
                 <div
-                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                    !vegMode ? "border-red-600 bg-red-600" : "border-gray-300"
-                  }`}>
+                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${!vegMode ? "border-red-600 bg-red-600" : "border-gray-300"
+                    }`}>
                   {!vegMode && <Check className="h-3 w-3 text-white" />}
                 </div>
                 <div className="text-left">
@@ -1026,17 +1021,15 @@ export default function Profile() {
                 setAppearance("light");
                 setAppearanceOpen(false);
               }}
-              className={`w-full p-3 rounded-xl border-2 transition-all flex items-center gap-3 ${
-                appearance === "light"
+              className={`w-full p-3 rounded-xl border-2 transition-all flex items-center gap-3 ${appearance === "light"
                   ? "border-blue-600 bg-blue-50 dark:border-blue-500 dark:bg-blue-900/20"
                   : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600"
-              }`}>
+                }`}>
               <div
-                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                  appearance === "light"
+                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${appearance === "light"
                     ? "border-blue-600 bg-blue-600 dark:border-blue-500 dark:bg-blue-500"
                     : "border-gray-300 dark:border-gray-600"
-                }`}>
+                  }`}>
                 {appearance === "light" && (
                   <Check className="h-3 w-3 text-white" />
                 )}
@@ -1056,17 +1049,15 @@ export default function Profile() {
                 setAppearance("dark");
                 setAppearanceOpen(false);
               }}
-              className={`w-full p-3 rounded-xl border-2 transition-all flex items-center gap-3 ${
-                appearance === "dark"
+              className={`w-full p-3 rounded-xl border-2 transition-all flex items-center gap-3 ${appearance === "dark"
                   ? "border-blue-600 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20"
                   : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600"
-              }`}>
+                }`}>
               <div
-                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                  appearance === "dark"
+                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${appearance === "dark"
                     ? "border-blue-600 bg-blue-600 dark:border-blue-500 dark:bg-blue-500"
                     : "border-gray-300 dark:border-gray-600"
-                }`}>
+                  }`}>
                 {appearance === "dark" && (
                   <Check className="h-3 w-3 text-white" />
                 )}

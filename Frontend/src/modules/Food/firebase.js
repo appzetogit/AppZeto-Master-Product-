@@ -36,8 +36,12 @@ let firebaseAuth;
 let googleProvider;
 let firebaseRealtimeDb;
 
-// Function to ensure Firebase is initialized
-function ensureFirebaseInitialized() {
+// Function to ensure Firebase is initialized.
+// By default we initialize Auth too (existing pages expect it),
+// but order-tracking/realtime usage can disable auth to avoid
+// identitytoolkit calls on pages that don't need Auth.
+function ensureFirebaseInitialized(options = {}) {
+  const { enableAuth = true, enableGoogleProvider = true, enableRealtimeDb = true } = options;
   try {
     const existingApps = getApps();
     if (existingApps.length === 0) {
@@ -52,27 +56,36 @@ function ensureFirebaseInitialized() {
       console.log('Firebase app already initialized, reusing existing instance');
     }
 
-    // Initialize Auth - ensure it's connected to the app
-    if (!firebaseAuth) {
-      firebaseAuth = getAuth(app);
+    // Initialize Auth only when required (prevents identitytoolkit calls on
+    // pages that only need realtime database, e.g. order tracking).
+    if (enableAuth) {
       if (!firebaseAuth) {
-        throw new Error('Failed to get Firebase Auth instance');
+        firebaseAuth = getAuth(app);
+        if (!firebaseAuth) {
+          throw new Error('Failed to get Firebase Auth instance');
+        }
+        console.log('Firebase Auth initialized successfully', {
+          appName: app?.name,
+          authAppName: firebaseAuth?.app?.name
+        });
       }
-      console.log('Firebase Auth initialized successfully', {
-        appName: app?.name,
-        authAppName: firebaseAuth?.app?.name
-      });
+
+      // Initialize Google Provider only if needed
+      if (enableGoogleProvider && !googleProvider) {
+        googleProvider = new GoogleAuthProvider();
+        // Scopes (email, profile) are usually default, removing explicit calls to avoid "not a function" error
+        console.log('Google Auth Provider initialized');
+      }
     }
 
-    // Initialize Google Provider
-    if (!googleProvider) {
-      googleProvider = new GoogleAuthProvider();
-      // Scopes (email, profile) are usually default, removing explicit calls to avoid "not a function" error
-      console.log('Google Auth Provider initialized');
+    if (enableRealtimeDb && !firebaseRealtimeDb) {
+      firebaseRealtimeDb = getDatabase(app);
     }
 
     if (!firebaseRealtimeDb) {
-      firebaseRealtimeDb = firebaseConfig.databaseURL ? getDatabase(app, firebaseConfig.databaseURL) : getDatabase(app);
+      firebaseRealtimeDb = firebaseConfig.databaseURL
+        ? getDatabase(app, firebaseConfig.databaseURL)
+        : getDatabase(app);
     }
   } catch (error) {
     console.error('Firebase initialization error:', error);
@@ -80,9 +93,6 @@ function ensureFirebaseInitialized() {
     throw error;
   }
 }
-
-// Initialize immediately
-ensureFirebaseInitialized();
 
 export const firebaseApp = app;
 export { firebaseAuth, googleProvider, firebaseRealtimeDb, ensureFirebaseInitialized };

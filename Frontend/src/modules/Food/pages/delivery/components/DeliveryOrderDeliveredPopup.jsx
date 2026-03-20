@@ -79,33 +79,85 @@ export default function DeliveryOrderDeliveredPopup({
             .toLowerCase()
             .trim();
           const isCod = m === "cash" || m === "cod" || m === "cash_on_delivery";
-          const total =
+          // `selectedRestaurant.total` is the customer payable amount (what rider collects for COD).
+          const customerTotal =
             Number(
               selectedRestaurant?.total ??
                 selectedRestaurant?.pricing?.total ??
                 selectedRestaurant?.payment?.amount ??
                 0,
             ) || 0;
-          if (!Number.isFinite(total) || total < 0) return null;
+
+          // `selectedRestaurant.amount` / `estimatedEarnings` is delivery-partner earnings.
+          const riderEarning =
+            Number(
+              selectedRestaurant?.amount ??
+                selectedRestaurant?.estimatedEarnings?.totalEarning ??
+                selectedRestaurant?.estimatedEarnings ??
+                0,
+            ) || 0;
+
+          if (
+            (!Number.isFinite(customerTotal) || customerTotal < 0) &&
+            (!Number.isFinite(riderEarning) || riderEarning < 0)
+          ) {
+            return null;
+          }
           return (
-            <div
-              className={`rounded-xl p-4 mb-6 ${
-                isCod
-                  ? "bg-amber-50 border border-amber-200"
-                  : "bg-emerald-50 border border-emerald-200"
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <IndianRupee className={`w-4 h-4 ${isCod ? "text-amber-600" : "text-emerald-600"}`} />
-                  <span className={`text-sm font-medium ${isCod ? "text-amber-800" : "text-emerald-800"}`}>
-                    {isCod ? "Collect from customer (COD)" : "Amount paid (Online)"}
-                  </span>
+            <div className="space-y-4 mb-6">
+              {/* Customer collection / payment */}
+              {Number.isFinite(customerTotal) && customerTotal >= 0 && (
+                <div
+                  className={`rounded-xl p-4 ${
+                    isCod
+                      ? "bg-amber-50 border border-amber-200"
+                      : "bg-emerald-50 border border-emerald-200"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <IndianRupee className={`w-4 h-4 ${isCod ? "text-amber-600" : "text-emerald-600"}`} />
+                      <span
+                        className={`text-sm font-medium ${
+                          isCod ? "text-amber-800" : "text-emerald-800"
+                        }`}
+                      >
+                        {isCod ? "Collect from customer (COD)" : "Amount paid (Online)"}
+                      </span>
+                    </div>
+                    <span
+                      className={`text-lg font-bold ${
+                        isCod ? "text-amber-700" : "text-emerald-700"
+                      }`}
+                    >
+                      ₹
+                      {customerTotal.toLocaleString("en-IN", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </span>
+                  </div>
                 </div>
-                <span className={`text-lg font-bold ${isCod ? "text-amber-700" : "text-emerald-700"}`}>
-                  ₹{total.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </div>
+              )}
+
+              {/* Rider earnings */}
+              {Number.isFinite(riderEarning) && riderEarning >= 0 && (
+                <div className="rounded-xl p-4 bg-gray-50 border border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <IndianRupee className="w-4 h-4 text-gray-700" />
+                      <span className="text-sm font-medium text-gray-800">Your earnings</span>
+                    </div>
+                    <span className="text-lg font-bold text-gray-900">
+                      ₹
+                      {riderEarning.toLocaleString("en-IN", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })()}

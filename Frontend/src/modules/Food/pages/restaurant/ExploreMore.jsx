@@ -33,7 +33,7 @@ import { Card, CardContent } from "@food/components/ui/card"
 import { DateRangeCalendar } from "@food/components/ui/date-range-calendar"
 import { clearModuleAuth, clearAuthData } from "@food/utils/auth"
 import { restaurantAPI } from "@food/api"
-import { firebaseAuth } from "@food/firebase"
+import { firebaseAuth, ensureFirebaseInitialized } from "@food/firebase"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -473,6 +473,8 @@ export default function ExploreMore() {
       // Sign out from Firebase if restaurant logged in via Google
       try {
         const { signOut } = await import("firebase/auth")
+        // Firebase Auth is lazy-initialized now; ensure it before accessing firebaseAuth.currentUser
+        ensureFirebaseInitialized({ enableAuth: true, enableRealtimeDb: false })
         const currentUser = firebaseAuth.currentUser
         if (currentUser) {
           await signOut(firebaseAuth)
@@ -535,6 +537,8 @@ export default function ExploreMore() {
       // Sign out from Firebase if restaurant logged in via Google
       try {
         const { signOut } = await import("firebase/auth")
+        // Firebase Auth is lazy-initialized now; ensure it before accessing firebaseAuth.currentUser
+        ensureFirebaseInitialized({ enableAuth: true, enableRealtimeDb: false })
         const currentUser = firebaseAuth.currentUser
         if (currentUser) {
           await signOut(firebaseAuth)

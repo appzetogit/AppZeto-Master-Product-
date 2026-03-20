@@ -281,32 +281,99 @@ export const getDeliveryPartnerWallet = async (deliveryPartnerId) => {
     const totalCashLimit = Number(cashLimitSettings.deliveryCashLimit) || 0;
     const deliveryWithdrawalLimit = Number(cashLimitSettings.deliveryWithdrawalLimit) || 100;
 
+    const partnerId = new mongoose.Types.ObjectId(deliveryPartnerId);
+
+    // Earnings paid to rider through completed deliveries
+    const [earningsAgg, cashAgg] = await Promise.all([
+        FoodOrder.aggregate([
+            {
+                $match: {
+                    'dispatch.deliveryPartnerId': partnerId,
+                    orderStatus: 'delivered',
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    totalEarned: { $sum: { $ifNull: ['$riderEarning', 0] } }
+                }
+            }
+        ]),
+        FoodOrder.aggregate([
+            {
+                $match: {
+                    'dispatch.deliveryPartnerId': partnerId,
+                    orderStatus: 'delivered',
+                    'payment.method': 'cash',
+                    'payment.status': 'paid'
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    cashInHand: { $sum: { $ifNull: ['$riderEarning', 0] } }
+                }
+            }
+        ])
+    ]);
+
+    const totalEarned = Number(earningsAgg?.[0]?.totalEarned) || 0;
+    const cashInHand = Number(cashAgg?.[0]?.cashInHand) || 0;
+
+    // Admin-set delivery bonuses / earning addons
     const bonusAgg = await DeliveryBonusTransaction.aggregate([
-        { $match: { deliveryPartnerId: new mongoose.Types.ObjectId(deliveryPartnerId) } },
+        { $match: { deliveryPartnerId: partnerId } },
         { $group: { _id: null, total: { $sum: '$amount' } } }
     ]);
-    const totalBonus = bonusAgg[0] ? Number(bonusAgg[0].total) : 0;
+    const totalBonus = bonusAgg?.[0] ? Number(bonusAgg[0].total) : 0;
 
-    const partnerId = new mongoose.Types.ObjectId(deliveryPartnerId);
-    const bonusTxList = await DeliveryBonusTransaction.find({ deliveryPartnerId: partnerId })
-        .sort({ createdAt: -1 })
-        .limit(100)
-        .lean();
+    // Keep transactions list reasonably small (UI only needs recent data for charts)
+    const [paymentTxList, bonusTxList] = await Promise.all([
+        FoodOrder.find({
+            'dispatch.deliveryPartnerId': partnerId,
+            orderStatus: 'delivered',
+        })
+            .sort({ 'deliveryState.deliveredAt': -1, createdAt: -1 })
+            .select('orderId riderEarning payment orderStatus deliveryState createdAt deliveryState.deliveredAt')
+            .limit(2000)
+            .lean(),
+        DeliveryBonusTransaction.find({ deliveryPartnerId: partnerId })
+            .sort({ createdAt: -1 })
+            .limit(1000)
+            .lean(),
+    ]);
 
-    const transactions = (bonusTxList || []).map((t) => ({
+    const paymentTransactions = (paymentTxList || []).map((o) => {
+        const deliveredAt = o?.deliveryState?.deliveredAt || o?.deliveredAt || null;
+        const date = deliveredAt || o?.createdAt || new Date();
+        return {
+            _id: o._id,
+            type: 'payment',
+            amount: Number(o.riderEarning) || 0,
+            status: 'Completed',
+            date,
+            createdAt: date,
+            orderId: o.orderId || String(o._id),
+            paymentMethod: o?.payment?.method || '',
+            metadata: { orderId: o.orderId || String(o._id) },
+            description: o?.payment?.method === 'cash' ? 'COD delivery earning' : 'Online delivery earning'
+        };
+    });
+
+    // Frontend weekly earnings expects bonus transactions as `earning_addon`.
+    const bonusTransactions = (bonusTxList || []).map((t) => ({
         _id: t._id,
-        type: 'bonus',
-        amount: t.amount,
+        type: 'earning_addon',
+        amount: Number(t.amount) || 0,
         status: 'Completed',
         date: t.createdAt,
         createdAt: t.createdAt,
+        metadata: { reference: t.reference || '' },
         description: t.reference ? `Bonus - ${t.reference}` : 'Bonus'
     }));
 
-    const totalBalance = totalBonus;
-    const cashInHand = 0;
     const totalWithdrawn = 0;
-    const totalEarned = 0;
+    const totalBalance = totalEarned + totalBonus;
     const availableCashLimit = Math.max(0, totalCashLimit - cashInHand);
 
     return {
@@ -318,7 +385,11 @@ export const getDeliveryPartnerWallet = async (deliveryPartnerId) => {
         totalCashLimit,
         availableCashLimit,
         deliveryWithdrawalLimit,
-        transactions,
+        transactions: [...paymentTransactions, ...bonusTransactions].sort((a, b) => {
+            const ad = a?.date ? new Date(a.date).getTime() : 0;
+            const bd = b?.date ? new Date(b.date).getTime() : 0;
+            return bd - ad;
+        }),
         joiningBonusClaimed: false,
         joiningBonusAmount: 0
     };
@@ -329,21 +400,66 @@ export const getDeliveryPartnerEarnings = async (deliveryPartnerId, query = {}) 
     if (!deliveryPartnerId || !mongoose.Types.ObjectId.isValid(deliveryPartnerId)) {
         throw new ValidationError('Delivery partner not found');
     }
-    const period = query.period || 'week';
+    const period = String(query.period || 'week').toLowerCase();
     const date = query.date ? new Date(query.date) : new Date();
     const page = Math.max(parseInt(query.page, 10) || 1, 1);
     const limit = Math.min(Math.max(parseInt(query.limit, 10) || 50, 1), 1000);
 
+    const partnerId = new mongoose.Types.ObjectId(deliveryPartnerId);
+
+    let range = null;
+    if (period === 'today') {
+        range = { start: toStartOfDay(date), end: toEndOfDay(date) };
+    } else if (period === 'week') {
+        range = getWeekRange(date);
+    } else if (period === 'month') {
+        range = getMonthRange(date);
+    } else if (period === 'all') {
+        range = null;
+    } else {
+        // fallback to week
+        range = getWeekRange(date);
+    }
+
+    const match = {
+        'dispatch.deliveryPartnerId': partnerId,
+        orderStatus: 'delivered',
+    };
+    if (range) {
+        match['deliveryState.deliveredAt'] = { $gte: range.start, $lte: range.end };
+    }
+
+    const [totalOrders, agg] = await Promise.all([
+        FoodOrder.countDocuments(match),
+        FoodOrder.aggregate([
+            { $match: match },
+            {
+                $group: {
+                    _id: null,
+                    totalEarnings: { $sum: { $ifNull: ['$riderEarning', 0] } }
+                }
+            }
+        ])
+    ]);
+
+    const totalEarnings = Number(agg?.[0]?.totalEarnings) || 0;
+
+    // Frontend only strongly relies on totalEarnings + totalOrders.
     const summary = {
-        totalEarnings: 0,
-        totalOrders: 0
+        totalEarnings,
+        totalOrders,
+        totalHours: 0,
+        totalMinutes: 0,
+        orderEarning: totalEarnings,
+        incentive: 0,
+        otherEarnings: 0
     };
 
     return {
         summary,
         period,
         date: date.toISOString(),
-        pagination: { page, limit, total: 0 }
+        pagination: { page, limit, total: totalOrders }
     };
 };
 
@@ -396,30 +512,51 @@ const computeRange = (period, date) => {
 
 const toTripDto = (order) => {
     const createdAt = order?.createdAt || null;
-    const deliveredAt = order?.deliveredAt || order?.completedAt || null;
-    const dateForUi = deliveredAt || createdAt;
+    const deliveredAt = order?.deliveryState?.deliveredAt || order?.deliveredAt || order?.completedAt || null;
+    const dateForUi = deliveredAt || createdAt || order?.updatedAt || null;
+
     const time = dateForUi
         ? new Date(dateForUi).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
         : '';
+
+    const orderStatus = String(order?.orderStatus || order?.status || '').toLowerCase();
+    const isDelivered = orderStatus === 'delivered' || String(order?.deliveryState?.currentPhase || '').toLowerCase() === 'delivered';
+    const isCancelled = orderStatus.startsWith('cancelled') || String(order?.deliveryState?.status || '').toLowerCase().includes('cancel');
+
+    const status = isDelivered ? 'Completed' : isCancelled ? 'Cancelled' : 'Pending';
+
+    const restaurantName =
+        order?.restaurantId?.restaurantName ||
+        order?.restaurantName ||
+        order?.restaurant?.restaurantName ||
+        '';
+
+    const paymentMethod = order?.payment?.method || order?.paymentMethod || '';
+    const pricingTotal = Number(order?.pricing?.total) || Number(order?.totalAmount) || 0;
+
+    const earningAmount = Number(order?.riderEarning ?? order?.deliveryEarning ?? 0) || 0;
+    const codAmount = paymentMethod === 'cash' ? Number(order?.payment?.amountDue) || 0 : 0;
+    const codCollectedAmount = paymentMethod === 'cash' && order?.payment?.status === 'paid' ? codAmount : 0;
     return {
         id: order?._id,
         _id: order?._id,
         orderId: order?.orderId || order?._id,
-        status: order?.status || 'Pending',
-        restaurantName: order?.restaurantName || '',
-        restaurant: order?.restaurantName || '',
+        status,
+        restaurantName,
+        restaurant: restaurantName,
         items: order?.items || order?.orderItems || [],
         orderItems: order?.orderItems || order?.items || [],
-        paymentMethod: order?.paymentMethod || '',
-        totalAmount: order?.totalAmount || 0,
-        orderTotal: order?.totalAmount || 0,
-        codAmount: order?.codAmount || 0,
-        codCollectedAmount: order?.codAmount || 0,
-        deliveryEarning: order?.deliveryEarning || 0,
-        earningAmount: order?.deliveryEarning || 0,
+        paymentMethod,
+        totalAmount: pricingTotal,
+        orderTotal: pricingTotal,
+        codAmount: codAmount,
+        codCollectedAmount,
+        deliveryEarning: earningAmount,
+        earningAmount: earningAmount,
+        amount: earningAmount, // legacy fallback
         createdAt: order?.createdAt,
-        deliveredAt: order?.deliveredAt,
-        completedAt: order?.completedAt,
+        deliveredAt: deliveredAt,
+        completedAt: deliveredAt,
         date: dateForUi,
         time
     };
@@ -436,22 +573,31 @@ export const getDeliveryPartnerTripHistory = async (deliveryPartnerId, query = {
 
     const { start, end } = computeRange(period, date);
 
-    const match = {
-        deliveryPartnerId: new mongoose.Types.ObjectId(deliveryPartnerId),
-        createdAt: { $gte: start, $lte: end }
-    };
+    const partnerId = new mongoose.Types.ObjectId(deliveryPartnerId);
+    const match = { 'dispatch.deliveryPartnerId': partnerId };
 
-    // If completed filter, use deliveredAt window when available.
-    if (statusFilter && String(statusFilter).toLowerCase() === 'completed') {
-        delete match.createdAt;
-        match.status = 'Completed';
-        match.deliveredAt = { $gte: start, $lte: end };
-    } else if (statusFilter) {
-        match.status = statusFilter;
+    const sf = String(statusFilter || '').toLowerCase();
+    if (sf === 'completed') {
+        match.orderStatus = 'delivered';
+        match['deliveryState.deliveredAt'] = { $gte: start, $lte: end };
+    } else if (sf === 'cancelled') {
+        match.orderStatus = { $regex: '^cancelled', $options: 'i' };
+        match.createdAt = { $gte: start, $lte: end };
+    } else if (sf === 'pending') {
+        match.createdAt = { $gte: start, $lte: end };
+        // Pending = not delivered and not cancelled
+        match.$and = [
+            { orderStatus: { $ne: 'delivered' } },
+            { orderStatus: { $not: { $regex: '^cancelled', $options: 'i' } } },
+        ];
+    } else {
+        // ALL TRIPS: show anything created in range, and compute earnings only for delivered orders.
+        match.createdAt = { $gte: start, $lte: end };
     }
 
     const orders = await FoodOrder.find(match)
-        .sort({ deliveredAt: -1, createdAt: -1 })
+        .populate({ path: 'restaurantId', select: 'restaurantName' })
+        .sort({ 'deliveryState.deliveredAt': -1, createdAt: -1 })
         .limit(limit)
         .lean();
 
@@ -474,11 +620,12 @@ export const getDeliveryPocketDetails = async (deliveryPartnerId, query = {}) =>
     const partnerId = new mongoose.Types.ObjectId(deliveryPartnerId);
 
     const orders = await FoodOrder.find({
-        deliveryPartnerId: partnerId,
-        status: 'Completed',
-        deliveredAt: { $gte: start, $lte: end }
+        'dispatch.deliveryPartnerId': partnerId,
+        orderStatus: 'delivered',
+        'deliveryState.deliveredAt': { $gte: start, $lte: end }
     })
-        .sort({ deliveredAt: -1 })
+        .populate({ path: 'restaurantId', select: 'restaurantName' })
+        .sort({ 'deliveryState.deliveredAt': -1 })
         .limit(limit)
         .lean();
 
@@ -495,13 +642,13 @@ export const getDeliveryPocketDetails = async (deliveryPartnerId, query = {}) =>
     const paymentTransactions = (orders || []).map((o) => ({
         _id: o._id,
         type: 'payment',
-        amount: Number(o.deliveryEarning) || 0,
+        amount: Number(o.riderEarning) || 0,
         status: 'Completed',
-        date: o.deliveredAt || o.completedAt || o.createdAt,
-        createdAt: o.deliveredAt || o.completedAt || o.createdAt,
+        date: o?.deliveryState?.deliveredAt || o?.deliveredAt || o?.createdAt,
+        createdAt: o?.deliveryState?.deliveredAt || o?.deliveredAt || o?.createdAt,
         orderId: o.orderId || String(o._id),
         metadata: { orderId: o.orderId || String(o._id) },
-        description: o.restaurantName ? `Order earning - ${o.restaurantName}` : 'Order earning'
+        description: o?.restaurantId?.restaurantName ? `Order earning - ${o.restaurantId.restaurantName}` : 'Order earning'
     }));
 
     const bonusTransactions = (bonusTxList || []).map((t) => ({

@@ -15,6 +15,8 @@ import { buildPaginationOptions, buildPaginatedResult } from '../../../utils/hel
 import { FoodOffer } from '../admin/models/offer.model.js';
 import { FoodOfferUsage } from '../admin/models/offerUsage.model.js';
 import { FoodDeliveryCommissionRule } from '../admin/models/deliveryCommissionRule.model.js';
+import { FoodRestaurantCommission } from '../admin/models/restaurantCommission.model.js';
+import { FoodRestaurantCommissionLedger } from './models/restaurantCommissionLedger.model.js';
 import {
     createRazorpayOrder,
     createPaymentLink,
@@ -26,6 +28,9 @@ import {
 } from './razorpay.helper.js';
 import { getIO, rooms } from '../../../config/socket.js';
 import { addOrderJob } from '../../../queues/producers/order.producer.js';
+import { addPaymentJob } from '../../../queues/producers/payment.producer.js';
+import { createPayment as createPaymentRecord, markPaymentSuccess as markPaymentRecordSuccess } from '../../../core/payments/payment.service.js';
+import { creditWallet } from '../../../core/payments/wallet.service.js';
 
 const ORDER_ID_PREFIX = 'FOD-';
 const ORDER_ID_LENGTH = 6;
@@ -225,6 +230,62 @@ async function appendOrderPaymentLedger(orderDoc, kind, extra = {}) {
         const detail = err?.errors ? JSON.stringify(err.errors) : '';
         logger.error(
             `appendOrderPaymentLedger failed (${kind}): ${err?.message || err} ${detail}`.trim()
+        );
+    }
+}
+
+async function upsertRestaurantCommissionLedger(orderDoc) {
+    try {
+        if (!orderDoc?._id || !orderDoc?.restaurantId) return;
+        // Idempotency: only insert once per order; we snapshot amounts for finance accuracy.
+        const baseAmount = Math.max(0, Number(orderDoc?.pricing?.subtotal ?? 0) || 0);
+        if (!Number.isFinite(baseAmount)) return;
+
+        const commissionRule = await FoodRestaurantCommission.findOne({
+            restaurantId: orderDoc.restaurantId,
+            status: { $ne: false }
+        }).lean();
+
+        const commissionType = commissionRule?.defaultCommission?.type || 'percentage';
+        const commissionValue = Math.max(0, Number(commissionRule?.defaultCommission?.value ?? 0) || 0);
+
+        let commissionAmount = 0;
+        if (commissionType === 'percentage') {
+            commissionAmount = baseAmount * (commissionValue / 100);
+        } else if (commissionType === 'amount') {
+            commissionAmount = commissionValue;
+        }
+
+        // Round to 2 decimals for currency, then clamp.
+        commissionAmount = Math.round((commissionAmount || 0) * 100) / 100;
+        commissionAmount = Math.max(0, Math.min(commissionAmount, baseAmount));
+
+        await FoodRestaurantCommissionLedger.updateOne(
+            { orderId: orderDoc._id },
+            {
+                $setOnInsert: {
+                    orderId: orderDoc._id,
+                    orderReadableId: orderDoc.orderId,
+                    restaurantId: orderDoc.restaurantId,
+                    baseAmount,
+                    gstAmount: Math.max(0, Number(orderDoc?.pricing?.tax ?? 0) || 0),
+                    platformFee: Math.max(0, Number(orderDoc?.pricing?.platformFee ?? 0) || 0),
+                    deliveryFee: Math.max(0, Number(orderDoc?.pricing?.deliveryFee ?? 0) || 0),
+                    deliveryEarning: Math.max(0, Number(orderDoc?.riderEarning ?? 0) || 0),
+                    commissionType,
+                    commissionValue,
+                    commissionAmount,
+                    payout: commissionAmount, // hub-finance payout = commissionAmount
+                    orderTotal: Math.max(0, Number(orderDoc?.pricing?.total ?? 0) || 0),
+                    status: 'posted',
+                    postedAt: new Date()
+                }
+            },
+            { upsert: true }
+        );
+    } catch (err) {
+        logger.error(
+            `upsertRestaurantCommissionLedger failed: ${err?.message || err} orderId=${orderDoc?.orderId || ''}`
         );
     }
 }
@@ -590,6 +651,21 @@ export async function createOrder(userId, dto) {
         });
     }
 
+    // ─── New Payment System: Create Payment record ───
+    try {
+        await createPaymentRecord({
+            orderId: order._id,
+            userId,
+            amount: normalizedPricing.total,
+            method: paymentMethod,
+            gateway: paymentMethod === 'razorpay' ? 'razorpay' : 'none',
+            gatewayOrderId: order.payment?.razorpay?.orderId || '',
+            metadata: { orderId: order.orderId, dispatchMode }
+        });
+    } catch (err) {
+        logger.warn(`New Payment record creation failed (non-blocking): ${err?.message || err}`);
+    }
+
     // Real-time: notify restaurant instantly (Zomato-style).
     try {
         const io = getIO();
@@ -739,6 +815,24 @@ export async function verifyPayment(userId, dto) {
         paymentMethod: order.payment?.method,
         paymentStatus: order.payment?.status
     });
+
+    // ─── New Payment System: Mark Payment record as success ───
+    try {
+        const { Payment } = await import('../../../core/payments/models/payment.model.js');
+        const paymentRecord = await Payment.findOne({
+            orderId: order._id,
+            status: { $ne: 'success' }
+        });
+        if (paymentRecord) {
+            await markPaymentRecordSuccess(paymentRecord._id, {
+                gatewayPaymentId: dto.razorpayPaymentId,
+                rawResponse: { razorpayStatus: rzStatus, amountPaise: expectedAmountPaise }
+            });
+        }
+    } catch (err) {
+        logger.warn(`Payment record update failed (non-blocking): ${err?.message || err}`);
+    }
+
     return { order: order.toObject(), payment: order.payment };
 }
 
@@ -889,6 +983,33 @@ export async function cancelOrder(orderId, userId, reason) {
         userId,
         reason: reason || ''
     });
+
+    // ─── New Payment System: Trigger refund if payment was already processed ───
+    if (order.payment?.status === 'paid' && (order.payment?.method === 'wallet' || order.payment?.method === 'razorpay')) {
+        try {
+            const { Payment } = await import('../../../core/payments/models/payment.model.js');
+            const paymentRecord = await Payment.findOne({
+                orderId: order._id,
+                status: 'success'
+            }).lean();
+
+            if (paymentRecord) {
+                await addPaymentJob({
+                    action: 'order_cancelled',
+                    orderMongoId: order._id?.toString?.(),
+                    paymentId: paymentRecord._id?.toString?.(),
+                    paymentMethod: order.payment.method,
+                    paymentStatus: 'success',
+                    userId,
+                    amount: paymentRecord.amount || order.pricing?.total || 0,
+                    reason: reason || 'Order cancelled by user'
+                });
+            }
+        } catch (err) {
+            logger.warn(`Refund job enqueue failed (non-blocking): ${err?.message || err}`);
+        }
+    }
+
     return order.toObject();
 }
 
@@ -1423,6 +1544,10 @@ export async function completeDelivery(orderId, deliveryPartnerId) {
     });
     await order.save();
 
+    // Persist restaurant commission payout (commissionAmount = payout) for hub-finance.
+    // This is only executed inside `completeDelivery`, so it posts after delivered+paid gates.
+    await upsertRestaurantCommissionLedger(order);
+
     // Avoid double ledger rows for QR COD:
     // - syncRazorpayQrPayment already records `payment_snapshot_sync` when it flips to `paid`.
     const shouldSkipQrLedger = payMethod === 'razorpay_qr' && prevPayStatus !== 'paid';
@@ -1447,6 +1572,41 @@ export async function completeDelivery(orderId, deliveryPartnerId) {
         prevPayStatus,
         paymentStatus: order.payment?.status
     });
+
+    // ─── New Payment System: Enqueue post-delivery financial settlement ───
+    try {
+        // Fetch commission for the restaurant
+        const commissionRule = await FoodRestaurantCommission.findOne({
+            restaurantId: order.restaurantId,
+            status: { $ne: false }
+        }).lean();
+        const commType = commissionRule?.defaultCommission?.type || 'percentage';
+        const commValue = Math.max(0, Number(commissionRule?.defaultCommission?.value ?? 0) || 0);
+        const baseAmount = Math.max(0, Number(order?.pricing?.subtotal ?? 0) || 0);
+        let commissionAmount = 0;
+        if (commType === 'percentage') {
+            commissionAmount = Math.round((baseAmount * (commValue / 100)) * 100) / 100;
+        } else {
+            commissionAmount = commValue;
+        }
+        commissionAmount = Math.max(0, Math.min(commissionAmount, baseAmount));
+
+        await addPaymentJob({
+            action: 'delivery_completed',
+            orderMongoId: order._id?.toString?.(),
+            orderId: order.orderId,
+            restaurantId: order.restaurantId?.toString?.(),
+            deliveryPartnerId: deliveryPartnerId?.toString?.(),
+            riderEarning: order.riderEarning || 0,
+            platformProfit: order.platformProfit || 0,
+            commissionAmount,
+            total: order.pricing?.total || 0,
+            paymentMethod: payMethod
+        });
+    } catch (err) {
+        logger.warn(`Payment settlement job enqueue failed (non-blocking): ${err?.message || err}`);
+    }
+
     return order.toObject();
 }
 

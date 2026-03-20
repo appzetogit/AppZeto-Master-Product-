@@ -49,6 +49,15 @@ export async function recordFoodOrderPaymentEvent(payload) {
     if (payload.pricingSnapshot && typeof payload.pricingSnapshot === 'object') {
         doc.pricingSnapshot = payload.pricingSnapshot;
     }
+
+    if (payload.restaurantCommissionAmount != null) {
+        doc.restaurantCommissionAmount = Number(payload.restaurantCommissionAmount) || 0;
+    }
+
+    if (payload.deliveryBoyEarning != null) {
+        doc.deliveryBoyEarning = Number(payload.deliveryBoyEarning) || 0;
+    }
+
     if (payload.razorpay && typeof payload.razorpay === 'object' && Object.keys(payload.razorpay).length > 0) {
         doc.razorpay = payload.razorpay;
     }

@@ -769,38 +769,12 @@ export const restaurantAPI = {
       contextModule: "restaurant",
       ...config,
     }),
-  /** Finance dashboard (stubbed if backend doesn't provide endpoint). */
-  getFinance: (params = {}) => {
-    // NOTE: Backend may not have a /food/restaurant/finance endpoint.
-    // This stub provides a consistent response shape so the UI can render.
-    // Replace with a real endpoint if/when available.
-    const fakeData = {
-      success: true,
-      data: {
-        restaurant: {
-          name: "Your Restaurant",
-          restaurantId: "REST000001",
-          address: "Your address",
-        },
-        currentCycle: {
-          estimatedPayout: 0,
-          totalOrders: 0,
-          orders: [],
-          payoutDate: null,
-          start: "15",
-          end: "21",
-          month: "Dec",
-          year: "25",
-        },
-        pastCycles: {
-          orders: [],
-          totalOrders: 0,
-        },
-      },
-    };
-
-    return Promise.resolve({ data: fakeData });
-  },
+  /** Finance dashboard for `hub-finance`. */
+  getFinance: (params = {}) =>
+    apiClient.get("/food/restaurant/finance", {
+      contextModule: "restaurant",
+      params: params || {},
+    }),
   /** Fetch restaurant by owner (stub for missing backend endpoint). */
   getRestaurantByOwner: () =>
     Promise.resolve({

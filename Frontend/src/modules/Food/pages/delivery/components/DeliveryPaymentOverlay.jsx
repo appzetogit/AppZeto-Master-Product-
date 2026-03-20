@@ -347,16 +347,12 @@ export default function DeliveryPaymentOverlay({
                         <button
                           type="button"
                           onClick={() => {
-                            try {
-                              navigator.clipboard?.writeText(String(collectQrLink));
-                              toast.success("Payment link copied");
-                            } catch {
-                              toast.error("Failed to copy link");
-                            }
+                            toast.info("Verifying payment...");
+                            pollAndAutoComplete();
                           }}
-                          className="flex-1 h-11 rounded-xl border border-gray-300 text-gray-800 font-semibold"
+                          className="flex-1 h-11 rounded-xl border border-amber-600 bg-amber-50 text-amber-800 font-semibold"
                         >
-                          Copy link
+                          Verify
                         </button>
                       </div>
                     </div>
@@ -438,16 +434,12 @@ export default function DeliveryPaymentOverlay({
                   <button
                     type="button"
                     onClick={() => {
-                      try {
-                        navigator.clipboard?.writeText(String(collectQrLink));
-                        toast.success("Payment link copied");
-                      } catch {
-                        toast.error("Failed to copy link");
-                      }
+                      toast.info("Verifying payment...");
+                      pollAndAutoComplete();
                     }}
-                    className="flex-1 h-11 rounded-xl border border-gray-300 text-gray-800 font-semibold"
+                    className="flex-1 h-11 rounded-xl border border-amber-600 bg-amber-50 text-amber-800 font-semibold"
                   >
-                    Copy
+                    Verify
                   </button>
                 </div>
               </div>

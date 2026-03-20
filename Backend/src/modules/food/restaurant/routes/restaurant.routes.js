@@ -37,6 +37,7 @@ import {
 import * as orderController from '../../orders/controllers/order.controller.js';
 import { authMiddleware } from '../../../../core/auth/auth.middleware.js';
 import { sendError } from '../../../../utils/response.js';
+import { getRestaurantFinanceController } from '../controllers/restaurantFinance.controller.js';
 
 const router = express.Router();
 
@@ -72,6 +73,7 @@ router.patch('/profile', authMiddleware, requireRestaurant, updateRestaurantProf
 router.patch('/availability', authMiddleware, requireRestaurant, updateRestaurantAcceptingOrdersController);
 router.get('/outlet-timings', authMiddleware, requireRestaurant, getCurrentRestaurantOutletTimingsController);
 router.put('/outlet-timings', authMiddleware, requireRestaurant, upsertCurrentRestaurantOutletTimingsController);
+router.get('/finance', authMiddleware, requireRestaurant, getRestaurantFinanceController);
 router.post(
     '/profile/profile-image',
     authMiddleware,

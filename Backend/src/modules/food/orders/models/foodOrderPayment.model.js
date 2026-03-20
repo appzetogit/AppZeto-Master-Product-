@@ -99,6 +99,11 @@ const foodOrderPaymentSchema = new mongoose.Schema(
 
         pricingSnapshot: { type: pricingSnapshotSchema, default: undefined },
 
+        // Restaurant commission and delivery boy earning snapshot for this order event.
+        // Base for % commission is `pricingSnapshot.subtotal` (order.pricing.subtotal).
+        restaurantCommissionAmount: { type: Number, default: 0, min: 0 },
+        deliveryBoyEarning: { type: Number, default: 0, min: 0 },
+
         razorpay: { type: razorpaySnapshotSchema, default: undefined },
         qr: { type: qrSnapshotSchema, default: undefined },
 

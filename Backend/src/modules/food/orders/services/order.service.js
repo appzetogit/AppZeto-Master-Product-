@@ -15,11 +15,13 @@ import { buildPaginationOptions, buildPaginatedResult } from '../../../../utils/
 import { FoodOffer } from '../../admin/models/offer.model.js';
 import { FoodOfferUsage } from '../../admin/models/offerUsage.model.js';
 import { FoodDeliveryCommissionRule } from '../../admin/models/deliveryCommissionRule.model.js';
+import { FoodRestaurantCommission } from '../../admin/models/restaurantCommission.model.js';
 import {
   sendNotificationToOwner,
   sendNotificationToOwners,
 } from "../../../../core/notifications/firebase.service.js";
 import { FoodOrderPayment } from '../models/foodOrderPayment.model.js';
+import { FoodRestaurantCommissionLedger } from '../models/restaurantCommissionLedger.model.js';
 import {
     createRazorpayOrder,
     createPaymentLink,
@@ -204,6 +206,136 @@ async function getActiveCommissionRules() {
   return commissionRulesCache;
 }
 
+const RESTAURANT_COMMISSION_CACHE_MS = 10 * 1000;
+let restaurantCommissionRulesCache = null;
+let restaurantCommissionRulesLoadedAt = 0;
+
+async function getActiveRestaurantCommissionRules() {
+  const now = Date.now();
+  if (
+    restaurantCommissionRulesCache &&
+    now - restaurantCommissionRulesLoadedAt < RESTAURANT_COMMISSION_CACHE_MS
+  ) {
+    return restaurantCommissionRulesCache;
+  }
+
+  const list = await FoodRestaurantCommission.find({
+    status: { $ne: false },
+  }).lean();
+  restaurantCommissionRulesCache = list || [];
+  restaurantCommissionRulesLoadedAt = now;
+  return restaurantCommissionRulesCache;
+}
+
+function computeRestaurantCommissionAmount(baseAmount, rule) {
+  const safeBase = Math.max(0, Number(baseAmount) || 0);
+  if (!Number.isFinite(safeBase) || safeBase < 0) return 0;
+
+  const commissionType = rule?.defaultCommission?.type || 'percentage';
+  const commissionValue = Math.max(
+    0,
+    Number(rule?.defaultCommission?.value ?? 0) || 0
+  );
+
+  let commissionAmount = 0;
+  if (commissionType === 'percentage') {
+    commissionAmount = safeBase * (commissionValue / 100);
+  } else if (commissionType === 'amount') {
+    commissionAmount = commissionValue;
+  }
+
+  // Round to 2 decimals and clamp to [0, base]
+  commissionAmount = Math.round((commissionAmount || 0) * 100) / 100;
+  commissionAmount = Math.max(0, Math.min(commissionAmount, safeBase));
+
+  return { commissionAmount, commissionType, commissionValue, baseAmount: safeBase };
+}
+
+async function getRestaurantCommissionSnapshot(orderDoc) {
+  const baseAmount = Number(orderDoc?.pricing?.subtotal ?? 0) || 0;
+  const restaurantIdRaw =
+    orderDoc?.restaurantId?._id ?? orderDoc?.restaurantId ?? null;
+
+  if (!restaurantIdRaw) {
+    return {
+      commissionAmount: 0,
+      commissionType: 'percentage',
+      commissionValue: 0,
+      baseAmount,
+    };
+  }
+
+  const rules = await getActiveRestaurantCommissionRules();
+  const rule =
+    rules.find(
+      (r) => String(r.restaurantId) === String(restaurantIdRaw)
+    ) || null;
+
+  if (!rule) {
+    return {
+      commissionAmount: 0,
+      commissionType: 'percentage',
+      commissionValue: 0,
+      baseAmount,
+    };
+  }
+
+  return computeRestaurantCommissionAmount(baseAmount, rule);
+}
+
+async function upsertRestaurantCommissionLedger(orderDoc) {
+  try {
+    if (!orderDoc?._id || !orderDoc?.restaurantId) return;
+
+    const {
+      commissionAmount,
+      commissionType,
+      commissionValue,
+      baseAmount,
+    } = await getRestaurantCommissionSnapshot(orderDoc);
+
+    await FoodRestaurantCommissionLedger.updateOne(
+      { orderId: orderDoc._id },
+      {
+        $setOnInsert: {
+          orderId: orderDoc._id,
+          orderReadableId: orderDoc.orderId,
+          restaurantId: orderDoc.restaurantId,
+          baseAmount,
+          gstAmount: Math.max(0, Number(orderDoc?.pricing?.tax ?? 0) || 0),
+          platformFee: Math.max(
+            0,
+            Number(orderDoc?.pricing?.platformFee ?? 0) || 0
+          ),
+          deliveryFee: Math.max(
+            0,
+            Number(orderDoc?.pricing?.deliveryFee ?? 0) || 0
+          ),
+          deliveryEarning: Math.max(
+            0,
+            Number(orderDoc?.riderEarning ?? 0) || 0
+          ),
+          commissionType,
+          commissionValue,
+          commissionAmount,
+          payout: commissionAmount, // payout shown on hub-finance
+          orderTotal: Math.max(
+            0,
+            Number(orderDoc?.pricing?.total ?? 0) || 0
+          ),
+          status: 'posted',
+          postedAt: new Date(),
+        },
+      },
+      { upsert: true }
+    );
+  } catch (err) {
+    logger.error(
+      `upsertRestaurantCommissionLedger failed: ${err?.message || err} orderId=${orderDoc?.orderId || ''}`
+    );
+  }
+}
+
 async function getRiderEarning(distanceKm) {
   const d = Number(distanceKm);
   if (!Number.isFinite(d) || d <= 0) return 0;
@@ -239,6 +371,8 @@ async function getRiderEarning(distanceKm) {
 async function appendOrderPaymentLedger(orderDoc, kind, extra = {}) {
   try {
     const snap = paymentSnapshotFromOrder(orderDoc);
+    const restaurantSnap = await getRestaurantCommissionSnapshot(orderDoc);
+    const deliveryBoyEarning = Number(orderDoc?.riderEarning ?? 0) || 0;
     await recordFoodOrderPaymentEvent({
       orderId: orderDoc._id,
       userId: orderDoc.userId,
@@ -250,6 +384,8 @@ async function appendOrderPaymentLedger(orderDoc, kind, extra = {}) {
       currency: snap.currency,
       amountDue: snap.amountDue,
       pricingSnapshot: snap.pricingSnapshot,
+      restaurantCommissionAmount: restaurantSnap.commissionAmount,
+      deliveryBoyEarning,
       razorpay: snap.razorpay,
       qr: snap.qr,
       metadata: extra.metadata,
@@ -1840,6 +1976,9 @@ export async function completeDelivery(orderId, deliveryPartnerId) {
   });
   await order.save();
 
+  // Post restaurant commission ledger (idempotent) so hub-finance can sum it.
+  await upsertRestaurantCommissionLedger(order);
+
   const ledgerKind =
     payMethod === "cash" && prevPayStatus === "cod_pending"
       ? "cod_marked_paid_on_delivery"
@@ -2002,7 +2141,7 @@ export async function createCollectQr(
     },
   });
 
-    const updated = await FoodOrder.findById(orderId).select('orderId userId payment pricing').lean();
+    const updated = await FoodOrder.findById(orderId).select('orderId restaurantId userId riderEarning payment pricing').lean();
     if (updated) {
         await appendOrderPaymentLedger(updated, 'cod_collect_qr_created', {
             recordedByRole: 'DELIVERY_PARTNER',

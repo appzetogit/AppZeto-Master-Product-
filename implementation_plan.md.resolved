@@ -1,0 +1,291 @@
+# Payment System Architecture — Implementation Plan
+
+## Background & Problem
+
+The existing backend has:
+- **[FoodOrderPayment](file:///c:/Users/SHUBHAM/Desktop/AppZeto-Master-Product-/Backend/src/modules/food/orders/services/foodOrderPayment.service.js#29-71)** — append-only payment ledger per order event (Razorpay, QR, COD, wallet).
+- **`FoodUserWallet`** — user wallet with embedded transactions array (supports top-up via Razorpay, referral rewards).
+- **`RestaurantCommissionLedger`** — per-order restaurant commission tracking.
+- **Empty stubs** in `core/payments/` (service, controller, routes) and a placeholder BullMQ payment processor.
+- **No** delivery partner wallet, settlement/payout model, or refund model.
+
+The goal is to introduce a **full-proof financial layer** with proper separation of concerns, atomic wallet operations, and a settlement/refund system — all adapted to the existing codebase conventions.
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Breaking Change: Wallet Migration** — The existing `FoodUserWallet` stores transactions in an embedded array. The new [Wallet](file:///c:/Users/SHUBHAM/Desktop/AppZeto-Master-Product-/Backend/src/modules/food/user/services/userWallet.service.js#6-16) model moves to a separate `Transaction` collection. A one-time migration script will be needed to move existing user wallet balances into the new universal [Wallet](file:///c:/Users/SHUBHAM/Desktop/AppZeto-Master-Product-/Backend/src/modules/food/user/services/userWallet.service.js#6-16) model. **Existing embedded transactions will be preserved for historical reads** but new transactions will go to the `Transaction` collection.
+
+> [!WARNING]
+> **Dual-Write Period** — During the transition, the order service will write to both the existing [FoodOrderPayment](file:///c:/Users/SHUBHAM/Desktop/AppZeto-Master-Product-/Backend/src/modules/food/orders/services/foodOrderPayment.service.js#29-71) ledger AND the new `Transaction` collection to avoid breaking existing admin dashboards. Once verified, the old path can be deprecated.
+
+> [!IMPORTANT]
+> **Scope Clarification** — This plan creates the **models + services + routes** on the backend only. Frontend integration (updating [Cart.jsx](file:///c:/Users/SHUBHAM/Desktop/AppZeto-Master-Product-/Frontend/src/modules/Food/pages/user/cart/Cart.jsx) to call new payment APIs) is a separate follow-up task. Please confirm if you want frontend changes included in this plan.
+
+---
+
+## Proposed Changes
+
+### Phase 1: Core Models
+
+All new models will live in `Backend/src/core/payments/models/`.
+
+---
+
+#### [NEW] [payment.model.js](file:///c:/Users/SHUBHAM/Desktop/AppZeto-Master-Product-/Backend/src/core/payments/models/payment.model.js)
+
+Adapted from the user's spec. Changes from the provided schema:
+- `gateway` made optional (COD/wallet payments have no gateway)
+- Added `module` field (`food`, `dining`, etc.) for multi-module support
+- Collection: `payments`
+
+```js
+// Fields: orderId, userId, amount, currency, method (card/upi/netbanking/wallet/cod),
+//         gateway (razorpay/stripe/paypal - optional), gatewayOrderId, gatewayPaymentId,
+//         status (created/pending/success/failed/refunded), rawResponse, module
+```
+
+---
+
+#### [NEW] [transaction.model.js](file:///c:/Users/SHUBHAM/Desktop/AppZeto-Master-Product-/Backend/src/core/payments/models/transaction.model.js)
+
+Universal ledger. Changes from the provided schema:
+- Added `module` field for scoping
+- `balanceAfter` computed atomically during wallet update
+- Collection: `transactions`
+
+```js
+// Fields: orderId, paymentId, entityType (user/restaurant/deliveryBoy/admin),
+//         entityId, type (credit/debit), amount, balanceAfter, status, description
+```
+
+---
+
+#### [NEW] [wallet.model.js](file:///c:/Users/SHUBHAM/Desktop/AppZeto-Master-Product-/Backend/src/core/payments/models/wallet.model.js)
+
+Replaces the entity-specific `FoodUserWallet` with a universal wallet. Changes:
+- Supports all entity types (user, restaurant, deliveryBoy, admin)
+- `lockedAmount` for pending settlements
+- Unique compound index on [(entityId, entityType)](file:///c:/Users/SHUBHAM/Desktop/AppZeto-Master-Product-/Frontend/src/modules/Food/pages/user/cart/Cart.jsx#78-2855)
+- Collection: `wallets`
+
+```js
+// Fields: entityType, entityId, balance, lockedAmount
+```
+
+---
+
+#### [NEW] [settlement.model.js](file:///c:/Users/SHUBHAM/Desktop/AppZeto-Master-Product-/Backend/src/core/payments/models/settlement.model.js)
+
+For restaurant/delivery partner payouts. Collection: `settlements`
+
+```js
+// Fields: entityType (restaurant/deliveryBoy), entityId, amount,
+//         transactions[], status (pending/processing/processed/failed),
+//         payoutId, processedAt
+```
+
+---
+
+#### [NEW] [refund.model.js](file:///c:/Users/SHUBHAM/Desktop/AppZeto-Master-Product-/Backend/src/core/payments/models/refund.model.js)
+
+For tracking refunds. Collection: `refunds`
+
+```js
+// Fields: paymentId, orderId, amount, reason,
+//         status (pending/processed/failed), gatewayRefundId
+```
+
+---
+
+### Phase 2: Core Service Layer
+
+All services go in `Backend/src/core/payments/`.
+
+---
+
+#### [MODIFY] [payment.service.js](file:///c:/Users/SHUBHAM/Desktop/AppZeto-Master-Product-/Backend/src/core/payments/payment.service.js)
+
+Currently empty. Will implement:
+- `createPayment(orderId, userId, amount, method, gateway)` — creates a Payment record
+- `markPaymentSuccess(paymentId, gatewayPaymentId, rawResponse)` — marks paid + triggers ledger entries
+- `markPaymentFailed(paymentId, rawResponse)` — marks failed
+- `getPaymentsByOrder(orderId)` — list payments for an order
+
+---
+
+#### [NEW] [transaction.service.js](file:///c:/Users/SHUBHAM/Desktop/AppZeto-Master-Product-/Backend/src/core/payments/transaction.service.js)
+
+Atomic ledger + wallet operations:
+- `recordTransaction(payload)` — creates a Transaction row AND updates corresponding Wallet atomically using MongoDB transactions
+- `getTransactionsByEntity(entityType, entityId)` — list ledger entries
+- **RULE**: Never update wallet directly — always go through this service
+
+---
+
+#### [NEW] [wallet.service.js](file:///c:/Users/SHUBHAM/Desktop/AppZeto-Master-Product-/Backend/src/core/payments/wallet.service.js)
+
+Universal wallet operations:
+- `getOrCreateWallet(entityType, entityId)` — ensure wallet exists
+- `getBalance(entityType, entityId)` — read balance
+- `credit(entityType, entityId, amount, description, orderId, paymentId)` — delegates to `transaction.service`
+- `debit(entityType, entityId, amount, description, orderId, paymentId)` — delegates to `transaction.service`
+- `lockAmount(entityType, entityId, amount)` — for pending settlements
+- `unlockAmount(entityType, entityId, amount)` — release lock
+
+---
+
+#### [NEW] [settlement.service.js](file:///c:/Users/SHUBHAM/Desktop/AppZeto-Master-Product-/Backend/src/core/payments/settlement.service.js)
+
+- `createSettlement(entityType, entityId, transactionIds)` — create payout request
+- `processSettlement(settlementId)` — mark as processed + unlock wallet
+- `getSettlements(entityType, entityId, filters)` — list settlements
+
+---
+
+#### [NEW] [refund.service.js](file:///c:/Users/SHUBHAM/Desktop/AppZeto-Master-Product-/Backend/src/core/payments/refund.service.js)
+
+- `initiateRefund(paymentId, amount, reason)` — create refund record + reverse transactions
+- `processGatewayRefund(refundId)` — call Razorpay refund API if online payment
+- `getRefundsByOrder(orderId)` — list refunds
+
+---
+
+### Phase 3: Order Flow Integration
+
+---
+
+#### [MODIFY] [order.service.js](file:///c:/Users/SHUBHAM/Desktop/AppZeto-Master-Product-/Backend/src/modules/food/orders/order.service.js)
+
+Wire the new payment service into the order placement flow:
+1. On order creation → call `paymentService.createPayment()` + existing `recordFoodOrderPaymentEvent()`
+2. On online payment success → call `paymentService.markPaymentSuccess()` → triggers `transactionService.recordTransaction()` for user debit
+3. On order delivered → trigger restaurant credit + delivery partner credit transactions
+4. On order cancellation → trigger `refundService.initiateRefund()`
+
+---
+
+#### [MODIFY] [payment.processor.js](file:///c:/Users/SHUBHAM/Desktop/AppZeto-Master-Product-/Backend/src/queues/processors/payment.processor.js)
+
+Currently a placeholder. Will implement:
+- Process post-delivery financial splits (restaurant commission, delivery earning, platform profit)
+- Create Transaction entries for each party
+- Update their wallets atomically
+
+---
+
+#### [MODIFY] [payment.controller.js](file:///c:/Users/SHUBHAM/Desktop/AppZeto-Master-Product-/Backend/src/core/payments/payment.controller.js)
+
+Currently empty. Will implement REST endpoints:
+- `GET /api/payments/:orderId` — payment history for an order
+- `GET /api/wallet/balance` — universal wallet balance
+- `GET /api/wallet/transactions` — transaction history
+- `POST /api/wallet/topup` — wallet top-up (reuses existing Razorpay logic)
+
+---
+
+#### [MODIFY] [payment.routes.js](file:///c:/Users/SHUBHAM/Desktop/AppZeto-Master-Product-/Backend/src/core/payments/payment.routes.js)
+
+Currently empty. Will wire the controller endpoints with auth middleware.
+
+---
+
+### Phase 4: Admin & Finance APIs
+
+---
+
+#### [NEW] [settlement.controller.js](file:///c:/Users/SHUBHAM/Desktop/AppZeto-Master-Product-/Backend/src/core/payments/settlement.controller.js)
+
+Admin endpoints:
+- `GET /api/admin/settlements` — list all pending settlements
+- `POST /api/admin/settlements/:id/process` — mark settlement as processed
+- `GET /api/admin/finance/summary` — dashboard data (total revenue, pending payouts, etc.)
+
+---
+
+#### [NEW] [refund.controller.js](file:///c:/Users/SHUBHAM/Desktop/AppZeto-Master-Product-/Backend/src/core/payments/refund.controller.js)
+
+Admin endpoints:
+- `GET /api/admin/refunds` — list refunds
+- `POST /api/admin/refunds/:id/process` — process a pending refund
+
+---
+
+## Data Flow Diagram
+
+```mermaid
+flowchart TD
+    A[User Places Order] --> B{Payment Method?}
+    B -->|COD| C[Create Payment status=created]
+    B -->|Online| D[Create Razorpay Order]
+    B -->|Wallet| E[Check Balance & Debit]
+    
+    D --> F[User Pays on Razorpay]
+    F --> G[Webhook/Verify → markPaymentSuccess]
+    
+    C --> H[Payment record saved]
+    E --> H
+    G --> H
+    
+    H --> I[Record Transaction - User Debit]
+    I --> J[Update User Wallet]
+    
+    K[Order Delivered] --> L[Payment Queue Job]
+    L --> M[Record Transaction - Restaurant Credit]
+    L --> N[Record Transaction - Delivery Partner Credit]
+    L --> O[Record Transaction - Platform Credit]
+    
+    M --> P[Update Restaurant Wallet]
+    N --> Q[Update Delivery Partner Wallet]
+    O --> R[Update Admin Wallet]
+    
+    S[Order Cancelled] --> T[Initiate Refund]
+    T --> U[Reverse Transactions]
+    U --> V[Credit User Wallet / Gateway Refund]
+```
+
+---
+
+## Verification Plan
+
+### Manual Verification
+
+Since the project has no existing test framework set up, verification will be manual:
+
+1. **Order Placement (COD)**
+   - Place a COD order via the cart page
+   - Verify a `Payment` document is created with `status: "created"`, `method: "cod"`
+   - Verify a `Transaction` document is NOT created yet (COD settles on delivery)
+   - Check MongoDB: `db.payments.find({method: "cod"}).sort({createdAt: -1}).limit(1)`
+
+2. **Order Placement (Wallet)**
+   - Ensure user has wallet balance (top up first)
+   - Place a wallet order
+   - Verify `Payment` created with `status: "success"`, `method: "wallet"`
+   - Verify `Transaction` created with `type: "debit"` for the user
+   - Verify user's `Wallet.balance` decreased by the order amount
+   - Check: `db.wallets.findOne({entityId: ObjectId("<userId>"), entityType: "user"})`
+
+3. **Order Delivery Settlement**
+   - Let an order reach "delivered" status
+   - Verify `Transaction` entries created for restaurant credit, delivery partner credit, and platform credit
+   - Verify corresponding wallets updated
+   
+4. **Refund Flow**
+   - Cancel an order that was paid online
+   - Verify `Refund` document created
+   - Verify reverse `Transaction` entries (credit back to user)
+   - Verify user wallet balance restored
+
+> [!TIP]
+> **Quick Verification**: After implementing Phase 1 & 2, you can test the core services in isolation by running a simple script that calls `walletService.credit()` and checks the resulting `Transaction` and `Wallet` documents in MongoDB. I can create this script as part of implementation.
+
+### Server Startup Verification
+```bash
+cd c:\Users\SHUBHAM\Desktop\AppZeto-Master-Product-\Backend
+npm run dev
+```
+- Verify no import errors or model registration conflicts on startup
+- Check console for any Mongoose schema warnings

@@ -24,6 +24,7 @@ import { FoodSafetyEmergencyReport } from '../models/safetyEmergencyReport.model
 import { FoodAddon } from '../../restaurant/models/foodAddon.model.js';
 import { FoodSupportTicket } from '../../user/models/supportTicket.model.js';
 import { FoodOrder } from '../../orders/models/order.model.js';
+import { FoodRestaurantCommissionLedger } from '../../orders/models/restaurantCommissionLedger.model.js';
 
 const parseBooleanLike = (value, fieldName) => {
     if (typeof value === 'boolean') return value;
@@ -543,12 +544,32 @@ export async function getTransactionReport(query = {}) {
         orderAmount: order.pricing?.total || 0,
     }));
 
+    const orderMongoIds = orders.map((o) => o._id);
+    const restaurantCommissionRows = orderMongoIds.length
+        ? await FoodRestaurantCommissionLedger.find({
+            orderId: { $in: orderMongoIds }
+        })
+            .select('payout')
+            .lean()
+        : [];
+
+    const restaurantEarning = restaurantCommissionRows.reduce(
+        (sum, r) => sum + (Number(r?.payout) || 0),
+        0
+    );
+
+    // Delivery earning comes from distance slab computation stored on the order.
+    const deliverymanEarning = orders.reduce(
+        (sum, o) => sum + (Number(o?.riderEarning) || 0),
+        0
+    );
+
     const summary = {
         completedTransaction: orders.filter(o => o.orderStatus === 'delivered').reduce((sum, o) => sum + (o.pricing?.total || 0), 0),
         refundedTransaction: orders.filter(o => o.orderStatus === 'refunded').length,
         adminEarning: orders.reduce((sum, o) => sum + (o.platformProfit || o.pricing?.platformFee || 0), 0),
-        restaurantEarning: orders.reduce((sum, o) => sum + (o.restaurantSettlement || 0), 0),
-        deliverymanEarning: orders.reduce((sum, o) => sum + (o.deliveryPartnerSettlement || 0), 0),
+        restaurantEarning,
+        deliverymanEarning,
     };
 
     return { transactions, summary };

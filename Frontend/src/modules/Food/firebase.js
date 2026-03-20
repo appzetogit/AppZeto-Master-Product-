@@ -80,8 +80,12 @@ function ensureFirebaseInitialized(options = {}) {
 
     if (enableRealtimeDb && !firebaseRealtimeDb) {
       firebaseRealtimeDb = getDatabase(app);
+    }
+
     if (!firebaseRealtimeDb) {
-      firebaseRealtimeDb = firebaseConfig.databaseURL ? getDatabase(app, firebaseConfig.databaseURL) : getDatabase(app);
+      firebaseRealtimeDb = firebaseConfig.databaseURL
+        ? getDatabase(app, firebaseConfig.databaseURL)
+        : getDatabase(app);
     }
   } catch (error) {
     console.error('Firebase initialization error:', error);

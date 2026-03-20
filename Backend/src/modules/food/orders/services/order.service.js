@@ -19,12 +19,14 @@ import {
   sendNotificationToOwner,
   sendNotificationToOwners,
 } from "../../../../core/notifications/firebase.service.js";
+import { FoodOrderPayment } from '../models/foodOrderPayment.model.js';
 import {
     createRazorpayOrder,
     createPaymentLink,
     verifyPaymentSignature,
     getRazorpayKeyId,
-    isRazorpayConfigured
+    isRazorpayConfigured,
+    fetchRazorpayPaymentLink
 } from '../helpers/razorpay.helper.js';
 import { getIO, rooms } from '../../../../config/socket.js';
 import { addOrderJob } from '../../../../queues/producers/order.producer.js';
@@ -1810,8 +1812,18 @@ export async function completeDelivery(orderId, deliveryPartnerId) {
   const from = order.orderStatus;
   const prevPayStatus = order.payment.status;
   const payMethod = order.payment.method;
+
+  // Security gate: only complete QR delivery after Razorpay payment-link is actually paid.
+  // This enables frontend auto-complete after QR success.
+  if (payMethod === "razorpay_qr") {
+    await syncRazorpayQrPayment(order);
+    if (order.payment.status !== "paid") {
+      throw new ValidationError("QR payment not verified yet");
+    }
+  }
+
   order.orderStatus = "delivered";
-  order.payment.status = "paid"; // Mark as paid upon delivery
+  order.payment.status = "paid"; // safe after QR gate (or for other payment methods)
   order.deliveryState = {
     ...(order.deliveryState?.toObject?.() || order.deliveryState || {}),
     currentPhase: "delivered",
@@ -2007,19 +2019,110 @@ export async function createCollectQr(
         shortUrl: link.short_url,
         amountDue
     });
+
+  // IMPORTANT: return QR payload so frontend can render "Generate QR" / "Show QR".
+  const shortUrl =
+    link?.short_url ?? link?.shortUrl ?? link?.short_url_path ?? null;
+  const imageUrl =
+    link?.short_url ??
+    link?.image_url ??
+    link?.imageUrl ??
+    link?.image ??
+    null;
+
+  return {
+    shortUrl,
+    imageUrl,
+    amount: amountDue,
+    expiresAt:
+      link?.expire_by
+        ? new Date(link.expire_by * 1000)
+        : link?.expiresAt
+          ? new Date(link.expiresAt)
+          : null,
+  };
+}
+
+/**
+ * Razorpay QR auto-verify:
+ * - Fetch payment-link status from Razorpay
+ * - Update `order.payment.status` to `paid` when Razorpay marks it paid
+ * - Update `order.payment.qr.status` for UI/debugging
+ *
+ * IMPORTANT: Callers should `await` this before completing delivery.
+ */
+async function syncRazorpayQrPayment(orderDoc) {
+  if (!orderDoc?.payment) return orderDoc?.payment;
+  if (orderDoc.payment.method !== "razorpay_qr") return orderDoc.payment;
+  if (orderDoc.payment.status === "paid") return orderDoc.payment;
+
+  const paymentLinkId = orderDoc.payment?.qr?.paymentLinkId;
+  if (!paymentLinkId) return orderDoc.payment;
+  if (!isRazorpayConfigured()) return orderDoc.payment;
+
+  let link;
+  try {
+    link = await fetchRazorpayPaymentLink(paymentLinkId);
+  } catch (err) {
+    logger.warn(
+      `Razorpay payment-link fetch failed for ${paymentLinkId}: ${
+        err?.message || err
+      }`
+    );
+    return orderDoc.payment;
+  }
+
+  const linkStatus = String(link?.status || "").toLowerCase();
+  if (!linkStatus) return orderDoc.payment;
+
+  // Update QR snapshot status.
+  orderDoc.payment.qr = {
+    ...(orderDoc.payment.qr?.toObject?.() || orderDoc.payment.qr || {}),
+    status: linkStatus,
+  };
+
+  // Mark paid only when Razorpay says it's paid/settled.
+  if (["paid", "captured", "authorized"].includes(linkStatus)) {
+    orderDoc.payment.status = "paid";
+    await orderDoc.save();
+  } else if (["expired", "cancelled", "canceled", "failed"].includes(linkStatus)) {
+    orderDoc.payment.status = "failed";
+    await orderDoc.save();
+  }
+
+  return orderDoc.payment;
 }
 
 export async function getPaymentStatus(orderId, deliveryPartnerId) {
-  const order = await FoodOrder.findById(orderId)
-    .select("payment dispatch")
-    .lean();
+  const order = await FoodOrder.findById(orderId).select(
+    "payment dispatch riderEarning platformProfit pricing"
+  );
   if (!order) throw new ValidationError("Order not found");
   if (
     order.dispatch?.deliveryPartnerId?.toString() !==
     deliveryPartnerId.toString()
   )
     throw new ForbiddenError("Not your order");
-  return { payment: order.payment };
+
+  // Auto-sync Razorpay QR payment status before returning.
+  if (order.payment?.method === "razorpay_qr") {
+    await syncRazorpayQrPayment(order);
+  }
+
+  const latestPaymentSnapshot = await FoodOrderPayment.findOne({
+    orderId: order._id,
+    kind: "payment_snapshot_sync",
+  })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  return {
+    payment: order.payment,
+    latestPaymentSnapshot,
+    riderEarning: order.riderEarning ?? 0,
+    platformProfit: order.platformProfit ?? 0,
+    pricingTotal: order.pricing?.total ?? 0,
+  };
 }
 
 // ----- Admin -----

@@ -49,7 +49,9 @@ export function validateCalculateOrderDto(body) {
     });
     const result = schema.safeParse(body);
     if (!result.success) {
-        const msg = result.error.errors?.[0]?.message || 'Validation failed';
+        const first = result.error.issues?.[0];
+        const path = first?.path?.length ? first.path.join('.') : '';
+        const msg = path ? `${path}: ${first?.message || 'Validation failed'}` : first?.message || 'Validation failed';
         throw new ValidationError(msg);
     }
     return result.data;
@@ -65,8 +67,9 @@ export function validateCreateOrderDto(body) {
         deliveryFleet: z.string().optional(),
         note: z.string().optional(),
         sendCutlery: z.boolean().optional(),
-        paymentMethod: z.enum(['cash', 'razorpay', 'card', 'wallet']),
-        zoneId: z.string().optional()
+        // 'razorpay_qr' means COD-style flow, but payment is collected via Razorpay QR at delivery.
+        paymentMethod: z.enum(['cash', 'razorpay', 'razorpay_qr', 'card', 'wallet']),
+        zoneId: z.string().nullable().optional()
     });
     const result = schema.safeParse(body);
     if (!result.success) {

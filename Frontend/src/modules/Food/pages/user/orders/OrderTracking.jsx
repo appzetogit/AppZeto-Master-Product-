@@ -1205,7 +1205,9 @@ export default function OrderTracking() {
         <DeliveryMap
           orderId={orderId}
           order={order}
-          isVisible={!showConfirmation && order !== null}
+          // Don't hide the map while the "Order Confirmed" splash is visible;
+          // the modal should overlay only, not block map initialization.
+          isVisible={order !== null}
           fallbackCustomerCoords={fallbackCustomerCoords}
           userLiveCoords={userLiveCoords}
           userLocationAccuracy={userLiveLocation?.accuracy ?? null}

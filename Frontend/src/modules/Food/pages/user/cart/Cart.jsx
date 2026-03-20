@@ -745,8 +745,6 @@ export default function Cart() {
 
     calculatePricing()
   }, [cart, defaultAddress, appliedCoupon, couponCode, restaurantId])
-  }, [cart, defaultAddress, appliedCoupon, couponCode, deliveryFleet, restaurantId, feeSettings])
-  }, [cart, defaultAddress, appliedCoupon, couponCode, restaurantId, feeSettings])
 
   // Fetch wallet balance
   useEffect(() => {
@@ -1345,7 +1343,8 @@ export default function Cart() {
         note: note || "",
         sendCutlery: sendCutlery !== false,
         paymentMethod: selectedPaymentMethod,
-        zoneId: zoneId, // CRITICAL: Pass zoneId for strict zone validation
+        // `useZone()` can return `null`. Zod expects string/undefined, not null.
+        zoneId: zoneId || undefined,
         scheduledAt: isScheduled ? new Date(`${scheduledDate}T${scheduledTime}:00`).toISOString() : undefined,
       };
       // Log final order details (including paymentMethod for COD debugging)
@@ -2262,7 +2261,8 @@ export default function Cart() {
                 disabled={isPlacingOrder || (selectedPaymentMethod === "wallet" && walletBalance < total)}
                 className="w-full bg-[#EB590E] hover:bg-[#D94F0C] dark:bg-[#EB590E] dark:hover:bg-[#D94F0C] text-white px-6 md:px-10 h-14 md:h-16 rounded-lg md:rounded-xl text-base md:text-lg font-bold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {(selectedPaymentMethod === "razorpay" || selectedPaymentMethod === "wallet") && (
+                {(selectedPaymentMethod === "razorpay" ||
+                  selectedPaymentMethod === "wallet") && (
                   <div className="text-left mr-3 md:mr-4">
                     <p className="text-sm md:text-base opacity-90">{RUPEE_SYMBOL}{total.toFixed(0)}</p>
                     <p className="text-xs md:text-sm opacity-75">TOTAL</p>

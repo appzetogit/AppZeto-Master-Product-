@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import { toast } from "sonner";
@@ -18,19 +18,51 @@ export default function DeliveryPaymentOverlay({
   onComplete,
 }) {
   const [showCollectQrModal, setShowCollectQrModal] = useState(false);
+  const [paymentSyncState, setPaymentSyncState] = useState("idle"); // idle | pending | paid | failed
+  const [paymentLedgerSnapshot, setPaymentLedgerSnapshot] = useState(null);
+  const [paymentServerEarning, setPaymentServerEarning] = useState(null);
+  const pollingIntervalRef = useRef(null);
+  const didAutoCompleteRef = useRef(false);
 
   const orderIdForDisplay = selectedRestaurant?.orderId || "ORD1234567890";
 
+  const orderIdForApi = useMemo(() => {
+    return (
+      selectedRestaurant?.id ||
+      newOrder?.orderMongoId ||
+      newOrder?._id ||
+      selectedRestaurant?.orderId ||
+      newOrder?.orderId ||
+      null
+    );
+  }, [selectedRestaurant, newOrder]);
+
   const earningsAmount = useMemo(() => {
+    const ledgerAmount = paymentLedgerSnapshot?.amountDue ?? paymentLedgerSnapshot?.amount;
+    if (Number.isFinite(ledgerAmount) && ledgerAmount > 0) return Number(ledgerAmount);
+
+    const serverEarning = paymentServerEarning;
+    if (Number.isFinite(serverEarning) && serverEarning > 0) {
+      return Number(serverEarning);
+    }
+
     if (Number.isFinite(orderEarnings) && orderEarnings > 0) return orderEarnings;
     const est = selectedRestaurant?.estimatedEarnings ?? selectedRestaurant?.amount ?? 0;
     if (typeof est === "object" && Number.isFinite(Number(est.totalEarning))) return Number(est.totalEarning);
     if (Number.isFinite(Number(est))) return Number(est);
     return 0;
-  }, [orderEarnings, selectedRestaurant?.estimatedEarnings, selectedRestaurant?.amount]);
+  }, [
+    paymentLedgerSnapshot?.amountDue,
+    paymentLedgerSnapshot?.amount,
+    paymentServerEarning,
+    orderEarnings,
+    selectedRestaurant?.estimatedEarnings,
+    selectedRestaurant?.amount,
+  ]);
 
   const paymentMethod = useMemo(() => {
     return String(
+      paymentLedgerSnapshot?.method ||
       selectedRestaurant?.paymentMethod ||
         selectedRestaurant?.paymentMethodType ||
         selectedRestaurant?.payment?.method ||
@@ -41,6 +73,7 @@ export default function DeliveryPaymentOverlay({
       .toLowerCase()
       .trim();
   }, [
+    paymentLedgerSnapshot?.method,
     selectedRestaurant?.paymentMethod,
     selectedRestaurant?.paymentMethodType,
     selectedRestaurant?.payment?.method,
@@ -48,11 +81,22 @@ export default function DeliveryPaymentOverlay({
     selectedRestaurant?.payment,
   ]);
 
-  const isCod = paymentMethod === "cash" || paymentMethod === "cod" || paymentMethod === "cash_on_delivery";
+  // COD cash vs COD collected via Razorpay QR.
+  const isCod =
+    paymentMethod === "cash" ||
+    paymentMethod === "cod" ||
+    paymentMethod === "cash_on_delivery" ||
+    paymentMethod === "razorpay_qr";
+
+  const isRazorpayQr = paymentMethod === "razorpay_qr";
 
   const amountToCollect = useMemo(() => {
+    const ledgerCollectAmount =
+      paymentLedgerSnapshot?.amountDue ?? paymentLedgerSnapshot?.amount;
+
     const candidate = Number(
-      selectedRestaurant?.amountToCollect ??
+      ledgerCollectAmount ??
+        selectedRestaurant?.amountToCollect ??
         selectedRestaurant?.payment?.amountDue ??
         selectedRestaurant?.amountDue ??
         selectedRestaurant?.codAmount ??
@@ -60,10 +104,12 @@ export default function DeliveryPaymentOverlay({
         selectedRestaurant?.orderTotal ??
         selectedRestaurant?.total ??
         selectedRestaurant?.payment?.amount ??
-        0,
+        0
     );
     return Number.isFinite(candidate) && candidate > 0 ? candidate : 0;
   }, [
+    paymentLedgerSnapshot?.amountDue,
+    paymentLedgerSnapshot?.amount,
     selectedRestaurant?.amountToCollect,
     selectedRestaurant?.payment?.amountDue,
     selectedRestaurant?.amountDue,
@@ -74,22 +120,108 @@ export default function DeliveryPaymentOverlay({
     selectedRestaurant?.payment?.amount,
   ]);
 
-  const methodLabel = isCod
-    ? "Cash on Delivery"
-    : paymentMethod
-      ? paymentMethod.replace(/_/g, " ").toUpperCase()
-      : "Paid";
+  const methodLabel =
+    paymentMethod === "razorpay_qr"
+      ? "Cash on Delivery (QR)"
+      : isCod
+        ? "Cash on Delivery"
+        : paymentMethod
+          ? paymentMethod.replace(/_/g, " ").toUpperCase()
+          : "Paid";
 
-  const canShowQr = amountToCollect > 0;
+  // Only COD-style flows support QR collection in this app.
+  const canShowQr = amountToCollect > 0 && isCod;
+
+  const stopPolling = () => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+  };
+
+  const pollAndAutoComplete = async () => {
+    if (!isOpen) return;
+    if (!isRazorpayQr) return;
+    if (!orderIdForApi) return;
+    if (!collectQrLink) return;
+    if (didAutoCompleteRef.current) return;
+
+    try {
+      const statusRes = await deliveryAPI.getPaymentStatus(orderIdForApi);
+      const ledger = statusRes?.data?.data?.latestPaymentSnapshot || null;
+      if (ledger) setPaymentLedgerSnapshot(ledger);
+
+      const serverEarningValue =
+        statusRes?.data?.data?.riderEarning ??
+        statusRes?.data?.data?.earnings?.riderEarning ??
+        statusRes?.data?.data?.earnings ??
+        null;
+      if (serverEarningValue != null) setPaymentServerEarning(serverEarningValue);
+
+      const paymentStatus =
+        statusRes?.data?.data?.payment?.status ||
+        statusRes?.data?.payment?.status ||
+        statusRes?.payment?.status ||
+        "";
+
+      const normalized = String(paymentStatus || "").toLowerCase();
+
+      if (normalized === "paid") {
+        setPaymentSyncState("paid");
+        stopPolling();
+        if (!didAutoCompleteRef.current) {
+          didAutoCompleteRef.current = true;
+          toast.success("QR payment successful. Completing...");
+          // Give React a brief moment to paint "paid" info from ledger before navigation.
+          setTimeout(() => onComplete?.(), 450);
+        }
+        return;
+      }
+
+      if (
+        ["failed", "expired", "cancelled", "canceled"].includes(normalized)
+      ) {
+        setPaymentSyncState("failed");
+        stopPolling();
+        toast.error("QR payment failed. Please try again.");
+      } else {
+        // Keep showing waiting state until backend marks it.
+        setPaymentSyncState("pending");
+      }
+    } catch (e) {
+      // Transient network/backend error; keep polling.
+    }
+  };
+
+  useEffect(() => {
+    // Reset polling when overlay closes.
+    if (!isOpen) {
+      stopPolling();
+      didAutoCompleteRef.current = false;
+      setPaymentSyncState("idle");
+      setPaymentLedgerSnapshot(null);
+      setPaymentServerEarning(null);
+      return;
+    }
+
+    // Reset when opening overlay.
+    didAutoCompleteRef.current = false;
+    setPaymentSyncState("idle");
+    setPaymentLedgerSnapshot(null);
+    setPaymentServerEarning(null);
+
+    // Auto complete only for razorpay_qr and only after QR link is generated.
+    if (isRazorpayQr && collectQrLink) {
+      // Poll immediately and then every 3 seconds.
+      pollAndAutoComplete();
+      pollingIntervalRef.current = setInterval(pollAndAutoComplete, 3000);
+    }
+
+    return () => stopPolling();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, isRazorpayQr, collectQrLink, orderIdForApi]);
 
   const handleGenerateQr = async () => {
-    const orderIdForApi =
-      selectedRestaurant?.id ||
-      newOrder?.orderMongoId ||
-      newOrder?._id ||
-      selectedRestaurant?.orderId ||
-      newOrder?.orderId;
-
     if (!orderIdForApi) {
       toast.error("Order not found");
       return;
@@ -179,12 +311,21 @@ export default function DeliveryPaymentOverlay({
                   <div className="mb-3">
                     <h3 className="text-base font-bold text-gray-900">Collect payment via QR</h3>
                     <p className="text-sm text-gray-600">
-                      Razorpay dynamic QR (amount pre-filled): ₹{amountToCollect.toFixed(2)}
-                      {paymentMethod ? ` · method: ${paymentMethod}` : ""}
+                      Razorpay dynamic QR (amount pre-filled): ₹{amountToCollect.toFixed(2)} · method: razorpay_qr
                     </p>
                   </div>
 
                   {collectQrError ? <p className="text-sm text-red-600 mb-3">{collectQrError}</p> : null}
+
+                  {isRazorpayQr && collectQrLink ? (
+                    <p className="text-sm text-gray-600 mb-3">
+                      {paymentSyncState === "pending" && "Waiting for Razorpay payment..."}
+                      {paymentSyncState === "paid" && "Payment success. Completing..."}
+                      {paymentSyncState === "failed" && "Payment failed. Try again."}
+                      {paymentSyncState === "idle" && "Scan & pay to complete."}
+                      {paymentLedgerSnapshot?.status ? ` (ledger: ${String(paymentLedgerSnapshot.status).toUpperCase()})` : ""}
+                    </p>
+                  ) : null}
 
                   {collectQrLink ? (
                     <div className="flex flex-col gap-3">
@@ -237,7 +378,8 @@ export default function DeliveryPaymentOverlay({
                   setShowCollectQrModal(false);
                   onComplete?.();
                 }}
-                className="w-full mt-4 bg-black text-white py-4 rounded-xl font-semibold text-lg hover:bg-gray-800 transition-colors shadow-lg"
+                disabled={isRazorpayQr && paymentSyncState === "pending"}
+                className="w-full mt-4 bg-black text-white py-4 rounded-xl font-semibold text-lg hover:bg-gray-800 transition-colors shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 Complete
               </button>

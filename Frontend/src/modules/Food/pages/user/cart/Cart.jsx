@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { Plus, Minus, ArrowLeft, ChevronRight, Clock, MapPin, Phone, FileText, Utensils, Tag, Percent, Share2, ChevronUp, ChevronDown, X, Check, Settings, CreditCard, Wallet, Building2, Sparkles } from "lucide-react"
+import { Plus, Minus, ArrowLeft, ChevronRight, Clock, MapPin, Phone, FileText, Utensils, Tag, Percent, Share2, ChevronUp, ChevronDown, X, Check, Settings, CreditCard, Wallet, Building2, Sparkles, Zap, CheckCircle2 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import confetti from "canvas-confetti"
 
@@ -1624,7 +1624,7 @@ export default function Cart() {
   }
 
   return (
-    <div className="relative min-h-screen bg-white dark:bg-[#0a0a0a]">
+    <div className="relative min-h-screen bg-slate-50 dark:bg-[#0a0a0a]">
       {/* Header - Sticky at top */}
       <div className="bg-white dark:bg-[#1a1a1a] border-b dark:border-gray-800 sticky top-0 z-20 flex-shrink-0">
         <div className="max-w-7xl mx-auto">
@@ -1673,7 +1673,7 @@ export default function Cart() {
             {/* Left Column - Cart Items and Details */}
             <div className="lg:col-span-2 space-y-2 md:space-y-4">
               {/* Cart Items */}
-              <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-3 md:py-4 rounded-lg md:rounded-xl">
+              <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-4 md:py-5 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 dark:border-gray-800">
                 <div className="space-y-3 md:space-y-4">
                   {cart.map((item) => (
                     <div key={item.id} className="flex items-start gap-3 md:gap-4">
@@ -1726,7 +1726,7 @@ export default function Cart() {
 
 
               {/* Note & Cutlery */}
-              <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-3 md:py-4 rounded-lg md:rounded-xl flex flex-col sm:flex-row gap-2 md:gap-3">
+              <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-4 rounded-2xl shadow-sm border border-slate-100 dark:border-gray-800 flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={() => setShowNoteInput(!showNoteInput)}
                   className="flex-1 flex items-center gap-2 px-3 md:px-4 py-2 md:py-3 border border-gray-200 dark:border-gray-700 rounded-lg md:rounded-xl text-sm md:text-base text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
@@ -1757,7 +1757,7 @@ export default function Cart() {
 
               {/* Complete your meal section - Approved Addons */}
               {addons.length > 0 && (
-                <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-3 md:py-4 rounded-lg md:rounded-xl">
+                <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-5 rounded-2xl shadow-sm border border-slate-100 dark:border-gray-800">
                   <div className="flex items-center gap-2 md:gap-3 mb-3 md:mb-4">
                     <div className="w-6 h-6 md:w-8 md:h-8 bg-gray-100 dark:bg-gray-800 rounded flex items-center justify-center">
                       <span className="text-xs md:text-base">???</span>
@@ -1840,142 +1840,139 @@ export default function Cart() {
               )}
 
               {/* Coupon Section */}
-              <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-3 md:py-4 rounded-lg md:rounded-xl">
-                {appliedCoupon ? (
-                  <div className="flex items-center justify-between bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800 rounded-lg md:rounded-xl p-3 md:p-4">
-                    <div className="flex items-center gap-2 md:gap-3">
-                      <Tag className="h-4 w-4 md:h-5 md:w-5 text-[#EB590E] dark:text-[#EB590E]" />
-                      <div>
-                        <p className="text-sm md:text-base font-medium text-orange-800 dark:text-orange-200">'{appliedCoupon.code}' applied</p>
-                        <p className="text-xs md:text-sm text-[#EB590E] dark:text-[#EB590E]">You saved {RUPEE_SYMBOL}{discount}</p>
-                      </div>
-                    </div>
-                    <button onClick={handleRemoveCoupon} className="text-gray-500 dark:text-gray-400 text-xs md:text-sm font-medium">Remove</button>
-                  </div>
-                ) : loadingCoupons ? (
-                  <div className="flex items-center gap-2 md:gap-3">
-                    <Percent className="h-4 w-4 md:h-5 md:w-5 text-gray-600 dark:text-gray-400" />
-                    <p className="text-sm md:text-base text-gray-500 dark:text-gray-400">Loading coupons...</p>
-                  </div>
-                ) : availableCoupons.length > 0 ? (
-                  <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <input
-                        type="text"
-                        value={manualCouponCode}
-                        onChange={(e) => setManualCouponCode(e.target.value.toUpperCase())}
-                        placeholder="Enter coupon code"
-                        className="flex-1 h-8 md:h-9 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#0a0a0a] px-2 md:px-3 text-xs md:text-sm text-gray-800 dark:text-gray-200 focus:outline-none focus:border-[#EB590E]"
-                      />
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 md:h-9 text-xs md:text-sm border-[#EB590E] dark:border-[#EB590E]/50 text-[#EB590E] dark:text-[#EB590E] hover:bg-orange-50 dark:hover:bg-orange-900/20"
-                        onClick={handleApplyCouponCode}
-                      >
-                        APPLY
-                      </Button>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 md:gap-3">
-                        <Percent className="h-4 w-4 md:h-5 md:w-5 text-gray-600 dark:text-gray-400" />
-                        <div>
-                          <p className="text-sm md:text-base font-medium text-gray-800 dark:text-gray-200">
-                            {availableCoupons[0].discountDisplay || `Save ${RUPEE_SYMBOL}${availableCoupons[0].discount}`} with '{availableCoupons[0].code}'
-                          </p>
-                          {availableCoupons[0].customerGroup === "new" && (
-                            <p className="text-[11px] md:text-xs text-orange-600 dark:text-orange-400">First-time users only</p>
-                          )}
-                          {availableCoupons.length > 1 && (
-                            <button onClick={() => setShowCoupons(!showCoupons)} className="text-xs md:text-sm text-blue-600 dark:text-blue-400 font-medium">
-                              View all coupons ?
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 md:h-8 text-xs md:text-sm border-[#EB590E] dark:border-[#EB590E]/50 text-[#EB590E] dark:text-[#EB590E] hover:bg-orange-50 dark:hover:bg-orange-900/20"
-                        onClick={() => handleApplyCoupon(availableCoupons[0])}
-                        disabled={subtotal < availableCoupons[0].minOrder || (availableCoupons[0].customerGroup === "new" && userOrderCount > 0)}
-                      >
-                        {availableCoupons[0].customerGroup === "new" && userOrderCount > 0
-                          ? "Not Eligible"
-                          : subtotal < availableCoupons[0].minOrder
-                            ? `Min ${RUPEE_SYMBOL}${availableCoupons[0].minOrder}`
-                            : 'APPLY'}
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 md:gap-3">
-                    <Percent className="h-4 w-4 md:h-5 md:w-5 text-gray-600 dark:text-gray-400" />
-                    <p className="text-sm md:text-base text-gray-500 dark:text-gray-400">No coupons available</p>
+              <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl overflow-hidden border border-slate-100 dark:border-gray-800 shadow-sm flex flex-col">
+                {deliveryFee === 0 && (
+                  <div className="px-4 py-3 md:px-6 md:py-4 border-b border-dashed border-gray-200 dark:border-gray-800 flex items-center gap-3 bg-[#f4fcf7] dark:bg-green-900/10">
+                    <CheckCircle2 className="h-5 w-5 text-green-600 fill-green-600/20" />
+                    <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">You saved {RUPEE_SYMBOL}{feeSettings.deliveryFee || 25} on delivery</span>
                   </div>
                 )}
-
-                {/* Coupons List */}
-                {showCoupons && !appliedCoupon && availableCoupons.length > 0 && (
-                  <div className="mt-3 md:mt-4 space-y-2 md:space-y-3 border-t dark:border-gray-700 pt-3 md:pt-4">
-                    {availableCoupons.map((coupon) => (
-                      <div key={coupon.code} className="flex items-center justify-between py-2 md:py-3 border-b border-dashed dark:border-gray-700 last:border-0">
-                        <div>
-                          <p className="text-sm md:text-base font-medium text-gray-800 dark:text-gray-200">{coupon.code}</p>
-                          <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400">{coupon.description}</p>
-                          {coupon.customerGroup === "new" && (
-                            <p className="text-[11px] md:text-xs text-orange-600 dark:text-orange-400">First-time users only</p>
-                          )}
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-6 md:h-7 text-xs md:text-sm border-[#EB590E] dark:border-[#EB590E]/50 text-[#EB590E] dark:text-[#EB590E] hover:bg-orange-50 dark:hover:bg-[#EB590E]/10"
-                          onClick={() => handleApplyCoupon(coupon)}
-                          disabled={subtotal < coupon.minOrder || (coupon.customerGroup === "new" && userOrderCount > 0)}
-                        >
-                          {coupon.customerGroup === "new" && userOrderCount > 0
-                            ? "Not Eligible"
-                            : subtotal < coupon.minOrder
-                              ? `Min ${RUPEE_SYMBOL}${coupon.minOrder}`
-                              : 'APPLY'}
-                        </Button>
+                
+                {/* Applied Coupon View */}
+                {appliedCoupon ? (
+                  <div className="px-4 py-3 md:px-6 md:py-4 flex items-center justify-between">
+                    <div className="flex items-start gap-3">
+                      <Percent className="h-5 w-5 text-[#EB590E] mt-0.5" />
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">'{appliedCoupon.code}' applied</p>
+                        <p className="text-xs text-[#EB590E] font-medium mt-0.5">You saved {RUPEE_SYMBOL}{discount}</p>
                       </div>
-                    ))}
+                    </div>
+                    <button onClick={handleRemoveCoupon} className="text-[#EB590E] text-xs font-semibold px-2 hover:underline">REMOVE</button>
+                  </div>
+                ) : (
+                  /* Available / Input View */
+                  <div className="px-4 py-3 md:px-6 md:py-4 flex flex-col gap-3">
+                    {loadingCoupons ? (
+                      <p className="text-sm text-gray-500">Loading offers...</p>
+                    ) : availableCoupons.length > 0 ? (
+                      <div className="flex items-start justify-between w-full">
+                        <div className="flex items-start gap-3 flex-1">
+                          <Percent className="h-5 w-5 text-gray-700 dark:text-gray-300 mt-0.5" />
+                          <div className="flex-1">
+                            <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 leading-tight mb-0.5">
+                              {availableCoupons[0].discountDisplay || `Save ${RUPEE_SYMBOL}${availableCoupons[0].discount}`} with '{availableCoupons[0].code}'
+                            </p>
+                            {availableCoupons[0].customerGroup === "new" ? (
+                               <p className="text-[11px] text-[#EB590E] mb-1">First-time users only</p>
+                            ) : subtotal < availableCoupons[0].minOrder ? (
+                               <p className="text-xs text-blue-600 font-medium mb-1">Add items worth {RUPEE_SYMBOL}{(availableCoupons[0].minOrder - subtotal).toFixed(0)} more to unlock</p>
+                            ) : null}
+                            
+                            {availableCoupons.length > 1 && (
+                              <button onClick={() => setShowCoupons(!showCoupons)} className="text-[11px] text-[#EB590E] hover:underline flex items-center mt-1">
+                                View all coupons <ChevronRight className="h-3 w-3 ml-0.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          className="border border-[#EB590E] text-[#EB590E] dark:hover:bg-[#EB590E]/10 rounded px-3 py-1.5 text-xs font-semibold uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed ml-2 shadow-sm"
+                          onClick={() => handleApplyCoupon(availableCoupons[0])}
+                          disabled={subtotal < availableCoupons[0].minOrder || (availableCoupons[0].customerGroup === "new" && userOrderCount > 0)}
+                        >
+                          APPLY
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <Percent className="h-5 w-5 text-gray-400" />
+                        <p className="text-sm text-gray-500">No offers available</p>
+                      </div>
+                    )}
+
+                    {/* Show All Coupons List */}
+                    {showCoupons && !appliedCoupon && availableCoupons.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-dashed border-gray-200 dark:border-gray-800 space-y-4">
+                        {/* Input for manual code */}
+                        <div className="flex flex-col sm:flex-row gap-2 mb-4">
+                          <input
+                            type="text"
+                            value={manualCouponCode}
+                            onChange={(e) => setManualCouponCode(e.target.value.toUpperCase())}
+                            placeholder="Enter coupon code"
+                            className="flex-1 h-9 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#0a0a0a] px-3 text-sm text-gray-800 dark:text-gray-200 focus:outline-none focus:border-[#EB590E]"
+                          />
+                          <button
+                            className="bg-white dark:bg-[#1a1a1a] border border-[#EB590E] text-[#EB590E] rounded px-4 h-9 text-xs font-semibold uppercase hover:bg-orange-50 dark:hover:bg-orange-900/10"
+                            onClick={handleApplyCouponCode}
+                          >
+                            APPLY
+                          </button>
+                        </div>
+                        {availableCoupons.slice(1).map((coupon) => (
+                          <div key={coupon.code} className="flex items-start justify-between">
+                            <div className="flex items-start gap-3 flex-1">
+                              <Percent className="h-5 w-5 text-gray-700 dark:text-gray-300 mt-0.5 opacity-50" />
+                              <div className="flex-1">
+                                <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 leading-tight mb-0.5">
+                                  {coupon.discountDisplay || `Save ${RUPEE_SYMBOL}${coupon.discount}`} with '{coupon.code}'
+                                </p>
+                                {coupon.customerGroup === "new" ? (
+                                   <p className="text-[11px] text-[#EB590E] mb-1">First-time users only</p>
+                                ) : subtotal < coupon.minOrder ? (
+                                   <p className="text-xs text-blue-600 font-medium mb-1 line-clamp-1">Add items worth {RUPEE_SYMBOL}{(coupon.minOrder - subtotal).toFixed(0)} more to unlock</p>
+                                ) : (
+                                   <p className="text-xs text-gray-500 mb-1 line-clamp-1">{coupon.description}</p>
+                                )}
+                              </div>
+                            </div>
+                            <button
+                              className="border border-gray-300 text-gray-600 dark:border-gray-600 dark:text-gray-400 rounded px-3 py-1.5 text-xs font-semibold uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed ml-2"
+                              onClick={() => handleApplyCoupon(coupon)}
+                              disabled={subtotal < coupon.minOrder || (coupon.customerGroup === "new" && userOrderCount > 0)}
+                            >
+                              APPLY
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
 
               {/* Delivery Time */}
-              <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-3 md:py-4 rounded-lg md:rounded-xl">
-                <div className="flex items-center gap-3 md:gap-4 mb-3">
-                  <Clock className="h-4 w-4 md:h-5 md:w-5 text-gray-500 dark:text-gray-400" />
+              <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-5 rounded-2xl shadow-sm border border-slate-100 dark:border-gray-800">
+                <div className="flex items-start gap-3 md:gap-4">
+                  <div className="mt-0.5">
+                    <Zap className="h-5 w-5 text-green-600 fill-green-600/20" />
+                  </div>
                   <div className="flex-1">
-                    <p className="text-sm md:text-base text-gray-800 dark:text-gray-200 font-medium">Delivery Time</p>
+                    <p className="text-base text-gray-800 dark:text-gray-200">
+                      Delivery in <span className="text-green-600 font-bold">{restaurantData?.estimatedDeliveryTime || "15-20 mins"}</span>
+                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 flex items-center gap-1">
+                      Want this later? 
+                      <button onClick={() => setIsScheduled(!isScheduled)} className="border-b border-dashed border-gray-500 font-medium outline-none">
+                        Schedule it
+                      </button>
+                    </p>
                   </div>
                 </div>
                 
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsScheduled(false)}
-                    className={`flex-1 py-2 px-4 rounded-lg border text-sm md:text-base transition-colors ${!isScheduled ? 'border-[#EB590E] bg-[#FFF2EB] dark:bg-[#EB590E]/10 text-[#EB590E]' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
-                  >
-                    <span className="font-semibold">Deliver Now</span>
-                    <p className="text-xs mt-0.5 opacity-80">{restaurantData?.estimatedDeliveryTime || "10-15 mins"}</p>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsScheduled(true)}
-                    className={`flex-1 py-2 px-4 rounded-lg border text-sm md:text-base transition-colors ${isScheduled ? 'border-[#EB590E] bg-[#FFF2EB] dark:bg-[#EB590E]/10 text-[#EB590E]' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
-                  >
-                    <span className="font-semibold">Schedule for Later</span>
-                    <p className="text-xs mt-0.5 opacity-80">Choose time</p>
-                  </button>
-                </div>
-                
                 {isScheduled && (
-                  <div className="mt-4 flex flex-col sm:flex-row gap-3">
+                  <div className="mt-5 flex flex-col sm:flex-row gap-3 pt-3 border-t border-gray-100 dark:border-gray-800">
                     <div className="flex-1">
                       <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Date (Up to Tomorrow)</label>
                       <input 
@@ -2013,24 +2010,26 @@ export default function Cart() {
               </div>
 
               {/* Delivery Address */}
-              <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-3 md:py-4 rounded-lg md:rounded-xl">
-                <div className="flex items-center justify-between w-full text-left">
-                  <div className="flex items-center gap-3 md:gap-4">
-                    <MapPin className="h-4 w-4 md:h-5 md:w-5 text-gray-500 dark:text-gray-400" />
+              <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-5 rounded-2xl shadow-sm border border-slate-100 dark:border-gray-800">
+                <div className="flex items-start justify-between w-full text-left">
+                  <div className="flex items-start gap-4 flex-1">
+                    <div className="bg-orange-50 dark:bg-orange-900/20 p-2 rounded-xl mt-0.5">
+                      <MapPin className="h-5 w-5 text-[#EB590E]" />
+                    </div>
                     <div className="flex-1">
-                      <p className="text-sm md:text-base text-gray-800 dark:text-gray-200">
-                        Delivery at <span className="font-semibold">Location</span>
+                      <p className="text-base font-bold text-gray-800 dark:text-gray-200">
+                        Delivery at Location
                       </p>
-                      <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 line-clamp-2 pr-4">
                         {defaultAddress ? (formatFullAddress(defaultAddress) || defaultAddress?.formattedAddress || defaultAddress?.address || "Add delivery address") : "Add delivery address"}
                       </p>
                       {!hasSavedAddress && (
-                        <p className="text-xs md:text-sm text-[#EB590E] mt-1">
+                        <p className="text-sm text-[#EB590E] mt-2 font-medium">
                           Select a delivery location to continue
                         </p>
                       )}
                       {/* Address Selection Buttons */}
-                      <div className="flex gap-2 mt-2">
+                      <div className="flex flex-wrap gap-2 mt-3">
                         {["Home", "Work", "Other"].map((label) => {
                           const normalizedLabel = normalizeAddressLabel(label)
                           const addressExists = addresses.some(addr => normalizeAddressLabel(addr.label) === normalizedLabel)
@@ -2043,9 +2042,9 @@ export default function Cart() {
                                 handleSelectAddressByLabel(label)
                               }}
                               disabled={!addressExists}
-                              className={`text-xs md:text-sm px-2 md:px-3 py-1 md:py-1.5 rounded-md border transition-colors ${addressExists
-                                ? 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 bg-white dark:bg-[#1a1a1a]'
-                                : 'border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-50'
+                              className={`text-xs px-4 py-1.5 rounded-full font-semibold transition-all ${addressExists
+                                ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-gray-800 dark:text-gray-300'
+                                : 'bg-gray-50 text-gray-400 border border-gray-100 cursor-not-allowed dark:bg-gray-900'
                                 }`}
                             >
                               {label}
@@ -2054,7 +2053,7 @@ export default function Cart() {
                         })}
                       </div>
                       {addresses.length > 0 && (
-                        <div className="mt-3 space-y-2">
+                        <div className="mt-4 space-y-3">
                           {addresses.map((address) => {
                             const addressId = getAddressId(address)
                             const isSelected = addressId && addressId === selectedAddressId
@@ -2067,22 +2066,22 @@ export default function Cart() {
                                   e.stopPropagation()
                                   handleSelectSavedAddress(address)
                                 }}
-                                className={`w-full text-left rounded-lg border px-3 py-2 transition-colors ${isSelected
-                                  ? "border-[#EB590E] bg-[#FFF2EB] dark:bg-[#EB590E]/10"
-                                  : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+                                className={`w-full text-left rounded-xl border-2 p-3 transition-colors ${isSelected
+                                  ? "border-[#EB590E] bg-orange-50/50 dark:bg-[#EB590E]/5"
+                                  : "border-slate-100 dark:border-gray-800 hover:border-slate-200"
                                   }`}
                               >
-                                <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-start justify-between gap-3">
                                   <div className="min-w-0">
-                                    <p className="text-xs md:text-sm font-medium text-gray-800 dark:text-gray-200">
+                                    <p className="text-sm font-bold text-gray-900 dark:text-gray-100">
                                       {getDisplayAddressLabel(address.label)}
                                     </p>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mt-1">
                                       {formatFullAddress(address) || address.address || "Address details"}
                                     </p>
                                   </div>
                                   {isSelected && (
-                                    <span className="text-[10px] md:text-xs text-[#EB590E] font-medium whitespace-nowrap">
+                                    <span className="text-[10px] bg-[#EB590E] text-white px-2 py-0.5 rounded uppercase font-bold tracking-wider whitespace-nowrap">
                                       Selected
                                     </span>
                                   )}
@@ -2097,16 +2096,16 @@ export default function Cart() {
                   <button
                     type="button"
                     onClick={openLocationSelector}
-                    className="ml-3 flex items-center justify-center self-start rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                    className="p-2 text-[#EB590E] bg-orange-50 rounded-full hover:bg-orange-100 transition-colors dark:bg-orange-900/20 dark:hover:bg-orange-900/40"
                     aria-label="Open location selector"
                   >
-                    <ChevronRight className="h-4 w-4 md:h-5 md:w-5" />
+                    <ChevronRight className="h-5 w-5" />
                   </button>
                 </div>
               </div>
 
               {/* Contact */}
-              <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-3 md:py-4 rounded-lg md:rounded-xl">
+              <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-4 rounded-2xl shadow-sm border border-slate-100 dark:border-gray-800">
                 <Link to="/user/profile" className="flex items-center justify-between">
                   <div className="flex items-center gap-3 md:gap-4">
                     <Phone className="h-4 w-4 md:h-5 md:w-5 text-gray-500 dark:text-gray-400" />
@@ -2119,64 +2118,68 @@ export default function Cart() {
               </div>
 
               {/* Bill Details */}
-              <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-3 md:py-4 rounded-lg md:rounded-xl">
+              <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-5 rounded-2xl shadow-sm border border-slate-100 dark:border-gray-800">
                 <button
                   onClick={() => setShowBillDetails(!showBillDetails)}
                   className="flex items-center justify-between w-full"
                 >
                   <div className="flex items-center gap-3 md:gap-4">
-                    <FileText className="h-4 w-4 md:h-5 md:w-5 text-gray-500 dark:text-gray-400" />
+                    <FileText className="h-5 w-5 text-gray-500 dark:text-gray-400" />
                     <div className="text-left">
-                      <div className="flex items-center gap-2 md:gap-3 flex-wrap">
-                        <span className="text-sm md:text-base text-gray-800 dark:text-gray-200">Total Bill</span>
-                        <span className="text-sm md:text-base text-gray-400 dark:text-gray-500 line-through">{RUPEE_SYMBOL}{totalBeforeDiscount.toFixed(0)}</span>
-                        <span className="text-sm md:text-base font-semibold text-gray-800 dark:text-gray-200">{RUPEE_SYMBOL}{total.toFixed(0)}</span>
-                        {savings > 0 && (
-                          <span className="text-xs md:text-sm bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 px-1.5 md:px-2 py-0.5 rounded font-medium">
-                            Saved {RUPEE_SYMBOL}{savings}
-                          </span>
+                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                        <span className="text-base text-gray-800 dark:text-gray-200 font-semibold tracking-wide">Total Bill</span>
+                        {savings > 0 ? (
+                            <>
+                                <span className="text-base text-gray-400 dark:text-gray-500 line-through font-medium">{RUPEE_SYMBOL}{totalBeforeDiscount.toFixed(2)}</span>
+                                <span className="text-base font-bold text-gray-900 dark:text-white">{RUPEE_SYMBOL}{total.toFixed(2)}</span>
+                                <span className="text-[11px] bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded text-center ml-1 font-semibold border border-blue-200 dark:border-blue-800">
+                                  You saved {RUPEE_SYMBOL}{savings.toFixed(0)}
+                                </span>
+                            </>
+                        ) : (
+                            <span className="text-base font-bold text-gray-900 dark:text-white">{RUPEE_SYMBOL}{total.toFixed(2)}</span>
                         )}
                       </div>
-                      <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400">Incl. taxes and charges</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Incl. taxes and charges</p>
                     </div>
                   </div>
-                  <ChevronRight className="h-4 w-4 md:h-5 md:w-5 text-gray-400" />
+                  <ChevronRight className={`h-5 w-5 text-gray-400 transition-transform ${showBillDetails ? 'rotate-90' : ''}`} />
                 </button>
 
                 {showBillDetails && (
-                  <div className="mt-3 md:mt-4 pt-3 md:pt-4 border-t border-dashed dark:border-gray-700 space-y-2 md:space-y-3">
-                    <div className="flex justify-between text-sm md:text-base">
+                  <div className="mt-4 pt-4 border-t border-dashed border-gray-200 dark:border-gray-800 space-y-3">
+                    <div className="flex justify-between text-sm">
                       <span className="text-gray-600 dark:text-gray-400">Item Total</span>
-                      <span className="text-gray-800 dark:text-gray-200">{RUPEE_SYMBOL}{subtotal.toFixed(0)}</span>
+                      <span className="text-gray-800 dark:text-gray-200 font-medium">{RUPEE_SYMBOL}{subtotal.toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between text-sm md:text-base">
+                    <div className="flex justify-between text-sm">
                       <span className="text-gray-600 dark:text-gray-400">Delivery Fee</span>
-                      <span className={deliveryFee === 0 ? "text-[#EB590E] dark:text-[#EB590E]" : "text-gray-800 dark:text-gray-200"}>
-                        {deliveryFee === 0 ? "FREE" : `${RUPEE_SYMBOL}${deliveryFee}`}
+                      <span className={deliveryFee === 0 ? "text-[#EB590E] font-medium" : "text-gray-800 dark:text-gray-200 font-medium"}>
+                        {deliveryFee === 0 ? "FREE" : `${RUPEE_SYMBOL}${deliveryFee.toFixed(2)}`}
                       </span>
                     </div>
                     {deliveryFeeBreakdownText && (
-                      <div className="text-[11px] md:text-xs text-gray-500 dark:text-gray-400 -mt-1">
+                      <div className="text-[11px] text-gray-500 dark:text-gray-400 -mt-1.5 ml-1 border-l-2 border-gray-100 pl-2">
                         {deliveryFeeBreakdownText}
                       </div>
                     )}
-                    <div className="flex justify-between text-sm md:text-base">
+                    <div className="flex justify-between text-sm">
                       <span className="text-gray-600 dark:text-gray-400">Platform Fee</span>
-                      <span className="text-gray-800 dark:text-gray-200">{RUPEE_SYMBOL}{platformFee}</span>
+                      <span className="text-gray-800 dark:text-gray-200 font-medium">{RUPEE_SYMBOL}{platformFee.toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between text-sm md:text-base">
+                    <div className="flex justify-between text-sm">
                       <span className="text-gray-600 dark:text-gray-400">GST and Restaurant Charges</span>
-                      <span className="text-gray-800 dark:text-gray-200">{RUPEE_SYMBOL}{gstCharges}</span>
+                      <span className="text-gray-800 dark:text-gray-200 font-medium">{RUPEE_SYMBOL}{gstCharges.toFixed(2)}</span>
                     </div>
                     {discount > 0 && (
-                      <div className="flex justify-between text-sm md:text-base text-red-600 dark:text-red-400">
+                      <div className="flex justify-between text-sm text-[#EB590E] font-medium">
                         <span>Coupon Discount</span>
-                        <span>-{RUPEE_SYMBOL}{discount}</span>
+                        <span>-{RUPEE_SYMBOL}{discount.toFixed(2)}</span>
                       </div>
                     )}
-                    <div className="flex justify-between text-sm md:text-base font-semibold pt-2 md:pt-3 border-t dark:border-gray-700">
+                    <div className="flex justify-between text-base font-bold pt-3 mt-1 border-t border-gray-100 dark:border-gray-800 text-gray-900 dark:text-white">
                       <span>To Pay</span>
-                      <span>{RUPEE_SYMBOL}{total.toFixed(0)}</span>
+                      <span>{RUPEE_SYMBOL}{total.toFixed(2)}</span>
                     </div>
                   </div>
                 )}
@@ -2188,41 +2191,44 @@ export default function Cart() {
             <div className="lg:col-span-1">
               <div className="lg:sticky lg:top-24 space-y-4 md:space-y-6">
                 {/* Bill Summary Card */}
-                <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-4 md:py-5 rounded-lg md:rounded-xl border border-gray-200 dark:border-gray-700">
-                  <h3 className="text-base md:text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3 md:mb-4">Order Summary</h3>
-                  <div className="space-y-2 md:space-y-3">
-                    <div className="flex justify-between text-sm md:text-base">
+                <div className="bg-white dark:bg-[#1a1a1a] px-5 py-6 rounded-2xl shadow-sm border border-slate-100 dark:border-gray-800">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-5">Order Summary</h3>
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-sm">
                       <span className="text-gray-600 dark:text-gray-400">Item Total</span>
-                      <span className="text-gray-800 dark:text-gray-200">{RUPEE_SYMBOL}{subtotal.toFixed(0)}</span>
+                      <span className="text-gray-800 dark:text-gray-200 font-medium">{RUPEE_SYMBOL}{subtotal.toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between text-sm md:text-base">
+                    <div className="flex justify-between text-sm">
                       <span className="text-gray-600 dark:text-gray-400">Delivery Fee</span>
-                      <span className={deliveryFee === 0 ? "text-[#EB590E] dark:text-[#EB590E]" : "text-gray-800 dark:text-gray-200"}>
-                        {deliveryFee === 0 ? "FREE" : `${RUPEE_SYMBOL}${deliveryFee}`}
+                      <span className={deliveryFee === 0 ? "text-[#EB590E] font-medium" : "text-gray-800 dark:text-gray-200 font-medium"}>
+                        {deliveryFee === 0 ? "FREE" : `${RUPEE_SYMBOL}${deliveryFee.toFixed(2)}`}
                       </span>
                     </div>
                     {deliveryFeeBreakdownText && (
-                      <div className="text-[11px] md:text-xs text-gray-500 dark:text-gray-400 -mt-1">
+                      <div className="text-[11px] text-gray-500 dark:text-gray-400 -mt-2 border-l-2 border-gray-100 pl-2 ml-1">
                         {deliveryFeeBreakdownText}
                       </div>
                     )}
-                    <div className="flex justify-between text-sm md:text-base">
+                    <div className="flex justify-between text-sm">
                       <span className="text-gray-600 dark:text-gray-400">Platform Fee</span>
-                      <span className="text-gray-800 dark:text-gray-200">{RUPEE_SYMBOL}{platformFee}</span>
+                      <span className="text-gray-800 dark:text-gray-200 font-medium">{RUPEE_SYMBOL}{platformFee.toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between text-sm md:text-base">
+                    <div className="flex justify-between text-sm">
                       <span className="text-gray-600 dark:text-gray-400">GST</span>
-                      <span className="text-gray-800 dark:text-gray-200">{RUPEE_SYMBOL}{gstCharges}</span>
+                      <span className="text-gray-800 dark:text-gray-200 font-medium">{RUPEE_SYMBOL}{gstCharges.toFixed(2)}</span>
                     </div>
                     {discount > 0 && (
-                      <div className="flex justify-between text-sm md:text-base text-red-600 dark:text-red-400">
+                      <div className="flex justify-between text-sm text-[#EB590E] font-medium">
                         <span>Discount</span>
-                        <span>-{RUPEE_SYMBOL}{discount}</span>
+                        <span>-{RUPEE_SYMBOL}{discount.toFixed(2)}</span>
                       </div>
                     )}
-                    <div className="flex justify-between text-base md:text-lg font-bold pt-3 md:pt-4 pb-6 border-t dark:border-gray-700">
-                      <span>Total</span>
-                      <span className="text-green-600 dark:text-green-400">{RUPEE_SYMBOL}{total.toFixed(0)}</span>
+                    
+                    <div className="my-4 border-t border-dashed border-gray-200 dark:border-gray-700"></div>
+                    
+                    <div className="flex justify-between text-lg font-black text-gray-900 dark:text-white">
+                      <span>Grand Total</span>
+                      <span>{RUPEE_SYMBOL}{total.toFixed(2)}</span>
                     </div>
                   </div>
                 </div>
@@ -2233,66 +2239,49 @@ export default function Cart() {
       </div>
 
       {/* Bottom Sticky - Place Order */}
-      <div className="bg-white dark:bg-[#1a1a1a] border-t dark:border-gray-800 shadow-lg z-30 flex-shrink-0 fixed bottom-0 left-0 right-0">
-        <div className="max-w-7xl mx-auto">
-          <div className="px-4 md:px-6 py-3 md:py-4">
-            <div className="w-full max-w-md md:max-w-lg mx-auto">
-              {/* Pay Using */}
-              <div className="flex items-center justify-between mb-2 md:mb-3">
-                <div className="flex items-center gap-2">
-                  {selectedPaymentMethod === "wallet" ? (
-                    <Wallet className="h-4 w-4 text-gray-600 dark:text-gray-300" />
-                  ) : (
-                    <CreditCard className="h-4 w-4 text-gray-600 dark:text-gray-300" />
-                  )}
-                  <div className="leading-tight">
-                    <p className="text-[11px] md:text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      PAY USING
-                    </p>
-                    <p className="text-sm md:text-base font-medium text-gray-800 dark:text-gray-200">
-                      {selectedPaymentLabel}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="relative">
-                  <select
-                    value={selectedPaymentMethod}
-                    onChange={(e) => setSelectedPaymentMethod(e.target.value)}
-                    className="appearance-none bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 rounded-lg px-3 py-2 pr-9 text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-[#EB590E]/40"
-                  >
-                    <option value="cash">COD</option>
-                    <option value="wallet">
-                      Wallet ({RUPEE_SYMBOL}{isLoadingWallet ? "..." : walletBalance.toFixed(0)})
-                    </option>
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-400" />
-                </div>
-              </div>
-
-              <Button
-                size="lg"
-                onClick={handlePlaceOrder}
-                disabled={isPlacingOrder || (selectedPaymentMethod === "wallet" && walletBalance < total)}
-                className="w-full bg-[#EB590E] hover:bg-[#D94F0C] dark:bg-[#EB590E] dark:hover:bg-[#D94F0C] text-white px-6 md:px-10 h-14 md:h-16 rounded-lg md:rounded-xl text-base md:text-lg font-bold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+      <div className="bg-white dark:bg-[#1a1a1a] shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.15)] dark:shadow-none dark:border-t dark:border-gray-800 z-30 flex-shrink-0 fixed bottom-0 left-0 right-0 pt-2 pb-4 md:py-4 px-4 md:px-6">
+        <div className="w-full max-w-7xl mx-auto flex items-center justify-between gap-4 flex-wrap sm:flex-nowrap">
+          {/* Pay Using */}
+          <div className="flex flex-col flex-1 pl-2">
+            <span className="text-[10px] text-gray-500 dark:text-gray-400 font-bold tracking-wider uppercase mb-0.5">Pay Using</span>
+            <div className="relative group cursor-pointer w-fit">
+              <select
+                value={selectedPaymentMethod}
+                onChange={(e) => setSelectedPaymentMethod(e.target.value)}
+                className="appearance-none bg-transparent font-bold text-gray-900 dark:text-white pr-6 outline-none cursor-pointer border-b md:border-b-[1.5px] border-dashed border-gray-400 hover:border-gray-800 transition-colors"
+                style={{ MozAppearance: 'none', WebkitAppearance: 'none' }}
               >
-                {(selectedPaymentMethod === "razorpay" || selectedPaymentMethod === "wallet") && (
-                  <div className="text-left mr-3 md:mr-4">
-                    <p className="text-sm md:text-base opacity-90">{RUPEE_SYMBOL}{total.toFixed(0)}</p>
-                    <p className="text-xs md:text-sm opacity-75">TOTAL</p>
-                  </div>
-                )}
-                <span className="font-bold text-base md:text-lg">
-                  {isPlacingOrder
-                    ? "Processing..."
-                    : !hasSavedAddress
-                      ? "Add Address to Continue"
-                    : "Place Order"}
-                </span>
-                <ChevronRight className="h-5 w-5 md:h-6 md:w-6 ml-2" />
-              </Button>
+                <option value="cash" className="text-sm md:text-base font-medium text-gray-900">Cash on Delivery</option>
+                <option value="wallet" className="text-sm md:text-base font-medium text-gray-900">
+                  Wallet ({RUPEE_SYMBOL}{isLoadingWallet ? "..." : walletBalance.toFixed(0)})
+                </option>
+              </select>
+              <ChevronUp className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 h-3 w-3 md:h-4 md:w-4 text-[#EB590E]" />
             </div>
           </div>
+
+          <button
+            onClick={handlePlaceOrder}
+            disabled={isPlacingOrder || (selectedPaymentMethod === "wallet" && walletBalance < total)}
+            className="w-full sm:w-auto sm:flex-[2] md:min-w-[280px] lg:max-w-[400px] bg-gradient-to-r from-[#EB590E] to-[#E23744] hover:from-[#D94F0C] hover:to-[#CF2834] text-white px-6 h-12 md:h-14 rounded-2xl font-bold shadow-lg shadow-[#EB590E]/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between transition-transform active:scale-[0.98]"
+          >
+            {(selectedPaymentMethod === "razorpay" || selectedPaymentMethod === "wallet" || selectedPaymentMethod === "cash") && (
+              <div className="text-left flex flex-col justify-center border-r-[1.5px] border-white/20 pr-4">
+                <span className="text-xs md:text-sm font-semibold text-white/90">{RUPEE_SYMBOL}{total.toFixed(2)}</span>
+                <span className="text-[9px] md:text-[10px] uppercase font-bold tracking-wider text-white/80 mt-[-2px]">Total</span>
+              </div>
+            )}
+            <div className="flex items-center gap-1 mx-auto text-sm md:text-lg tracking-wide">
+              {isPlacingOrder
+                ? "Processing..."
+                : !hasSavedAddress
+                  ? "Select Address"
+                : "Place Order"}
+              <div className="flex align-center h-full"> 
+                <ChevronRight className="h-4 w-4 md:h-5 md:w-5" /> 
+              </div>
+            </div>
+          </button>
         </div>
       </div>
 

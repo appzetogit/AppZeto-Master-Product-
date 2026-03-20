@@ -932,6 +932,16 @@ export default function OrdersMain() {
   useEffect(() => {
     if (newOrder) {
       debugLog('?? New order received via Socket.IO:', newOrder)
+      
+      const scheduledAt = newOrder.scheduledAt ? new Date(newOrder.scheduledAt).getTime() : null
+      const isFutureScheduled = scheduledAt && scheduledAt > Date.now() + 30 * 60000
+
+      if (isFutureScheduled) {
+        toast.info(`New scheduled order received for ${new Date(scheduledAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`)
+        requestOrdersRefresh()
+        return // Do not show the immediate popup
+      }
+
       if (!hasOrderBeenShown(newOrder)) {
         markOrderAsShown(newOrder)
         setPopupOrder(newOrder)
@@ -991,64 +1001,79 @@ export default function OrdersMain() {
   const [ordersRefreshToken, setOrdersRefreshToken] = useState(0)
   const requestOrdersRefresh = () => setOrdersRefreshToken((t) => t + 1)
 
-  // Check for confirmed orders that haven't been shown in popup yet (fallback if Socket.IO fails)
+  // Check for confirmed orders that haven't been shown in popup yet, or scheduled orders whose time has come
   useEffect(() => {
-    const checkConfirmedOrders = async () => {
+    const checkOrdersToPopup = async () => {
       // Skip if popup is already showing or Socket.IO order exists
       if (showNewOrderPopupRef.current || newOrderRef.current) return
 
       try {
         const response = await restaurantAPI.getOrders()
         if (response.data?.success && response.data.data?.orders) {
-          // Find confirmed orders that haven't been shown yet
-          const confirmedOrders = response.data.data.orders.filter(
-            order => order.status === 'confirmed' &&
-              !hasOrderBeenShown(order)
-          )
+          const now = Date.now()
 
-          // Show the most recent confirmed order in popup (double-check state)
-          if (confirmedOrders.length > 0 && !showNewOrderPopupRef.current && !newOrderRef.current) {
-            const latestConfirmedOrder = confirmedOrders[0]
-            const orderId = latestConfirmedOrder.orderId || latestConfirmedOrder._id
+          // Find orders that should trigger the popup
+          const targetOrders = response.data.data.orders.filter(order => {
+            if (hasOrderBeenShown(order)) return false
+
+            const isConfirmed = order.status === 'confirmed'
+            const isCreatedScheduled = order.status === 'created' && order.scheduledAt
+
+            if (isConfirmed && !order.scheduledAt) return true // ordinary confirmed fallback
+
+            if (order.scheduledAt && (order.status === 'created' || order.status === 'confirmed')) {
+               const scheduledTime = new Date(order.scheduledAt).getTime()
+               // Show popup if scheduled time is <= 30 mins from now
+               if (scheduledTime <= now + 30 * 60000) return true
+            }
+
+            return false
+          })
+
+          // Show the most recent matching order in popup
+          if (targetOrders.length > 0 && !showNewOrderPopupRef.current && !newOrderRef.current) {
+            const orderToPopup = targetOrders[0]
+            const orderId = orderToPopup.orderId || orderToPopup._id
 
             // Transform order to match newOrder format (include payment so COD shows correctly)
             const orderForPopup = {
-              orderId: latestConfirmedOrder.orderId,
-              orderMongoId: latestConfirmedOrder._id,
-              restaurantId: latestConfirmedOrder.restaurantId,
-              restaurantName: latestConfirmedOrder.restaurantName,
-              items: latestConfirmedOrder.items || [],
-              total: latestConfirmedOrder.pricing?.total || 0,
-              customerAddress: latestConfirmedOrder.address,
-              status: latestConfirmedOrder.status,
-              createdAt: latestConfirmedOrder.createdAt,
-              estimatedDeliveryTime: latestConfirmedOrder.estimatedDeliveryTime || 30,
-              note: latestConfirmedOrder.note || '',
-              sendCutlery: latestConfirmedOrder.sendCutlery,
-              paymentMethod: latestConfirmedOrder.paymentMethod || latestConfirmedOrder.payment?.method || null,
-              payment: latestConfirmedOrder.payment
+              orderId: orderToPopup.orderId,
+              orderMongoId: orderToPopup._id,
+              restaurantId: orderToPopup.restaurantId,
+              restaurantName: orderToPopup.restaurantName,
+              items: orderToPopup.items || [],
+              total: orderToPopup.pricing?.total || 0,
+              customerAddress: orderToPopup.address,
+              status: orderToPopup.status,
+              createdAt: orderToPopup.createdAt,
+              scheduledAt: orderToPopup.scheduledAt,
+              estimatedDeliveryTime: orderToPopup.estimatedDeliveryTime || 30,
+              note: orderToPopup.note || '',
+              sendCutlery: orderToPopup.sendCutlery,
+              paymentMethod: orderToPopup.paymentMethod || orderToPopup.payment?.method || null,
+              payment: orderToPopup.payment
             }
 
-            debugLog('?? Found confirmed order (fallback):', orderForPopup)
-            markOrderAsShown({ orderId, _id: latestConfirmedOrder._id })
+            debugLog('?? Found order ready for popup:', orderForPopup)
+            markOrderAsShown({ orderId, _id: orderToPopup._id })
             setPopupOrder(orderForPopup)
             setShowNewOrderPopup(true)
             setCountdown(240)
           }
         }
       } catch (error) {
-        // Don't log 401 errors - axios interceptor handles token refresh/redirect
-        // Only log other errors (500, network errors, etc.)
         if (error.response?.status !== 401) {
-          debugError('Error checking confirmed orders:', error)
+          debugError('Error checking orders to popup:', error)
         }
       }
     }
 
-    // Check once on mount (best-effort fallback, no polling)
-    checkConfirmedOrders()
-    return () => {}
-  }, []) // Empty dependency array - check runs independently
+    // Check once on mount, and then every minute
+    checkOrdersToPopup()
+    const intervalId = setInterval(checkOrdersToPopup, 60000)
+    
+    return () => clearInterval(intervalId)
+  }, [])
 
   // Play audio when popup opens
   useEffect(() => {
@@ -1874,6 +1899,21 @@ export default function OrdersMain() {
 
                 {/* Content */}
                 <div className="px-4 pt-4 pb-4 flex-1 overflow-y-auto min-h-0">
+                  {/* Scheduled Indicator */}
+                  {(popupOrder || newOrder)?.scheduledAt && (
+                    <div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                        <Calendar className="w-4 h-4 text-green-600" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-green-800 uppercase tracking-wider">Scheduled Order</p>
+                        <p className="text-sm font-semibold text-green-900 mt-0.5">
+                          For {new Date((popupOrder || newOrder).scheduledAt).toLocaleString('en-US', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Customer info */}
                   <div className="mb-4">
                     <h4 className="text-sm font-semibold text-gray-900">

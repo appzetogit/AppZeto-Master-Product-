@@ -729,6 +729,24 @@ export const adminAPI = {
       { reason: String(reason || "").trim() },
       { contextModule: "admin" },
     ),
+  /** Business Settings (admin) */
+  getBusinessSettings: () =>
+    apiClient.get(API_ENDPOINTS.ADMIN.BUSINESS_SETTINGS, {
+      contextModule: "admin",
+    }),
+  updateBusinessSettings: (data, files = {}) => {
+    const formData = new FormData();
+    // Add JSON data
+    formData.append("data", JSON.stringify(data));
+    // Add files
+    if (files.logo) formData.append("logo", files.logo);
+    if (files.favicon) formData.append("favicon", files.favicon);
+
+    return apiClient.patch(API_ENDPOINTS.ADMIN.BUSINESS_SETTINGS, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+      contextModule: "admin",
+    });
+  },
 };
 
 /** Restaurant API - OTP login via new backend; no email/password. */

@@ -105,8 +105,8 @@ const iconMap = {
 export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange }) {
   const location = useLocation()
   const [searchQuery, setSearchQuery] = useState("")
-  const [logoUrl, setLogoUrl] = useState(null)
-  const [companyName, setCompanyName] = useState(null)
+  const [logoUrl, setLogoUrl] = useState(() => getCachedSettings()?.logo?.url || null)
+  const [companyName, setCompanyName] = useState(() => getCachedSettings()?.companyName || null)
 
   // Load business settings logo
   useEffect(() => {
@@ -554,13 +554,14 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
                 <div className="w-24 h-12 rounded-lg flex items-center justify-center shadow-black/20">
                   {logoUrl ? (
                     <img
-                      src={logoUrl}
+                      src={logoUrl || quickSpicyLogo}
                       alt={companyName || "Company"}
                       className="w-24 h-10 object-contain"
                       loading="lazy"
                       onError={(e) => {
-                        // Hide image if it fails to load
-                        e.target.style.display = 'none'
+                        if (e.target.src !== quickSpicyLogo) {
+                          e.target.src = quickSpicyLogo
+                        }
                       }}
                     />
                   ) : companyName ? (
@@ -568,7 +569,7 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
                       {companyName}
                     </span>
                   ) : (
-                    <img src={quickSpicyLogo} alt={companyName || "Company"} className="w-24 h-10 object-contain" loading="lazy" />
+                    <img src={quickSpicyLogo} alt="Company" className="w-24 h-10 object-contain" loading="lazy" />
                   )}
                 </div>
               </div>
@@ -576,23 +577,20 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
             {isCollapsed && (
               <div className="w-full flex items-center justify-center">
                 <div className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center shadow-lg shadow-black/20 ring-1 ring-white/10">
-                  {logoUrl ? (
+                  {logoUrl || companyName ? (
                     <img
-                      src={logoUrl}
+                      src={logoUrl || quickSpicyLogo}
                       alt={companyName || "Company"}
                       className="w-10 h-10 object-contain"
                       loading="lazy"
                       onError={(e) => {
-                        // Hide image if it fails to load
-                        e.target.style.display = 'none'
+                        if (e.target.src !== quickSpicyLogo) {
+                          e.target.src = quickSpicyLogo
+                        }
                       }}
                     />
-                  ) : companyName ? (
-                    <span className="text-[10px] font-semibold text-white truncate px-1">
-                      {companyName.charAt(0).toUpperCase()}
-                    </span>
                   ) : (
-                    <img src={quickSpicyLogo} alt={companyName || "Company"} className="w-10 h-10 object-contain" loading="lazy" />
+                    <img src={quickSpicyLogo} alt="Company" className="w-10 h-10 object-contain" loading="lazy" />
                   )}
                 </div>
               </div>

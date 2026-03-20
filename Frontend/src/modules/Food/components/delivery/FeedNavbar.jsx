@@ -6,6 +6,7 @@ import { HelpCircle, ArrowRight, Phone, Ambulance, AlertTriangle, Shield, Shield
 import { toast } from "sonner";
 import { deliveryAPI } from "@food/api";
 import { useCompanyName } from "@food/hooks/useCompanyName";
+import { getCachedSettings, loadBusinessSettings } from "@food/utils/businessSettings";
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -60,6 +61,33 @@ function BottomPopup({
 export default function FeedNavbar({ className = "" }) {
   const companyName = useCompanyName()
   const navigate = useNavigate();
+  const [logoUrl, setLogoUrl] = useState(null)
+
+  // Load logo for branding
+  useEffect(() => {
+    const loadLogo = async () => {
+      const cached = getCachedSettings()
+      if (cached?.logo?.url) {
+        setLogoUrl(cached.logo.url)
+      } else {
+        const settings = await loadBusinessSettings()
+        if (settings?.logo?.url) {
+          setLogoUrl(settings.logo.url)
+        }
+      }
+    }
+    loadLogo()
+
+    const handleSettingsUpdate = () => {
+      const cached = getCachedSettings()
+      if (cached?.logo?.url) {
+        setLogoUrl(cached.logo.url)
+      }
+    }
+    window.addEventListener('businessSettingsUpdated', handleSettingsUpdate)
+    return () => window.removeEventListener('businessSettingsUpdated', handleSettingsUpdate)
+  }, [])
+
   const normalizePhoneForDial = (value) => String(value || "").replace(/[^\d]/g, "");
 
   // 1) Init from localStorage (no toast on mount)
@@ -380,35 +408,40 @@ export default function FeedNavbar({ className = "" }) {
   return (
     <>
     <div className={`bg-white px-4 py-3 flex items-center justify-between sticky top-0 z-50 border-b border-gray-200 ${className}`}>
-        {/* Online/Offline Toggle */}
-      <div className="relative" style={{ zIndex: 100 }}>
-        <button
-          onClick={handleToggle}
-          onTouchStart={(e) => e.stopPropagation()}
-          className="focus:outline-none relative cursor-pointer"
-          type="button"
-          role="switch"
-            aria-checked={isOnline}
-            style={{ pointerEvents: "auto", zIndex: 100, WebkitTapHighlightColor: "transparent" }}
-          >
-            <div className={`relative w-20 h-8 rounded-full transition-colors duration-300 ${isOnline ? "bg-green-500" : "bg-gray-400"}`}>
-            <span
-              className={`text-[11px] font-bold text-white absolute top-1/2 -translate-y-1/2 whitespace-nowrap transition-all duration-300 ${
-                  isOnline ? "left-2" : "right-2"
-              }`}
-              style={{ opacity: 1, zIndex: 2, pointerEvents: "none" }}
+        {/* Logo and Online/Offline Toggle */}
+      <div className="flex items-center gap-3">
+        {logoUrl && (
+          <img src={logoUrl} alt="Logo" className="h-8 w-auto object-contain" />
+        )}
+        <div className="relative" style={{ zIndex: 100 }}>
+          <button
+            onClick={handleToggle}
+            onTouchStart={(e) => e.stopPropagation()}
+            className="focus:outline-none relative cursor-pointer"
+            type="button"
+            role="switch"
+              aria-checked={isOnline}
+              style={{ pointerEvents: "auto", zIndex: 100, WebkitTapHighlightColor: "transparent" }}
             >
-                {isOnline ? "Online" : "Offline"}
-            </span>
+              <div className={`relative w-20 h-8 rounded-full transition-colors duration-300 ${isOnline ? "bg-green-500" : "bg-gray-400"}`}>
+              <span
+                className={`text-[11px] font-bold text-white absolute top-1/2 -translate-y-1/2 whitespace-nowrap transition-all duration-300 ${
+                    isOnline ? "left-2" : "right-2"
+                }`}
+                style={{ opacity: 1, zIndex: 2, pointerEvents: "none" }}
+              >
+                  {isOnline ? "Online" : "Offline"}
+              </span>
 
-            <motion.div
-              className="absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg"
-                animate={{ x: isOnline ? 48 : 2 }}
-              transition={{ type: "spring", stiffness: 500, damping: 30 }}
-              style={{ pointerEvents: "none", zIndex: 10 }}
-            />
-          </div>
-        </button>
+              <motion.div
+                className="absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg"
+                  animate={{ x: isOnline ? 48 : 2 }}
+                transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                style={{ pointerEvents: "none", zIndex: 10 }}
+              />
+            </div>
+          </button>
+        </div>
       </div>
 
       {/* Right Icons */}

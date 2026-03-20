@@ -3,11 +3,16 @@ import { AuthError } from '../../../../core/auth/errors.js';
 import * as adminController from '../controllers/admin.controller.js';
 import * as foodApprovalController from '../controllers/foodApproval.controller.js';
 import * as addonsApprovalController from '../controllers/addonsApproval.controller.js';
+import * as businessSettingsController from '../controllers/businessSettings.controller.js';
 import * as diningAdminController from '../../dining/controllers/diningAdmin.controller.js';
 import * as orderController from '../../orders/controllers/order.controller.js';
 import { getAdminPageController, upsertAdminPageController } from '../controllers/pageContent.controller.js';
+import { upload } from '../../../../middleware/upload.js';
 
 const router = express.Router();
+
+// ----- Public Business Settings (No Admin Required) -----
+router.get('/business-settings/public', businessSettingsController.getBusinessSettings);
 
 const requireAdmin = (req, _res, next) => {
     const user = req.user;
@@ -99,6 +104,14 @@ router.put('/fee-settings', adminController.createOrUpdateFeeSettings);
 // ----- Referral Settings -----
 router.get('/referral-settings', adminController.getReferralSettings);
 router.put('/referral-settings', adminController.createOrUpdateReferralSettings);
+
+// ----- Business Settings -----
+router.get('/business-settings/public', businessSettingsController.getBusinessSettings); // Public endpoint
+router.get('/business-settings', businessSettingsController.getBusinessSettings);
+router.patch('/business-settings', upload.fields([
+    { name: 'logo', maxCount: 1 },
+    { name: 'favicon', maxCount: 1 }
+]), businessSettingsController.updateBusinessSettings);
 
 // ----- Delivery Cash Limit -----
 router.get('/delivery-cash-limit', adminController.getDeliveryCashLimit);

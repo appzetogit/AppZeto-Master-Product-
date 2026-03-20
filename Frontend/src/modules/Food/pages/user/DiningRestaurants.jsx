@@ -9,6 +9,7 @@ import AnimatedPage from "@food/components/user/AnimatedPage"
 import { useSearchOverlay, useLocationSelector } from "@food/components/user/UserLayout"
 import { useLocation as useLocationHook } from "@food/hooks/useLocation"
 import { useProfile } from "@food/context/ProfileContext"
+import { useCompanyName } from "@food/hooks/useCompanyName"
 import { FaLocationDot } from "react-icons/fa6"
 import quickSpicyLogo from "@food/assets/quicky-spicy-logo.png"
 // Using placeholder for dining restaurant banner

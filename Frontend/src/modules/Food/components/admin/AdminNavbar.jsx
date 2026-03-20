@@ -46,8 +46,38 @@ export default function AdminNavbar({ onMenuClick }) {
   const [recentSearches, setRecentSearches] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [adminData, setAdminData] = useState(null);
-  const [businessSettings, setBusinessSettings] = useState(null);
+  const [businessSettings, setBusinessSettings] = useState(() => getCachedSettings() || null);
   const searchInputRef = useRef(null);
+
+  // Load business settings
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const cached = getCachedSettings();
+        if (cached) {
+          setBusinessSettings(cached);
+        } else {
+          const settings = await loadBusinessSettings();
+          if (settings) {
+            setBusinessSettings(settings);
+          }
+        }
+      } catch (error) {
+        debugError('Error loading settings:', error);
+      }
+    };
+    loadSettings();
+
+    // Listen for business settings updates
+    const handleSettingsUpdate = () => {
+      const settings = getCachedSettings();
+      if (settings) {
+        setBusinessSettings(settings);
+      }
+    };
+    window.addEventListener('businessSettingsUpdated', handleSettingsUpdate);
+    return () => window.removeEventListener('businessSettingsUpdated', handleSettingsUpdate);
+  }, []);
 
   // Load recent searches from localStorage
   useEffect(() => {
@@ -132,38 +162,6 @@ export default function AdminNavbar({ onMenuClick }) {
 
     return () => {
       window.removeEventListener('adminAuthChanged', handleAuthChange);
-    };
-  }, []);
-
-  // Load business settings
-  useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const settings = await loadBusinessSettings();
-        if (settings) {
-          setBusinessSettings(settings);
-        } else {
-          // Try to get from cache
-          const cached = getCachedSettings();
-          if (cached) {
-            setBusinessSettings(cached);
-          }
-        }
-      } catch (error) {
-        debugWarn('Error loading business settings in navbar:', error);
-      }
-    };
-
-    loadSettings();
-
-    // Listen for business settings updates
-    const handleSettingsUpdate = () => {
-      loadSettings();
-    };
-    window.addEventListener('businessSettingsUpdated', handleSettingsUpdate);
-
-    return () => {
-      window.removeEventListener('businessSettingsUpdated', handleSettingsUpdate);
     };
   }, []);
 

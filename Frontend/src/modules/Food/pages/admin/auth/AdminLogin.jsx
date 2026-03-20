@@ -55,6 +55,17 @@ export default function AdminLogin() {
       }
     }
     fetchLogo()
+
+    // Listen for business settings updates
+    const handleSettingsUpdate = async () => {
+      // Force reload settings from backend
+      const settings = await loadBusinessSettings();
+      if (settings?.logo?.url) {
+        setLogoUrl(settings.logo.url);
+      }
+    };
+    window.addEventListener('businessSettingsUpdated', handleSettingsUpdate);
+    return () => window.removeEventListener('businessSettingsUpdated', handleSettingsUpdate);
   }, [])
 
   const handleSubmit = async (e) => {

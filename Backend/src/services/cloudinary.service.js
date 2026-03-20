@@ -27,3 +27,23 @@ export const uploadImageBuffer = async (buffer, folder = 'uploads') => {
     });
 };
 
+export const uploadImageBufferDetailed = async (buffer, folder = 'uploads') => {
+    if (!buffer) {
+        throw new Error('File buffer is required');
+    }
+
+    return new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+            { folder, resource_type: 'image' },
+            (error, result) => {
+                if (error) {
+                    return reject(error);
+                }
+                return resolve(result);
+            }
+        );
+
+        stream.end(buffer);
+    });
+};
+

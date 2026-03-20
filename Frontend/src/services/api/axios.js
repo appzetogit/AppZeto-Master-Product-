@@ -23,7 +23,7 @@ const apiClient = axios.create({
 
 function getModuleFromUrl(url = "") {
   const u = typeof url === "string" ? url : (url?.url || "");
-  if (u.includes("/food/auth/admin") || u.includes("/auth/admin") || u.includes("admin/login")) return "admin";
+  if (u.includes("/admin/") || u.includes("/food/admin/") || u.includes("/food/auth/admin") || u.includes("/auth/admin") || u.includes("admin/login")) return "admin";
   if (u.includes("/food/auth/restaurant") || u.includes("/auth/restaurant")) return "restaurant";
   if (u.includes("/food/auth/delivery") || u.includes("/auth/delivery")) return "delivery";
   return "user";

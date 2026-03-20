@@ -10,6 +10,7 @@ import userRoutes from '../modules/food/user/routes/user.routes.js';
 import orderUserRoutes from '../modules/food/orders/routes/order.routes.user.js';
 import fcmRoutes from '../core/notifications/fcm.routes.js';
 import { authMiddleware } from '../core/auth/auth.middleware.js';
+import * as businessSettingsController from '../modules/food/admin/controllers/businessSettings.controller.js';
 import { requireRoles } from '../core/roles/role.middleware.js';
 import { getQueuesController } from '../controllers/admin.controller.js';
 import { getPublicEnvController } from '../modules/food/landing/controllers/publicEnv.controller.js';
@@ -32,6 +33,10 @@ router.use('/v1/food', landingRoutes);
 router.get('/v1/food/dining/categories/public', getPublicDiningCategories);
 router.get('/v1/food/dining/restaurants/public', getPublicDiningRestaurants);
 router.use('/v1/uploads', uploadRoutes);
+
+// Mark business-settings/public as truly public (must be before protected admin block)
+router.get('/v1/food/admin/business-settings/public', businessSettingsController.getBusinessSettings);
+
 router.use('/v1/food/admin', authMiddleware, requireRoles('ADMIN'), restaurantAdminRoutes);
 router.use('/v1/food/user', authMiddleware, requireRoles('USER'), userRoutes);
 router.use('/v1/food/orders', authMiddleware, requireRoles('USER'), orderUserRoutes);

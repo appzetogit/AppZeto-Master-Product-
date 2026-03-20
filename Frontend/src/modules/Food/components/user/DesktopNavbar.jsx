@@ -157,22 +157,19 @@ export default function DesktopNavbar() {
                         <div className="flex items-center gap-4 lg:gap-6 flex-shrink-0">
                             {/* Logo */}
                             <Link to="/food/user" className="flex items-center justify-center flex-shrink-0">
-                                {logoUrl ? (
+                                {logoUrl || companyName ? (
                                     <img
-                                        src={logoUrl}
-                                        alt="Company Logo"
+                                        src={logoUrl || quickSpicyLogo}
+                                        alt={companyName || "Company Logo"}
                                         className="h-10 w-auto md:h-14 lg:h-16 object-contain"
                                         onError={(e) => {
-                                            // Fallback to static logo if backend logo fails
-                                            e.target.src = quickSpicyLogo
+                                            if (e.target.src !== quickSpicyLogo) {
+                                                e.target.src = quickSpicyLogo
+                                            }
                                         }}
                                     />
-                                ) : companyName ? (
-                                    <span className="text-lg font-bold text-gray-900 dark:text-white">
-                                        {companyName}
-                                    </span>
                                 ) : (
-                                    <img src={quickSpicyLogo} alt="Quick Spicy" className="h-10 w-auto md:h-14 lg:h-16 object-contain" />
+                                    <img src={quickSpicyLogo} alt={companyName || "Logo"} className="h-10 w-auto md:h-14 lg:h-16 object-contain" />
                                 )}
                             </Link>
 

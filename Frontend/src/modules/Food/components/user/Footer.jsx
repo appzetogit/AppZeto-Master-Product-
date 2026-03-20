@@ -82,13 +82,14 @@ export default function Footer() {
             >
               <div className="flex items-center gap-2 mb-4">
                 <img
-                  src={logoUrl}
+                  src={logoUrl || quickSpicyLogo}
                   alt="Company Logo"
                   className="h-10 w-10 rounded-full object-cover"
                   crossOrigin="anonymous"
                   onError={(e) => {
-                    // Fallback to default logo if business logo fails to load
-                    e.target.src = quickSpicyLogo
+                    if (e.target.src !== quickSpicyLogo) {
+                      e.target.src = quickSpicyLogo
+                    }
                   }}
                 />
                 <span className="text-2xl font-bold bg-gradient-to-r from-yellow-400 to-orange-400 bg-clip-text text-transparent">
@@ -202,7 +203,7 @@ export default function Footer() {
         >
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-slate-400 text-sm text-center md:text-left">
-              © {currentYear} {companyName}. All rights reserved.
+              ï¿½ {currentYear} {companyName}. All rights reserved.
             </p>
             <div className="flex items-center gap-1 text-slate-400 text-sm">
               <span>Made with</span>

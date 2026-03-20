@@ -17,6 +17,7 @@ import { API_BASE_URL } from "@food/api/config"
 import { initRazorpayPayment } from "@food/utils/razorpay"
 import { toast } from "sonner"
 import { getCompanyNameAsync } from "@food/utils/businessSettings"
+import { useCompanyName } from "@food/hooks/useCompanyName"
 import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability"
 import zoopSound from "@food/assets/audio/zomato_sms.mp3"
 const debugLog = (...args) => {}
@@ -64,6 +65,7 @@ const formatFullAddress = (address) => {
 const RUPEE_SYMBOL = "\u20B9"
 
 export default function Cart() {
+  const companyName = useCompanyName()
   const navigate = useNavigate()
   const orderSuccessAudioRef = useRef(null)
 
@@ -112,8 +114,8 @@ export default function Cart() {
     try {
       if (navigator.share) {
         await navigator.share({
-          title: `My Cart at ${restaurantName || 'Quick Spicy'}`,
-          text: `Check out what I'm ordering from ${restaurantName || 'Quick Spicy'}!`,
+          title: `My Cart at ${restaurantName || companyName}`,
+          text: `Check out what I'm ordering from ${restaurantName || companyName}!`,
           url: window.location.href,
         });
       } else {

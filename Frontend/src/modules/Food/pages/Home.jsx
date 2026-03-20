@@ -1,15 +1,66 @@
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
+import { useState, useEffect } from "react"
+import { ArrowRight, Utensils, Truck, Store, Globe, Heart, Shield, Clock } from "lucide-react"
+import { motion } from "framer-motion"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@food/components/ui/card"
 import { Button } from "@food/components/ui/button"
-import { useCompanyName } from "@food/hooks/useCompanyName"
+import { getCachedSettings, loadBusinessSettings } from "@food/utils/businessSettings"
+import quickSpicyLogo from "@food/assets/quicky-spicy-logo.png"
 
 export default function Home() {
-  const companyName = useCompanyName()
+  const navigate = useNavigate()
+  const [logoUrl, setLogoUrl] = useState(null)
+  const [companyName, setCompanyName] = useState("")
+
+  useEffect(() => {
+    const loadLogo = async () => {
+      const cached = getCachedSettings()
+      if (cached) {
+        if (cached.logo?.url) setLogoUrl(cached.logo.url)
+        if (cached.companyName) setCompanyName(cached.companyName)
+      } else {
+        const settings = await loadBusinessSettings()
+        if (settings) {
+          if (settings.logo?.url) setLogoUrl(settings.logo.url)
+          if (settings.companyName) setCompanyName(settings.companyName)
+        }
+      }
+    }
+    loadLogo()
+
+    const handleSettingsUpdate = () => {
+      const cached = getCachedSettings()
+      if (cached) {
+        if (cached.logo?.url) setLogoUrl(cached.logo.url)
+        if (cached.companyName) setCompanyName(cached.companyName)
+      }
+    }
+    window.addEventListener('businessSettingsUpdated', handleSettingsUpdate)
+    return () => window.removeEventListener('businessSettingsUpdated', handleSettingsUpdate)
+  }, [])
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-2xl shadow-lg">
         <CardHeader className="text-center">
-          <CardTitle className="text-4xl font-bold mb-2">{companyName} ??</CardTitle>
+          <div className="flex justify-center mb-6">
+            {logoUrl || companyName ? (
+              <img
+                src={logoUrl || quickSpicyLogo}
+                alt={companyName || "Logo"}
+                className="h-16 w-auto object-contain"
+                onError={(e) => {
+                  if (e.target.src !== quickSpicyLogo) {
+                    e.target.src = quickSpicyLogo
+                  }
+                }}
+              />
+            ) : (
+              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center">
+                <Utensils className="w-8 h-8 text-primary" />
+              </div>
+            )}
+          </div>
+          <CardTitle className="text-3xl font-bold text-center">{companyName || "Appzeto Food"}</CardTitle>
           <CardDescription className="text-lg">
             Welcome to the Food Delivery Platform
           </CardDescription>

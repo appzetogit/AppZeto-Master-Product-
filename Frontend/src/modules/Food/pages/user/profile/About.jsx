@@ -9,6 +9,8 @@ import quickSpicyLogo from "@food/assets/quicky-spicy-logo.png"
 import api from "@food/api"
 import { API_ENDPOINTS } from "@food/api/config"
 import { useCompanyName } from "@food/hooks/useCompanyName"
+import { getCachedSettings, loadBusinessSettings } from "@food/utils/businessSettings"
+
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -27,6 +29,7 @@ const iconMap = {
 export default function About() {
   const companyName = useCompanyName()
   const [loading, setLoading] = useState(true)
+  const [logoUrl, setLogoUrl] = useState(null)
   const [aboutData, setAboutData] = useState({
     appName: '',
     version: '',
@@ -38,7 +41,30 @@ export default function About() {
 
   useEffect(() => {
     fetchAboutData()
+    loadLogo()
+
+    // Listen for business settings updates
+    const handleSettingsUpdate = () => {
+      const cached = getCachedSettings()
+      if (cached?.logo?.url) {
+        setLogoUrl(cached.logo.url)
+      }
+    }
+    window.addEventListener('businessSettingsUpdated', handleSettingsUpdate)
+    return () => window.removeEventListener('businessSettingsUpdated', handleSettingsUpdate)
   }, [])
+
+  const loadLogo = async () => {
+    const cached = getCachedSettings()
+    if (cached?.logo?.url) {
+      setLogoUrl(cached.logo.url)
+    } else {
+      const settings = await loadBusinessSettings()
+      if (settings?.logo?.url) {
+        setLogoUrl(settings.logo.url)
+      }
+    }
+  }
 
   const fetchAboutData = async () => {
     try {
@@ -98,9 +124,14 @@ export default function About() {
                   <div className="absolute inset-0 bg-[#EB590E] rounded-full blur-2xl opacity-30 animate-pulse" />
                   <div className="relative bg-white dark:bg-gray-800 rounded-full p-4 md:p-6 shadow-xl">
                     <img
-                      src={aboutData.logo && aboutData.logo.trim() ? aboutData.logo : quickSpicyLogo}
+                      src={logoUrl || quickSpicyLogo}
                       alt={`${aboutData.appName} Logo`}
                       className="h-16 w-16 md:h-20 md:w-20 object-contain rounded-full"
+                      onError={(e) => {
+                        if (e.target.src !== quickSpicyLogo) {
+                          e.target.src = quickSpicyLogo
+                        }
+                      }}
                     />
                   </div>
                 </div>
@@ -295,7 +326,7 @@ export default function About() {
           className="text-center mt-8 mb-4"
         >
           <p className="text-sm text-gray-500 dark:text-gray-500">
-            ù {new Date().getFullYear()} {companyName}. All rights reserved.
+            ÔøΩ {new Date().getFullYear()} {companyName}. All rights reserved.
           </p>
         </motion.div>
       </div>

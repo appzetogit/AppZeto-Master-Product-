@@ -56,17 +56,17 @@ export default function Navbar() {
     loadLogo()
 
     // Listen for business settings updates
-    const handleSettingsUpdate = () => {
-      const cached = getCachedSettings()
-      if (cached) {
-        if (cached.logo?.url) {
-          setLogoUrl(cached.logo.url)
+        const handleSettingsUpdate = () => {
+            const cached = getCachedSettings()
+            if (cached) {
+                if (cached.logo?.url) {
+                    setLogoUrl(cached.logo.url)
+                }
+                if (cached.companyName) {
+                    setCompanyName(cached.companyName)
+                }
+            }
         }
-        if (cached.companyName) {
-          setCompanyName(cached.companyName)
-        }
-      }
-    }
     window.addEventListener('businessSettingsUpdated', handleSettingsUpdate)
 
     return () => {
@@ -120,11 +120,11 @@ export default function Navbar() {
           </div>
 
           {/* Company Logo or Name - Centered between sections */}
-          <Link to="/food" className="flex items-center justify-center flex-shrink-0">
+          <Link to="/food/user" className="flex items-center justify-center flex-shrink-0">
             {logoUrl ? (
               <img
                 src={logoUrl}
-                alt="Company Logo"
+                alt={companyName || "Company Logo"}
                 className="h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12 object-contain"
                 onError={(e) => {
                   // Hide image if it fails to load
@@ -135,7 +135,9 @@ export default function Navbar() {
               <span className="text-sm sm:text-base md:text-lg font-bold text-gray-900">
                 {companyName}
               </span>
-            ) : null}
+            ) : (
+              <img src={quickSpicyLogo} alt="Logo" className="h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12 object-contain" />
+            )}
           </Link>
 
           {/* Right Side Actions - Profile, Points, Cart */}

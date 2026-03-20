@@ -988,21 +988,26 @@ export default function PageNavbar({
       <div className="flex items-center justify-between max-w-7xl mx-auto">
 
         {/* Left: Company Logo */}
-        <Link to="/user" className="flex-shrink-0 mr-3 sm:mr-4">
+        <Link to="/food/user" className="flex-shrink-0 mr-3 sm:mr-4">
           {logoUrl ? (
             <img
               src={logoUrl}
-              alt="Company Logo"
+              alt={companyName || "Company Logo"}
               className="h-10 w-auto sm:h-12 md:h-14 object-contain scale-[1.8] sm:scale-[2] origin-left"
               crossOrigin="anonymous"
               onError={(e) => {
-                e.target.src = quickSpicyLogo
+                // Fallback to name if image fails
+                e.target.style.display = 'none'
               }}
             />
+          ) : companyName ? (
+            <span className={`text-lg font-bold text-${textColor}`}>
+              {companyName}
+            </span>
           ) : (
             <img
               src={quickSpicyLogo}
-              alt={`${companyName} Logo`}
+              alt="Logo"
               className="h-10 w-auto sm:h-12 md:h-14 object-contain scale-[1.8] sm:scale-[2] origin-left"
             />
           )}

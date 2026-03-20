@@ -7,7 +7,26 @@ import apiClient from "@food/api/axios";
 import { API_ENDPOINTS } from "@food/api/config";
 import { publicGetOnce } from "@food/api";
 
-let cachedSettings = null;
+const SETTINGS_KEY = 'food_business_settings';
+
+// Initialize from localStorage immediately so it's available for components on mount
+let cachedSettings = (() => {
+  try {
+    const saved = localStorage.getItem(SETTINGS_KEY);
+    return saved ? JSON.parse(saved) : null;
+  } catch (e) {
+    return null;
+  }
+})();
+
+// Apply cached settings immediately on module load if they exist
+if (cachedSettings) {
+  setTimeout(() => {
+    updateFavicon(cachedSettings.favicon?.url);
+    updateTitle(cachedSettings.companyName);
+  }, 0);
+}
+
 let inFlightSettingsPromise = null;
 
 /**
@@ -15,38 +34,40 @@ let inFlightSettingsPromise = null;
  */
 export const loadBusinessSettings = async () => {
   try {
-    // Check if we have a cached version
-    if (cachedSettings) {
+    // If we have no cached settings, we MUST fetch
+    // If we have cached settings, we still try to fetch in background to ensure they are fresh
+    const endpoint = API_ENDPOINTS.ADMIN.BUSINESS_SETTINGS_PUBLIC;
+    if (!endpoint || (typeof endpoint === "string" && !endpoint.trim())) {
       return cachedSettings;
     }
+
     if (inFlightSettingsPromise) {
       return await inFlightSettingsPromise;
     }
 
-    // Skip request when endpoint is not configured (avoids GET /api/v1 → 404)
-    const endpoint = API_ENDPOINTS.ADMIN.BUSINESS_SETTINGS_PUBLIC;
-    if (!endpoint || (typeof endpoint === "string" && !endpoint.trim())) {
-      return null;
-    }
-
     inFlightSettingsPromise = (async () => {
       // Use public endpoint that doesn't require authentication
-      const response = await publicGetOnce(endpoint);
+      // Use noCache to ensure we get fresh data from server this time
+      const response = await publicGetOnce(endpoint, { noCache: true });
       const settings = response?.data?.data || response?.data;
 
       if (settings) {
         cachedSettings = settings;
+        try {
+          localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+        } catch (e) {}
+        
         updateFavicon(settings.favicon?.url);
         updateTitle(settings.companyName);
         return settings;
       }
-      return null;
+      return cachedSettings;
     })();
 
     return await inFlightSettingsPromise;
   } catch (error) {
-    // Silently fail - this is expected if settings don't exist yet
-    return null;
+    // Return cached if failed
+    return cachedSettings;
   } finally {
     inFlightSettingsPromise = null;
   }
@@ -56,13 +77,11 @@ export const loadBusinessSettings = async () => {
  * Update favicon in document
  */
 export const updateFavicon = (url) => {
-  if (!url) return;
+  if (!url || typeof document === 'undefined') return;
 
-  // Remove existing favicon
-  const existingFavicon = document.querySelector("link[rel='icon']");
-  if (existingFavicon) {
-    existingFavicon.remove();
-  }
+  // Remove existing favicons
+  const existingFavicons = document.querySelectorAll("link[rel*='icon']");
+  existingFavicons.forEach(el => el.remove());
 
   // Add new favicon
   const link = document.createElement("link");
@@ -78,8 +97,23 @@ export const updateFavicon = (url) => {
  * Update page title
  */
 export const updateTitle = (companyName) => {
-  if (companyName) {
+  if (companyName && typeof document !== 'undefined') {
     document.title = companyName;
+  }
+};
+
+/**
+ * Set cached settings manually (useful after update)
+ */
+export const setCachedSettings = (settings) => {
+  if (settings) {
+    cachedSettings = settings;
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    } catch (e) {}
+    
+    updateFavicon(settings.favicon?.url);
+    updateTitle(settings.companyName);
   }
 };
 
@@ -88,6 +122,9 @@ export const updateTitle = (companyName) => {
  */
 export const clearCache = () => {
   cachedSettings = null;
+  try {
+    localStorage.removeItem(SETTINGS_KEY);
+  } catch (e) {}
 };
 
 /**
@@ -103,7 +140,7 @@ export const getCachedSettings = () => {
  */
 export const getCompanyName = () => {
   const settings = getCachedSettings();
-  return settings?.companyName || "Appzeto Food";
+  return settings?.companyName || "Appzeto";
 };
 
 /**
@@ -113,8 +150,8 @@ export const getCompanyName = () => {
 export const getCompanyNameAsync = async () => {
   try {
     const settings = await loadBusinessSettings();
-    return settings?.companyName || "Appzeto Food";
+    return settings?.companyName || "Appzeto";
   } catch (error) {
-    return "Appzeto Food";
+    return "Appzeto";
   }
 };

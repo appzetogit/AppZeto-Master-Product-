@@ -34,7 +34,7 @@ import {
     updateAddonController,
     deleteAddonController
 } from '../controllers/restaurantAddon.controller.js';
-import * as orderController from '../../orders/order.controller.js';
+import * as orderController from '../../orders/controllers/order.controller.js';
 import { authMiddleware } from '../../../../core/auth/auth.middleware.js';
 import { sendError } from '../../../../utils/response.js';
 

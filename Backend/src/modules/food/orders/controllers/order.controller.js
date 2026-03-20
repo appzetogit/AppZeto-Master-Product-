@@ -1,6 +1,6 @@
 import { sendResponse } from '../../../utils/response.js';
-import * as orderService from './order.service.js';
-import * as foodOrderPaymentService from './foodOrderPayment.service.js';
+import * as orderService from '../services/order.service.js';
+import * as foodOrderPaymentService from '../services/foodOrderPayment.service.js';
 import {
     validateCalculateOrderDto,
     validateCreateOrderDto,
@@ -10,7 +10,7 @@ import {
     validateAssignDeliveryDto,
     validateDispatchSettingsDto,
     validateOrderRatingsDto
-} from './order.validator.js';
+} from '../validators/order.validator.js';
 
 export async function calculateOrderController(req, res, next) {
     try {

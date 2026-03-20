@@ -94,7 +94,11 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
         lastApiFingerprintRef.current = fp;
         setApiOrders(list);
       }
-    } catch {
+    } catch (error) {
+      if (error?.response?.status === 401) {
+        localStorage.removeItem("user_accessToken");
+        localStorage.removeItem("accessToken");
+      }
       if (lastApiFingerprintRef.current !== "") {
         lastApiFingerprintRef.current = "";
         setApiOrders([]);

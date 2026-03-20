@@ -696,6 +696,7 @@ export async function createOrder(userId, dto) {
     note: dto.note || "",
     sendCutlery: dto.sendCutlery !== false,
     deliveryFleet: dto.deliveryFleet || "standard",
+    scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : null,
     riderEarning,
     platformProfit,
   });

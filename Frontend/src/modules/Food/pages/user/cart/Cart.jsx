@@ -142,6 +142,9 @@ export default function Cart() {
   const [isPlacingOrder, setIsPlacingOrder] = useState(false)
   const [showBillDetails, setShowBillDetails] = useState(false)
   const [showPlacingOrder, setShowPlacingOrder] = useState(false)
+  const [isScheduled, setIsScheduled] = useState(false)
+  const [scheduledDate, setScheduledDate] = useState("")
+  const [scheduledTime, setScheduledTime] = useState("")
   const [orderProgress, setOrderProgress] = useState(0)
   const [showOrderSuccess, setShowOrderSuccess] = useState(false)
   const [placedOrderId, setPlacedOrderId] = useState(null)
@@ -743,6 +746,7 @@ export default function Cart() {
     calculatePricing()
   }, [cart, defaultAddress, appliedCoupon, couponCode, restaurantId])
   }, [cart, defaultAddress, appliedCoupon, couponCode, deliveryFleet, restaurantId, feeSettings])
+  }, [cart, defaultAddress, appliedCoupon, couponCode, restaurantId, feeSettings])
 
   // Fetch wallet balance
   useEffect(() => {
@@ -1110,6 +1114,19 @@ export default function Cart() {
       return
     }
 
+    if (isScheduled) {
+      if (!scheduledDate || !scheduledTime) {
+        toast.error("Please select both date and time to schedule your order")
+        return
+      }
+      const scheduleString = `${scheduledDate}T${scheduledTime}:00`
+      const scheduleDateObj = new Date(scheduleString)
+      if (scheduleDateObj < new Date()) {
+        toast.error("Scheduled time must be in the future")
+        return
+      }
+    }
+
     if (cart.length === 0) {
       alert("Your cart is empty")
       return
@@ -1328,7 +1345,8 @@ export default function Cart() {
         note: note || "",
         sendCutlery: sendCutlery !== false,
         paymentMethod: selectedPaymentMethod,
-        zoneId: zoneId // CRITICAL: Pass zoneId for strict zone validation
+        zoneId: zoneId, // CRITICAL: Pass zoneId for strict zone validation
+        scheduledAt: isScheduled ? new Date(`${scheduledDate}T${scheduledTime}:00`).toISOString() : undefined,
       };
       // Log final order details (including paymentMethod for COD debugging)
       debugLog('?? FINAL: Sending order to backend with:', {
@@ -1893,12 +1911,56 @@ export default function Cart() {
 
               {/* Delivery Time */}
               <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-3 md:py-4 rounded-lg md:rounded-xl">
-                <div className="flex items-center gap-3 md:gap-4">
+                <div className="flex items-center gap-3 md:gap-4 mb-3">
                   <Clock className="h-4 w-4 md:h-5 md:w-5 text-gray-500 dark:text-gray-400" />
                   <div className="flex-1">
-                    <p className="text-sm md:text-base text-gray-800 dark:text-gray-200">Delivery in <span className="font-semibold">{restaurantData?.estimatedDeliveryTime || "10-15 mins"}</span></p>
+                    <p className="text-sm md:text-base text-gray-800 dark:text-gray-200 font-medium">Delivery Time</p>
                   </div>
                 </div>
+                
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsScheduled(false)}
+                    className={`flex-1 py-2 px-4 rounded-lg border text-sm md:text-base transition-colors ${!isScheduled ? 'border-[#EB590E] bg-[#FFF2EB] dark:bg-[#EB590E]/10 text-[#EB590E]' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
+                  >
+                    <span className="font-semibold">Deliver Now</span>
+                    <p className="text-xs mt-0.5 opacity-80">{restaurantData?.estimatedDeliveryTime || "10-15 mins"}</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsScheduled(true)}
+                    className={`flex-1 py-2 px-4 rounded-lg border text-sm md:text-base transition-colors ${isScheduled ? 'border-[#EB590E] bg-[#FFF2EB] dark:bg-[#EB590E]/10 text-[#EB590E]' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
+                  >
+                    <span className="font-semibold">Schedule for Later</span>
+                    <p className="text-xs mt-0.5 opacity-80">Choose time</p>
+                  </button>
+                </div>
+                
+                {isScheduled && (
+                  <div className="mt-4 flex flex-col sm:flex-row gap-3">
+                    <div className="flex-1">
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Date (Up to Tomorrow)</label>
+                      <input 
+                        type="date" 
+                        min={new Date().toLocaleDateString('en-CA')}
+                        max={new Date(Date.now() + 86400000).toLocaleDateString('en-CA')}
+                        value={scheduledDate}
+                        onChange={(e) => setScheduledDate(e.target.value)}
+                        className="w-full text-sm p-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-[#0a0a0a] text-gray-800 dark:text-gray-200 focus:outline-none focus:border-[#EB590E]"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Time</label>
+                      <input 
+                        type="time" 
+                        value={scheduledTime}
+                        onChange={(e) => setScheduledTime(e.target.value)}
+                        className="w-full text-sm p-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-[#0a0a0a] text-gray-800 dark:text-gray-200 focus:outline-none focus:border-[#EB590E]"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Delivery Address */}

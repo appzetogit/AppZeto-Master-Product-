@@ -178,6 +178,8 @@ export const adminAPI = {
       params,
       contextModule: "admin",
     }),
+  updateRestaurantComplaint: (id, body) =>
+    apiClient.patch(`/food/admin/restaurants/complaints/${id}`, body, { contextModule: "admin" }),
   approveRestaurant: (id) =>
     apiClient.patch(
       `/food/admin/restaurants/${id}/approve`,

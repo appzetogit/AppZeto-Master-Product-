@@ -47,9 +47,24 @@ export async function getRestaurantComplaints(query = {}) {
     const skip = (page - 1) * limit;
 
     const filter = { type: 'order' };
-    if (query.status) filter.status = query.status;
+    if (query.status && query.status !== 'all') filter.status = query.status;
+    if (query.complaintType && query.complaintType !== 'all') filter.issueType = query.complaintType;
     if (query.restaurantId && mongoose.Types.ObjectId.isValid(query.restaurantId)) {
         filter.restaurantId = new mongoose.Types.ObjectId(query.restaurantId);
+    }
+    if (query.search) {
+        const searchRegex = { $regex: query.search, $options: 'i' };
+        const restaurantIds = await FoodRestaurant.find({ restaurantName: searchRegex }).select('_id').lean();
+        const userIds = await FoodUser.find({ name: searchRegex }).select('_id').lean();
+        const orderIds = await FoodOrder.find({ orderId: searchRegex }).select('_id').lean();
+
+        filter.$or = [
+            { restaurantId: { $in: restaurantIds.map(r => r._id) } },
+            { userId: { $in: userIds.map(u => u._id) } },
+            { orderId: { $in: orderIds.map(o => o._id) } },
+            { description: searchRegex },
+            { issueType: searchRegex }
+        ];
     }
 
     const [complaints, total] = await Promise.all([
@@ -66,6 +81,25 @@ export async function getRestaurantComplaints(query = {}) {
 
     return { complaints, total, page, limit };
 }
+
+export async function updateRestaurantComplaint(id, updateData) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+        throw new ValidationError('Invalid complaint ID');
+    }
+    const update = {};
+    if (updateData.status) update.status = updateData.status;
+    if (updateData.adminResponse !== undefined) update.adminResponse = updateData.adminResponse;
+
+    const updated = await FoodSupportTicket.findByIdAndUpdate(
+        id,
+        { $set: update },
+        { new: true }
+    ).lean();
+
+    if (!updated) throw new ValidationError('Complaint not found');
+    return updated;
+}
+
 export async function getRestaurants(query) {
     const limit = Math.min(Math.max(parseInt(query.limit, 10) || 100, 1), 1000);
     const page = Math.max(parseInt(query.page, 10) || 1, 1);

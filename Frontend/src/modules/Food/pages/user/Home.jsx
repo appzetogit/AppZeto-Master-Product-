@@ -1416,7 +1416,6 @@ export default function Home() {
           const transformedRestaurants = restaurantsArray
             .filter((restaurant) => {
               const name = (restaurant.restaurantName || restaurant.name || "").toLowerCase()
-              if (name.includes("dummy") || name.includes("test")) return false
               return true
             })
             .map((restaurant, index) => {
@@ -1524,7 +1523,7 @@ export default function Home() {
                 cuisines: Array.isArray(restaurant.cuisines)
                   ? restaurant.cuisines
                   : [],
-                rating: restaurant.rating || 4.5,
+                rating: restaurant.rating !== undefined ? restaurant.rating : 4.5,
                 deliveryTime: deliveryTime,
                 distance: distance,
                 distanceInKm: distanceInKm, // Store numeric distance for sorting
@@ -1661,7 +1660,7 @@ export default function Home() {
         }
       }
     },
-    [extractImages, buildRestaurantImageCandidates],
+    [extractImages, buildRestaurantImageCandidates, location?.latitude, location?.longitude],
   );
 
   const applyFiltersAndRefetch = useCallback(
@@ -1697,81 +1696,87 @@ export default function Home() {
 
   // Recalculate distances when user location updates
   useEffect(() => {
-    if (
-      !restaurantsData ||
-      restaurantsData.length === 0 ||
-      !location?.latitude ||
-      !location?.longitude
-    )
-      return;
+    if (!location?.latitude || !location?.longitude) return;
 
-    const calculateDistance = (lat1, lng1, lat2, lng2) => {
-      const R = 6371; // Earth's radius in kilometers
-      const dLat = ((lat2 - lat1) * Math.PI) / 180;
-      const dLng = ((lng2 - lng1) * Math.PI) / 180;
-      const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos((lat1 * Math.PI) / 180) *
-          Math.cos((lat2 * Math.PI) / 180) *
-          Math.sin(dLng / 2) *
-          Math.sin(dLng / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      return R * c; // Distance in kilometers
-    };
+    setRestaurantsData((prevData) => {
+      if (!prevData || prevData.length === 0) return prevData;
 
-    const userLat = location.latitude;
-    const userLng = location.longitude;
-
-    // Recalculate distances for all restaurants
-    const updatedRestaurants = restaurantsData.map((restaurant) => {
-      if (!restaurant.location) return restaurant;
-
-      const restaurantLat =
-        restaurant.location?.latitude ||
-        (restaurant.location?.coordinates &&
-        Array.isArray(restaurant.location.coordinates)
-          ? restaurant.location.coordinates[1]
-          : null);
-      const restaurantLng =
-        restaurant.location?.longitude ||
-        (restaurant.location?.coordinates &&
-        Array.isArray(restaurant.location.coordinates)
-          ? restaurant.location.coordinates[0]
-          : null);
-
-      if (
-        !restaurantLat ||
-        !restaurantLng ||
-        isNaN(restaurantLat) ||
-        isNaN(restaurantLng)
-      ) {
-        return restaurant;
-      }
-
-      const distanceInKm = calculateDistance(
-        userLat,
-        userLng,
-        restaurantLat,
-        restaurantLng,
-      );
-      let calculatedDistance = null;
-
-      // Format distance: show 1 decimal place if >= 1km, otherwise show in meters
-      if (distanceInKm >= 1) {
-        calculatedDistance = `${distanceInKm.toFixed(1)} km`;
-      } else {
-        const distanceInMeters = Math.round(distanceInKm * 1000);
-        calculatedDistance = `${distanceInMeters} m`;
-      }
-
-      return {
-        ...restaurant,
-        distance: calculatedDistance,
-        distanceInKm: distanceInKm, // Preserve numeric distance for sorting
+      const calculateDistance = (lat1, lng1, lat2, lng2) => {
+        const R = 6371; // Earth's radius in kilometers
+        const dLat = ((lat2 - lat1) * Math.PI) / 180;
+        const dLng = ((lng2 - lng1) * Math.PI) / 180;
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos((lat1 * Math.PI) / 180) *
+            Math.cos((lat2 * Math.PI) / 180) *
+            Math.sin(dLng / 2) *
+            Math.sin(dLng / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c; // Distance in kilometers
       };
+
+      const userLat = location.latitude;
+      const userLng = location.longitude;
+
+      let hasChanges = false;
+      const updatedRestaurants = prevData.map((restaurant) => {
+        if (!restaurant.location) return restaurant;
+
+        const restaurantLat =
+          restaurant.location?.latitude ||
+          (restaurant.location?.coordinates &&
+          Array.isArray(restaurant.location.coordinates)
+            ? restaurant.location.coordinates[1]
+            : null);
+        const restaurantLng =
+          restaurant.location?.longitude ||
+          (restaurant.location?.coordinates &&
+          Array.isArray(restaurant.location.coordinates)
+            ? restaurant.location.coordinates[0]
+            : null);
+
+        if (
+          !restaurantLat ||
+          !restaurantLng ||
+          isNaN(restaurantLat) ||
+          isNaN(restaurantLng)
+        ) {
+          return restaurant;
+        }
+
+        const distanceInKm = calculateDistance(
+          userLat,
+          userLng,
+          restaurantLat,
+          restaurantLng,
+        );
+        let calculatedDistance = null;
+
+        // Format distance: show 1 decimal place if >= 1km, otherwise show in meters
+        if (distanceInKm >= 1) {
+          calculatedDistance = `${distanceInKm.toFixed(1)} km`;
+        } else {
+          const distanceInMeters = Math.round(distanceInKm * 1000);
+          calculatedDistance = `${distanceInMeters} m`;
+        }
+
+        if (
+          restaurant.distance !== calculatedDistance ||
+          restaurant.distanceInKm !== distanceInKm
+        ) {
+          hasChanges = true;
+          return {
+            ...restaurant,
+            distance: calculatedDistance,
+            distanceInKm: distanceInKm, // Preserve numeric distance for sorting
+          };
+        }
+        return restaurant;
+      });
+
+      return hasChanges ? updatedRestaurants : prevData;
     });
 
-    setRestaurantsData(updatedRestaurants);
     debugLog(
       "?? Recalculated distances for all restaurants based on user location",
     );
@@ -2108,7 +2113,7 @@ export default function Home() {
         mongoId: restaurantId,
         name: getRestaurantDisplayName(restaurant),
         cuisine,
-        rating: Number(restaurant?.rating) || 4.0,
+        rating: restaurant?.rating !== undefined ? Number(restaurant.rating) : 4.0,
         distance: "",
         deliveryTime: "",
         image: normalizeImageUrl(image) || foodImages[0],

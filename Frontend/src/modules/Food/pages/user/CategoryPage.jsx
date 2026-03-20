@@ -77,7 +77,7 @@ export default function CategoryPage() {
   const uniqueByRestaurant = (list) => {
     const seen = new Set()
     return list.filter((row) => {
-      const key = row.restaurantId || row.id || slugify(row.name)
+      const key = row.dishId || row.restaurantId || row.id || slugify(row.name)
       if (!key || seen.has(key)) return false
       seen.add(key)
       return true
@@ -161,10 +161,14 @@ export default function CategoryPage() {
 
   // Fetch categories from admin API
   useEffect(() => {
+    let isCancelled = false;
+
     const fetchCategories = async () => {
       try {
         setLoadingCategories(true)
         const response = await adminAPI.getPublicCategories(zoneId ? { zoneId } : {})
+
+        if (isCancelled) return;
 
         if (response.data && response.data.success && response.data.data && response.data.data.categories) {
           const categoriesArray = response.data.data.categories
@@ -200,15 +204,20 @@ export default function CategoryPage() {
           setCategories([{ id: 'all', name: "All", image: null, slug: 'all' }])
         }
       } catch (error) {
+        if (isCancelled) return;
         debugError('Error fetching categories:', error)
         // Keep default "All" category on error
         setCategories([{ id: 'all', name: "All", image: null, slug: 'all' }])
       } finally {
-        setLoadingCategories(false)
+        if (!isCancelled) setLoadingCategories(false)
       }
     }
 
     fetchCategories()
+
+    return () => {
+      isCancelled = true;
+    }
   }, [zoneId])
 
   // Helper function to check if menu has dishes matching category keywords
@@ -463,7 +472,6 @@ export default function CategoryPage() {
               }
 
               const restaurantName = (restaurant.restaurantName || restaurant.name || "").toLowerCase()
-              if (restaurantName.includes("dummy") || restaurantName.includes("test")) return null
 
               return {
                 id: restaurantId,
@@ -685,22 +693,21 @@ export default function CategoryPage() {
             const categoryDishes = getAllCategoryDishesFromMenu(r.menu, selectedCategory)
 
             if (categoryDishes.length > 0) {
-              const dishForCard = vegMode
-                ? (categoryDishes.find((dish) => dish.foodType === "Veg") || null)
-                : categoryDishes[0]
+              const validDishes = vegMode
+                ? categoryDishes.filter((dish) => dish.foodType === "Veg")
+                : categoryDishes;
 
-              if (dishForCard) {
+              validDishes.forEach((dishForCard) => {
                 expandedDishes.push({
                   ...r,
-                  // Keep one card per restaurant in category lists
-                  id: r.id,
+                  id: `${r.id || r.restaurantId}-${dishForCard.itemId}`,
                   dishId: dishForCard.itemId || `${r.id}-dish`,
                   categoryDish: dishForCard,
                   categoryDishName: dishForCard.name,
                   categoryDishPrice: dishForCard.price,
                   categoryDishImage: dishForCard.image,
                 })
-              }
+              })
             }
           }
         } else {
@@ -774,22 +781,21 @@ export default function CategoryPage() {
             const categoryDishes = getAllCategoryDishesFromMenu(r.menu, selectedCategory)
 
             if (categoryDishes.length > 0) {
-              const dishForCard = vegMode
-                ? (categoryDishes.find((dish) => dish.foodType === "Veg") || null)
-                : categoryDishes[0]
+              const validDishes = vegMode
+                ? categoryDishes.filter((dish) => dish.foodType === "Veg")
+                : categoryDishes;
 
-              if (dishForCard) {
+              validDishes.forEach((dishForCard) => {
                 expandedDishes.push({
                   ...r,
-                  // Keep one card per restaurant in category lists
-                  id: r.id,
+                  id: `${r.id || r.restaurantId}-${dishForCard.itemId}`,
                   dishId: dishForCard.itemId || `${r.id}-dish`,
                   categoryDish: dishForCard,
                   categoryDishName: dishForCard.name,
                   categoryDishPrice: dishForCard.price,
                   categoryDishImage: dishForCard.image,
                 })
-              }
+              })
             }
           }
         } else {

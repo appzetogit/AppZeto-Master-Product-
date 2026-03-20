@@ -181,8 +181,8 @@ export default function DiningRestaurantDetails() {
       : "Asian, Italian, Continental, Chinese, North Indian, Desserts, Beverages, Coffee"
   const costForTwo = restaurant?.costForTwo ? `${"\u20B9"}${restaurant.costForTwo} for two` : `${"\u20B9"}1900 for two`
   const facilities = buildFacilities(restaurant)
-  const rating = Number(restaurant?.rating || restaurant?.avgRating || 4.6).toFixed(1)
-  const reviewCount = restaurant?.reviewCount || restaurant?.reviewsCount || 844
+  const rating = Number(restaurant?.rating || restaurant?.avgRating || 0).toFixed(1)
+  const reviewCount = restaurant?.totalRatings || restaurant?.reviewCount || restaurant?.reviewsCount || 0
   const openingTime = formatTimeLabel(restaurant?.openingTime || restaurant?.diningSettings?.openingTime || "12:00")
   const closingTime = formatTimeLabel(restaurant?.closingTime || restaurant?.diningSettings?.closingTime || "23:59")
   const topTabs = [

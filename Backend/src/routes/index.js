@@ -8,7 +8,6 @@ import uploadRoutes from '../modules/uploads/routes/upload.routes.js';
 import restaurantAdminRoutes from '../modules/food/admin/routes/admin.routes.js';
 import userRoutes from '../modules/food/user/routes/user.routes.js';
 import orderUserRoutes from '../modules/food/orders/routes/order.routes.user.js';
-import orderUserRoutes from '../modules/food/orders/order.routes.user.js';
 import fcmRoutes from '../core/notifications/fcm.routes.js';
 import { authMiddleware } from '../core/auth/auth.middleware.js';
 import { requireRoles } from '../core/roles/role.middleware.js';

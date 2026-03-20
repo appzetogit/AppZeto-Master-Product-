@@ -226,7 +226,10 @@ export const requestRestaurantOtp = async (phone) => {
     throw new ValidationError("Phone is required");
   }
   const otp = await createOrUpdateOtp(phone);
-  return { otp };
+  // Only expose OTP in response when in default/dev mode — never in production with real SMS
+  const shouldExposeOtp =
+    config.nodeEnv !== "production" || config.useDefaultOtp;
+  return shouldExposeOtp ? { otp } : {};
 };
 
 export const verifyRestaurantOtpAndLogin = async (phone, otp) => {
@@ -294,7 +297,10 @@ export const requestDeliveryOtp = async (phone) => {
     throw new ValidationError("Phone is required");
   }
   const otp = await createOrUpdateOtp(phone);
-  return { otp };
+  // Only expose OTP in response when in default/dev mode — never in production with real SMS
+  const shouldExposeOtp =
+    config.nodeEnv !== "production" || config.useDefaultOtp;
+  return shouldExposeOtp ? { otp } : {};
 };
 
 const normalizePhoneForDelivery = (phone) => {

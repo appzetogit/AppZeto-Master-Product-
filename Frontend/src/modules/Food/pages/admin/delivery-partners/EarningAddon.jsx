@@ -280,7 +280,7 @@ export default function EarningAddon() {
     const config = statusConfig[status] || statusConfig.inactive
     return (
       <span className={`px-3 py-1 rounded-full text-xs font-medium ${config.bg} ${config.text}`}>
-        {config.label} {isValid && status === 'active' && "?"}
+        {config.label} {isValid && status === 'active' && "\u2713"}
       </span>
     )
   }
@@ -422,7 +422,7 @@ export default function EarningAddon() {
                         {visibleColumns.earningAmount && (
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center gap-1">
-                              <span className="text-sm font-semibold text-emerald-500">?</span>
+                              <span className="text-sm font-semibold text-emerald-500">₹</span>
                               <span className="text-sm font-medium text-slate-900">{addon.earningAmount?.toFixed(2)}</span>
                             </div>
                           </td>
@@ -545,7 +545,7 @@ export default function EarningAddon() {
                   Earning Amount (₹) <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-emerald-500">?</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-emerald-500">₹</span>
                   <input
                     type="number"
                     required

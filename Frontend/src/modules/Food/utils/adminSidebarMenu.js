@@ -102,12 +102,6 @@ export const adminSidebarMenu = [
         path: "/admin/food/coupons",
         icon: "Gift",
       },
-      {
-        type: "link",
-        label: "Push Notification",
-        path: "/admin/food/push-notification",
-        icon: "Bell",
-      },
     ],
   },
   {
@@ -165,6 +159,14 @@ export const adminSidebarMenu = [
   },
   {
     type: "section",
+    label: "DISBURSEMENT MANAGEMENT",
+    items: [
+      { type: "link", label: "Restaurant Disbursement", path: "/admin/food/restaurant-disbursement", icon: "Wallet" },
+      { type: "link", label: "Deliveryman Disbursement", path: "/admin/food/deliveryman-disbursement", icon: "Wallet" },
+    ],
+  },
+  {
+    type: "section",
     label: "HELP & SUPPORT",
     items: [
       { type: "link", label: "User Feedback", path: "/admin/food/contact-messages", icon: "Mail" },
@@ -196,13 +198,6 @@ export const adminSidebarMenu = [
     label: "TRANSACTION MANAGEMENT",
     items: [
       { type: "link", label: "Restaurant Withdraws", path: "/admin/food/restaurant-withdraws", icon: "CreditCard" },
-    ],
-  },
-  {
-    type: "section",
-    label: "ENV SETUP",
-    items: [
-      { type: "link", label: "System .env", path: "/admin/food/system-addons", icon: "Settings" },
     ],
   },
   {

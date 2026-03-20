@@ -33,12 +33,18 @@ router.delete('/safety-emergency-reports/:id', adminController.deleteSafetyEmerg
 // ----- Support Tickets (users) -----
 router.get('/support-tickets', adminController.getSupportTicketsController);
 router.patch('/support-tickets/:id', adminController.updateSupportTicketController);
+router.get('/global-search', adminController.globalSearch);
+router.get('/restaurants/complaints', adminController.getRestaurantComplaints);
+router.patch('/restaurants/complaints/:id', adminController.updateRestaurantComplaint);
 
 // ----- Restaurants -----
 router.get('/restaurants', adminController.getRestaurants);
+router.get('/dashboard-stats', adminController.getDashboardStats);
 router.get('/reports/restaurants', adminController.getRestaurantReport);
+router.get('/reports/transactions', adminController.getTransactionReport);
 router.get('/restaurants/pending', adminController.getPendingRestaurants);
 router.get('/restaurants/:id', adminController.getRestaurantById);
+router.get('/restaurants/:id/analytics', adminController.getRestaurantAnalytics);
 router.get('/restaurants/:id/menu', adminController.getRestaurantMenuById);
 router.post('/restaurants', adminController.createRestaurant);
 router.patch('/restaurants/:id', adminController.updateRestaurantById);
@@ -106,6 +112,7 @@ router.put('/delivery-emergency-help', adminController.createOrUpdateEmergencyHe
 router.get('/delivery/join-requests', adminController.getDeliveryJoinRequests);
 router.get('/delivery/wallets', adminController.getDeliveryWallets);
 router.get('/delivery/bonus-transactions', adminController.getDeliveryPartnerBonusTransactions);
+router.get('/delivery/earnings', adminController.getDeliveryEarnings);
 router.post('/delivery/bonus', adminController.addDeliveryPartnerBonus);
 router.get('/delivery/commission-rules', adminController.getDeliveryCommissionRules);
 router.post('/delivery/commission-rules', adminController.createDeliveryCommissionRule);

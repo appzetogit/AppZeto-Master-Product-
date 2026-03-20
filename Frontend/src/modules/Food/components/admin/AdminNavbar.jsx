@@ -42,9 +42,71 @@ export default function AdminNavbar({ onMenuClick }) {
   const navigate = useNavigate();
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [recentSearches, setRecentSearches] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
   const [adminData, setAdminData] = useState(null);
   const [businessSettings, setBusinessSettings] = useState(null);
   const searchInputRef = useRef(null);
+
+  // Load recent searches from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('admin_recent_searches');
+    if (saved) {
+      try {
+        setRecentSearches(JSON.parse(saved));
+      } catch (e) {
+        setRecentSearches([]);
+      }
+    }
+  }, []);
+
+  // Universal Search logic
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(async () => {
+      if (searchQuery.trim().length > 1) {
+        setIsSearching(true);
+        try {
+          const response = await adminAPI.globalSearch(searchQuery);
+          if (response?.data?.success) {
+            setSearchResults(response.data.data || []);
+          }
+        } catch (error) {
+          debugError('Error searching:', error);
+          setSearchResults([]);
+        } finally {
+          setIsSearching(false);
+        }
+      } else {
+        setSearchResults([]);
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
+
+  const handleResultClick = (result) => {
+    // Save to recent searches
+    const updatedRecent = [
+      result.title,
+      ...recentSearches.filter(s => s !== result.title)
+    ].slice(0, 5);
+    setRecentSearches(updatedRecent);
+    localStorage.setItem('admin_recent_searches', JSON.stringify(updatedRecent));
+
+    setSearchOpen(false);
+    setSearchQuery("");
+    navigate(result.path);
+  };
+
+  const handleRecentClick = (term) => {
+    setSearchQuery(term);
+  };
+
+  const clearRecent = () => {
+    setRecentSearches([]);
+    localStorage.removeItem('admin_recent_searches');
+  };
 
   // Load admin data from localStorage
   useEffect(() => {
@@ -129,18 +191,6 @@ export default function AdminNavbar({ onMenuClick }) {
       }, 100);
     }
   }, [searchOpen]);
-
-  // Mock search results - replace with actual search logic
-  const searchResults = [
-    { type: "Order", title: "Order #12345", description: "Pending delivery", icon: Package },
-    { type: "User", title: "Sumit Jaiswal", description: "Customer profile", icon: Users },
-    { type: "Product", title: "Chicken Biryani", description: "Food item", icon: UtensilsCrossed },
-    { type: "Report", title: "Sales Report", description: "Monthly analytics", icon: FileText },
-  ].filter((item) =>
-    searchQuery.trim() === "" ||
-    item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   // Handle logout
   const handleLogout = async () => {
@@ -368,13 +418,17 @@ export default function AdminNavbar({ onMenuClick }) {
                 <div className="text-sm text-neutral-500 mb-4">Quick Actions</div>
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { icon: Package, label: "Orders" },
-                    { icon: Users, label: "Users" },
-                    { icon: UtensilsCrossed, label: "Products" },
-                    { icon: FileText, label: "Reports" },
+                    { icon: Package, label: "Orders", path: "/admin/food/orders/all" },
+                    { icon: Users, label: "Users", path: "/admin/food/customers" },
+                    { icon: UtensilsCrossed, label: "Products", path: "/admin/food/foods" },
+                    { icon: FileText, label: "Reports", path: "/admin/food/transaction-report" },
                   ].map((action, idx) => (
                     <button
                       key={idx}
+                      onClick={() => {
+                        setSearchOpen(false);
+                        navigate(action.path);
+                      }}
                       className="flex items-center gap-3 p-4 rounded-lg border border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50 transition-all"
                     >
                       <div className="p-2 rounded-md bg-black text-white">
@@ -384,24 +438,34 @@ export default function AdminNavbar({ onMenuClick }) {
                     </button>
                   ))}
                 </div>
-                <div className="mt-6 pt-4 border-t border-neutral-200">
-                  <p className="text-xs text-neutral-500 mb-2">Recent Searches</p>
-                  <div className="flex flex-wrap gap-2">
-                    {["Order #12345", "Sumit Jaiswal", "Chicken Biryani"].map((term, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => setSearchQuery(term)}
-                        className="px-3 py-1 text-xs bg-neutral-100 hover:bg-neutral-200 rounded-full text-neutral-700 transition-colors"
-                      >
-                        {term}
-                      </button>
-                    ))}
+                {recentSearches.length > 0 && (
+                  <div className="mt-6 pt-4 border-t border-neutral-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs text-neutral-500">Recent Searches</p>
+                      <button onClick={clearRecent} className="text-[10px] text-red-500 hover:underline">Clear All</button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {recentSearches.map((term, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => handleRecentClick(term)}
+                          className="px-3 py-1 text-xs bg-neutral-100 hover:bg-neutral-200 rounded-full text-neutral-700 transition-colors"
+                        >
+                          {term}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             ) : (
               <div className="space-y-2 max-h-96 overflow-y-auto">
-                {searchResults.length === 0 ? (
+                {isSearching ? (
+                  <div className="text-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-3"></div>
+                    <p className="text-sm text-neutral-500">Searching...</p>
+                  </div>
+                ) : searchResults.length === 0 ? (
                   <div className="text-center py-12">
                     <AlertCircle className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
                     <p className="text-sm text-neutral-500">No results found for "{searchQuery}"</p>
@@ -414,6 +478,7 @@ export default function AdminNavbar({ onMenuClick }) {
                     {searchResults.map((result, idx) => (
                       <button
                         key={idx}
+                        onClick={() => handleResultClick(result)}
                         className="w-full flex items-center gap-4 p-4 rounded-lg border border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 transition-all text-left"
                       >
                         <div className="flex-1">

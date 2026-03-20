@@ -336,8 +336,7 @@ export default function AllOrdersPage() {
     // Determine tags based on order properties
     const tags = []
     if (order.sendCutlery) tags.push('CUTLERY')
-    if (order.deliveryFleet === 'express') tags.push('EXPRESS DELIVERY')
-    if (order.deliveryFleet === 'self') tags.push('SELF DELIVERY')
+    tags.push('HOME DELIVERY')
     // Check if all items are veg
     const allVeg = items.every(item => item.isVeg !== false)
     if (allVeg && items.length > 0) tags.push('VEG ONLY')

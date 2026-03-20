@@ -772,10 +772,14 @@ export async function getOrderById(orderId, { userId, restaurantId, deliveryPart
         .lean();
     if (!order) throw new ValidationError('Order not found');
 
+    const orderUserId = order.userId?._id || order.userId;
+    const orderRestaurantId = order.restaurantId?._id || order.restaurantId;
+    const orderPartnerId = order.dispatch?.deliveryPartnerId?._id || order.dispatch?.deliveryPartnerId;
+
     if (admin) return normalizeOrderForClient(order);
-    if (userId && order.userId?.toString() !== userId.toString()) throw new ForbiddenError('Not your order');
-    if (restaurantId && order.restaurantId?._id?.toString() !== restaurantId.toString()) throw new ForbiddenError('Not your restaurant order');
-    if (deliveryPartnerId && order.dispatch?.deliveryPartnerId?._id?.toString() !== deliveryPartnerId.toString()) throw new ForbiddenError('Not assigned to you');
+    if (userId && orderUserId?.toString() !== userId.toString()) throw new ForbiddenError('Not your order');
+    if (restaurantId && orderRestaurantId?.toString() !== restaurantId.toString()) throw new ForbiddenError('Not your restaurant order');
+    if (deliveryPartnerId && orderPartnerId?.toString() !== deliveryPartnerId.toString()) throw new ForbiddenError('Not assigned to you');
 
     return normalizeOrderForClient(order);
     if (deliveryPartnerId || restaurantId) {
@@ -802,7 +806,13 @@ export async function getOrderById(orderId, { userId, restaurantId, deliveryPart
 }
 
 export async function cancelOrder(orderId, userId, reason) {
-    const order = await FoodOrder.findOne({ _id: new mongoose.Types.ObjectId(orderId), userId: new mongoose.Types.ObjectId(userId) });
+    const identity = buildOrderIdentityFilter(orderId);
+    if (!identity) throw new ValidationError('Order id required');
+
+    const order = await FoodOrder.findOne({
+        ...identity,
+        userId: new mongoose.Types.ObjectId(userId)
+    });
     if (!order) throw new ValidationError('Order not found');
     const allowed = ['created'];
     if (!allowed.includes(order.orderStatus)) throw new ValidationError('Order cannot be cancelled');

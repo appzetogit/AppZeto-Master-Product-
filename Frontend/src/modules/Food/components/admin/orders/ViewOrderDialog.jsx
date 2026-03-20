@@ -284,7 +284,7 @@ export default function ViewOrderDialog({ isOpen, onOpenChange, order }) {
                       )}
                     </div>
                     <p className="text-sm font-semibold text-slate-900">
-                      ?{((item.price || 0) * (item.quantity || 1)).toFixed(2)}
+                      ₹{((item.price || 0) * (item.quantity || 1)).toFixed(2)}
                     </p>
                   </div>
                 ))}

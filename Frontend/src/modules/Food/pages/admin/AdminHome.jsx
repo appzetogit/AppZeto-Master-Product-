@@ -43,42 +43,51 @@ export default function AdminHome() {
   const [selectedPeriod, setSelectedPeriod] = useState("overall")
   const [isLoading, setIsLoading] = useState(true)
   const [dashboardData, setDashboardData] = useState(null)
+  const [zones, setZones] = useState([])
 
-  // Fetch dashboard stats on mount
+  // Fetch zone list for filter
+  useEffect(() => {
+    const fetchZones = async () => {
+      try {
+        const response = await adminAPI.getZones({ page: 1, limit: 1000 })
+        const list = response?.data?.data?.zones || []
+        setZones(Array.isArray(list) ? list : [])
+      } catch (error) {
+        debugError("Error fetching zones:", error)
+        setZones([])
+      }
+    }
+
+    fetchZones()
+  }, [])
+
+  // Fetch dashboard stats from backend when filters change
   useEffect(() => {
     const fetchDashboardStats = async () => {
       try {
         setIsLoading(true)
-        const response = await adminAPI.getDashboardStats()
+        const params = {
+          period: selectedPeriod,
+          ...(selectedZone !== "all" ? { zoneId: selectedZone } : {}),
+        }
+        const response = await adminAPI.getDashboardStats(params)
         if (response.data?.success && response.data?.data) {
           setDashboardData(response.data.data)
-          debugLog('? Dashboard stats fetched:', response.data.data)
-          debugLog('?? Commission:', response.data.data.commission)
-          debugLog('?? Platform Fee:', response.data.data.platformFee)
-          debugLog('?? Delivery Fee:', response.data.data.deliveryFee)
-          debugLog('?? GST:', response.data.data.gst)
-          debugLog('?? Total Admin Earnings:', response.data.data.totalAdminEarnings)
+          debugLog("Dashboard stats fetched:", response.data.data)
         } else {
-          debugError('? Invalid response format:', response.data)
+          setDashboardData(null)
+          debugError("Invalid dashboard response format:", response.data)
         }
       } catch (error) {
-        debugError('? Error fetching dashboard stats:', error)
+        setDashboardData(null)
+        debugError("Error fetching dashboard stats:", error)
       } finally {
         setIsLoading(false)
       }
     }
 
     fetchDashboardStats()
-  }, [])
-
-  // Update loading state when filters change
-  useEffect(() => {
-    if (dashboardData) {
-      setIsLoading(true)
-      const timer = setTimeout(() => setIsLoading(false), 350)
-      return () => clearTimeout(timer)
-    }
-  }, [dashboardData, selectedZone, selectedPeriod])
+  }, [selectedZone, selectedPeriod])
 
   // Get order stats from real data
   const getOrderStats = () => {
@@ -182,10 +191,11 @@ export default function AdminHome() {
               </SelectTrigger>
               <SelectContent className="border-neutral-200 bg-white text-neutral-900">
                 <SelectItem value="all">All zones</SelectItem>
-                <SelectItem value="zone1">Zone 1</SelectItem>
-                <SelectItem value="zone2">Zone 2</SelectItem>
-                <SelectItem value="zone3">Zone 3</SelectItem>
-                <SelectItem value="zone4">Zone 4</SelectItem>
+                {zones.map((zone) => (
+                  <SelectItem key={zone._id} value={zone._id}>
+                    {zone.zoneName || zone.name || "Unnamed Zone"}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>

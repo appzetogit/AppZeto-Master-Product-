@@ -23,7 +23,14 @@ export async function createSupportTicketController(req, res, next) {
             if (!body.orderId || !mongoose.Types.ObjectId.isValid(body.orderId)) {
                 return sendError(res, 400, 'orderId required');
             }
-            doc.orderId = new mongoose.Types.ObjectId(body.orderId);
+            const orderMongoId = new mongoose.Types.ObjectId(body.orderId);
+            doc.orderId = orderMongoId;
+            // Also try to link restaurantId automatically if possible
+            const { FoodOrder } = await import('../../orders/order.model.js');
+            const order = await FoodOrder.findById(orderMongoId).select('restaurantId').lean();
+            if (order?.restaurantId) {
+                doc.restaurantId = order.restaurantId;
+            }
         }
         if (type === 'restaurant') {
             if (!body.restaurantId || !mongoose.Types.ObjectId.isValid(body.restaurantId)) {

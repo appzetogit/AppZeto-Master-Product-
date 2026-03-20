@@ -11,13 +11,11 @@ import { useLocation } from "@food/hooks/useLocation"
 import { useZone } from "@food/hooks/useZone"
 import { useCart } from "@food/context/CartContext"
 import PageNavbar from "@food/components/user/PageNavbar"
-import { foodImages } from "@food/constants/images"
-import quickSpicyLogo from "@food/assets/quicky-spicy-logo.png"
 import offerImage from "@food/assets/offerimage.png"
 import AddToCartAnimation from "@food/components/user/AddToCartAnimation"
 import OptimizedImage from "@food/components/OptimizedImage"
 import api from "@food/api"
-import { restaurantAPI } from "@food/api"
+import { restaurantAPI, adminAPI } from "@food/api"
 import { isModuleAuthenticated } from "@food/utils/auth"
 import { flattenMenuItems, getMenuFromResponse } from "@food/utils/menuItems"
 const debugLog = (...args) => {}
@@ -42,7 +40,6 @@ export default function Under250() {
   const [viewCartButtonBottom, setViewCartButtonBottom] = useState("bottom-20")
   const lastScrollY = useRef(0)
   const [categories, setCategories] = useState([])
-  const [loadingCategories, setLoadingCategories] = useState(true)
   const [bannerImage, setBannerImage] = useState(null)
   const [loadingBanner, setLoadingBanner] = useState(true)
   const [under250Restaurants, setUnder250Restaurants] = useState([])
@@ -245,17 +242,50 @@ export default function Under250() {
     fetchRestaurantsUnder250()
   }, [zoneId, isOutOfService])
 
-  // Old backend endpoint removed: keep UI stable with default categories list.
+  // Fetch categories from backend (no static fallback list)
   useEffect(() => {
-    setLoadingCategories(true)
-    setCategories([
-      { id: 1, name: "Biryani", image: foodImages[0] },
-      { id: 2, name: "Cake", image: foodImages[1] },
-      { id: 3, name: "Chhole Bhature", image: foodImages[2] },
-      { id: 4, name: "Chicken Tanduri", image: foodImages[3] },
-    ])
-    setLoadingCategories(false)
-  }, [])
+    let cancelled = false
+
+    const fetchCategories = async () => {
+      try {
+        const response = await adminAPI.getPublicCategories(zoneId ? { zoneId } : {})
+        const categoriesRaw = Array.isArray(response?.data?.data?.categories)
+          ? response.data.data.categories
+          : []
+
+        const mappedCategories = categoriesRaw
+          .map((cat, index) => {
+            const name = String(cat?.name || "").trim()
+            if (!name) return null
+
+            return {
+              id: String(cat?.id || cat?._id || cat?.slug || `cat-${index}`),
+              name,
+              slug: String(cat?.slug || name.toLowerCase().replace(/\s+/g, "-")),
+              image:
+                cat?.imageUrl ||
+                cat?.image ||
+                cat?.icon ||
+                "",
+            }
+          })
+          .filter(Boolean)
+
+        if (!cancelled) {
+          setCategories(mappedCategories)
+        }
+      } catch (error) {
+        debugError("Error fetching under-250 categories:", error)
+        if (!cancelled) setCategories([])
+      }
+    }
+
+    fetchCategories()
+
+    return () => {
+      cancelled = true
+    }
+  }, [zoneId])
 
   // Sync quantities from cart on mount
   useEffect(() => {

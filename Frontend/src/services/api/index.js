@@ -172,6 +172,22 @@ export const adminAPI = {
     apiClient.get("/food/admin/restaurants/pending", {
       contextModule: "admin",
     }),
+  /** List restaurant complaints (admin). */
+  getRestaurantComplaints: (params = {}) =>
+    apiClient.get("/food/admin/restaurants/complaints", {
+      params,
+      contextModule: "admin",
+    }),
+  updateRestaurantComplaint: (id, body) =>
+    apiClient.patch(`/food/admin/restaurants/complaints/${id}`, body, {
+      contextModule: "admin",
+    }),
+  /** Global universal search (admin). */
+  globalSearch: (query) =>
+    apiClient.get("/food/admin/global-search", {
+      params: { query },
+      contextModule: "admin",
+    }),
   approveRestaurant: (id) =>
     apiClient.patch(
       `/food/admin/restaurants/${id}/approve`,
@@ -195,6 +211,12 @@ export const adminAPI = {
   /** List approved delivery partners (Deliveryman List page) */
   getDeliveryPartners: (params) =>
     apiClient.get("/food/admin/delivery/partners", {
+      params,
+      contextModule: "admin",
+    }),
+  /** Dashboard summary stats (admin home) */
+  getDashboardStats: (params = {}) =>
+    apiClient.get("/food/admin/dashboard-stats", {
       params,
       contextModule: "admin",
     }),
@@ -300,6 +322,11 @@ export const adminAPI = {
   /** Get single restaurant by id (full details for View Details modal). */
   getRestaurantById: (id) =>
     apiClient.get(`/food/admin/restaurants/${id}`, { contextModule: "admin" }),
+  /** Get restaurant analytics for POS. */
+  getRestaurantAnalytics: (id) =>
+    apiClient.get(`/food/admin/restaurants/${id}/analytics`, {
+      contextModule: "admin",
+    }),
   /** Update restaurant basic details (admin). */
   updateRestaurant: (id, body) =>
     apiClient.patch(`/food/admin/restaurants/${String(id)}`, body ?? {}, { contextModule: "admin" }),
@@ -390,6 +417,11 @@ export const adminAPI = {
       params: { page: 1, limit: 1000, ...params },
       contextModule: "admin",
     }),
+  getTransactionReport: (params = {}) =>
+    apiClient.get("/food/admin/reports/transactions", {
+      params: { page: 1, limit: 1000, ...params },
+      contextModule: "admin",
+    }),
   /** Get single zone by id */
   getZoneById: (id) =>
     apiClient.get(`/food/admin/zones/${id}`, { contextModule: "admin" }),
@@ -433,6 +465,12 @@ export const adminAPI = {
   /** Delivery Partner Bonus (admin) */
   getDeliveryPartnerBonusTransactions: (params = {}) =>
     apiClient.get("/food/admin/delivery/bonus-transactions", {
+      params,
+      contextModule: "admin",
+    }),
+  /** Delivery Earnings (admin) */
+  getDeliveryEarnings: (params = {}) =>
+    apiClient.get("/food/admin/delivery/earnings", {
       params,
       contextModule: "admin",
     }),
@@ -1741,13 +1779,64 @@ export const orderAPI = {
   verifyPayment: (body) =>
     apiClient.post("/food/orders/verify-payment", body ?? {}, { contextModule: "user" }),
   getOrders: (params = {}) =>
-    apiClient.get("/food/orders", { params: { limit: 20, page: 1, ...params }, contextModule: "user" }),
+    apiClient
+      .get("/food/orders", {
+        params: { limit: 20, page: 1, ...params },
+        contextModule: "user",
+      })
+      .then((res) => {
+        const payload = res?.data?.data;
+
+        // Normalize backend paginated shape:
+        // { data: { data: [...], meta: { total, page, limit, totalPages } } }
+        // into UI-friendly:
+        // { data: { orders: [...], pagination: { total, page, limit, pages } } }
+        if (
+          payload &&
+          typeof payload === "object" &&
+          Array.isArray(payload.data) &&
+          payload.meta &&
+          typeof payload.meta === "object"
+        ) {
+          const meta = payload.meta;
+          return {
+            ...res,
+            data: {
+              ...res.data,
+              data: {
+                ...payload,
+                orders: payload.data,
+                pagination: {
+                  total: Number(meta.total || 0),
+                  page: Number(meta.page || 1),
+                  limit: Number(meta.limit || params.limit || 20),
+                  pages: Number(meta.totalPages || 1),
+                },
+              },
+            },
+          };
+        }
+
+        return res;
+      }),
   getOrderDetails: (orderId) =>
     apiClient.get(`/food/orders/${String(orderId)}`, { contextModule: "user" }),
   cancelOrder: (orderId, body = {}) =>
     apiClient.patch(`/food/orders/${String(orderId)}/cancel`, body ?? {}, { contextModule: "user" }),
   submitOrderRatings: (orderId, body = {}) =>
     apiClient.patch(`/food/orders/${String(orderId)}/ratings`, body ?? {}, { contextModule: "user" }),
+  /** Submit a complaint for an order (user). */
+  submitComplaint: (payload) =>
+    apiClient.post(
+      "/food/user/support/ticket",
+      {
+        type: "order",
+        orderId: payload.orderId,
+        issueType: payload.complaintType,
+        description: `${payload.subject}: ${payload.description}`,
+      },
+      { contextModule: "user" }
+    ),
 };
 
 const DINING_BOOKINGS_STORAGE_KEY = "food_dining_bookings_v1";

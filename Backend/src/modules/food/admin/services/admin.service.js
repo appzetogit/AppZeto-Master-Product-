@@ -41,7 +41,136 @@ const toFiniteNumber = (value) => {
     return Number.isFinite(num) ? num : null;
 };
 
-// ----- Restaurants -----
+export async function getRestaurantComplaints(query = {}) {
+    const limit = Math.min(Math.max(parseInt(query.limit, 10) || 50, 1), 500);
+    const page = Math.max(parseInt(query.page, 10) || 1, 1);
+    const skip = (page - 1) * limit;
+
+    const filter = { type: 'order' };
+    if (query.status && query.status !== 'all') filter.status = query.status;
+    if (query.complaintType && query.complaintType !== 'all') filter.issueType = query.complaintType;
+    if (query.restaurantId && mongoose.Types.ObjectId.isValid(query.restaurantId)) {
+        filter.restaurantId = new mongoose.Types.ObjectId(query.restaurantId);
+    }
+    if (query.search) {
+        const searchRegex = { $regex: query.search, $options: 'i' };
+        const restaurantIds = await FoodRestaurant.find({ restaurantName: searchRegex }).select('_id').lean();
+        const userIds = await FoodUser.find({ name: searchRegex }).select('_id').lean();
+        const orderIds = await FoodOrder.find({ orderId: searchRegex }).select('_id').lean();
+
+        filter.$or = [
+            { restaurantId: { $in: restaurantIds.map(r => r._id) } },
+            { userId: { $in: userIds.map(u => u._id) } },
+            { orderId: { $in: orderIds.map(o => o._id) } },
+            { description: searchRegex },
+            { issueType: searchRegex }
+        ];
+    }
+
+    const [complaints, total] = await Promise.all([
+        FoodSupportTicket.find(filter)
+            .populate('userId', 'name phone profileImage')
+            .populate('restaurantId', 'restaurantName profileImage area city')
+            .populate('orderId', 'orderId orderStatus pricing createdAt')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean(),
+        FoodSupportTicket.countDocuments(filter)
+    ]);
+
+    return { complaints, total, page, limit };
+}
+
+export async function globalSearch(query = '') {
+    const term = String(query).trim();
+    if (!term) return [];
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = { $regex: escaped, $options: 'i' };
+
+    const [orders, users, restaurants, items] = await Promise.all([
+        FoodOrder.find({
+            $or: [{ orderId: regex }, { orderStatus: regex }]
+        })
+            .limit(5)
+            .select('orderId orderStatus createdAt')
+            .lean(),
+        FoodUser.find({
+            $or: [{ name: regex }, { email: regex }, { phone: regex }],
+            role: 'USER'
+        })
+            .limit(5)
+            .select('name email phone')
+            .lean(),
+        FoodRestaurant.find({
+            $or: [{ restaurantName: regex }, { ownerName: regex }, { city: regex }]
+        })
+            .limit(5)
+            .select('restaurantName city area status')
+            .lean(),
+        FoodItem.find({
+            $or: [{ name: regex }, { description: regex }]
+        })
+            .limit(5)
+            .select('name description price')
+            .lean()
+    ]);
+
+    const results = [];
+
+    orders.forEach(o => results.push({
+        id: o._id,
+        type: 'Order',
+        title: `#${o.orderId}`,
+        description: `Status: ${o.orderStatus}`,
+        path: `/admin/food/orders/${o._id}`
+    }));
+
+    users.forEach(u => results.push({
+        id: u._id,
+        type: 'User',
+        title: u.name || 'Unnamed',
+        description: `${u.email || u.phone || ''}`,
+        path: `/admin/food/customers/${u._id}`
+    }));
+
+    restaurants.forEach(r => results.push({
+        id: r._id,
+        type: 'Restaurant',
+        title: r.restaurantName,
+        description: `${r.area || ''}, ${r.city || ''} (${r.status})`,
+        path: `/admin/food/restaurants/${r._id}`
+    }));
+
+    items.forEach(i => results.push({
+        id: i._id,
+        type: 'Product',
+        title: i.name,
+        description: `Price: ₹${i.price}`,
+        path: `/admin/food/foods`
+    }));
+
+    return results;
+}
+
+export async function updateRestaurantComplaint(id, updateData) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+        throw new ValidationError('Invalid complaint ID');
+    }
+    const update = {};
+    if (updateData.status) update.status = updateData.status;
+    if (updateData.adminResponse !== undefined) update.adminResponse = updateData.adminResponse;
+
+    const updated = await FoodSupportTicket.findByIdAndUpdate(
+        id,
+        { $set: update },
+        { new: true }
+    ).lean();
+
+    if (!updated) throw new ValidationError('Complaint not found');
+    return updated;
+}
+
 export async function getRestaurants(query) {
     const limit = Math.min(Math.max(parseInt(query.limit, 10) || 100, 1), 1000);
     const page = Math.max(parseInt(query.page, 10) || 1, 1);
@@ -62,6 +191,272 @@ export async function getRestaurants(query) {
         FoodRestaurant.countDocuments(filter)
     ]);
     return { restaurants, total, page, limit };
+}
+
+const CANCELLED_ORDER_STATUSES = ['cancelled_by_user', 'cancelled_by_restaurant', 'cancelled_by_admin'];
+const PENDING_ORDER_STATUSES = ['created', 'confirmed', 'preparing', 'ready_for_pickup', 'picked_up'];
+
+const getDateRangeByPeriod = (periodRaw) => {
+    const period = String(periodRaw || 'overall').trim().toLowerCase();
+    if (!period || period === 'overall' || period === 'all') return null;
+
+    const now = new Date();
+    const start = new Date(now);
+    const end = new Date(now);
+
+    if (period === 'today') {
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+        return { start, end };
+    }
+
+    if (period === 'week') {
+        start.setHours(0, 0, 0, 0);
+        start.setDate(start.getDate() - start.getDay());
+        end.setTime(start.getTime());
+        end.setDate(start.getDate() + 6);
+        end.setHours(23, 59, 59, 999);
+        return { start, end };
+    }
+
+    if (period === 'month') {
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+        return { start: monthStart, end: monthEnd };
+    }
+
+    if (period === 'year') {
+        const yearStart = new Date(now.getFullYear(), 0, 1);
+        const yearEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+        return { start: yearStart, end: yearEnd };
+    }
+
+    return null;
+};
+
+const formatMonthShort = (year, monthIndex) =>
+    new Date(year, monthIndex, 1).toLocaleString('en-IN', { month: 'short' });
+
+export async function getDashboardStats(query = {}) {
+    const periodRange = getDateRangeByPeriod(query.period);
+    const zoneId = query.zoneId && mongoose.Types.ObjectId.isValid(query.zoneId)
+        ? new mongoose.Types.ObjectId(query.zoneId)
+        : null;
+
+    const orderMatch = {};
+    if (periodRange) {
+        orderMatch.createdAt = { $gte: periodRange.start, $lte: periodRange.end };
+    }
+    if (zoneId) {
+        orderMatch.zoneId = zoneId;
+    }
+
+    const restaurantMatch = {};
+    if (zoneId) {
+        restaurantMatch.zoneId = zoneId;
+    }
+
+    const [
+        orderTotalsAgg,
+        monthlyAgg,
+        restaurantsTotal,
+        restaurantsPending,
+        deliveryTotal,
+        deliveryPending,
+        foodsTotal,
+        addonsTotal,
+        customersTotal
+    ] = await Promise.all([
+        FoodOrder.aggregate([
+            { $match: orderMatch },
+            {
+                $group: {
+                    _id: null,
+                    totalOrders: { $sum: 1 },
+                    delivered: { $sum: { $cond: [{ $eq: ['$orderStatus', 'delivered'] }, 1, 0] } },
+                    cancelled: {
+                        $sum: {
+                            $cond: [{ $in: ['$orderStatus', CANCELLED_ORDER_STATUSES] }, 1, 0]
+                        }
+                    },
+                    pending: {
+                        $sum: {
+                            $cond: [{ $in: ['$orderStatus', PENDING_ORDER_STATUSES] }, 1, 0]
+                        }
+                    },
+                    revenueTotal: { $sum: { $ifNull: ['$pricing.total', 0] } },
+                    commissionTotal: {
+                        $sum: {
+                            $ifNull: [
+                                '$platformProfit',
+                                { $ifNull: ['$pricing.platformFee', 0] }
+                            ]
+                        }
+                    },
+                    platformFeeTotal: { $sum: { $ifNull: ['$pricing.platformFee', 0] } },
+                    deliveryFeeTotal: { $sum: { $ifNull: ['$pricing.deliveryFee', 0] } },
+                    gstTotal: { $sum: { $ifNull: ['$pricing.tax', 0] } }
+                }
+            }
+        ]),
+        FoodOrder.aggregate([
+            {
+                $match: {
+                    ...orderMatch,
+                    createdAt: {
+                        $gte: new Date(new Date().getFullYear(), new Date().getMonth() - 11, 1),
+                        $lte: new Date()
+                    }
+                }
+            },
+            {
+                $group: {
+                    _id: {
+                        year: { $year: '$createdAt' },
+                        month: { $month: '$createdAt' }
+                    },
+                    orders: { $sum: 1 },
+                    revenue: { $sum: { $ifNull: ['$pricing.total', 0] } },
+                    commission: {
+                        $sum: {
+                            $ifNull: [
+                                '$platformProfit',
+                                { $ifNull: ['$pricing.platformFee', 0] }
+                            ]
+                        }
+                    }
+                }
+            },
+            { $sort: { '_id.year': 1, '_id.month': 1 } }
+        ]),
+        FoodRestaurant.countDocuments(restaurantMatch),
+        FoodRestaurant.countDocuments({ ...restaurantMatch, status: 'pending' }),
+        FoodDeliveryPartner.countDocuments({}),
+        FoodDeliveryPartner.countDocuments({ status: 'pending' }),
+        FoodItem.countDocuments({}),
+        FoodAddon.countDocuments({}),
+        FoodUser.countDocuments({})
+    ]);
+
+    const totals = orderTotalsAgg?.[0] || {};
+
+    const now = new Date();
+    const monthlyMap = new Map(
+        (monthlyAgg || []).map((row) => {
+            const key = `${row._id?.year}-${row._id?.month}`;
+            return [key, row];
+        })
+    );
+
+    const monthlyData = [];
+    for (let i = 11; i >= 0; i -= 1) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const year = d.getFullYear();
+        const month = d.getMonth() + 1;
+        const key = `${year}-${month}`;
+        const row = monthlyMap.get(key);
+        monthlyData.push({
+            month: formatMonthShort(year, month - 1),
+            orders: Number(row?.orders || 0),
+            revenue: Number(row?.revenue || 0),
+            commission: Number(row?.commission || 0)
+        });
+    }
+
+    return {
+        orders: {
+            total: Number(totals.totalOrders || 0),
+            byStatus: {
+                delivered: Number(totals.delivered || 0),
+                cancelled: Number(totals.cancelled || 0),
+                pending: Number(totals.pending || 0)
+            }
+        },
+        revenue: { total: Number(totals.revenueTotal || 0) },
+        commission: { total: Number(totals.commissionTotal || 0) },
+        platformFee: { total: Number(totals.platformFeeTotal || 0) },
+        deliveryFee: { total: Number(totals.deliveryFeeTotal || 0) },
+        gst: { total: Number(totals.gstTotal || 0) },
+        totalAdminEarnings:
+            Number(totals.commissionTotal || 0) +
+            Number(totals.platformFeeTotal || 0) +
+            Number(totals.deliveryFeeTotal || 0) +
+            Number(totals.gstTotal || 0),
+        restaurants: {
+            total: Number(restaurantsTotal || 0),
+            pendingRequests: Number(restaurantsPending || 0)
+        },
+        deliveryBoys: {
+            total: Number(deliveryTotal || 0),
+            pendingRequests: Number(deliveryPending || 0)
+        },
+        foods: { total: Number(foodsTotal || 0) },
+        addons: { total: Number(addonsTotal || 0) },
+        customers: { total: Number(customersTotal || 0) },
+        orderStats: {
+            pending: Number(totals.pending || 0),
+            completed: Number(totals.delivered || 0)
+        },
+        monthlyData
+    };
+}
+
+export async function getTransactionReport(query = {}) {
+    const { fromDate, toDate, zone, restaurant, search } = query;
+    const match = {};
+
+    if (fromDate && toDate) {
+        match.createdAt = { $gte: new Date(fromDate), $lte: new Date(toDate) };
+    }
+
+    if (search) {
+        match.orderId = { $regex: search, $options: "i" };
+    }
+
+    const restaurantFilter = {};
+    if (zone) {
+        const zoneDoc = await FoodZone.findOne({ name: zone }).lean();
+        if (zoneDoc) restaurantFilter.zoneId = zoneDoc._id;
+    }
+    if (restaurant) {
+        const restaurantDoc = await FoodRestaurant.findOne({ name: restaurant }).lean();
+        if (restaurantDoc) restaurantFilter._id = restaurantDoc._id;
+    }
+
+    if (Object.keys(restaurantFilter).length > 0) {
+        const restaurants = await FoodRestaurant.find(restaurantFilter).select('_id').lean();
+        match.restaurantId = { $in: restaurants.map(r => r._id) };
+    }
+
+    const orders = await FoodOrder.find(match)
+        .populate('restaurantId', 'name')
+        .populate('userId', 'name')
+        .lean();
+
+    const transactions = orders.map(order => ({
+        id: order._id,
+        orderId: order.orderId,
+        restaurant: order.restaurantId?.name || 'N/A',
+        customerName: order.userId?.name || 'Invalid Customer Data',
+        totalItemAmount: order.pricing?.itemsTotal || 0,
+        itemDiscount: order.pricing?.discount || 0,
+        couponDiscount: order.pricing?.couponDiscount || 0,
+        referralDiscount: order.pricing?.referralDiscount || 0,
+        discountedAmount: (order.pricing?.itemsTotal || 0) - (order.pricing?.discount || 0),
+        vatTax: order.pricing?.tax || 0,
+        deliveryCharge: order.pricing?.deliveryFee || 0,
+        orderAmount: order.pricing?.total || 0,
+    }));
+
+    const summary = {
+        completedTransaction: orders.filter(o => o.orderStatus === 'delivered').reduce((sum, o) => sum + (o.pricing?.total || 0), 0),
+        refundedTransaction: orders.filter(o => o.orderStatus === 'refunded').length,
+        adminEarning: orders.reduce((sum, o) => sum + (o.platformProfit || o.pricing?.platformFee || 0), 0),
+        restaurantEarning: orders.reduce((sum, o) => sum + (o.restaurantSettlement || 0), 0),
+        deliverymanEarning: orders.reduce((sum, o) => sum + (o.deliveryPartnerSettlement || 0), 0),
+    };
+
+    return { transactions, summary };
 }
 
 export async function getRestaurantReport(query = {}) {
@@ -324,7 +719,33 @@ export async function getCustomers(query = {}) {
         return str.replace(/^`+|`+$/g, '').trim();
     };
 
-    let customers = docs.map((u) => ({
+    const userIds = docs.map((u) => u._id).filter(Boolean);
+    const orderStats = userIds.length > 0
+        ? await FoodOrder.aggregate([
+            { $match: { userId: { $in: userIds } } },
+            {
+                $group: {
+                    _id: '$userId',
+                    totalOrder: { $sum: 1 },
+                    totalOrderAmount: { $sum: { $ifNull: ['$pricing.total', 0] } }
+                }
+            }
+        ])
+        : [];
+
+    const orderStatsMap = new Map(
+        orderStats.map((x) => [
+            String(x._id),
+            {
+                totalOrder: Number(x.totalOrder || 0),
+                totalOrderAmount: Number(x.totalOrderAmount || 0)
+            }
+        ])
+    );
+
+    let customers = docs.map((u) => {
+        const stats = orderStatsMap.get(String(u._id)) || { totalOrder: 0, totalOrderAmount: 0 };
+        return ({
         id: u._id,
         _id: u._id,
         name: u.name || 'Unnamed',
@@ -335,11 +756,12 @@ export async function getCustomers(query = {}) {
         status: u.isActive !== false,
         isActive: u.isActive !== false,
         isVerified: u.isVerified === true,
-        totalOrder: 0,
-        totalOrderAmount: 0,
+        totalOrder: stats.totalOrder,
+        totalOrderAmount: stats.totalOrderAmount,
         joiningDate: u.createdAt,
         createdAt: u.createdAt
-    }));
+        });
+    });
 
     const chooseFirst = parseInt(query.chooseFirst, 10);
     if (Number.isFinite(chooseFirst) && chooseFirst > 0) {
@@ -353,6 +775,18 @@ export async function getCustomerById(id) {
     if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
     const u = await FoodUser.findById(id).select('-__v').lean();
     if (!u) return null;
+    const customerObjectId = new mongoose.Types.ObjectId(id);
+    const orderStats = await FoodOrder.aggregate([
+        { $match: { userId: customerObjectId } },
+        {
+            $group: {
+                _id: '$userId',
+                totalOrders: { $sum: 1 },
+                totalOrderAmount: { $sum: { $ifNull: ['$pricing.total', 0] } }
+            }
+        }
+    ]);
+    const stats = orderStats?.[0] || {};
     const sanitizeUrl = (s) => {
         if (!s) return '';
         const str = String(s).trim();
@@ -369,6 +803,9 @@ export async function getCustomerById(id) {
         status: u.isActive !== false,
         isActive: u.isActive !== false,
         isVerified: u.isVerified === true,
+        totalOrders: Number(stats.totalOrders || 0),
+        totalOrder: Number(stats.totalOrders || 0),
+        totalOrderAmount: Number(stats.totalOrderAmount || 0),
         joiningDate: u.createdAt,
         createdAt: u.createdAt,
         updatedAt: u.updatedAt
@@ -950,6 +1387,84 @@ export async function getRestaurantById(id) {
         .select('-__v')
         .populate('zoneId', 'name zoneName serviceLocation isActive')
         .lean();
+}
+
+export async function getRestaurantAnalytics(restaurantId) {
+    if (!restaurantId || !mongoose.Types.ObjectId.isValid(restaurantId)) return null;
+    const rId = new mongoose.Types.ObjectId(restaurantId);
+
+    const [restaurant, commissionDoc, orders] = await Promise.all([
+        FoodRestaurant.findById(rId).lean(),
+        FoodRestaurantCommission.findOne({ restaurantId: rId, status: { $ne: false } }).lean(),
+        FoodOrder.find({ restaurantId: rId }).lean()
+    ]);
+
+    if (!restaurant) return null;
+
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    const completedOrders = orders.filter(o => o.orderStatus === 'delivered');
+    const cancelledOrders = orders.filter(o => ['cancelled_by_user', 'cancelled_by_restaurant', 'cancelled_by_admin'].includes(o.orderStatus));
+
+    const totalRevenue = completedOrders.reduce((sum, o) => sum + (o.pricing?.total || 0), 0);
+    const totalCommission = completedOrders.reduce((sum, o) => sum + (o.platformProfit || o.pricing?.platformFee || 0), 0);
+    const restaurantEarning = totalRevenue - totalCommission;
+
+    const monthlyOrdersList = orders.filter(o => {
+        const d = new Date(o.createdAt);
+        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    });
+    const monthlyCompletedOrders = monthlyOrdersList.filter(o => o.orderStatus === 'delivered');
+    const monthlyProfit = monthlyCompletedOrders.reduce((sum, o) => sum + (o.pricing?.total || 0), 0) -
+        monthlyCompletedOrders.reduce((sum, o) => sum + (o.platformProfit || o.pricing?.platformFee || 0), 0);
+
+    const yearlyOrdersList = orders.filter(o => {
+        const d = new Date(o.createdAt);
+        return d.getFullYear() === currentYear;
+    });
+    const yearlyCompletedOrders = yearlyOrdersList.filter(o => o.orderStatus === 'delivered');
+    const yearlyProfit = yearlyCompletedOrders.reduce((sum, o) => sum + (o.pricing?.total || 0), 0) -
+        yearlyCompletedOrders.reduce((sum, o) => sum + (o.platformProfit || o.pricing?.platformFee || 0), 0);
+
+    const totalOrdersCount = orders.length;
+    const avgOrderValue = totalOrdersCount > 0 ? totalRevenue / completedOrders.length || 0 : 0;
+
+    const uniqueCustomers = new Set(orders.map(o => String(o.userId))).size;
+    const customerOrderCounts = orders.reduce((acc, o) => {
+        const uid = String(o.userId);
+        acc[uid] = (acc[uid] || 0) + 1;
+        return acc;
+    }, {});
+    const repeatCustomers = Object.values(customerOrderCounts).filter(count => count > 1).length;
+
+    const analytics = {
+        totalOrders: totalOrdersCount,
+        cancelledOrders: cancelledOrders.length,
+        completedOrders: completedOrders.length,
+        averageRating: Number(restaurant.rating || 0),
+        totalRatings: Number(restaurant.totalRatings || 0),
+        commissionPercentage: commissionDoc?.defaultCommission?.value || 0,
+        monthlyProfit,
+        yearlyProfit,
+        averageOrderValue: avgOrderValue,
+        totalRevenue,
+        totalCommission,
+        restaurantEarning,
+        monthlyOrders: monthlyOrdersList.length,
+        yearlyOrders: yearlyOrdersList.length,
+        averageMonthlyProfit: monthlyProfit, // Placeholder: can be improved if historical data exists
+        averageYearlyProfit: yearlyProfit,   // Placeholder: can be improved if historical data exists
+        status: restaurant.status === 'approved' ? 'active' : 'inactive',
+        joinDate: restaurant.createdAt,
+        totalCustomers: uniqueCustomers,
+        repeatCustomers,
+        cancellationRate: totalOrdersCount > 0 ? (cancelledOrders.length / totalOrdersCount) * 100 : 0,
+        completionRate: totalOrdersCount > 0 ? (completedOrders.length / totalOrdersCount) * 100 : 0
+    };
+
+    return { restaurant, analytics };
 }
 
 export async function getRestaurantMenuById(id) {
@@ -2003,6 +2518,172 @@ export async function addDeliveryPartnerBonus(body, adminUser) {
     });
 
     return created.toObject();
+}
+
+// ----- Delivery Earnings (admin) -----
+export async function getDeliveryEarnings(query = {}) {
+    const page = Math.max(parseInt(query.page, 10) || 1, 1);
+    const limit = Math.max(1, Math.min(1000, parseInt(query.limit, 10) || 50));
+    const skip = (page - 1) * limit;
+
+    const filter = {
+        'dispatch.deliveryPartnerId': { $ne: null }
+    };
+
+    // Date range filters
+    const createdAtFilter = {};
+    if (query.fromDate) {
+        const from = new Date(query.fromDate);
+        if (!Number.isNaN(from.getTime())) {
+            from.setHours(0, 0, 0, 0);
+            createdAtFilter.$gte = from;
+        }
+    }
+    if (query.toDate) {
+        const to = new Date(query.toDate);
+        if (!Number.isNaN(to.getTime())) {
+            to.setHours(23, 59, 59, 999);
+            createdAtFilter.$lte = to;
+        }
+    }
+
+    // Period filters (only when explicit date range is not provided)
+    if (!createdAtFilter.$gte && !createdAtFilter.$lte) {
+        const period = String(query.period || 'all').trim().toLowerCase();
+        const now = new Date();
+        if (period === 'today') {
+            const start = new Date(now);
+            start.setHours(0, 0, 0, 0);
+            const end = new Date(now);
+            end.setHours(23, 59, 59, 999);
+            createdAtFilter.$gte = start;
+            createdAtFilter.$lte = end;
+        } else if (period === 'week') {
+            const start = new Date(now);
+            start.setHours(0, 0, 0, 0);
+            start.setDate(start.getDate() - start.getDay()); // Sunday
+            const end = new Date(start);
+            end.setDate(start.getDate() + 6);
+            end.setHours(23, 59, 59, 999);
+            createdAtFilter.$gte = start;
+            createdAtFilter.$lte = end;
+        } else if (period === 'month') {
+            const start = new Date(now.getFullYear(), now.getMonth(), 1);
+            start.setHours(0, 0, 0, 0);
+            const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+            end.setHours(23, 59, 59, 999);
+            createdAtFilter.$gte = start;
+            createdAtFilter.$lte = end;
+        }
+    }
+
+    if (createdAtFilter.$gte || createdAtFilter.$lte) {
+        filter.createdAt = createdAtFilter;
+    }
+
+    if (query.deliveryPartnerId && mongoose.Types.ObjectId.isValid(query.deliveryPartnerId)) {
+        filter['dispatch.deliveryPartnerId'] = new mongoose.Types.ObjectId(query.deliveryPartnerId);
+    }
+
+    const search = String(query.search || '').trim();
+    if (search) {
+        const regex = new RegExp(search, 'i');
+
+        const [partners, restaurants] = await Promise.all([
+            FoodDeliveryPartner.find({
+                $or: [{ name: regex }, { phone: regex }, { email: regex }]
+            }).select('_id').lean(),
+            FoodRestaurant.find({
+                $or: [{ restaurantName: regex }, { name: regex }]
+            }).select('_id').lean()
+        ]);
+
+        const partnerIds = partners.map((p) => p._id);
+        const restaurantIds = restaurants.map((r) => r._id);
+
+        filter.$or = [
+            { orderId: regex },
+            { 'dispatch.deliveryPartnerId': { $in: partnerIds } },
+            { restaurantId: { $in: restaurantIds } }
+        ];
+    }
+
+    const [orders, total, earningsAgg, distinctPartners] = await Promise.all([
+        FoodOrder.find(filter)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .select('orderId orderStatus createdAt pricing riderEarning deliveryPartnerSettlement dispatch.deliveryPartnerId restaurantId')
+            .populate({ path: 'dispatch.deliveryPartnerId', select: 'name phone' })
+            .populate({ path: 'restaurantId', select: 'restaurantName name' })
+            .lean(),
+        FoodOrder.countDocuments(filter),
+        FoodOrder.aggregate([
+            { $match: filter },
+            {
+                $group: {
+                    _id: null,
+                    totalEarnings: {
+                        $sum: {
+                            $ifNull: [
+                                '$riderEarning',
+                                {
+                                    $ifNull: [
+                                        '$deliveryPartnerSettlement',
+                                        { $ifNull: ['$pricing.deliveryFee', 0] }
+                                    ]
+                                }
+                            ]
+                        }
+                    },
+                    totalOrders: { $sum: 1 }
+                }
+            }
+        ]),
+        FoodOrder.distinct('dispatch.deliveryPartnerId', filter)
+    ]);
+
+    const earnings = orders.map((order) => {
+        const partner = order?.dispatch?.deliveryPartnerId;
+        const amount = Number(
+            order?.riderEarning ??
+            order?.deliveryPartnerSettlement ??
+            order?.pricing?.deliveryFee ??
+            0
+        ) || 0;
+
+        return {
+            transactionId: String(order._id),
+            orderId: order.orderId || 'N/A',
+            deliveryPartnerId: partner?._id ? String(partner._id) : null,
+            deliveryPartnerName: partner?.name || 'N/A',
+            deliveryPartnerPhone: partner?.phone || 'N/A',
+            restaurantName: order?.restaurantId?.restaurantName || order?.restaurantId?.name || 'N/A',
+            amount,
+            orderTotal: Number(order?.pricing?.total || 0) || 0,
+            deliveryFee: Number(order?.pricing?.deliveryFee || 0) || 0,
+            orderStatus: order?.orderStatus || 'N/A',
+            createdAt: order?.createdAt || null
+        };
+    });
+
+    const agg = earningsAgg?.[0] || {};
+    const totalDeliveryPartners = (distinctPartners || []).filter(Boolean).length;
+
+    return {
+        earnings,
+        summary: {
+            totalDeliveryPartners,
+            totalEarnings: Number(agg.totalEarnings || 0),
+            totalOrders: Number(agg.totalOrders || 0)
+        },
+        pagination: {
+            page,
+            limit,
+            total,
+            pages: Math.ceil(total / limit) || 1
+        }
+    };
 }
 
 // ----- Earning Addon Offers (admin) -----

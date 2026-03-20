@@ -136,6 +136,14 @@ export default function Cart() {
   const [showOrderSuccess, setShowOrderSuccess] = useState(false)
   const [placedOrderId, setPlacedOrderId] = useState(null)
   const [selectedAddressId, setSelectedAddressId] = useState(null)
+  const [deliveryAddressMode, setDeliveryAddressMode] = useState(() => {
+    try {
+      if (typeof window === "undefined") return "saved"
+      return localStorage.getItem("deliveryAddressMode") || "saved"
+    } catch {
+      return "saved"
+    }
+  })
 
   useEffect(() => {
     const audio = new Audio(zoopSound)
@@ -204,7 +212,48 @@ export default function Cart() {
   }
   const savedAddress = getDefaultAddress()
   const selectedAddress = addresses.find((addr) => getAddressId(addr) && getAddressId(addr) === selectedAddressId)
-  const defaultAddress = selectedAddress || savedAddress || null
+
+  const currentLocationAddress = useMemo(() => {
+    if (!currentLocation?.latitude || !currentLocation?.longitude) return null
+    const formattedAddress = currentLocation?.formattedAddress || currentLocation?.address || ""
+    if (!formattedAddress || formattedAddress === "Select location") return null
+
+    return {
+      // Backend deliveryAddressSchema expects label in ['Home','Office','Other'].
+      label: "Home",
+      formattedAddress,
+      address: formattedAddress,
+      street: currentLocation?.street || currentLocation?.address || currentLocation?.area || "Current Location",
+      additionalDetails: currentLocation?.area || "",
+      city: currentLocation?.city || currentLocation?.area || "Current City",
+      state: currentLocation?.state || currentLocation?.city || "Current State",
+      zipCode: currentLocation?.postalCode || currentLocation?.zipCode || "",
+      phone: userProfile?.phone || "",
+      location: {
+        type: "Point",
+        coordinates: [currentLocation.longitude, currentLocation.latitude], // [lng, lat]
+      },
+    }
+  }, [
+    currentLocation?.latitude,
+    currentLocation?.longitude,
+    currentLocation?.formattedAddress,
+    currentLocation?.address,
+    currentLocation?.street,
+    currentLocation?.area,
+    currentLocation?.city,
+    currentLocation?.state,
+    currentLocation?.postalCode,
+    currentLocation?.zipCode,
+    userProfile?.phone,
+  ])
+
+  const defaultAddress = useMemo(() => {
+    return deliveryAddressMode === "current"
+      ? currentLocationAddress || selectedAddress || savedAddress || null
+      : selectedAddress || savedAddress || currentLocationAddress || null
+  }, [deliveryAddressMode, currentLocationAddress, selectedAddress, savedAddress])
+
   const hasSavedAddress = Boolean(defaultAddress && formatFullAddress(defaultAddress))
   const selectedAddressCoordinates = defaultAddress?.location?.coordinates
   const zoneLocation = selectedAddressCoordinates?.length === 2
@@ -217,11 +266,29 @@ export default function Cart() {
   const defaultPayment = getDefaultPaymentMethod()
 
   useEffect(() => {
+    // Sync delivery mode from overlay/localStorage changes.
+    // No dependency array: overlay open/close re-renders Cart via provider state update,
+    // even when GPS coords don't move enough to update `currentLocation`.
+    try {
+      const mode = localStorage.getItem("deliveryAddressMode") || "saved"
+      setDeliveryAddressMode((prev) => (prev === mode ? prev : mode))
+    } catch {
+      // ignore
+    }
+  })
+
+  useEffect(() => {
+    if (deliveryAddressMode === "current") {
+      setSelectedAddressId(null)
+    }
+  }, [deliveryAddressMode])
+
+  useEffect(() => {
     const defaultId = getAddressId(savedAddress)
-    if (!selectedAddressId && defaultId) {
+    if (deliveryAddressMode !== "current" && !selectedAddressId && defaultId) {
       setSelectedAddressId(defaultId)
     }
-  }, [savedAddress, selectedAddressId])
+  }, [savedAddress, selectedAddressId, deliveryAddressMode])
 
   // Get restaurant ID from cart or restaurant data
   // Priority: restaurantData > cart[0].restaurantId
@@ -651,7 +718,7 @@ export default function Cart() {
     }
 
     calculatePricing()
-  }, [cart, defaultAddress, appliedCoupon, couponCode, deliveryFleet, restaurantId, feeSettings])
+  }, [cart, defaultAddress, appliedCoupon, couponCode, deliveryFleet, restaurantId])
 
   // Fetch wallet balance
   useEffect(() => {
@@ -844,6 +911,11 @@ export default function Cart() {
           : `${address.street}, ${address.city}, ${address.state}${address.zipCode ? ` ${address.zipCode}` : ''}`
       }
       localStorage.setItem("userLocation", JSON.stringify(locationData))
+      // User selected a saved address from Cart; prefer saved mode.
+      try {
+        localStorage.setItem("deliveryAddressMode", "saved")
+        setDeliveryAddressMode("saved")
+      } catch {}
 
       toast.success(`${address.label || "Saved"} address selected!`)
     } catch (error) {
@@ -1012,7 +1084,7 @@ export default function Cart() {
 
   const handlePlaceOrder = async () => {
     if (!hasSavedAddress) {
-      toast.error("Please save a delivery address to continue")
+      toast.error("Please choose a delivery location to continue")
       openLocationSelector()
       return
     }
@@ -1866,7 +1938,7 @@ export default function Cart() {
                       </p>
                       {!hasSavedAddress && (
                         <p className="text-xs md:text-sm text-[#EB590E] mt-1">
-                          Use current location and save address to place order
+                          Select a delivery location to continue
                         </p>
                       )}
                       {/* Address Selection Buttons */}

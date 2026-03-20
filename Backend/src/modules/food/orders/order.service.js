@@ -23,9 +23,24 @@ import {
     isRazorpayConfigured
 } from './razorpay.helper.js';
 import { getIO, rooms } from '../../../config/socket.js';
+import { addOrderJob } from '../../../queues/producers/order.producer.js';
 
 const ORDER_ID_PREFIX = 'FOD-';
 const ORDER_ID_LENGTH = 6;
+
+/**
+ * Fire-and-forget BullMQ enqueue for order lifecycle events.
+ * Never blocks API response; failures are logged only.
+ */
+function enqueueOrderEvent(action, payload = {}) {
+    try {
+        void addOrderJob({ action, ...payload }).catch((err) => {
+            logger.warn(`BullMQ enqueue order event failed: ${action} - ${err?.message || err}`);
+        });
+    } catch (err) {
+        logger.warn(`BullMQ enqueue order event failed (sync): ${action} - ${err?.message || err}`);
+    }
+}
 
 function generateFourDigitDeliveryOtp() {
     return String(Math.floor(1000 + Math.random() * 9000));
@@ -608,6 +623,15 @@ export async function createOrder(userId, dto) {
     }
 
     const saved = order.toObject();
+    enqueueOrderEvent('order_created', {
+        orderMongoId: order._id?.toString?.(),
+        orderId,
+        userId,
+        restaurantId: dto.restaurantId,
+        zoneId: dto.zoneId ? String(dto.zoneId) : order.zoneId?.toString?.(),
+        dispatchMode,
+        paymentMethod
+    });
     return { order: saved, razorpay: razorpayPayload };
 }
 
@@ -645,6 +669,13 @@ export async function verifyPayment(userId, dto) {
         } catch {}
     }
 
+    enqueueOrderEvent('payment_verified', {
+        orderMongoId: order._id?.toString?.(),
+        orderId: order.orderId,
+        userId,
+        paymentMethod: order.payment?.method,
+        paymentStatus: order.payment?.status
+    });
     return { order: order.toObject(), payment: order.payment };
 }
 
@@ -700,6 +731,14 @@ export async function tryAutoAssign(orderId) {
         },
         { new: true }
     );
+    if (doc) {
+        enqueueOrderEvent('auto_order_assigned', {
+            orderMongoId: doc._id?.toString?.(),
+            orderId: doc.orderId,
+            restaurantId: doc.restaurantId?.toString?.(),
+            deliveryPartnerId: doc.dispatch?.deliveryPartnerId?.toString?.()
+        });
+    }
     return doc;
 }
 
@@ -770,6 +809,12 @@ export async function cancelOrder(orderId, userId, reason) {
     order.orderStatus = 'cancelled_by_user';
     pushStatusHistory(order, { byRole: 'USER', byId: userId, from: order.orderStatus, to: 'cancelled_by_user', note: reason || '' });
     await order.save();
+    enqueueOrderEvent('order_cancelled_by_user', {
+        orderMongoId: order._id?.toString?.(),
+        orderId: order.orderId,
+        userId,
+        reason: reason || ''
+    });
     return order.toObject();
 }
 
@@ -821,6 +866,13 @@ export async function submitOrderRatings(orderId, userId, dto) {
     ]);
 
     await order.save();
+    enqueueOrderEvent('order_ratings_submitted', {
+        orderMongoId: order._id?.toString?.(),
+        orderId: order.orderId,
+        userId,
+        restaurantRating: dto.restaurantRating,
+        deliveryPartnerRating: hasDeliveryPartner ? dto.deliveryPartnerRating : null
+    });
 
     const updatedOrder = await FoodOrder.findById(order._id)
         .populate('restaurantId', 'restaurantName profileImage area city location rating totalRatings')
@@ -939,6 +991,13 @@ export async function updateOrderStatusRestaurant(orderId, restaurantId, orderSt
     } catch (err) {
         console.error('[DEBUG] Error in delivery notification logic:', err);
     }
+    enqueueOrderEvent('restaurant_order_status_updated', {
+        orderMongoId: order._id?.toString?.(),
+        orderId: order.orderId,
+        restaurantId,
+        from,
+        to: orderStatus
+    });
     return order.toObject();
 }
 
@@ -1025,6 +1084,13 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId) {
         }
     } catch {}
 
+    enqueueOrderEvent('delivery_accepted', {
+        orderMongoId: order._id?.toString?.(),
+        orderId: order.orderId,
+        deliveryPartnerId,
+        dispatchStatus: order.dispatch?.status,
+        orderStatus: order.orderStatus
+    });
     return order.toObject();
 }
 
@@ -1040,6 +1106,11 @@ export async function rejectOrderDelivery(orderId, deliveryPartnerId) {
     order.dispatch.acceptedAt = undefined;
     pushStatusHistory(order, { byRole: 'DELIVERY_PARTNER', byId: deliveryPartnerId, from: 'assigned', to: 'unassigned', note: 'Rejected' });
     await order.save();
+    enqueueOrderEvent('delivery_rejected', {
+        orderMongoId: order._id?.toString?.(),
+        orderId: order.orderId,
+        deliveryPartnerId
+    });
     return order.toObject();
 }
 
@@ -1078,6 +1149,14 @@ export async function confirmReachedPickupDelivery(orderId, deliveryPartnerId) {
     // Notify
     emitOrderUpdate(order, deliveryPartnerId);
 
+    enqueueOrderEvent('reached_pickup', {
+        orderMongoId: order._id?.toString?.(),
+        orderId: order.orderId,
+        deliveryPartnerId,
+        orderStatus: order.orderStatus,
+        deliveryPhase: order.deliveryState?.currentPhase,
+        deliveryStatus: order.deliveryState?.status
+    });
     return order.toObject();
 }
 
@@ -1109,6 +1188,12 @@ export async function confirmPickupDelivery(orderId, deliveryPartnerId, billImag
     await order.save();
 
     emitOrderUpdate(order, deliveryPartnerId);
+    enqueueOrderEvent('picked_up', {
+        orderMongoId: order._id?.toString?.(),
+        orderId: order.orderId,
+        deliveryPartnerId,
+        billImageUrl: billImageUrl || null
+    });
     return order.toObject();
 }
 
@@ -1161,6 +1246,13 @@ export async function confirmReachedDropDelivery(orderId, deliveryPartnerId) {
     const plainOtp = String(order.deliveryOtp || '').trim();
     emitDeliveryDropOtpToUser(order, plainOtp);
     emitOrderUpdate(order, deliveryPartnerId);
+    enqueueOrderEvent('reached_drop', {
+        orderMongoId: order._id?.toString?.(),
+        orderId: order.orderId,
+        deliveryPartnerId,
+        dropOtpRequired: order.deliveryVerification?.dropOtp?.required ?? true,
+        dropOtpVerified: order.deliveryVerification?.dropOtp?.verified ?? false
+    });
     return sanitizeOrderForExternal(order);
 }
 
@@ -1193,6 +1285,11 @@ export async function verifyDropOtpDelivery(orderId, deliveryPartnerId, otp) {
     await order.save();
 
     emitOrderUpdate(order, deliveryPartnerId);
+    enqueueOrderEvent('drop_otp_verified', {
+        orderMongoId: order._id?.toString?.(),
+        orderId: order.orderId,
+        deliveryPartnerId
+    });
     return { order: sanitizeOrderForExternal(order) };
 }
 
@@ -1240,6 +1337,14 @@ export async function completeDelivery(orderId, deliveryPartnerId) {
     });
 
     emitOrderUpdate(order, deliveryPartnerId);
+    enqueueOrderEvent('delivery_completed', {
+        orderMongoId: order._id?.toString?.(),
+        orderId: order.orderId,
+        deliveryPartnerId,
+        payMethod,
+        prevPayStatus,
+        paymentStatus: order.payment?.status
+    });
     return order.toObject();
 }
 
@@ -1274,6 +1379,13 @@ export async function updateOrderStatusDelivery(orderId, deliveryPartnerId, orde
     order.orderStatus = orderStatus;
     pushStatusHistory(order, { byRole: 'DELIVERY_PARTNER', byId: deliveryPartnerId, from, to: orderStatus });
     await order.save();
+    enqueueOrderEvent('delivery_status_updated', {
+        orderMongoId: order._id?.toString?.(),
+        orderId: order.orderId,
+        deliveryPartnerId,
+        from,
+        to: orderStatus
+    });
     return order.toObject();
 }
 
@@ -1324,6 +1436,15 @@ export async function createCollectQr(orderId, deliveryPartnerId, customerInfo =
             metadata: { paymentLinkId: link.id, shortUrl: link.short_url }
         });
     }
+
+    enqueueOrderEvent('collect_qr_created', {
+        orderMongoId: String(orderId),
+        orderId: updated?.orderId || null,
+        deliveryPartnerId,
+        paymentLinkId: link.id,
+        shortUrl: link.short_url,
+        amountDue
+    });
 
     return {
         shortUrl: link.short_url,
@@ -1450,5 +1571,11 @@ export async function assignDeliveryPartnerAdmin(orderId, deliveryPartnerId, adm
     order.dispatch.assignedAt = new Date();
     pushStatusHistory(order, { byRole: 'ADMIN', byId: adminId, from: order.dispatch.status, to: 'assigned' });
     await order.save();
+    enqueueOrderEvent('delivery_partner_assigned', {
+        orderMongoId: order._id?.toString?.(),
+        orderId: order.orderId,
+        deliveryPartnerId,
+        adminId
+    });
     return order.toObject();
 }

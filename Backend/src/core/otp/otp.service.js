@@ -12,37 +12,60 @@ const generateOtpCode = () => {
 
 /**
  * Sends SMS via SMS India Hub API
- * @param {string} phone 
- * @param {string} otp 
+ * @param {string} phone - 10-digit mobile number (will be prefixed with 91)
+ * @param {string} otp
  */
 const sendSmsViaIndiaHub = async (phone, otp) => {
     try {
-        const message = `Your OTP for login is ${otp}. Do not share it with anyone.`;
-        
-        // Constructing URL for SMS India Hub
-        // Based on typical HTTP API structure for this provider
-        const url = new URL('https://cloud.smsindiahub.in/vendorsms/pushsms.aspx');
-        url.searchParams.append('apikey', config.smsApiKey);
+        // Normalize phone: strip non-digits, ensure 91 country code prefix
+        const digits = String(phone || '').replace(/\D/g, '');
+        const msisdn = digits.startsWith('91') ? digits : `91${digits}`;
+
+        // EXACT DLT TEMPLATE provided by user:
+        // "Welcome to the ##var## powered by SMSINDIAHUB. Your OTP for registration is ##var##"
+        const message = `Welcome to the Appzeto powered by SMSINDIAHUB. Your OTP for registration is ${otp}`;
+
+        // SMS India Hub HTTP GET API — query param names are case-sensitive per SOP
+        const url = new URL('http://cloud.smsindiahub.in/vendorsms/pushsms.aspx');
+        url.searchParams.append('APIKey', config.smsApiKey);
         url.searchParams.append('sid', config.smsSenderId);
-        url.searchParams.append('msisdn', phone);
+        url.searchParams.append('msisdn', msisdn);
         url.searchParams.append('msg', message);
         url.searchParams.append('gwid', '2');
         url.searchParams.append('fl', '0');
+        if (config.smsIndiaHubUsername) {
+            url.searchParams.append('uname', config.smsIndiaHubUsername);
+        }
         if (config.smsDltTemplateId) {
-            url.searchParams.append('dlttemplateid', config.smsDltTemplateId);
+            url.searchParams.append('DLT_TE_ID', config.smsDltTemplateId);
         }
 
+        logger.info(`[SMS] Sending OTP to ${msisdn} via SMS India Hub...`);
         const response = await fetch(url.toString());
-        const result = await response.text();
+        const resultText = await response.text();
+        logger.info(`[SMS] Raw response for ${msisdn}: ${resultText}`);
 
-        if (response.ok) {
-            logger.info(`SMS sent successfully to ${phone}`);
+        // SMS India Hub often returns HTTP 200 OK even for errors — check response body
+        let parsed = null;
+        try { parsed = JSON.parse(resultText); } catch (_) { /* plain text response is OK */ }
+
+        if (parsed && parsed.ErrorCode && parsed.ErrorCode !== '000') {
+            const errMsg = `SMS India Hub ERROR for ${phone}: [${parsed.ErrorCode}] ${parsed.ErrorMessage || resultText}`;
+            logger.error(errMsg);
+            // eslint-disable-next-line no-console
+            console.error(`❌ [SMS ERROR] ${errMsg}`);
+            if (parsed.ErrorCode === '006') {
+                // eslint-disable-next-line no-console
+                console.error('❌ [SMS ERROR] ErrorCode 006 = DLT Template mismatch. The message text must EXACTLY match your registered TRAI DLT template. Login to https://cloud.smsindiahub.in and verify the approved template text.');
+            }
+        } else if (!response.ok) {
+            logger.error(`SMS API HTTP error for ${phone}: ${response.status} – ${resultText}`);
         } else {
-            logger.error(`SMS API failed for ${phone}: ${result}`);
+            logger.info(`✅ SMS sent successfully to ${msisdn}`);
         }
     } catch (error) {
         logger.error(`Error sending SMS to ${phone}: ${error.message}`);
-        // We don't throw here to ensure the OTP is still generated/stored
+        // Do NOT throw — OTP is already stored in DB; SMS failure should not block the flow
     }
 };
 

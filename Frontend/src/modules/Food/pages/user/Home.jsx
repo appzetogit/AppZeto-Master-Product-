@@ -1413,8 +1413,13 @@ export default function Home() {
           const userLng = location?.longitude;
 
           // Transform API data to match expected format
-          const transformedRestaurants = restaurantsArray.map(
-            (restaurant, index) => {
+          const transformedRestaurants = restaurantsArray
+            .filter((restaurant) => {
+              const name = (restaurant.restaurantName || restaurant.name || "").toLowerCase()
+              if (name.includes("dummy") || name.includes("test")) return false
+              return true
+            })
+            .map((restaurant, index) => {
               // Use restaurant data if available, otherwise use defaults
               const deliveryTime =
                 restaurant.estimatedDeliveryTime || "25-30 mins";
@@ -1544,6 +1549,8 @@ export default function Home() {
                   : [],
                 deliveryTimings: restaurant.deliveryTimings || null,
                 outletTimings: restaurant.outletTimings || null,
+                openingTime: restaurant.openingTime || null,
+                closingTime: restaurant.closingTime || null,
               };
             },
           );
@@ -2488,7 +2495,7 @@ export default function Home() {
           </div>
 
           <div className="px-3 sm:px-6 pb-3 flex items-center gap-3">
-            <div className="flex-1 relative">
+            <div className="flex-1 relative -mt-3">
               <div 
                     className="relative bg-white/90 dark:bg-[#1a1a1a]/90 backdrop-blur-sm rounded-xl border border-gray-200 focus-within:border-[#EB590E] transition-all p-2 shadow-sm"
                 onClick={handleSearchFocus}
@@ -2547,7 +2554,7 @@ export default function Home() {
                 <PageNavbar textColor="black" zIndex={50} />
               </div>
               <div className="px-3 sm:px-6 pb-2 flex items-center gap-3">
-                <div className="flex-1 bg-gray-100 rounded-lg p-2.5 flex items-center gap-2" onClick={handleSearchFocus}>
+                <div className="flex-1 bg-gray-100 rounded-lg p-2.5 flex items-center gap-2 -mt-3" onClick={handleSearchFocus}>
                   <Search className="h-3.5 w-3.5 text-[#EB590E]" />
                   <span className="text-xs font-semibold text-gray-400 truncate">{placeholders[placeholderIndex]}</span>
                 </div>

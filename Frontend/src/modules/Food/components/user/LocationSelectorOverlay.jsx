@@ -939,6 +939,10 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
 
       // Requirement: when user taps "Use current location" from delivery-location selector,
       // don't open the "Add address" form. Just close and return to homepage.
+      // Store selection mode so Cart can prefer this current location for delivery address.
+      try {
+        localStorage.setItem("deliveryAddressMode", "current");
+      } catch {}
       setShowAddressForm(false)
       setAddressFormData((prev) => ({
         ...prev,
@@ -1956,6 +1960,10 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
       const savedAddressId = getAddressId(savedAddress) || existingAddressId
       if (savedAddressId) {
         setDefaultAddress(savedAddressId)
+        // User saved an address; prefer saved delivery address in Cart.
+        try {
+          localStorage.setItem("deliveryAddressMode", "saved")
+        } catch {}
       }
 
       // Reset form
@@ -2094,6 +2102,10 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
       if (selectedAddressId) {
         setDefaultAddress(selectedAddressId)
       }
+      // User picked a saved address; Cart should prefer saved address over current location.
+      try {
+        localStorage.setItem("deliveryAddressMode", "saved");
+      } catch {}
       onClose()
     } catch (error) {
       debugError("Error selecting saved address:", error)

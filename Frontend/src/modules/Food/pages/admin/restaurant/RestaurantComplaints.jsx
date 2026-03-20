@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react"
 import { adminAPI } from "@food/api"
 import { toast } from "sonner"
-import { Search, Filter, AlertCircle, CheckCircle, Clock, XCircle, FileText } from "lucide-react"
+import { Search, Filter, AlertCircle, CheckCircle, Clock, XCircle, FileText, Edit } from "lucide-react"
 import {
   Select,
   SelectContent,
@@ -9,6 +9,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@food/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@food/components/ui/dialog"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -57,6 +65,8 @@ export default function RestaurantComplaints() {
     total: 0,
     pages: 1
   })
+  const [editingComplaint, setEditingComplaint] = useState(null)
+  const [updateData, setUpdateData] = useState({ status: '', adminResponse: '' })
 
   useEffect(() => {
     fetchComplaints()
@@ -77,13 +87,38 @@ export default function RestaurantComplaints() {
       if (response?.data?.success) {
         setComplaints(response.data.data.complaints || [])
         setStats(response.data.data.stats || stats)
-        setPagination(response.data.data.pagination || pagination)
+        setPagination({
+          page: response.data.data.page || 1,
+          limit: response.data.data.limit || 50,
+          total: response.data.data.total || 0,
+          pages: Math.ceil((response.data.data.total || 0) / (response.data.data.limit || 50))
+        })
       }
     } catch (error) {
       debugError('Error fetching complaints:', error)
       toast.error('Failed to fetch complaints')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleOpenModal = (complaint) => {
+    setEditingComplaint(complaint)
+    setUpdateData({ status: complaint.status, adminResponse: complaint.adminResponse || '' })
+  }
+
+  const handleUpdateComplaint = async () => {
+    if (!editingComplaint) return
+    try {
+      const response = await adminAPI.updateRestaurantComplaint(editingComplaint._id, updateData)
+      if (response?.data?.success) {
+        toast.success('Complaint updated')
+        setEditingComplaint(null)
+        fetchComplaints() // Refresh list
+      }
+    } catch (error) {
+      debugError('Error updating complaint:', error)
+      toast.error('Failed to update complaint')
     }
   }
 
@@ -182,27 +217,30 @@ export default function RestaurantComplaints() {
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
                       {getStatusIcon(complaint.status)}
-                      <h3 className="font-semibold text-gray-900">{complaint.subject}</h3>
+                      <h3 className="font-semibold text-gray-900">{complaint.subject || complaint.issueType?.replace('_', ' ')}</h3>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
                       <div>
                         <p className="text-xs text-gray-500">Order</p>
-                        <p className="font-medium">#{complaint.orderNumber}</p>
+                        <p className="font-medium">#{complaint.orderId?.orderId || 'N/A'}</p>
                       </div>
                       <div>
                         <p className="text-xs text-gray-500">Customer</p>
-                        <p className="font-medium">{complaint.customerName}</p>
+                        <p className="font-medium">{complaint.userId?.name || 'Customer'}</p>
                       </div>
                       <div>
                         <p className="text-xs text-gray-500">Restaurant</p>
-                        <p className="font-medium">{complaint.restaurantName}</p>
+                        <p className="font-medium">{complaint.restaurantId?.restaurantName || 'Restaurant'}</p>
                       </div>
                       <div>
                         <p className="text-xs text-gray-500">Type</p>
-                        <p className="font-medium capitalize">{complaint.complaintType.replace('_', ' ')}</p>
+                        <p className="font-medium capitalize">{(complaint.issueType || 'other').replace('_', ' ')}</p>
                       </div>
                     </div>
                   </div>
+                  <button onClick={() => handleOpenModal(complaint)} className="p-2 rounded-md hover:bg-gray-200">
+                    <Edit className="w-4 h-4 text-gray-600" />
+                  </button>
                 </div>
                 <p className="text-sm text-gray-700 mb-3">{complaint.description}</p>
                 {complaint.restaurantResponse && (
@@ -256,6 +294,46 @@ export default function RestaurantComplaints() {
           </div>
         </div>
       )}
+
+      {/* Update Modal */}
+      <Dialog open={!!editingComplaint} onOpenChange={(open) => !open && setEditingComplaint(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Update Complaint</DialogTitle>
+            <DialogDescription>
+              Update the status and provide a response for this complaint.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Status</label>
+              <Select value={updateData.status} onValueChange={(val) => setUpdateData({ ...updateData, status: val })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUS_OPTIONS.filter(o => o.value !== 'all').map(o => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Admin Response</label>
+              <textarea
+                className="w-full min-h-[100px] p-3 border rounded-md"
+                placeholder="Type your response here..."
+                value={updateData.adminResponse}
+                onChange={(e) => setUpdateData({ ...updateData, adminResponse: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <button onClick={() => setEditingComplaint(null)} className="px-4 py-2 border rounded-md">Cancel</button>
+            <button onClick={handleUpdateComplaint} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Save Changes</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

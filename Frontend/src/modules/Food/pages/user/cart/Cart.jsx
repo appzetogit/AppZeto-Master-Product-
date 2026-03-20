@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { Plus, Minus, ArrowLeft, ChevronRight, Clock, MapPin, Phone, FileText, Utensils, Tag, Percent, Truck, Leaf, Share2, ChevronUp, ChevronDown, X, Check, Settings, CreditCard, Wallet, Building2, Sparkles } from "lucide-react"
+import { Plus, Minus, ArrowLeft, ChevronRight, Clock, MapPin, Phone, FileText, Utensils, Tag, Percent, Share2, ChevronUp, ChevronDown, X, Check, Settings, CreditCard, Wallet, Building2, Sparkles } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import confetti from "canvas-confetti"
 
@@ -104,8 +104,6 @@ export default function Cart() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("cash") // COD only for now
   const [walletBalance, setWalletBalance] = useState(0)
   const [isLoadingWallet, setIsLoadingWallet] = useState(false)
-  const [deliveryFleet, setDeliveryFleet] = useState("standard")
-  const [showFleetOptions, setShowFleetOptions] = useState(false)
   const [note, setNote] = useState("")
   const [showNoteInput, setShowNoteInput] = useState(false)
 
@@ -136,6 +134,14 @@ export default function Cart() {
   const [showOrderSuccess, setShowOrderSuccess] = useState(false)
   const [placedOrderId, setPlacedOrderId] = useState(null)
   const [selectedAddressId, setSelectedAddressId] = useState(null)
+  const [deliveryAddressMode, setDeliveryAddressMode] = useState(() => {
+    try {
+      if (typeof window === "undefined") return "saved"
+      return localStorage.getItem("deliveryAddressMode") || "saved"
+    } catch {
+      return "saved"
+    }
+  })
 
   useEffect(() => {
     const audio = new Audio(zoopSound)
@@ -204,7 +210,48 @@ export default function Cart() {
   }
   const savedAddress = getDefaultAddress()
   const selectedAddress = addresses.find((addr) => getAddressId(addr) && getAddressId(addr) === selectedAddressId)
-  const defaultAddress = selectedAddress || savedAddress || null
+
+  const currentLocationAddress = useMemo(() => {
+    if (!currentLocation?.latitude || !currentLocation?.longitude) return null
+    const formattedAddress = currentLocation?.formattedAddress || currentLocation?.address || ""
+    if (!formattedAddress || formattedAddress === "Select location") return null
+
+    return {
+      // Backend deliveryAddressSchema expects label in ['Home','Office','Other'].
+      label: "Home",
+      formattedAddress,
+      address: formattedAddress,
+      street: currentLocation?.street || currentLocation?.address || currentLocation?.area || "Current Location",
+      additionalDetails: currentLocation?.area || "",
+      city: currentLocation?.city || currentLocation?.area || "Current City",
+      state: currentLocation?.state || currentLocation?.city || "Current State",
+      zipCode: currentLocation?.postalCode || currentLocation?.zipCode || "",
+      phone: userProfile?.phone || "",
+      location: {
+        type: "Point",
+        coordinates: [currentLocation.longitude, currentLocation.latitude], // [lng, lat]
+      },
+    }
+  }, [
+    currentLocation?.latitude,
+    currentLocation?.longitude,
+    currentLocation?.formattedAddress,
+    currentLocation?.address,
+    currentLocation?.street,
+    currentLocation?.area,
+    currentLocation?.city,
+    currentLocation?.state,
+    currentLocation?.postalCode,
+    currentLocation?.zipCode,
+    userProfile?.phone,
+  ])
+
+  const defaultAddress = useMemo(() => {
+    return deliveryAddressMode === "current"
+      ? currentLocationAddress || selectedAddress || savedAddress || null
+      : selectedAddress || savedAddress || currentLocationAddress || null
+  }, [deliveryAddressMode, currentLocationAddress, selectedAddress, savedAddress])
+
   const hasSavedAddress = Boolean(defaultAddress && formatFullAddress(defaultAddress))
   const selectedAddressCoordinates = defaultAddress?.location?.coordinates
   const zoneLocation = selectedAddressCoordinates?.length === 2
@@ -217,11 +264,29 @@ export default function Cart() {
   const defaultPayment = getDefaultPaymentMethod()
 
   useEffect(() => {
+    // Sync delivery mode from overlay/localStorage changes.
+    // No dependency array: overlay open/close re-renders Cart via provider state update,
+    // even when GPS coords don't move enough to update `currentLocation`.
+    try {
+      const mode = localStorage.getItem("deliveryAddressMode") || "saved"
+      setDeliveryAddressMode((prev) => (prev === mode ? prev : mode))
+    } catch {
+      // ignore
+    }
+  })
+
+  useEffect(() => {
+    if (deliveryAddressMode === "current") {
+      setSelectedAddressId(null)
+    }
+  }, [deliveryAddressMode])
+
+  useEffect(() => {
     const defaultId = getAddressId(savedAddress)
-    if (!selectedAddressId && defaultId) {
+    if (deliveryAddressMode !== "current" && !selectedAddressId && defaultId) {
       setSelectedAddressId(defaultId)
     }
-  }, [savedAddress, selectedAddressId])
+  }, [savedAddress, selectedAddressId, deliveryAddressMode])
 
   // Get restaurant ID from cart or restaurant data
   // Priority: restaurantData > cart[0].restaurantId
@@ -623,8 +688,7 @@ export default function Cart() {
           items,
           restaurantId: resolvedRestaurantId,
           deliveryAddress: defaultAddress,
-          couponCode: resolvedCouponCode,
-          deliveryFleet: deliveryFleet || 'standard'
+          couponCode: resolvedCouponCode
         })
 
         if (response?.data?.success && response?.data?.data?.pricing) {
@@ -651,7 +715,8 @@ export default function Cart() {
     }
 
     calculatePricing()
-  }, [cart, defaultAddress, appliedCoupon, couponCode, deliveryFleet, restaurantId, feeSettings])
+  }, [cart, defaultAddress, appliedCoupon, couponCode, deliveryFleet, restaurantId])
+  }, [cart, defaultAddress, appliedCoupon, couponCode, restaurantId, feeSettings])
 
   // Fetch wallet balance
   useEffect(() => {
@@ -813,7 +878,7 @@ export default function Cart() {
       const latitude = coordinates[1]
 
       if (!latitude || !longitude) {
-        toast.error(`Invalid coordinates for ${label} address`)
+        toast.error(`Invalid coordinates for ${address.label || "saved"} address`)
         return
       }
 
@@ -844,6 +909,11 @@ export default function Cart() {
           : `${address.street}, ${address.city}, ${address.state}${address.zipCode ? ` ${address.zipCode}` : ''}`
       }
       localStorage.setItem("userLocation", JSON.stringify(locationData))
+      // User selected a saved address from Cart; prefer saved mode.
+      try {
+        localStorage.setItem("deliveryAddressMode", "saved")
+        setDeliveryAddressMode("saved")
+      } catch {}
 
       toast.success(`${address.label || "Saved"} address selected!`)
     } catch (error) {
@@ -880,8 +950,7 @@ export default function Cart() {
           items,
           restaurantId: restaurantData?.restaurantId || restaurantData?._id || restaurantId || null,
           deliveryAddress: defaultAddress,
-          couponCode: coupon.code,
-          deliveryFleet: deliveryFleet || 'standard'
+          couponCode: coupon.code
         })
 
         const pricingData = response?.data?.data?.pricing
@@ -939,8 +1008,7 @@ export default function Cart() {
         items,
         restaurantId: restaurantData?.restaurantId || restaurantData?._id || restaurantId || null,
         deliveryAddress: defaultAddress,
-        couponCode: inputCode,
-        deliveryFleet: deliveryFleet || 'standard'
+        couponCode: inputCode
       })
 
       const pricingData = response?.data?.data?.pricing
@@ -996,8 +1064,7 @@ export default function Cart() {
           items,
           restaurantId: restaurantData?.restaurantId || restaurantData?._id || restaurantId || null,
           deliveryAddress: defaultAddress,
-          couponCode: null,
-          deliveryFleet: deliveryFleet || 'standard'
+          couponCode: null
         })
 
         if (response?.data?.success && response?.data?.data?.pricing) {
@@ -1012,7 +1079,7 @@ export default function Cart() {
 
   const handlePlaceOrder = async () => {
     if (!hasSavedAddress) {
-      toast.error("Please save a delivery address to continue")
+      toast.error("Please choose a delivery location to continue")
       openLocationSelector()
       return
     }
@@ -1232,7 +1299,6 @@ export default function Cart() {
         restaurantId: finalRestaurantId,
         restaurantName: finalRestaurantName || undefined,
         pricing: orderPricing,
-        deliveryFleet: deliveryFleet || 'standard',
         note: note || "",
         sendCutlery: sendCutlery !== false,
         paymentMethod: selectedPaymentMethod,
@@ -1809,49 +1875,6 @@ export default function Cart() {
                 </div>
               </div>
 
-              {/* Delivery Fleet Type */}
-              <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-3 md:py-4 rounded-lg md:rounded-xl">
-                <button
-                  onClick={() => setShowFleetOptions(!showFleetOptions)}
-                  className="flex items-center justify-between w-full"
-                >
-                  <div className="flex items-center gap-3 md:gap-4">
-                    <Truck className="h-4 w-4 md:h-5 md:w-5 text-gray-500 dark:text-gray-400" />
-                    <span className="text-sm md:text-base text-gray-800 dark:text-gray-200">Choose delivery fleet type</span>
-                  </div>
-                  {showFleetOptions ? <ChevronUp className="h-4 w-4 md:h-5 md:w-5 text-gray-400" /> : <ChevronDown className="h-4 w-4 md:h-5 md:w-5 text-gray-400" />}
-                </button>
-
-                {showFleetOptions && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 mt-3 md:mt-4">
-                    <button
-                      onClick={() => setDeliveryFleet("standard")}
-                      className={`p-3 md:p-4 rounded-lg md:rounded-xl border-2 text-left transition-colors ${deliveryFleet === "standard" ? "border-[#EB590E] dark:border-[#EB590E] bg-[#FFF2EB] dark:bg-[#EB590E]/10" : "border-gray-200 dark:border-gray-700"}`}
-                    >
-                      <div className="flex items-center justify-between mb-1 md:mb-2">
-                        <span className="text-sm md:text-base font-semibold text-gray-800 dark:text-gray-200">Standard Fleet</span>
-                        <div className="w-8 h-8 md:w-10 md:h-10 bg-orange-100 dark:bg-orange-900/20 rounded-full flex items-center justify-center">
-                          <Truck className="h-4 w-4 md:h-5 md:w-5 text-orange-600 dark:text-orange-400" />
-                        </div>
-                      </div>
-                      <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400">Our standard food delivery experience</p>
-                    </button>
-                    <button
-                      onClick={() => setDeliveryFleet("veg")}
-                      className={`p-3 md:p-4 rounded-lg md:rounded-xl border-2 text-left transition-colors ${deliveryFleet === "veg" ? "border-[#EB590E] dark:border-[#EB590E] bg-[#FFF2EB] dark:bg-[#EB590E]/10" : "border-gray-200 dark:border-gray-700"}`}
-                    >
-                      <div className="flex items-center justify-between mb-1 md:mb-2">
-                        <span className="text-sm md:text-base font-semibold text-gray-800 dark:text-gray-200">Special Veg-only Fleet</span>
-                        <div className="w-8 h-8 md:w-10 md:h-10 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center">
-                          <Leaf className="h-4 w-4 md:h-5 md:w-5 text-green-600 dark:text-green-400" />
-                        </div>
-                      </div>
-                      <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400">Fleet delivering only from Pure Veg restaurants</p>
-                    </button>
-                  </div>
-                )}
-              </div>
-
               {/* Delivery Address */}
               <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-3 md:py-4 rounded-lg md:rounded-xl">
                 <div className="flex items-center justify-between w-full text-left">
@@ -1866,7 +1889,7 @@ export default function Cart() {
                       </p>
                       {!hasSavedAddress && (
                         <p className="text-xs md:text-sm text-[#EB590E] mt-1">
-                          Use current location and save address to place order
+                          Select a delivery location to continue
                         </p>
                       )}
                       {/* Address Selection Buttons */}

@@ -632,7 +632,10 @@ export const listApprovedRestaurants = async (query = {}) => {
         status: 1,
         pureVegRestaurant: 1,
         createdAt: 1,
-        location: 1
+        location: 1,
+        openingTime: 1,
+        closingTime: 1,
+        openDays: 1
     };
 
     // Use $geoNear only when geo is explicitly needed (radius filter or nearest sorting).
@@ -710,6 +713,9 @@ export const listApprovedRestaurants = async (query = {}) => {
         rating: normalizeRatingValue(r.rating),
         totalRatings: normalizeTotalRatingsValue(r.totalRatings),
         profileImage: r.profileImage ? { url: r.profileImage } : null,
+        openingTime: r.openingTime || null,
+        closingTime: r.closingTime || null,
+        openDays: Array.isArray(r.openDays) ? r.openDays : [],
         // Keep menuImages as an array for fallbacks; allow both string and {url} on client.
         menuImages: Array.isArray(r.menuImages) ? r.menuImages : []
     }));

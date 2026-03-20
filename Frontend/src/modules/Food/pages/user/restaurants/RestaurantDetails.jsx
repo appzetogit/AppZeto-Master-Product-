@@ -3515,7 +3515,7 @@ function RestaurantDetailsContent() {
         createPortal(
           <AddToCartAnimation
             bottomOffset={80}
-            linkTo="/cart"
+            linkTo="/food/user/cart"
             hideOnPages={true}
           />,
           document.body

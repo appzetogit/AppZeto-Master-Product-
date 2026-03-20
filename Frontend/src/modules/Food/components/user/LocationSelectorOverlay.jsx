@@ -937,8 +937,9 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
         }
       }
 
-      // Zomato-style flow: move to address form, let user confirm flat/house and save.
-      setShowAddressForm(true)
+      // Requirement: when user taps "Use current location" from delivery-location selector,
+      // don't open the "Add address" form. Just close and return to homepage.
+      setShowAddressForm(false)
       setAddressFormData((prev) => ({
         ...prev,
         street: locationData.street || locationData.area || prev.street,
@@ -948,6 +949,7 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
         additionalDetails: locationData.formattedAddress || prev.additionalDetails,
         phone: prev.phone || userProfile?.phone || "",
       }))
+      onClose()
 
       const addressPreview = locationData?.formattedAddress || locationData?.address || "Location updated"
       toast.success(`Location ready: ${addressPreview.split(',').slice(0, 2).join(', ')}`, {

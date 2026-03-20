@@ -245,8 +245,7 @@ const orderSchema = new mongoose.Schema(
         deliveryFleet: { type: String, default: 'standard', trim: true },
         scheduledAt: { type: Date, default: null },
         riderEarning: { type: Number, default: 0, min: 0 },
-        platformProfit: { type: Number, default: 0, min: 0 }
-        deliveryFleet: { type: String, default: 'standard', trim: true },
+        platformProfit: { type: Number, default: 0, min: 0 },
         /** Plain 4-digit OTP for handover; cleared after successful verify (never expose to partner in API responses). */
         deliveryOtp: { type: String, default: '', select: false },
         deliveryVerification: {

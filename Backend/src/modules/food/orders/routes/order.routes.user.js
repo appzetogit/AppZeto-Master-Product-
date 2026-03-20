@@ -8,7 +8,7 @@ import {
     getOrderByIdUserController,
     cancelOrderController,
     submitOrderRatingsController
-} from './order.controller.js';
+} from '../controllers/order.controller.js';
 
 const router = express.Router();
 

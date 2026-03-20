@@ -4,7 +4,7 @@ import * as adminController from '../controllers/admin.controller.js';
 import * as foodApprovalController from '../controllers/foodApproval.controller.js';
 import * as addonsApprovalController from '../controllers/addonsApproval.controller.js';
 import * as diningAdminController from '../../dining/controllers/diningAdmin.controller.js';
-import * as orderController from '../../orders/order.controller.js';
+import * as orderController from '../../orders/controllers/order.controller.js';
 import { getAdminPageController, upsertAdminPageController } from '../controllers/pageContent.controller.js';
 
 const router = express.Router();

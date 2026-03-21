@@ -1,9 +1,6 @@
 import mongoose from 'mongoose';
 import { FoodOrder, FoodSettings } from '../models/order.model.js';
-import {
-    recordFoodOrderPaymentEvent,
-    paymentSnapshotFromOrder
-} from './foodOrderPayment.service.js';
+// import { paymentSnapshotFromOrder } from './foodOrderPayment.service.js';
 import { logger } from '../../../../utils/logger.js';
 import { FoodUser } from '../../../../core/users/user.model.js';
 import { FoodRestaurant } from '../../restaurant/models/restaurant.model.js';
@@ -20,8 +17,7 @@ import {
   sendNotificationToOwner,
   sendNotificationToOwners,
 } from "../../../../core/notifications/firebase.service.js";
-import { FoodOrderPayment } from '../models/foodOrderPayment.model.js';
-import { FoodRestaurantCommissionLedger } from '../models/restaurantCommissionLedger.model.js';
+import { FoodTransaction } from '../models/foodTransaction.model.js';
 import {
     createRazorpayOrder,
     createPaymentLink,
@@ -32,6 +28,7 @@ import {
 } from '../helpers/razorpay.helper.js';
 import { getIO, rooms } from '../../../../config/socket.js';
 import { addOrderJob } from '../../../../queues/producers/order.producer.js';
+import * as foodTransactionService from './foodTransaction.service.js';
 
 const ORDER_ID_PREFIX = "FOD-";
 const ORDER_ID_LENGTH = 6;
@@ -206,135 +203,8 @@ async function getActiveCommissionRules() {
   return commissionRulesCache;
 }
 
-const RESTAURANT_COMMISSION_CACHE_MS = 10 * 1000;
-let restaurantCommissionRulesCache = null;
-let restaurantCommissionRulesLoadedAt = 0;
+// 🗑️ Moved to foodTransaction.service.js to centralize finance logic.
 
-async function getActiveRestaurantCommissionRules() {
-  const now = Date.now();
-  if (
-    restaurantCommissionRulesCache &&
-    now - restaurantCommissionRulesLoadedAt < RESTAURANT_COMMISSION_CACHE_MS
-  ) {
-    return restaurantCommissionRulesCache;
-  }
-
-  const list = await FoodRestaurantCommission.find({
-    status: { $ne: false },
-  }).lean();
-  restaurantCommissionRulesCache = list || [];
-  restaurantCommissionRulesLoadedAt = now;
-  return restaurantCommissionRulesCache;
-}
-
-function computeRestaurantCommissionAmount(baseAmount, rule) {
-  const safeBase = Math.max(0, Number(baseAmount) || 0);
-  if (!Number.isFinite(safeBase) || safeBase < 0) return 0;
-
-  const commissionType = rule?.defaultCommission?.type || 'percentage';
-  const commissionValue = Math.max(
-    0,
-    Number(rule?.defaultCommission?.value ?? 0) || 0
-  );
-
-  let commissionAmount = 0;
-  if (commissionType === 'percentage') {
-    commissionAmount = safeBase * (commissionValue / 100);
-  } else if (commissionType === 'amount') {
-    commissionAmount = commissionValue;
-  }
-
-  // Round to 2 decimals and clamp to [0, base]
-  commissionAmount = Math.round((commissionAmount || 0) * 100) / 100;
-  commissionAmount = Math.max(0, Math.min(commissionAmount, safeBase));
-
-  return { commissionAmount, commissionType, commissionValue, baseAmount: safeBase };
-}
-
-async function getRestaurantCommissionSnapshot(orderDoc) {
-  const baseAmount = Number(orderDoc?.pricing?.subtotal ?? 0) || 0;
-  const restaurantIdRaw =
-    orderDoc?.restaurantId?._id ?? orderDoc?.restaurantId ?? null;
-
-  if (!restaurantIdRaw) {
-    return {
-      commissionAmount: 0,
-      commissionType: 'percentage',
-      commissionValue: 0,
-      baseAmount,
-    };
-  }
-
-  const rules = await getActiveRestaurantCommissionRules();
-  const rule =
-    rules.find(
-      (r) => String(r.restaurantId) === String(restaurantIdRaw)
-    ) || null;
-
-  if (!rule) {
-    return {
-      commissionAmount: 0,
-      commissionType: 'percentage',
-      commissionValue: 0,
-      baseAmount,
-    };
-  }
-
-  return computeRestaurantCommissionAmount(baseAmount, rule);
-}
-
-async function upsertRestaurantCommissionLedger(orderDoc) {
-  try {
-    if (!orderDoc?._id || !orderDoc?.restaurantId) return;
-
-    const {
-      commissionAmount,
-      commissionType,
-      commissionValue,
-      baseAmount,
-    } = await getRestaurantCommissionSnapshot(orderDoc);
-
-    await FoodRestaurantCommissionLedger.updateOne(
-      { orderId: orderDoc._id },
-      {
-        $setOnInsert: {
-          orderId: orderDoc._id,
-          orderReadableId: orderDoc.orderId,
-          restaurantId: orderDoc.restaurantId,
-          baseAmount,
-          gstAmount: Math.max(0, Number(orderDoc?.pricing?.tax ?? 0) || 0),
-          platformFee: Math.max(
-            0,
-            Number(orderDoc?.pricing?.platformFee ?? 0) || 0
-          ),
-          deliveryFee: Math.max(
-            0,
-            Number(orderDoc?.pricing?.deliveryFee ?? 0) || 0
-          ),
-          deliveryEarning: Math.max(
-            0,
-            Number(orderDoc?.riderEarning ?? 0) || 0
-          ),
-          commissionType,
-          commissionValue,
-          commissionAmount,
-          payout: commissionAmount, // payout shown on hub-finance
-          orderTotal: Math.max(
-            0,
-            Number(orderDoc?.pricing?.total ?? 0) || 0
-          ),
-          status: 'posted',
-          postedAt: new Date(),
-        },
-      },
-      { upsert: true }
-    );
-  } catch (err) {
-    logger.error(
-      `upsertRestaurantCommissionLedger failed: ${err?.message || err} orderId=${orderDoc?.orderId || ''}`
-    );
-  }
-}
 
 async function getRiderEarning(distanceKm) {
   const d = Number(distanceKm);
@@ -368,37 +238,7 @@ async function getRiderEarning(distanceKm) {
 }
 
 /** Append-only food_order_payments row; never blocks main flow on failure */
-async function appendOrderPaymentLedger(orderDoc, kind, extra = {}) {
-  try {
-    const snap = paymentSnapshotFromOrder(orderDoc);
-    const restaurantSnap = await getRestaurantCommissionSnapshot(orderDoc);
-    const deliveryBoyEarning = Number(orderDoc?.riderEarning ?? 0) || 0;
-    await recordFoodOrderPaymentEvent({
-      orderId: orderDoc._id,
-      userId: orderDoc.userId,
-      orderReadableId: orderDoc.orderId,
-      kind,
-      method: snap.method,
-      status: snap.status,
-      amount: snap.amount,
-      currency: snap.currency,
-      amountDue: snap.amountDue,
-      pricingSnapshot: snap.pricingSnapshot,
-      restaurantCommissionAmount: restaurantSnap.commissionAmount,
-      deliveryBoyEarning,
-      razorpay: snap.razorpay,
-      qr: snap.qr,
-      metadata: extra.metadata,
-      recordedByRole: extra.recordedByRole || "SYSTEM",
-      recordedById: extra.recordedById,
-    });
-  } catch (err) {
-    const detail = err?.errors ? JSON.stringify(err.errors) : "";
-    logger.error(
-      `appendOrderPaymentLedger failed (${kind}): ${err?.message || err} ${detail}`.trim(),
-    );
-  }
-}
+// 🗑️ Deprecated in favor of FoodTransaction system.
 
 function buildDeliverySocketPayload(orderDoc, restaurantDoc = null) {
   const order = orderDoc?.toObject ? orderDoc.toObject() : orderDoc || {};
@@ -437,6 +277,10 @@ function buildDeliverySocketPayload(orderDoc, restaurantDoc = null) {
       state: restaurantLocation?.state || restaurant?.state || "",
     },
     deliveryAddress: order?.deliveryAddress,
+    customerName: order?.userId?.name || order?.customerName || "",
+    customerPhone: order?.userId?.phone || order?.deliveryAddress?.phone || "",
+    riderEarning: order?.riderEarning || 0,
+    deliveryFee: order?.pricing?.deliveryFee || 0,
     deliveryFleet: order?.deliveryFleet,
     dispatch: order?.dispatch,
     createdAt: order?.createdAt,
@@ -866,16 +710,10 @@ export async function createOrder(userId, dto) {
 
   await order.save();
 
-  await appendOrderPaymentLedger(order, "order_placed", {
-    recordedByRole: "USER",
-    recordedById: new mongoose.Types.ObjectId(userId),
-    metadata: { dispatchMode, paymentMethod },
-  });
+  await foodTransactionService.createInitialTransaction(order);
+
   if (paymentMethod === "razorpay" && order.payment?.razorpay?.orderId) {
-    await appendOrderPaymentLedger(order, "razorpay_order_created", {
-      recordedByRole: "SYSTEM",
-      metadata: { razorpayOrderId: order.payment.razorpay.orderId },
-    });
+    // Audit can still happen here or via FinanceService events
   }
 
   // Real-time: notify restaurant instantly (Zomato-style).
@@ -989,13 +827,12 @@ export async function verifyPayment(userId, dto) {
   });
   await order.save();
 
-  await appendOrderPaymentLedger(order, "online_payment_verified", {
+  await foodTransactionService.updateTransactionStatus(order._id, 'captured', {
+    status: 'captured',
+    razorpayPaymentId: dto.razorpayPaymentId,
+    razorpaySignature: dto.razorpaySignature,
     recordedByRole: "USER",
-    recordedById: new mongoose.Types.ObjectId(userId),
-    metadata: {
-      razorpayPaymentId: dto.razorpayPaymentId,
-      razorpayOrderId: dto.razorpayOrderId,
-    },
+    recordedById: new mongoose.Types.ObjectId(userId)
   });
 
   // Notify Customer about payment success
@@ -1041,7 +878,7 @@ function haversineKm(lat1, lon1, lat2, lon2) {
  * @param {object} options - Options (retry count, etc)
  */
 export async function tryAutoAssign(orderId, options = {}) {
-    const order = await FoodOrder.findById(orderId).populate('restaurantId');
+    const order = await FoodOrder.findById(orderId).populate(['restaurantId', 'userId']);
     if (!order) return null;
 
     // Guard: only dispatch if unassigned OR if we are doing a timeout-reassign.
@@ -1599,6 +1436,47 @@ export async function updateOrderStatusRestaurant(
     return order.toObject();
 }
 
+/**
+ * Manually re-trigger delivery partner search for a restaurant order.
+ * Only allowed if status is preparing/ready and no partner has accepted yet.
+ */
+export async function resendDeliveryNotificationRestaurant(orderId, restaurantId) {
+    const order = await FoodOrder.findOne({
+        _id: new mongoose.Types.ObjectId(orderId),
+        restaurantId: new mongoose.Types.ObjectId(restaurantId)
+    });
+
+    if (!order) throw new ValidationError('Order not found');
+
+    // Only allow if order is still active and not already terminal
+    const activeStatuses = ['preparing', 'ready_for_pickup'];
+    if (!activeStatuses.includes(order.orderStatus)) {
+        throw new ValidationError(`Cannot resend notification for order in status: ${order.orderStatus}`);
+    }
+
+    // Guard: don't disrupt an active assignment that was already accepted
+    if (order.dispatch?.status === 'accepted') {
+        throw new ValidationError('A delivery partner has already accepted this order.');
+    }
+
+    // Reset dispatch state to unassigned to allow tryAutoAssign to start fresh
+    order.dispatch.status = 'unassigned';
+    order.dispatch.deliveryPartnerId = null;
+    order.dispatch.assignedAt = undefined;
+    
+    // Clear previously offered partners if we want to give them another chance, 
+    // or keep them to avoid spamming the same people. 
+    // Here we keep them but reset the state.
+    
+    await order.save();
+
+    // Trigger smart dispatch logic immediately
+    const { tryAutoAssign } = await import('./order.service.js');
+    await tryAutoAssign(order._id);
+
+    return { success: true };
+}
+
 // ----- Delivery: available, accept, reject, status -----
 export async function listOrdersAvailableDelivery(deliveryPartnerId, query) {
   const { page, limit, skip } = buildPaginationOptions(query);
@@ -1630,6 +1508,8 @@ export async function listOrdersAvailableDelivery(deliveryPartnerId, query) {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
+      .populate("userId", "name phone email")
+      .populate("restaurantId", "restaurantName name address phone ownerPhone location profileImage")
       .lean(),
     FoodOrder.countDocuments(filter),
   ]);
@@ -1690,6 +1570,7 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId) {
     to: "accepted",
   });
   await order.save();
+  await foodTransactionService.updateTransactionRider(order._id, deliveryPartnerId);
 
   // Notify delivery partner (self) + restaurant about dispatch acceptance.
   try {
@@ -2059,20 +1940,16 @@ export async function completeDelivery(orderId, deliveryPartnerId) {
   });
   await order.save();
 
-  // Post restaurant commission ledger (idempotent) so hub-finance can sum it.
-  await upsertRestaurantCommissionLedger(order);
-
   const ledgerKind =
     payMethod === "cash" && prevPayStatus === "cod_pending"
       ? "cod_marked_paid_on_delivery"
       : "payment_snapshot_sync";
-  await appendOrderPaymentLedger(order, ledgerKind, {
+      
+  await foodTransactionService.updateTransactionStatus(order._id, ledgerKind, {
+    status: 'captured',
     recordedByRole: "DELIVERY_PARTNER",
     recordedById: deliveryPartnerId,
-    metadata: {
-      previousPaymentStatus: prevPayStatus,
-      orderStatus: "delivered",
-    },
+    note: `Delivery completed. Prev status: ${prevPayStatus}`
   });
 
     emitOrderUpdate(order, deliveryPartnerId);
@@ -2226,10 +2103,10 @@ export async function createCollectQr(
 
     const updated = await FoodOrder.findById(orderId).select('orderId restaurantId userId riderEarning payment pricing').lean();
     if (updated) {
-        await appendOrderPaymentLedger(updated, 'cod_collect_qr_created', {
+        await foodTransactionService.updateTransactionStatus(orderId, 'cod_collect_qr_created', {
             recordedByRole: 'DELIVERY_PARTNER',
             recordedById: deliveryPartnerId,
-            metadata: { paymentLinkId: link.id, shortUrl: link.short_url }
+            note: 'COD collection QR created'
         });
     }
 
@@ -2316,7 +2193,11 @@ async function syncRazorpayQrPayment(orderDoc) {
 }
 
 export async function getPaymentStatus(orderId, deliveryPartnerId) {
-  const order = await FoodOrder.findById(orderId).select(
+  // Support both short orderId strings and MongoDB _ids.
+  const identity = buildOrderIdentityFilter(orderId);
+  if (!identity) throw new ValidationError("Order id required");
+
+  const order = await FoodOrder.findOne(identity).select(
     "payment dispatch riderEarning platformProfit pricing"
   );
   if (!order) throw new ValidationError("Order not found");
@@ -2327,23 +2208,25 @@ export async function getPaymentStatus(orderId, deliveryPartnerId) {
     throw new ForbiddenError("Not your order");
 
   // Auto-sync Razorpay QR payment status before returning.
+  // syncRazorpayQrPayment calls Razorpay, updates order.payment.status, and saves.
   if (order.payment?.method === "razorpay_qr") {
     await syncRazorpayQrPayment(order);
   }
 
-  const latestPaymentSnapshot = await FoodOrderPayment.findOne({
-    orderId: order._id,
-    kind: "payment_snapshot_sync",
-  })
-    .sort({ createdAt: -1 })
-    .lean();
+  const transaction = await FoodTransaction.findOne({ orderId: order._id }).lean();
+  const latestHistory = (transaction?.history || []).sort((a, b) => (b.at || 0) - (a.at || 0))[0] || null;
 
   return {
-    payment: order.payment,
-    latestPaymentSnapshot,
+    payment: {
+      ...(order.payment?.toObject?.() || order.payment || {}),
+      // Expose the effective status in a flat field for easy frontend reading
+      status: order.payment?.status,
+    },
+    latestPaymentSnapshot: latestHistory,
     riderEarning: order.riderEarning ?? 0,
     platformProfit: order.platformProfit ?? 0,
     pricingTotal: order.pricing?.total ?? 0,
+    transactionStatus: transaction?.status ?? null,
   };
 }
 

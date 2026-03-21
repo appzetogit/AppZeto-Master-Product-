@@ -180,4 +180,10 @@ router.patch('/settings/dispatch', orderController.updateDispatchSettingsControl
 router.get('/pages-social-media/:key', getAdminPageController);
 router.put('/pages-social-media/:key', upsertAdminPageController);
 
+// ----- Withdrawals (admin) -----
+router.get('/withdrawals', adminController.getWithdrawals);
+router.patch('/withdrawals/:id', adminController.updateWithdrawalStatus);
+router.get('/delivery/withdrawals', adminController.getDeliveryWithdrawals);
+router.patch('/delivery/withdrawals/:id', adminController.updateDeliveryWithdrawalStatus);
+
 export default router;

@@ -1,6 +1,4 @@
 import mongoose from 'mongoose';
-/** Side-effect: register FoodOrderPayment so ledger writes always have a model (even if only order.model is imported). */
-import './foodOrderPayment.model.js';
 
 const orderItemSchema = new mongoose.Schema(
     {
@@ -191,6 +189,11 @@ const orderSchema = new mongoose.Schema(
         zoneId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'FoodZone',
+            index: true
+        },
+        transactionId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'FoodTransaction',
             index: true
         },
         items: {

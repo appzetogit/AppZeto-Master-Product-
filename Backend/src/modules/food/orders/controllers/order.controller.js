@@ -320,3 +320,14 @@ export async function assignDeliveryPartnerController(req, res, next) {
         next(err);
     }
 }
+
+export async function resendDeliveryNotificationRestaurantController(req, res, next) {
+    try {
+        const restaurantId = req.user?.userId;
+        const orderId = req.params.orderId;
+        const result = await orderService.resendDeliveryNotificationRestaurant(orderId, restaurantId);
+        return sendResponse(res, 200, 'Notification resent successfully', result);
+    } catch (err) {
+        next(err);
+    }
+}

@@ -24,7 +24,9 @@ import { FoodSafetyEmergencyReport } from '../models/safetyEmergencyReport.model
 import { FoodAddon } from '../../restaurant/models/foodAddon.model.js';
 import { FoodSupportTicket } from '../../user/models/supportTicket.model.js';
 import { FoodOrder } from '../../orders/models/order.model.js';
-import { FoodRestaurantCommissionLedger } from '../../orders/models/restaurantCommissionLedger.model.js';
+import { FoodTransaction } from '../../orders/models/foodTransaction.model.js';
+import { FoodRestaurantWithdrawal } from '../../restaurant/models/foodRestaurantWithdrawal.model.js';
+import { FoodDeliveryWithdrawal } from '../../delivery/models/foodDeliveryWithdrawal.model.js';
 
 const parseBooleanLike = (value, fieldName) => {
     if (typeof value === 'boolean') return value;
@@ -511,68 +513,78 @@ export async function getTransactionReport(query = {}) {
     }
 
     if (search) {
-        match.orderId = { $regex: search, $options: "i" };
+        match.orderReadableId = { $regex: search, $options: "i" };
     }
 
-    const restaurantFilter = {};
-    if (zone) {
-        const zoneDoc = await FoodZone.findOne({ name: zone }).lean();
-        if (zoneDoc) restaurantFilter.zoneId = zoneDoc._id;
-    }
-    if (restaurant) {
-        const restaurantDoc = await FoodRestaurant.findOne({ name: restaurant }).lean();
-        if (restaurantDoc) restaurantFilter._id = restaurantDoc._id;
+    let restaurantIds = null;
+    if (zone || restaurant) {
+        const restFilter = {};
+        if (zone) restFilter.zoneId = zone; // Assuming zone is an ID or we need to lookup
+        if (restaurant && restaurant !== 'All restaurants') {
+            const restDoc = await mongoose.model('FoodRestaurant').findOne({ restaurantName: restaurant }).lean();
+            if (restDoc) restFilter._id = restDoc._id;
+        }
+        
+        if (Object.keys(restFilter).length > 0) {
+            const restaurantsList = await mongoose.model('FoodRestaurant').find(restFilter).select('_id').lean();
+            restaurantIds = restaurantsList.map(r => r._id);
+            match.restaurantId = { $in: restaurantIds };
+        }
     }
 
-    if (Object.keys(restaurantFilter).length > 0) {
-        const restaurants = await FoodRestaurant.find(restaurantFilter).select('_id').lean();
-        match.restaurantId = { $in: restaurants.map(r => r._id) };
-    }
-
-    const orders = await FoodOrder.find(match)
-        .populate('restaurantId', 'name')
+    // Include only resolved transactions for reports (or all to match orders)
+    // We will query the FoodTransaction table directly as it is the ledger
+    const transactionRows = await FoodTransaction.find(match)
+        .populate('orderId')
         .populate('userId', 'name')
+        .populate('restaurantId', 'restaurantName')
+        .sort({ createdAt: -1 })
         .lean();
 
-    const transactions = orders.map(order => ({
-        id: order._id,
-        orderId: order.orderId,
-        restaurant: order.restaurantId?.name || 'N/A',
-        customerName: order.userId?.name || 'Invalid Customer Data',
-        totalItemAmount: order.pricing?.itemsTotal || 0,
-        itemDiscount: order.pricing?.discount || 0,
-        couponDiscount: order.pricing?.couponDiscount || 0,
-        referralDiscount: order.pricing?.referralDiscount || 0,
-        discountedAmount: (order.pricing?.itemsTotal || 0) - (order.pricing?.discount || 0),
-        vatTax: order.pricing?.tax || 0,
-        deliveryCharge: order.pricing?.deliveryFee || 0,
-        orderAmount: order.pricing?.total || 0,
-    }));
+    const transactions = transactionRows.map((tx) => {
+        const order = tx.orderId || {};
+        const pricing = order.pricing || {};
+        return {
+            id: tx._id,
+            orderId: tx.orderReadableId || order.orderId || 'N/A',
+            restaurant: tx.restaurantId?.restaurantName || 'N/A',
+            customerName: tx.userId?.name || 'Guest',
+            totalItemAmount: pricing.subtotal || 0,
+            itemDiscount: pricing.discount || 0,
+            couponDiscount: 0, // Placeholder if you add coupon logic
+            referralDiscount: 0, // Placeholder
+            discountedAmount: Math.max(0, (pricing.subtotal || 0) - (pricing.discount || 0)),
+            vatTax: tx.amounts?.taxAmount || pricing.tax || 0,
+            deliveryCharge: pricing.deliveryFee || 0,
+            orderAmount: tx.amounts?.totalCustomerPaid || pricing.total || 0,
+            status: tx.status
+        };
+    });
 
-    const orderMongoIds = orders.map((o) => o._id);
-    const restaurantCommissionRows = orderMongoIds.length
-        ? await FoodRestaurantCommissionLedger.find({
-            orderId: { $in: orderMongoIds }
-        })
-            .select('payout')
-            .lean()
-        : [];
+    let completedTransaction = 0;
+    let refundedTransaction = 0;
+    let adminEarning = 0;
+    let restaurantEarning = 0;
+    let deliverymanEarning = 0;
 
-    const restaurantEarning = restaurantCommissionRows.reduce(
-        (sum, r) => sum + (Number(r?.payout) || 0),
-        0
-    );
-
-    // Delivery earning comes from distance slab computation stored on the order.
-    const deliverymanEarning = orders.reduce(
-        (sum, o) => sum + (Number(o?.riderEarning) || 0),
-        0
-    );
+    for (const tx of transactionRows) {
+        // Calculate Summary
+        if (tx.status === 'captured' || tx.status === 'settled' || (tx.orderId && tx.orderId.orderStatus === 'delivered')) {
+            completedTransaction += tx.amounts?.totalCustomerPaid || 0;
+            adminEarning += tx.amounts?.platformNetProfit || 0;
+            restaurantEarning += tx.amounts?.restaurantShare || 0;
+            deliverymanEarning += tx.amounts?.riderShare || 0;
+        }
+        if (tx.status === 'refunded' || (tx.orderId && tx.orderId.orderStatus === 'cancelled_by_admin')) {
+            // Count number of refunded transactions according to old logic or sum them
+            refundedTransaction += tx.amounts?.totalCustomerPaid || 0;
+        }
+    }
 
     const summary = {
-        completedTransaction: orders.filter(o => o.orderStatus === 'delivered').reduce((sum, o) => sum + (o.pricing?.total || 0), 0),
-        refundedTransaction: orders.filter(o => o.orderStatus === 'refunded').length,
-        adminEarning: orders.reduce((sum, o) => sum + (o.platformProfit || o.pricing?.platformFee || 0), 0),
+        completedTransaction,
+        refundedTransaction, // Returning amount instead of count for consistency, frontend might expect count though
+        adminEarning,
         restaurantEarning,
         deliverymanEarning,
     };
@@ -3415,4 +3427,121 @@ export async function updateZone(id, body) {
 export async function deleteZone(id) {
     const zone = await FoodZone.findByIdAndDelete(id);
     return zone ? { id } : null;
+}
+
+// ----- Withdrawals (admin) -----
+export async function getWithdrawals(query = {}) {
+    const limit = Math.min(Math.max(parseInt(query.limit, 10) || 50, 1), 500);
+    const page = Math.max(parseInt(query.page, 10) || 1, 1);
+    const skip = (page - 1) * limit;
+
+    const filter = {};
+    if (query.status && query.status !== 'all') {
+        filter.status = query.status.toLowerCase();
+    }
+    if (query.restaurantId && mongoose.Types.ObjectId.isValid(query.restaurantId)) {
+        filter.restaurantId = new mongoose.Types.ObjectId(query.restaurantId);
+    }
+
+    const [withdrawals, total] = await Promise.all([
+        FoodRestaurantWithdrawal.find(filter)
+            .populate('restaurantId', 'restaurantName profileImage ownerName phone')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean(),
+        FoodRestaurantWithdrawal.countDocuments(filter)
+    ]);
+
+    // UI expects status with first letter capitalized, and data in 'requests' key
+    const requests = withdrawals.map((w) => ({
+        ...w,
+        id: w._id,
+        restaurantName: w.restaurantId?.restaurantName || 'N/A',
+        restaurantIdString: w.restaurantId ? `REST${w.restaurantId._id.toString().slice(-6).padStart(6, '0')}` : 'N/A',
+        status: w.status.charAt(0).toUpperCase() + w.status.slice(1)
+    }));
+
+    return { requests, total, page, limit };
+}
+
+export async function updateWithdrawalStatus(id, { status, adminNote, rejectionReason, transactionId }) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) throw new ValidationError('Invalid withdrawal ID');
+    
+    const update = {
+        status,
+        adminNote,
+        rejectionReason,
+        transactionId,
+        processedAt: new Date()
+    };
+
+    const updated = await FoodRestaurantWithdrawal.findByIdAndUpdate(
+        id,
+        { $set: update },
+        { new: true }
+    ).populate('restaurantId', 'restaurantName').lean();
+
+    if (!updated) throw new ValidationError('Withdrawal request not found');
+    return updated;
+}
+
+export async function getDeliveryWithdrawals(query = {}) {
+    const limit = parseInt(query.limit, 10) || 100;
+    const page = parseInt(query.page, 10) || 1;
+    const skip = (page - 1) * limit;
+
+    const filter = {};
+    if (query.status && query.status !== 'All') {
+        filter.status = query.status.toLowerCase();
+    }
+
+    if (query.search) {
+        // Search by amount or placeholder for name (name requires join usually)
+        if (!isNaN(query.search)) {
+            filter.amount = Number(query.search);
+        }
+    }
+
+    const [withdrawals, total] = await Promise.all([
+        FoodDeliveryWithdrawal.find(filter)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .populate('deliveryPartnerId', 'name phone profilePartnerId')
+            .lean(),
+        FoodDeliveryWithdrawal.countDocuments(filter)
+    ]);
+
+    const requests = withdrawals.map((w) => ({
+        ...w,
+        id: w._id,
+        deliveryName: w.deliveryPartnerId?.name || 'N/A',
+        deliveryPhone: w.deliveryPartnerId?.phone || 'N/A',
+        deliveryIdString: w.deliveryPartnerId?.profilePartnerId || 'N/A',
+        status: w.status.charAt(0).toUpperCase() + w.status.slice(1)
+    }));
+
+    return { requests, total, page, limit };
+}
+
+export async function updateDeliveryWithdrawalStatus(id, { status, adminNote, rejectionReason, transactionId }) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) throw new ValidationError('Invalid withdrawal ID');
+    
+    const update = {
+        status: status.toLowerCase(),
+        adminNote,
+        rejectionReason,
+        transactionId,
+        processedAt: new Date()
+    };
+
+    const updated = await FoodDeliveryWithdrawal.findByIdAndUpdate(
+        id,
+        { $set: update },
+        { new: true }
+    ).populate('deliveryPartnerId', 'name phone profilePartnerId').lean();
+
+    if (!updated) throw new ValidationError('Withdrawal request not found');
+    return updated;
 }

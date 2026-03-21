@@ -19,13 +19,23 @@ export default function WithdrawalHistoryPage() {
     const fetchWithdrawalRequests = async () => {
       try {
         setLoadingWithdrawalRequests(true)
-        const response = await restaurantAPI.getWithdrawalRequests()
-        if (response.data?.success && response.data?.data?.requests) {
-          setWithdrawalRequests(response.data.data.requests)
-        }
+        const response = await restaurantAPI.getWithdrawalHistory()
+        // API returns { success: true, data: [...] }
+        const history = response?.data?.data || []
+        
+        // Map backend fields to the local UI names
+        const mapped = history.map(h => ({
+          id: h._id,
+          amount: h.amount,
+          status: h.status === 'approved' ? 'Approved' : h.status === 'rejected' ? 'Rejected' : 'Pending',
+          requestedAt: h.createdAt,
+          processedAt: h.processedAt
+        }))
+        
+        setWithdrawalRequests(mapped)
       } catch (error) {
         if (error.response?.status !== 401) {
-          debugError('? Error fetching withdrawal requests:', error)
+          debugError('Error fetching withdrawal requests:', error)
         }
       } finally {
         setLoadingWithdrawalRequests(false)

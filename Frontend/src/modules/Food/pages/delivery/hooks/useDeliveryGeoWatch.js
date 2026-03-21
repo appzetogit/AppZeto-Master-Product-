@@ -201,23 +201,27 @@ export function useDeliveryGeoWatch({
             const timeSinceLastSend = now - lastSentTime;
             if (timeSinceLastSend >= DELIVERY_LOCATION_FALLBACK_INTERVAL_MS) {
               const [lat, lng] = lastValidLocationRef.current;
-              deliveryAPI
-                .updateLocation(lat, lng, true, {
-                  heading: typeof position.coords.heading === "number" ? position.coords.heading : 0,
-                  speed: typeof position.coords.speed === "number" ? position.coords.speed : 0,
-                  accuracy,
-                })
-                .then(() => {
-                  window.lastLocationSentTime = now;
-                  if (activeOrderId) {
-                    writeOrderTracking(activeOrderId, {
-                      lat,
-                      lng,
-                      heading: typeof position.coords.heading === "number" ? position.coords.heading : 0,
-                    }).catch(() => {});
-                  }
-                })
-                .catch(() => {});
+              // Only attempt update if we have an access token to avoid 401 console spam
+              const hasToken = !!(localStorage.getItem("delivery_accessToken") || localStorage.getItem("accessToken"));
+              if (hasToken) {
+                deliveryAPI
+                  .updateLocation(lat, lng, true, {
+                    heading: typeof position.coords.heading === "number" ? position.coords.heading : 0,
+                    speed: typeof position.coords.speed === "number" ? position.coords.speed : 0,
+                    accuracy,
+                  })
+                  .then(() => {
+                    window.lastLocationSentTime = now;
+                    if (activeOrderId) {
+                      writeOrderTracking(activeOrderId, {
+                        lat,
+                        lng,
+                        heading: typeof position.coords.heading === "number" ? position.coords.heading : 0,
+                      }).catch(() => {});
+                    }
+                  })
+                  .catch(() => {});
+              }
             }
           }
           return;
@@ -275,24 +279,28 @@ export function useDeliveryGeoWatch({
             Math.abs(lastSentLocation[0] - smoothedLat) + Math.abs(lastSentLocation[1] - smoothedLng) > 0.00001;
 
           if (timeSinceLastSend >= DELIVERY_LOCATION_SEND_INTERVAL_MS || movedEnough) {
-            deliveryAPI
-              .updateLocation(smoothedLat, smoothedLng, true, {
-                heading: typeof heading === "number" ? heading : 0,
-                speed: typeof position.coords.speed === "number" ? position.coords.speed : 0,
-                accuracy,
-              })
-              .then(() => {
-                window.lastLocationSentTime = now;
-                window.lastSentLocation = smoothedLocation;
-                if (activeOrderId) {
-                  writeOrderTracking(activeOrderId, {
-                    lat: smoothedLat,
-                    lng: smoothedLng,
-                    heading: typeof heading === "number" ? heading : 0,
-                  }).catch(() => {});
-                }
-              })
-              .catch(() => {});
+            // Only attempt update if we have an access token to avoid 401 console spam
+            const hasToken = !!(localStorage.getItem("delivery_accessToken") || localStorage.getItem("accessToken"));
+            if (hasToken) {
+              deliveryAPI
+                .updateLocation(smoothedLat, smoothedLng, true, {
+                  heading: typeof heading === "number" ? heading : 0,
+                  speed: typeof position.coords.speed === "number" ? position.coords.speed : 0,
+                  accuracy,
+                })
+                .then(() => {
+                  window.lastLocationSentTime = now;
+                  window.lastSentLocation = smoothedLocation;
+                  if (activeOrderId) {
+                    writeOrderTracking(activeOrderId, {
+                      lat: smoothedLat,
+                      lng: smoothedLng,
+                      heading: typeof heading === "number" ? heading : 0,
+                    }).catch(() => {});
+                  }
+                })
+                .catch(() => {});
+            }
           }
         }
       },

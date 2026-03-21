@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react"
-import { Settings, Building, ShoppingBag, Download, ChevronDown, FileText, FileSpreadsheet, Code, Filter, Search } from "lucide-react"
+import { Settings, Building, ShoppingBag, Download, ChevronDown, FileText, FileSpreadsheet, Code, Filter, Search, RefreshCw } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@food/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@food/components/ui/dialog"
 import { exportDisbursementsToCSV, exportDisbursementsToExcel, exportDisbursementsToPDF, exportDisbursementsToJSON } from "./disbursementExportUtils"
@@ -9,7 +9,10 @@ export default function DisbursementPage({
   icon: Icon, 
   tabs, 
   disbursements, 
-  count 
+  count,
+  loading,
+  onRefresh,
+  onAction
 }) {
   const [activeTab, setActiveTab] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
@@ -162,6 +165,17 @@ export default function DisbursementPage({
             <span className="px-3 py-1 rounded-full text-sm font-semibold bg-slate-100 text-slate-700">
               {filteredDisbursements.length}
             </span>
+            {onRefresh && (
+              <button 
+                onClick={onRefresh}
+                className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors ml-auto"
+                disabled={loading}
+              >
+                <div className={loading ? "animate-spin" : ""}>
+                  <RefreshCw className="w-4 h-4 text-slate-600" />
+                </div>
+              </button>
+            )}
           </div>
 
           {/* Search and Filter */}
@@ -215,7 +229,12 @@ export default function DisbursementPage({
 
         {/* Disbursement Cards */}
         <div className="space-y-4">
-          {filteredDisbursements.length === 0 ? (
+          {loading ? (
+             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
+                <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+                <p className="text-slate-500">Loading data...</p>
+             </div>
+          ) : filteredDisbursements.length === 0 ? (
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
               <p className="text-slate-500">No disbursements found</p>
             </div>
@@ -230,7 +249,7 @@ export default function DisbursementPage({
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
                       <h3 className="text-lg font-bold text-slate-900">
-                        Disbursement # {disbursement.id}
+                        {disbursement.restaurantName || "Disbursement"} # {disbursement.id.slice(-6).toUpperCase()}
                       </h3>
                       <span
                         className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(
@@ -250,15 +269,33 @@ export default function DisbursementPage({
                     <div className="text-right">
                       <p className="text-sm text-slate-500 mb-1">Total amount</p>
                       <p className="text-lg font-bold text-slate-900">
-                        $ {disbursement.totalAmount.toLocaleString("en-US", {
+                        ₹ {disbursement.totalAmount.toLocaleString("en-IN", {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2,
                         })}
                       </p>
                     </div>
-                    <button className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-md">
-                      View Details
-                    </button>
+                    <div className="flex gap-2">
+                       {disbursement.status.toLowerCase() === 'pending' && onAction && (
+                         <>
+                           <button 
+                             onClick={() => onAction(disbursement.id, 'approve')}
+                             className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors shadow-sm"
+                           >
+                              Approve
+                           </button>
+                           <button 
+                             onClick={() => onAction(disbursement.id, 'reject')}
+                             className="px-4 py-2 bg-rose-600 text-white rounded-lg text-sm font-medium hover:bg-rose-700 transition-colors shadow-sm"
+                           >
+                              Reject
+                           </button>
+                         </>
+                       )}
+                       <button className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors">
+                        Details
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

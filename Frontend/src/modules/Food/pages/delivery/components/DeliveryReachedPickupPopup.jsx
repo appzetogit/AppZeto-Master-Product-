@@ -117,6 +117,13 @@ export default function DeliveryReachedPickupPopup({
     dialPhoneNumber(restaurantPhone, "Restaurant phone number not available");
   };
 
+  const paymentMethodRaw = String(selectedRestaurant?.paymentMethod || selectedRestaurant?.payment?.method || selectedRestaurant?.payment || 'cod').toLowerCase();
+  const isCod = paymentMethodRaw === 'cash' || paymentMethodRaw === 'cod' || paymentMethodRaw === 'cash_on_delivery' || paymentMethodRaw === 'razorpay_qr';
+  const displayPaymentMethod = paymentMethodRaw === 'razorpay_qr' ? 'Cash on Delivery (QR)' : (isCod ? 'Cash on Delivery' : 'Paid Online');
+  
+  const estimatedEarnings = Number(selectedRestaurant?.estimatedEarnings || selectedRestaurant?.amount || 0);
+  const orderTotalAmount = Number(selectedRestaurant?.total || selectedRestaurant?.orderTotal || selectedRestaurant?.pricing?.total || 0);
+
   return (
     <BottomPopup
       isOpen={isOpen}
@@ -137,7 +144,18 @@ export default function DeliveryReachedPickupPopup({
         <div className="mb-6">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">{selectedRestaurant?.name || "Restaurant Name"}</h2>
           <p className="text-gray-600 mb-2 leading-relaxed">{restaurantAddressText}</p>
-          <p className="text-gray-500 text-sm font-medium">Order ID: {selectedRestaurant?.orderId || "ORD1234567890"}</p>
+          <p className="text-gray-500 text-sm font-medium mb-4">Order ID: {selectedRestaurant?.orderId || "ORD1234567890"}</p>
+          
+          <div className="bg-gray-50 p-4 rounded-xl flex items-center justify-between border border-gray-100">
+             <div>
+                <p className="text-xs text-gray-500 mb-0.5">Estimated Earnings</p>
+                <p className="text-lg font-bold text-green-700">₹{estimatedEarnings.toFixed(2)}</p>
+             </div>
+             <div className="text-right">
+                <p className="text-xs text-gray-500 mb-0.5">{displayPaymentMethod}</p>
+                <p className="text-lg font-bold text-gray-900">₹{orderTotalAmount.toFixed(2)}</p>
+             </div>
+          </div>
         </div>
 
         <div className="flex gap-3 mb-6">

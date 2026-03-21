@@ -797,6 +797,114 @@ export async function getRestaurantReport(query = {}) {
     return { restaurants, total, page, limit };
 }
 
+export async function getTaxReport(query = {}) {
+    const { fromDate, toDate, search } = query;
+    const match = {
+        orderStatus: 'delivered' // Typically tax is reported on delivered/completed orders
+    };
+
+    if (fromDate && toDate) {
+        match.createdAt = { $gte: new Date(fromDate), $lte: new Date(toDate) };
+    }
+
+    if (search) {
+        // Search by order ID if provided
+        match.orderId = { $regex: search, $options: 'i' };
+    }
+
+    // Aggregate tax by income source (Restaurants, Delivery, Platform)
+    // For now, we'll group by Restaurant as the primary income source
+    const taxData = await FoodOrder.aggregate([
+        { $match: match },
+        {
+            $group: {
+                _id: '$restaurantId',
+                totalIncome: { $sum: { $ifNull: ['$pricing.total', 0] } },
+                totalTax: { $sum: { $ifNull: ['$pricing.tax', 0] } },
+                orderCount: { $sum: 1 }
+            }
+        },
+        {
+            $lookup: {
+                from: 'food_restaurants',
+                localField: '_id',
+                foreignField: '_id',
+                as: 'restaurant'
+            }
+        },
+        { $unwind: { path: '$restaurant', preserveNullAndEmptyArrays: true } },
+        {
+            $project: {
+                incomeSource: { $ifNull: ['$restaurant.restaurantName', 'Unknown Restaurant'] },
+                totalIncome: 1,
+                totalTax: 1,
+                orderCount: 1
+            }
+        },
+        { $sort: { totalTax: -1 } }
+    ]);
+
+    const stats = {
+        totalIncome: 0,
+        totalTax: 0
+    };
+
+    const reports = taxData.map((item, index) => {
+        stats.totalIncome += item.totalIncome;
+        stats.totalTax += item.totalTax;
+        return {
+            sl: index + 1,
+            id: item._id,
+            incomeSource: item.incomeSource,
+            totalIncome: `₹${item.totalIncome.toFixed(2)}`,
+            totalTax: `₹${item.totalTax.toFixed(2)}`,
+            orderCount: item.orderCount
+        };
+    });
+
+    return {
+        reports,
+        stats: {
+            totalIncome: `₹${stats.totalIncome.toFixed(2)}`,
+            totalTax: `₹${stats.totalTax.toFixed(2)}`
+        }
+    };
+}
+
+export async function getTaxReportDetail(restaurantId, query = {}) {
+    if (!restaurantId || !mongoose.Types.ObjectId.isValid(restaurantId)) {
+        throw new ValidationError('Invalid restaurant ID');
+    }
+
+    const { fromDate, toDate } = query;
+    const match = {
+        restaurantId: new mongoose.Types.ObjectId(restaurantId),
+        orderStatus: 'delivered'
+    };
+
+    if (fromDate && toDate) {
+        match.createdAt = { $gte: new Date(fromDate), $lte: new Date(toDate) };
+    }
+
+    const orders = await FoodOrder.find(match)
+        .select('orderId pricing createdAt orderStatus')
+        .sort({ createdAt: -1 })
+        .lean();
+
+    const restaurant = await FoodRestaurant.findById(restaurantId).select('restaurantName').lean();
+
+    return {
+        restaurantName: restaurant?.restaurantName || 'Unknown Restaurant',
+        orders: orders.map(o => ({
+            id: o._id,
+            orderId: o.orderId,
+            totalAmount: `₹${(o.pricing?.total || 0).toFixed(2)}`,
+            taxAmount: `₹${(o.pricing?.tax || 0).toFixed(2)}`,
+            date: o.createdAt
+        }))
+    };
+}
+
 // ----- Customers / Users (admin) -----
 export async function getCustomers(query = {}) {
     const limit = Math.min(Math.max(parseInt(query.limit, 10) || 50, 1), 1000);

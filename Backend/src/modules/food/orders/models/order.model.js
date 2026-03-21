@@ -171,20 +171,17 @@ const orderSchema = new mongoose.Schema(
             type: String,
             required: true,
             unique: true,
-            index: true,
             trim: true
         },
         userId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'FoodUser',
-            required: true,
-            index: true
+            required: true
         },
         restaurantId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'FoodRestaurant',
-            required: true,
-            index: true
+            required: true
         },
         zoneId: {
             type: mongoose.Schema.Types.ObjectId,
@@ -230,8 +227,7 @@ const orderSchema = new mongoose.Schema(
                 'cancelled_by_restaurant',
                 'cancelled_by_admin'
             ],
-            default: 'created',
-            index: true
+            default: 'created'
         },
         dispatch: {
             type: dispatchSchema,

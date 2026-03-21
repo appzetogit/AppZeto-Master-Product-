@@ -39,7 +39,6 @@ const diningCategorySchema = new mongoose.Schema(
     }
 );
 
-diningCategorySchema.index({ slug: 1 }, { unique: true });
 diningCategorySchema.index({ isActive: 1, sortOrder: 1, createdAt: -1 });
 
 export const FoodDiningCategory = mongoose.model('FoodDiningCategory', diningCategorySchema);

@@ -497,6 +497,16 @@ export const adminAPI = {
       params: { page: 1, limit: 1000, ...params },
       contextModule: "admin",
     }),
+  getTaxReport: (params = {}) =>
+    apiClient.get("/food/admin/reports/tax", {
+      params: { page: 1, limit: 1000, ...params },
+      contextModule: "admin",
+    }),
+  getTaxReportDetail: (id, params = {}) =>
+    apiClient.get(`/food/admin/reports/tax/${id}`, {
+      params,
+      contextModule: "admin",
+    }),
   /** Get single zone by id */
   getZoneById: (id) =>
     apiClient.get(`/food/admin/zones/${id}`, { contextModule: "admin" }),

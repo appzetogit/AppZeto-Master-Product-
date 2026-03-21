@@ -178,6 +178,33 @@ export async function getTransactionReport(req, res, next) {
     }
 }
 
+export async function getTaxReport(req, res, next) {
+    try {
+        const data = await adminService.getTaxReport(req.query || {});
+        res.status(200).json({
+            success: true,
+            message: 'Tax report fetched successfully',
+            data
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function getTaxReportDetail(req, res, next) {
+    try {
+        const { id } = req.params;
+        const data = await adminService.getTaxReportDetail(id, req.query || {});
+        res.status(200).json({
+            success: true,
+            message: 'Tax report detail fetched successfully',
+            data
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
 export async function getRestaurantById(req, res, next) {
     try {
         const { id } = req.params;

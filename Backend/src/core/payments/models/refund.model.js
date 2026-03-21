@@ -51,10 +51,12 @@ const refundSchema = new mongoose.Schema(
 
         metadata: { type: mongoose.Schema.Types.Mixed, default: undefined }
     },
-    { collection: 'refunds', timestamps: true }
+    {
+        collection: 'refunds',
+        timestamps: true
+    }
 );
 
 refundSchema.index({ orderId: 1, status: 1 });
-refundSchema.index({ paymentId: 1 });
 
 export const Refund = mongoose.model('Refund', refundSchema);

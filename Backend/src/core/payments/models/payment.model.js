@@ -55,6 +55,5 @@ const paymentSchema = new mongoose.Schema(
 
 paymentSchema.index({ orderId: 1, createdAt: -1 });
 paymentSchema.index({ userId: 1, status: 1, createdAt: -1 });
-paymentSchema.index({ gatewayPaymentId: 1 }, { sparse: true });
 
 export const Payment = mongoose.model('Payment', paymentSchema);

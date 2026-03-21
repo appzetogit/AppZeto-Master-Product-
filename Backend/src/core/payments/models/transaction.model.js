@@ -15,8 +15,7 @@ const transactionSchema = new mongoose.Schema(
         paymentId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Payment',
-            default: null,
-            index: true
+            default: null
         },
         /** Link to the order (optional — wallet top-ups / adjustments may not have an order) */
         orderId: {

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Building } from "lucide-react";
 import DisbursementPage from "@food/components/admin/disbursement/DisbursementPage";
 import { adminAPI } from "@/services/api";
-import { toast } from "react-hot-toast";
+import { toast } from "sonner";
 
 export default function RestaurantDisbursement() {
   const [withdrawals, setWithdrawals] = useState([]);

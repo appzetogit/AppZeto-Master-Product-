@@ -132,6 +132,17 @@ export async function listOrdersRestaurantController(req, res, next) {
     }
 }
 
+export async function getOrderByIdRestaurantController(req, res, next) {
+    try {
+        const restaurantId = req.user?.userId;
+        const orderId = req.params.orderId;
+        const order = await orderService.getOrderById(orderId, { restaurantId });
+        return sendResponse(res, 200, 'Order retrieved', { order });
+    } catch (err) {
+        next(err);
+    }
+}
+
 export async function updateOrderStatusRestaurantController(req, res, next) {
     try {
         const restaurantId = req.user?.userId;

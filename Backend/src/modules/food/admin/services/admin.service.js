@@ -69,6 +69,11 @@ export async function getRestaurantComplaints(query = {}) {
             { issueType: searchRegex }
         ];
     }
+    const fromDate = query.fromDate || query.startDate;
+    const toDate = query.toDate || query.endDate;
+    if (fromDate && toDate) {
+        filter.createdAt = { $gte: new Date(fromDate), $lte: new Date(toDate) };
+    }
 
     const [complaints, total] = await Promise.all([
         FoodSupportTicket.find(filter)

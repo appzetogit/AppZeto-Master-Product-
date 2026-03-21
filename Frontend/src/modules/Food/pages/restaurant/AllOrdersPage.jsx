@@ -19,6 +19,8 @@ const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
+const formatMoney = (value) => `Rs.${Number(value || 0).toFixed(2)}`
+
 
 // Mock order data matching the image (fallback)
 const mockOrders = [
@@ -783,7 +785,7 @@ export default function AllOrdersPage() {
                   <span className="text-sm text-gray-900">
                     {item.quantity} x {item.name}
                   </span>
-                  <span className="text-sm font-medium text-gray-900">?{item.price}</span>
+                  <span className="text-sm font-medium text-gray-900">{formatMoney(item.price)}</span>
                 </div>
               ))}
               {order.items.length > 1 && (

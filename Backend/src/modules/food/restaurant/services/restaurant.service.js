@@ -807,3 +807,12 @@ export const listPublicOffers = async () => {
     return { allOffers, groupedByOffer: {} };
 };
 
+/**
+ * List complaints for a restaurant.
+ * Calls adminService.getRestaurantComplaints with fixed restaurantId.
+ */
+export const getRestaurantComplaints = async (restaurantId, query = {}) => {
+    const { getRestaurantComplaints: getComplaintsInternal } = await import('../../admin/services/admin.service.js');
+    return getComplaintsInternal({ ...query, restaurantId });
+};
+

@@ -7,7 +7,8 @@ import {
     updateRestaurantAcceptingOrders,
     uploadRestaurantProfileImage,
     uploadRestaurantMenuImage,
-    listPublicOffers
+    listPublicOffers,
+    getRestaurantComplaints
 } from '../services/restaurant.service.js';
 import { validateRestaurantRegisterDto } from '../validators/restaurant.validator.js';
 import { sendResponse } from '../../../../utils/response.js';
@@ -96,6 +97,16 @@ export const listPublicOffersController = async (req, res, next) => {
     try {
         const data = await listPublicOffers(req.query || {});
         return sendResponse(res, 200, 'Offers fetched successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const getRestaurantComplaintsController = async (req, res, next) => {
+    try {
+        const restaurantId = req.user?.userId;
+        const data = await getRestaurantComplaints(restaurantId, req.query || {});
+        return sendResponse(res, 200, 'Complaints fetched successfully', data);
     } catch (error) {
         next(error);
     }

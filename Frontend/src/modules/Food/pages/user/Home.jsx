@@ -92,6 +92,11 @@ import api, { publicGetOnce, restaurantAPI, adminAPI } from "@food/api";
 import { API_BASE_URL } from "@food/api/config";
 import OptimizedImage from "@food/components/OptimizedImage";
 import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability";
+import HomeHeader from "@food/components/user/home/HomeHeader";
+import QuickSection from "@food/components/user/home/QuickSection";
+import PromoRow from "@food/components/user/home/PromoRow";
+import FestBanner from "@food/components/user/home/FestBanner";
+
 // Explore More Icons
 import exploreOffers from "@food/assets/explore more icons/offers.png";
 import exploreGourmet from "@food/assets/explore more icons/gourmet.png";
@@ -1239,6 +1244,8 @@ export default function Home() {
   const userPoints = 99;
 
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const [activeTab, setActiveTab] = useState("food");
+
 
   // Simple filter toggle function
   const toggleFilter = (filterId) => {
@@ -2470,115 +2477,89 @@ export default function Home() {
               transform: translateY(0);
             }
           }
+          .red-header-bg {
+            background-color: #ef4f5f;
+            background-image: linear-gradient(180deg, #ef4f5f 0%, #e03546 100%);
+          }
         `}</style>
         </div>
 
         <div className="md:hidden relative">
-          {!hasScrolledPastBanner && (
-            <div className="absolute top-0 left-0 right-0 z-[60] pt-2 pb-4 pointer-events-none">
-              <div className="pointer-events-auto">
-          <div className="pt-2">
-            <PageNavbar textColor="black" zIndex={50} />
-          </div>
+          <HomeHeader 
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            location={location}
+            handleLocationClick={handleLocationClick}
+            handleSearchFocus={handleSearchFocus}
+            placeholderIndex={placeholderIndex}
+            placeholders={placeholders}
+          />
 
-          <div
-            className={`px-3 sm:px-6 flex items-center ${hasLiveLocation ? "pb-0 min-h-0" : "pb-2 min-h-[48px]"}`}
-          >
-            {!hasLiveLocation ? (
-              <button
-                type="button"
-                onClick={handleLocationClick}
-                      className="w-full text-left rounded-xl border border-gray-200/50 dark:border-gray-800/50 bg-white/80 dark:bg-[#151515]/80 backdrop-blur-sm px-3 py-2 flex items-center gap-2 shadow-sm"
+          <AnimatePresence mode="wait">
+            {activeTab === "food" ? (
+              <motion.div
+                key="food-content"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="bg-white"
               >
-                <MapPin className="h-3.5 w-3.5 text-[#EB590E] flex-shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] font-bold text-gray-500 uppercase leading-none mb-0.5">Location</p>
-                  <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">
-                    {savedAddressText || "Tap to select location"}
-                  </p>
+                {/* Flavour Fest Banner */}
+                <FestBanner />
+
+                {/* Promo Row */}
+                <div className="relative z-20 -mt-4">
+                  <PromoRow 
+                    handleVegModeChange={handleVegModeChange}
+                    navigate={navigate}
+                  />
                 </div>
-              </button>
-            ) : null}
-          </div>
 
-          <div className="px-3 sm:px-6 pb-3 flex items-center gap-3">
-            <div className="flex-1 relative -mt-4">
-              <div 
-                    className="relative bg-white/90 dark:bg-[#1a1a1a]/90 backdrop-blur-sm rounded-xl border border-gray-200 focus-within:border-[#EB590E] transition-all p-2 shadow-sm"
-                onClick={handleSearchFocus}
-              >
-                <div className="flex items-center gap-3">
-                  <Search className="h-4 w-4 text-[#EB590E] flex-shrink-0" />
-                  <div className="flex-1 h-6 relative overflow-hidden">
-                    <AnimatePresence mode="wait">
-                      {!heroSearch && (
-                        <motion.span
-                          key={placeholderIndex}
-                          initial={{ y: 20, opacity: 0 }}
-                          animate={{ y: 0, opacity: 1 }}
-                          exit={{ y: -20, opacity: 0 }}
-                          className="absolute inset-0 text-sm font-medium text-gray-400"
-                        >
-                          {placeholders[placeholderIndex]}
-                        </motion.span>
-                      )}
-                    </AnimatePresence>
-                    <input
-                      type="text"
-                      value={heroSearch}
-                      onChange={(e) => setHeroSearch(e.target.value)}
-                      onFocus={handleSearchFocus}
-                      className="absolute inset-0 w-full bg-transparent border-0 p-0 text-sm font-semibold text-gray-900 dark:text-white focus:ring-0"
-                      placeholder=" "
-                    />
+                {/* "What's on your mind today?" Section */}
+                <div className="px-4 py-6 space-y-6 bg-white">
+                  <div className="flex items-center gap-4">
+                    <h2 className="text-xl font-black text-gray-900 tracking-tight whitespace-nowrap">What's on your mind today?</h2>
+                    <div className="h-[1px] bg-gray-100 flex-1"></div>
+                    <Link to="/user/categories" className="text-sm font-bold text-gray-400 flex items-center gap-0.5 whitespace-nowrap">
+                      View All <ArrowDownUp className="h-3 w-3 rotate-90" />
+                    </Link>
+                  </div>
+                  
+                  <div className="grid grid-cols-4 gap-y-8 gap-x-4">
+                    {displayCategories.slice(0, 8).map((category, index) => (
+                      <Link 
+                        key={category.id || index}
+                        to={`/user/category/${category.slug}`}
+                        className="flex flex-col items-center gap-2 group"
+                      >
+                        <div className="w-full aspect-square rounded-full overflow-hidden shadow-sm border border-gray-100 bg-white group-active:scale-95 transition-all duration-300">
+                          <OptimizedImage 
+                            src={category.image} 
+                            alt={category.name} 
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                          />
+                        </div>
+                        <span className="text-[11px] font-bold text-gray-700 text-center leading-tight">
+                          {category.name}
+                        </span>
+                      </Link>
+                    ))}
                   </div>
                 </div>
-              </div>
-            </div>
-
-                  <div 
-                    ref={vegModeToggleRef} 
-                    className="flex-shrink-0 flex flex-col items-center gap-1 bg-white/80 dark:bg-[#1a1a1a]/80 backdrop-blur-sm rounded-lg px-2 py-1 shadow-sm"
-                  >
-                    <span className="text-[9px] font-bold text-green-600 leading-none">VEG</span>
-                    <Switch
-                      checked={vegMode}
-                      onCheckedChange={handleVegModeChange}
-                      className="scale-75 translate-x-1"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Sticky Header */}
-          {hasScrolledPastBanner && (
-            <div 
-              className="md:hidden fixed top-0 left-0 right-0 z-[100] bg-white/95 backdrop-blur-md shadow-md border-b border-gray-100 animate-in slide-in-from-top duration-300"
-            >
-              <div className="pt-2">
-                <PageNavbar textColor="black" zIndex={50} />
-              </div>
-              <div className="px-3 sm:px-6 pb-2 flex items-center gap-3">
-                <div className="flex-1 bg-gray-100 rounded-lg p-2.5 flex items-center gap-2 -mt-4" onClick={handleSearchFocus}>
-                  <Search className="h-3.5 w-3.5 text-[#EB590E]" />
-                  <span className="text-xs font-semibold text-gray-400 truncate">{placeholders[placeholderIndex]}</span>
-                </div>
-                <div ref={vegModeToggleRef} className="flex flex-col items-center">
-                  <span className="text-[8px] font-bold text-green-600">VEG</span>
-                  <Switch checked={vegMode} onCheckedChange={handleVegModeChange} className="scale-75" />
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {HeroBannerSection}
-        </div>
-
-        {/* Rest of Content */}
-        <div className="relative max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 space-y-3 pt-4 sm:pt-6">
-          {CategoryRailSection}
+              </motion.div>
+            ) : (
+              <motion.div
+                key="quick-content"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.3 }}
+              >
+                <QuickSection />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
 
@@ -2685,24 +2666,24 @@ export default function Home() {
                       transition={{ duration: 0.35, delay: index * 0.05 }}>
                       <Link
                         to={`/user/restaurants/${restaurantSlug}`}
-                        className="block rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800 bg-white dark:bg-[#1a1a1a]">
-                        <div className="relative h-24 sm:h-28 md:h-32 bg-gray-100">
+                        className="block rounded-[20px] overflow-hidden border border-gray-100 dark:border-gray-800 bg-white dark:bg-[#1a1a1a] shadow-sm hover:shadow-md transition-shadow">
+                        <div className="relative h-24 sm:h-28 md:h-32 bg-gray-50">
                           <img
                             src={restaurant.image}
                             alt={restaurant.name}
                             className="w-full h-full object-cover"
                             loading="lazy"
                           />
-                          <div className={`absolute bottom-1 left-1 px-1.5 py-0.5 rounded-md ${Number(restaurant.rating) > 0 ? "bg-white/95 text-green-700 font-semibold" : "bg-gray-200/90 text-gray-600 font-medium"} text-[10px]`}>
-                            {Number(restaurant.rating) > 0 ? Number(restaurant.rating).toFixed(1) : "New"}
+                          <div className={`absolute bottom-2 left-2 px-2 py-0.5 rounded-lg ${Number(restaurant.rating) > 0 ? "bg-black/80 backdrop-blur-md text-white font-black" : "bg-gray-200/90 text-gray-600 font-bold"} text-[10px] shadow-lg border border-white/10`}>
+                            {Number(restaurant.rating) > 0 ? Number(restaurant.rating).toFixed(1) : "NEW"}
                           </div>
                         </div>
-                        <div className="p-2">
-                          <p className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white truncate">
+                        <div className="p-2.5">
+                          <p className="text-sm font-black text-gray-900 dark:text-white truncate tracking-tight">
                             {restaurant.name}
                           </p>
-                          <p className="text-[11px] sm:text-xs text-green-600 font-medium mt-1 flex items-center gap-1">
-                            <Flame className="w-3 h-3" />
+                          <p className="text-[10px] text-orange-600 font-extrabold mt-1 flex items-center gap-1 uppercase tracking-wider">
+                            <Flame className="w-3.5 h-3.5 fill-orange-600" />
                             Near & Fast
                           </p>
                         </div>
@@ -2891,7 +2872,7 @@ export default function Home() {
                           to={`/user/restaurants/${restaurantSlug}`}
                           className="h-full flex">
                           <Card
-                            className={`overflow-hidden gap-0 cursor-pointer border-0 dark:border-gray-800 group bg-white dark:bg-[#1a1a1a] border-background transition-all duration-500 py-0 rounded-md flex flex-col h-full w-full relative ${
+                            className={`overflow-hidden gap-0 cursor-pointer border-0 dark:border-gray-800 group bg-white dark:bg-[#1a1a1a] border-background transition-all duration-500 py-0 rounded-[28px] flex flex-col h-full w-full relative shadow-sm hover:shadow-xl ${
                               isOutOfService || !availability.isOpen
                                 ? "grayscale opacity-75"
                                 : ""
@@ -2905,15 +2886,15 @@ export default function Home() {
                               />
 
                               {/* Featured Dish Badge - Top Left */}
-                              <div className="absolute top-3 left-3 md:top-4 md:left-4 flex items-center z-10 transform transition-transform duration-300 group-hover:scale-105 group-hover:-translate-y-0.5">
-                                <div className="bg-gray-800/90 backdrop-blur-sm text-white px-2 py-1 md:px-4 md:py-1.5 rounded-md text-xs font-medium flex items-center shadow-lg">
+                              <div className="absolute top-4 left-4 flex items-center z-10 transform transition-transform duration-300 group-hover:scale-105">
+                                <div className="bg-black/70 backdrop-blur-lg text-white px-4 py-1.5 rounded-full text-[11px] font-black tracking-tight flex items-center shadow-2xl border border-white/20">
                                   {restaurant.featuredDish} • ₹
                                   {restaurant.featuredPrice}
                                 </div>
                               </div>
 
                               {/* Bookmark Icon - Top Right */}
-                              <div className="absolute top-3 right-3 md:top-4 md:right-4 z-10 transform transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6">
+                              <div className="absolute top-4 right-4 z-10 transform transition-transform duration-300 group-hover:scale-110">
                                 <Button
                                   variant="ghost"
                                   size="icon"
@@ -2923,14 +2904,14 @@ export default function Home() {
                                       ? "Remove from favorites"
                                       : "Add to favorites"
                                   }
-                                  className={`h-9 w-9 md:h-11 md:w-11 rounded-full border flex items-center justify-center transition-all duration-300 ${
+                                  className={`h-11 w-11 rounded-[20px] shadow-xl flex items-center justify-center transition-all duration-300 ${
                                     favorite
-                                      ? "border-red-500 bg-red-50 text-red-500"
-                                      : "border-white bg-white/90 text-gray-600 hover:bg-white"
+                                      ? "bg-red-500 text-white"
+                                      : "bg-white/90 backdrop-blur-sm text-gray-800 hover:bg-white"
                                   }`}>
                                   <Bookmark
-                                    className={`h-5 w-5 lg:h-6 lg:w-6 transition-all duration-300 ${
-                                      favorite ? "fill-red-500" : ""
+                                    className={`h-5 w-5 transition-all duration-300 ${
+                                      favorite ? "fill-white" : ""
                                     }`}
                                   />
                                 </Button>
@@ -2943,33 +2924,35 @@ export default function Home() {
                                 {/* Restaurant Name & Rating */}
                                 <div className="flex items-start justify-between gap-2 mb-2 lg:mb-3">
                                   <div className="flex-1 min-w-0">
-                                    <h3 className="text-md sm:text-md lg:text-xl font-bold text-gray-900 dark:text-white line-clamp-1 lg:line-clamp-2 transition-colors duration-300 group-hover:text-[#EB590E]">
+                                    <h3 className="text-lg lg:text-2xl font-black text-gray-950 dark:text-white line-clamp-1 leading-tight tracking-tighter transition-colors duration-300 group-hover:text-[#ef4f5f]">
                                       {restaurant.name}
                                     </h3>
-                                    <span
-                                      className={`inline-flex mt-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${availability.isOpen ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>
-                                      {availability.isOpen
-                                        ? "Open now"
-                                        : "Offline"}
-                                    </span>
-                                    {availability.isOpen &&
-                                      availability.closingCountdownLabel && (
-                                        <div className="mt-1 flex items-center gap-1 text-[11px] font-medium text-amber-700 dark:text-amber-300 line-clamp-1">
-                                          <Timer
-                                            className="h-3.5 w-3.5 flex-shrink-0"
-                                            strokeWidth={1.8}
-                                          />
-                                          <span className="truncate">
-                                            {availability.closingCountdownLabel}
-                                          </span>
-                                        </div>
-                                      )}
+                                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                                      <span
+                                        className={`inline-flex rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest shadow-sm ${availability.isOpen ? "bg-emerald-500 text-white" : "bg-gray-400 text-white"}`}>
+                                        {availability.isOpen
+                                          ? "Open now"
+                                          : "Offline"}
+                                      </span>
+                                      {availability.isOpen &&
+                                        availability.closingCountdownLabel && (
+                                          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100 text-[10px] font-black uppercase tracking-wide">
+                                            <Timer
+                                              className="h-3 w-3 flex-shrink-0"
+                                              strokeWidth={2.5}
+                                            />
+                                            <span>
+                                              {availability.closingCountdownLabel}
+                                            </span>
+                                          </div>
+                                        )}
+                                    </div>
                                   </div>
-                                  <div className={`flex-shrink-0 ${Number(restaurant.rating) > 0 ? "bg-green-600" : "bg-gray-400"} text-white px-2 py-1 lg:px-3 lg:py-1.5 rounded-lg flex items-center gap-1 shadow-sm transform transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6`}>
-                                    <span className="text-sm lg:text-base font-bold">
-                                      {Number(restaurant.rating) > 0 ? Number(restaurant.rating).toFixed(1) : "New"}
+                                  <div className={`flex-shrink-0 ${Number(restaurant.rating) > 0 ? "bg-[#259539]" : "bg-gray-400"} text-white px-3 py-1.5 rounded-2xl flex items-center gap-1.5 shadow-md transform transition-transform duration-300 group-hover:scale-110`}>
+                                    <span className="text-sm lg:text-lg font-black tracking-tight">
+                                      {Number(restaurant.rating) > 0 ? Number(restaurant.rating).toFixed(1) : "NEW"}
                                     </span>
-                                    {Number(restaurant.rating) > 0 && <Star className="h-3 w-3 lg:h-4 lg:w-4 fill-white text-white" />}
+                                    {Number(restaurant.rating) > 0 && <Star className="h-3.5 w-3.5 lg:h-4.5 lg:w-4.5 fill-white text-white" strokeWidth={0} />}
                                   </div>
                                 </div>
 

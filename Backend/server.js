@@ -9,6 +9,7 @@ import { initializeQueues, closeBullMQConnection } from './src/queues/index.js';
 import { expireExpiredOffers } from './src/modules/food/admin/services/admin.service.js';
 
 import { logger } from './src/utils/logger.js';
+import { initializeFirebaseRealtime } from './src/config/firebase.js';
 
 const SHUTDOWN_TIMEOUT_MS = 10000;
 let server = null;
@@ -42,6 +43,7 @@ const gracefulShutdown = async (signal) => {
 const startServer = async () => {
     try {
         validateConfig();
+        initializeFirebaseRealtime();
 
         // 1. Connect to Database (MongoDB)
         await connectDB();

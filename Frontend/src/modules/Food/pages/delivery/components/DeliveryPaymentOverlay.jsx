@@ -16,6 +16,7 @@ export default function DeliveryPaymentOverlay({
   setIsGeneratingCollectQr,
   deliveryAPI,
   onComplete,
+  onClose,
 }) {
   const [showCollectQrModal, setShowCollectQrModal] = useState(false);
   // idle | pending | verifying | paid | failed
@@ -310,9 +311,18 @@ export default function DeliveryPaymentOverlay({
             className="fixed inset-0 z-[200] bg-white overflow-y-auto"
           >
             {/* Header */}
-            <div className="bg-green-500 text-white px-6 py-6">
-              <h1 className="text-2xl font-bold mb-1">Payment</h1>
-              <p className="text-white/80 text-sm">Order ID: {orderIdForDisplay}</p>
+            <div className="bg-green-500 text-white px-6 py-6 flex justify-between items-start">
+              <div>
+                <h1 className="text-2xl font-bold mb-1">Payment</h1>
+                <p className="text-white/80 text-sm">Order ID: {orderIdForDisplay}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onClose?.()}
+                className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors -mr-2 -mt-2"
+              >
+                <X className="w-5 h-5 text-white" />
+              </button>
             </div>
 
             {/* Earnings hero */}

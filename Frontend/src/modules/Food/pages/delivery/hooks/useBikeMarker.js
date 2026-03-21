@@ -1,6 +1,14 @@
 import { useCallback, useRef } from "react";
 
-export function useBikeMarker({ bikeLogo, bikeMarkerRef, isUserPanningRef, debugLog, debugWarn, debugError }) {
+export function useBikeMarker({
+  bikeLogo,
+  bikeMarkerRef,
+  isUserPanningRef,
+  directionsMapInstanceRef, // New prop
+  debugLog,
+  debugWarn,
+  debugError,
+}) {
   const rotatedIconCache = useRef(new Map());
 
   const calculateHeading = useCallback((lat1, lng1, lat2, lng2) => {
@@ -63,13 +71,15 @@ export function useBikeMarker({ bikeLogo, bikeMarkerRef, isUserPanningRef, debug
 
   const createOrUpdateBikeMarker = useCallback(
     async (latitude, longitude, heading = null, shouldCenterMap = true) => {
-      if (!window.google || !window.google.maps || !window.deliveryMapInstance) {
+      // Resolve map instance
+      const map = (directionsMapInstanceRef && directionsMapInstanceRef.current) || window.deliveryMapInstance;
+
+      if (!window.google || !window.google.maps || !map) {
         debugWarn?.("Google Maps not available");
         return;
       }
 
       const position = new window.google.maps.LatLng(latitude, longitude);
-      const map = window.deliveryMapInstance;
       const rotatedIconUrl = await getRotatedBikeIcon(heading || 0);
 
       if (!bikeMarkerRef.current) {

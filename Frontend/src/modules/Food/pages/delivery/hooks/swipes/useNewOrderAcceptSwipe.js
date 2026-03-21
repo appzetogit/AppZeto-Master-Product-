@@ -1,5 +1,7 @@
-import { useCallback } from "react";
-
+import { useState, useRef, useCallback } from "react";
+import { writeOrderTracking } from "@food/realtimeTracking";
+import { extractPolylineFromDirections } from "@food/utils/liveTrackingPolyline";
+import { toast } from "sonner";
 export function useNewOrderAcceptSwipe({
   newOrderAcceptButtonRef,
   newOrderAcceptButtonSwipeStartX,
@@ -226,11 +228,11 @@ export function useNewOrderAcceptSwipe({
                   customerName: order.userId?.name || selectedRestaurant?.customerName,
                   customerPhone: order.userId?.phone || selectedRestaurant?.customerPhone || null,
                   customerAddress:
-                    order.address?.formattedAddress ||
-                    (order.address?.street ? `${order.address.street}, ${order.address.city || ""}, ${order.address.state || ""}`.trim() : "") ||
+                    order.deliveryAddress?.formattedAddress ||
+                    (order.deliveryAddress?.street ? `${order.deliveryAddress.street}, ${order.deliveryAddress.city || ""}, ${order.deliveryAddress.state || ""}`.trim() : "") ||
                     selectedRestaurant?.customerAddress,
-                  customerLat: order.address?.location?.coordinates?.[1],
-                  customerLng: order.address?.location?.coordinates?.[0],
+                  customerLat: order.deliveryAddress?.location?.coordinates?.[1] || order.address?.location?.coordinates?.[1],
+                  customerLng: order.deliveryAddress?.location?.coordinates?.[0] || order.address?.location?.coordinates?.[0],
                   items: order.items || [],
                   total: order.pricing?.total || 0,
                   paymentMethod: order.paymentMethod || order.payment?.method || "razorpay",
@@ -275,6 +277,27 @@ export function useNewOrderAcceptSwipe({
                       setTimeout(() => {
                         if (window.deliveryMapInstance) updateLiveTrackingPolyline(directionsResult, currentLocation);
                       }, 500);
+                    }
+
+                    // CRITICAL: Immediately push initial tracking to Firebase so customer sees it instantly
+                    // Don't wait for the first GPS move
+                    try {
+                      const initialPolyline = extractPolylineFromDirections(directionsResult);
+                      const orderIdForTracking = restaurantInfo._id || restaurantInfo.id;
+                      if (orderIdForTracking && currentLocation) {
+                        writeOrderTracking(orderIdForTracking, {
+                          lat: currentLocation[0],
+                          lng: currentLocation[1],
+                          heading: 0,
+                          polyline: initialPolyline,
+                          status: 'accepted',
+                          timestamp: Date.now()
+                        }).then(() => {
+                          console.log('? Initial tracking record created in Firebase');
+                        });
+                      }
+                    } catch (fbErr) {
+                      console.warn('? Failed to write initial tracking to Firebase:', fbErr);
                     }
                   }
                 } catch (err) {

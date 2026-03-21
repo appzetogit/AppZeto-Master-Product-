@@ -2,6 +2,7 @@ import { Server } from 'socket.io';
 import { config } from './env.js';
 import { logger } from '../utils/logger.js';
 import { verifyAccessToken } from '../core/auth/token.util.js';
+import { getFirebaseDB } from './firebase.js';
 
 let io = null;
 
@@ -18,7 +19,8 @@ function getTokenFromHandshake(socket) {
 const roomNames = {
     restaurant: (id) => `restaurant:${String(id)}`,
     user: (id) => `user:${String(id)}`,
-    delivery: (id) => `delivery:${String(id)}`
+    delivery: (id) => `delivery:${String(id)}`,
+    tracking: (orderId) => `tracking:${String(orderId)}`
 };
 
 /**
@@ -97,6 +99,110 @@ export const initSocket = async (server) => {
             if (String(socket.user?.userId) !== String(deliveryPartnerId)) return;
             socket.join(roomNames.delivery(deliveryPartnerId));
             socket.emit('delivery-room-joined', { room: roomNames.delivery(deliveryPartnerId), deliveryPartnerId: String(deliveryPartnerId) });
+        });
+
+        // ─── Live Tracking Events ───────────────────────────────────────
+
+        // Users / restaurants subscribe to an order's real-time tracking room.
+        socket.on('join-tracking', (orderId) => {
+            if (!orderId) return;
+            const role = socket.user?.role;
+            if (role !== 'USER' && role !== 'RESTAURANT' && role !== 'DELIVERY_PARTNER') return;
+            const room = roomNames.tracking(orderId);
+            socket.join(room);
+            logger.info(`Socket ${socket.id} (${role}:${userId}) joined tracking room ${room}`);
+            socket.emit('tracking-room-joined', { room, orderId: String(orderId) });
+        });
+
+        // Delivery partner emits live GPS location for an active order.
+        // Broadcasts to the tracking room so users see the bike move in real time.
+        const _lastLocationBroadcast = {};
+        socket.on('update-location', (data) => {
+            if (socket.user?.role !== 'DELIVERY_PARTNER') return;
+            if (!data || !data.orderId) return;
+
+            const lat = Number(data.lat);
+            const lng = Number(data.lng);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+            if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
+
+            const heading = Number.isFinite(Number(data.heading)) ? Number(data.heading) : 0;
+            const speed = Number.isFinite(Number(data.speed)) ? Number(data.speed) : 0;
+            const accuracy = Number.isFinite(Number(data.accuracy)) ? Number(data.accuracy) : null;
+
+            // Throttle: max one broadcast per 2s per orderId
+            const now = Date.now();
+            const lastTS = _lastLocationBroadcast[data.orderId] || 0;
+            if (now - lastTS < 2000) return;
+            _lastLocationBroadcast[data.orderId] = now;
+
+            const payload = {
+                orderId: String(data.orderId),
+                deliveryPartnerId: String(userId),
+                lat,
+                lng,
+                boy_lat: lat, // Add boy_lat/lng for compatibility
+                boy_lng: lng,
+                riderLocation: [lat, lng], // Add array format for safety
+                heading,
+                speed,
+                accuracy,
+                timestamp: now
+            };
+
+            // Broadcast to tracking room (all users watching this order)
+            const trackingRoom = roomNames.tracking(data.orderId);
+            socket.to(trackingRoom).emit('location-update', payload);
+
+            // Also emit to the specific user room if userId is provided
+            if (data.userId) {
+                socket.to(roomNames.user(data.userId)).emit('location-update', payload);
+            }
+
+            // Also broadcast to the restaurant room if provided
+            if (data.restaurantId) {
+                socket.to(roomNames.restaurant(data.restaurantId)).emit('location-update', payload);
+            }
+
+            // ─── Firebase Realtime Database Sync (Cost Optimization) ───
+            try {
+                const db = getFirebaseDB();
+                if (db) {
+                    // 1. Update order-specific tracking node
+                    const orderRef = db.ref(`active_orders/${data.orderId}`);
+                    orderRef.update({
+                        lat,
+                        lng,
+                        boy_lat: lat,
+                        boy_lng: lng,
+                        heading,
+                        speed,
+                        accuracy,
+                        last_updated: now,
+                        status: data.status || 'on_the_way'
+                    }).catch(e => logger.error(`Firebase orderRef update error: ${e.message}`));
+
+                    // 2. Update global delivery boy status node
+                    const boyRef = db.ref(`delivery_boys/${userId}`);
+                    boyRef.update({
+                        lat,
+                        lng,
+                        accuracy,
+                        last_updated: now,
+                        status: 'online'
+                    }).catch(e => logger.error(`Firebase boyRef update error: ${e.message}`));
+                }
+            } catch (err) {
+                // Silently skip if Firebase not initialized yet
+                logger.debug(`Firebase RTDB sync skipped: ${err.message}`);
+            }
+        });
+
+        // Leave tracking room on user navigation away.
+        socket.on('leave-tracking', (orderId) => {
+            if (!orderId) return;
+            const room = roomNames.tracking(orderId);
+            socket.leave(room);
         });
 
         socket.on('disconnect', () => {

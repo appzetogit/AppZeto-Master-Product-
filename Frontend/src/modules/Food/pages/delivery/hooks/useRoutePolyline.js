@@ -5,6 +5,7 @@ export function useRoutePolyline({
   routePolyline,
   routePolylineRef,
   directionsRendererRef,
+  directionsMapInstanceRef, // New prop
   debugLog,
   debugWarn,
 }) {
@@ -21,25 +22,33 @@ export function useRoutePolyline({
         directionsRendererRef.current.setMap(null);
       }
 
-      if (!window.google || !window.google.maps || !window.deliveryMapInstance) {
+      // Resolve which map to use (Directions map takes priority over main map)
+      const map = (directionsMapInstanceRef && directionsMapInstanceRef.current) || window.deliveryMapInstance;
+
+      if (!window.google || !window.google.maps || !map) {
         debugWarn?.("Map not ready for polyline update");
         return;
       }
 
-      const map = window.deliveryMapInstance;
       const coordsToUse = coordinates || routePolyline;
 
       if (coordsToUse && coordsToUse.length > 0) {
+        debugLog?.(`? updateRoutePolyline: Processing ${coordsToUse.length} points`);
         const path = coordsToUse
-          .map((coord) => {
+          .map((coord, index) => {
             if (Array.isArray(coord) && coord.length >= 2) {
               return new window.google.maps.LatLng(coord[0], coord[1]);
             }
+            if (coord && typeof coord === 'object' && coord.lat !== undefined && coord.lng !== undefined) {
+              return new window.google.maps.LatLng(coord.lat, coord.lng);
+            }
+            if (index === 0) debugWarn?.(`?? Invalid coordinate format at index 0:`, coord);
             return null;
           })
           .filter(Boolean);
 
         if (path.length > 0) {
+          debugLog?.(`? updateRoutePolyline: Drawing path with ${path.length} valid points`);
           if (routePolylineRef.current) {
             routePolylineRef.current.setMap(null);
             routePolylineRef.current = null;

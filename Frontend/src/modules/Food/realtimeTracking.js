@@ -11,7 +11,7 @@ function toFiniteNumber(value) {
 }
 
 function getDeliveryLocationPath(deliveryId) {
-  return `delivery/${sanitizeRealtimeKey(deliveryId)}/location`;
+  return `delivery_boys/${sanitizeRealtimeKey(deliveryId)}`;
 }
 
 function getRestaurantLocationPath(restaurantId) {
@@ -19,7 +19,7 @@ function getRestaurantLocationPath(restaurantId) {
 }
 
 function getOrderTrackingPath(orderId) {
-  return `orders/${sanitizeRealtimeKey(orderId)}/tracking`;
+  return `active_orders/${sanitizeRealtimeKey(orderId)}`;
 }
 
 export function subscribeOrderTracking(orderId, onChange, onError) {

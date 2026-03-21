@@ -53,8 +53,6 @@ const DeliveryTrackingMap = ({
 }) => {
   const mapRef = useRef(null);
   const bikeMarkerRef = useRef(null);
-  const userLocationMarkerRef = useRef(null);
-  const userLocationCircleRef = useRef(null);
   const mapInstance = useRef(null);
   const socketRef = useRef(null);
   const directionsServiceRef = useRef(null);
@@ -63,10 +61,12 @@ const DeliveryTrackingMap = ({
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [currentLocation, setCurrentLocation] = useState(null);
   const [deliveryBoyLocation, setDeliveryBoyLocation] = useState(null);
+  const [routePolyline, setRoutePolyline] = useState([]);
   const currentLocationRef = useRef(null);
   const routePolylineRef = useRef(null);
   const routePolylinePointsRef = useRef(null); // Full route from Firebase/Directions for route-based animation
   const visibleRoutePolylinePointsRef = useRef(null); // Remaining route rendered on the map
+  const fullRoutePolylineRef = useRef(null);
   const maxDistanceAlongRouteRef = useRef(0); // Forward-only clamp to prevent polyline regrowth
   const activeRouteSignatureRef = useRef(null); // Reset clamp when route changes
   const animationControllerRef = useRef(null); // Route-based animation controller
@@ -78,6 +78,7 @@ const DeliveryTrackingMap = ({
   const lastRouteRequestRef = useRef({ start: null, end: null, timestamp: 0 });
   const customerMarkerRef = useRef(null);
   const restaurantMarkerRef = useRef(null);
+  const baselinePolylineRef = useRef(null);
 
   const backendUrl = useMemo(() => {
     const raw = String(API_BASE_URL || '').trim();
@@ -86,7 +87,8 @@ const DeliveryTrackingMap = ({
     // Socket.IO server runs on the backend origin (http://localhost:5000)
     return raw.replace(/\/api\/v1\/?$/i, '').replace(/\/api\/?$/i, '');
   }, []);
-  const ENABLE_GOOGLE_DIRECTIONS = import.meta.env.VITE_ENABLE_GOOGLE_DIRECTIONS === 'true';
+  // Enable Google Directions API by default (unless explicitly set to false)
+  const ENABLE_GOOGLE_DIRECTIONS = import.meta.env.VITE_ENABLE_GOOGLE_DIRECTIONS !== 'false';
   const [GOOGLE_MAPS_API_KEY, setGOOGLE_MAPS_API_KEY] = useState("");
   const trackingIds = useMemo(() => {
     const ids = [orderId, ...(Array.isArray(orderTrackingIds) ? orderTrackingIds : [])]
@@ -485,6 +487,56 @@ const DeliveryTrackingMap = ({
     return ok;
   }, [renderVisibleRoute, fitRouteViewportIfNeeded]);
 
+  /**
+   * Draw the "Planned" journey from Restaurant to Customer as a subtle dashed line.
+   * This gives the customer context of the whole trip.
+   */
+  const drawBaselineRoute = useCallback(async (start, end) => {
+    if (!MAPS_ENABLED || !mapInstance.current || !window.google?.maps) return;
+    if (!start || !end) return;
+
+    if (baselinePolylineRef.current) {
+      baselinePolylineRef.current.setMap(null);
+    }
+
+    let points = [start, end];
+
+    // Try to get a real road-based baseline if Directions is enabled
+    if (ENABLE_GOOGLE_DIRECTIONS && directionsServiceRef.current) {
+      try {
+        const result = await new Promise((resolve, reject) => {
+          directionsServiceRef.current.route({
+            origin: start,
+            destination: end,
+            travelMode: window.google.maps.TravelMode.DRIVING
+          }, (res, status) => {
+            if (status === 'OK') resolve(res);
+            else reject(status);
+          });
+        });
+        const decoded = extractPolylineFromDirections(result);
+        if (decoded && decoded.length > 1) points = decoded;
+      } catch (e) {
+        debugWarn('Baseline directions failed, using straight line:', e);
+      }
+    }
+
+    baselinePolylineRef.current = new window.google.maps.Polyline({
+      path: points,
+      geodesic: true,
+      strokeColor: '#cbd5e1', // Subtle slate 300
+      strokeOpacity: 0.6,
+      strokeWeight: 4,
+      map: mapInstance.current,
+      zIndex: 1,
+      icons: [{
+        icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, scale: 2 },
+        offset: '0',
+        repeat: '12px'
+      }]
+    });
+  }, [ENABLE_GOOGLE_DIRECTIONS]);
+
   const updateRenderedRouteForLocation = useCallback((location, routeOverride = null) => {
     const baseRoute = routeOverride || routePolylinePointsRef.current;
     const normalizedBaseRoute = normalizeRoutePoints(baseRoute);
@@ -720,41 +772,23 @@ const DeliveryTrackingMap = ({
         debugLog('?? Map instance:', !!mapInstance.current);
         debugLog('?? Position:', { lat, lng, heading });
 
-        // Create bike icon configuration
+        // Create a premium, professional circle marker for the rider
         let bikeIcon = {
-          url: bikeLogo,
-          scaledSize: new window.google.maps.Size(50, 50), // Slightly larger for better visibility
-          anchor: new window.google.maps.Point(25, 25)
+          path: window.google.maps.SymbolPath.CIRCLE,
+          scale: 12,
+          fillColor: '#FF6B00', // Matches rider app orange
+          fillOpacity: 1,
+          strokeColor: '#FFFFFF',
+          strokeWeight: 3
         };
 
         try {
-          // Test if image loads (but don't wait for it - create marker immediately)
-          const img = new Image();
-          img.onload = () => {
-            debugLog('? Bike logo image loaded successfully:', bikeLogo);
-          };
-          img.onerror = () => {
-            debugError('? Bike logo image failed to load:', bikeLogo);
-            // If image fails, update marker with fallback icon
-            if (bikeMarkerRef.current) {
-              bikeMarkerRef.current.setIcon({
-                path: window.google.maps.SymbolPath.CIRCLE,
-                scale: 12,
-                fillColor: '#FF6B00',
-                fillOpacity: 1,
-                strokeColor: '#FFFFFF',
-                strokeWeight: 3
-              });
-            }
-          };
-          img.src = bikeLogo;
-
           bikeMarkerRef.current = new window.google.maps.Marker({
             position: position,
             map: mapInstance.current,
             icon: bikeIcon,
             optimized: false,
-            zIndex: window.google.maps.Marker.MAX_ZINDEX + 3, // Above other markers
+            zIndex: window.google.maps.Marker.MAX_ZINDEX + 3,
             title: 'Delivery Partner',
             visible: true,
             clickable: false
@@ -1007,8 +1041,12 @@ const DeliveryTrackingMap = ({
   useEffect(() => {
     if (!trackingIds.length) return;
 
+    // Use auth token for socket connection (matches backend socket auth middleware)
+    const token = localStorage.getItem('user_accessToken') || localStorage.getItem('accessToken') || '';
+
     socketRef.current = io(backendUrl, {
       transports: ['websocket', 'polling'],
+      auth: { token },
       reconnection: true,
       reconnectionDelay: 500,
       reconnectionAttempts: Infinity,
@@ -1016,7 +1054,30 @@ const DeliveryTrackingMap = ({
     });
 
     const handleRealtimeLocation = (data) => {
-      if (data && typeof data.lat === 'number' && typeof data.lng === 'number') {
+      if (!data) return;
+      
+      // Safety: Ignore updates for orders we're not currently tracking in this component instance
+      if (data.orderId && trackingIds.length > 0 && !trackingIds.includes(data.orderId)) {
+        return;
+      }
+
+      if (typeof data.lat === 'number' && typeof data.lng === 'number') {
+        // If a new polyline is provided by the rider, update our route
+        if (data.polyline && typeof data.polyline === 'string' && typeof decodePolyline === 'function') {
+          try {
+            const decodedPoints = decodePolyline(data.polyline);
+            if (decodedPoints && decodedPoints.length > 0) {
+              routePolylinePointsRef.current = decodedPoints;
+              fullRoutePolylineRef.current = decodedPoints;
+              setRoutePolyline(decodedPoints);
+              // Immediately render the new route on map
+              renderVisibleRoute(decodedPoints);
+            }
+          } catch (err) {
+            console.warn('[TrackingMap] Failed to decode incoming polyline:', err);
+          }
+        }
+
         const location = { lat: data.lat, lng: data.lng, heading: data.heading || data.bearing || 0 };
         setCurrentLocation(location);
         setDeliveryBoyLocation(location);
@@ -1099,7 +1160,10 @@ const DeliveryTrackingMap = ({
     };
 
     socketRef.current.on('connect', () => {
+      // Join the new tracking rooms (backend event handler)
       trackingIds.forEach((trackingId) => {
+        socketRef.current.emit('join-tracking', trackingId);
+        // Also emit legacy event for backwards compatibility
         socketRef.current.emit('join-order-tracking', trackingId);
       });
       requestCurrentLocationForTrackingIds();
@@ -1113,11 +1177,16 @@ const DeliveryTrackingMap = ({
 
     socketRef.current.on('reconnect', () => {
       trackingIds.forEach((trackingId) => {
+        socketRef.current.emit('join-tracking', trackingId);
         socketRef.current.emit('join-order-tracking', trackingId);
       });
       requestCurrentLocationForTrackingIds();
     });
 
+    // Listen for the new standardized location-update event from backend
+    socketRef.current.on('location-update', handleRealtimeLocation);
+
+    // Legacy event listeners (per-order suffixed events)
     trackingIds.forEach((trackingId) => {
       socketRef.current.on(`location-receive-${trackingId}`, handleRealtimeLocation);
       socketRef.current.on(`current-location-${trackingId}`, handleCurrentLocation);
@@ -1188,11 +1257,14 @@ const DeliveryTrackingMap = ({
         if (socketRef.current._locationRequestInterval) {
           clearInterval(socketRef.current._locationRequestInterval);
         }
+        // Leave tracking rooms before disconnecting
         trackingIds.forEach((trackingId) => {
+          socketRef.current.emit('leave-tracking', trackingId);
           socketRef.current.off(`location-receive-${trackingId}`, handleRealtimeLocation);
           socketRef.current.off(`current-location-${trackingId}`, handleCurrentLocation);
           socketRef.current.off(`route-initialized-${trackingId}`, handleRouteInitialized);
         });
+        socketRef.current.off('location-update', handleRealtimeLocation);
         socketRef.current.off('order_status_update');
         socketRef.current.off('reconnect');
         socketRef.current.disconnect();
@@ -1460,44 +1532,51 @@ const DeliveryTrackingMap = ({
           });
         }
 
-        // Add user's live location marker (blue dot) and radius circle if available
-        if (userLiveCoords && userLiveCoords.lat && userLiveCoords.lng) {
-          // Create blue dot marker for user's live location
-          userLocationMarkerRef.current = new window.google.maps.Marker({
-            position: { lat: userLiveCoords.lat, lng: userLiveCoords.lng },
+        // ─── Zomato-style vertical drop pin lines ───────────────────────
+        // Dashed vertical line from each marker anchor down to a ground shadow circle
+        const createDropPinLine = (coords, color) => {
+          if (!coords || !Number.isFinite(coords.lat) || !Number.isFinite(coords.lng)) return null;
+          // We can't draw true vertical on a map, but we can create a short polyline
+          // with a dash pattern that looks like a pin drop line at the marker position.
+          // Instead, use an OverlayView-based approach via a DOM element.
+          // More practical: create a subtle ground circle (shadow) beneath the pin.
+          const groundCircle = new window.google.maps.Circle({
+            center: coords,
+            radius: 12,  // ~12 meters radius — small ground shadow
+            fillColor: color,
+            fillOpacity: 0.18,
+            strokeColor: color,
+            strokeOpacity: 0.35,
+            strokeWeight: 1.5,
             map: mapInstance.current,
-            icon: {
-              path: window.google.maps.SymbolPath.CIRCLE,
-              scale: 12,
-              fillColor: '#4285F4', // Google blue
-              fillOpacity: 1,
-              strokeColor: '#FFFFFF',
-              strokeWeight: 3
-            },
-            zIndex: window.google.maps.Marker.MAX_ZINDEX + 2,
-            optimized: false,
-            title: "Your live location"
+            clickable: false,
+            zIndex: 1
           });
 
-          // Create radius circle around user's location
-          const radiusMeters = Math.max(userLocationAccuracy || 50, 20); // Minimum 20m
-          userLocationCircleRef.current = new window.google.maps.Circle({
-            strokeColor: '#4285F4',
-            strokeOpacity: 0.4,
-            strokeWeight: 2,
-            fillColor: '#4285F4',
-            fillOpacity: 0.15, // Light transparent blue
+          // Pulsing ring effect (slightly larger, transparent)
+          const pulseCircle = new window.google.maps.Circle({
+            center: coords,
+            radius: 25,  // ~25 meters — outer pulse ring
+            fillColor: color,
+            fillOpacity: 0.06,
+            strokeColor: color,
+            strokeOpacity: 0.15,
+            strokeWeight: 1,
             map: mapInstance.current,
-            center: { lat: userLiveCoords.lat, lng: userLiveCoords.lng },
-            radius: radiusMeters, // Meters
-            zIndex: window.google.maps.Marker.MAX_ZINDEX + 1
+            clickable: false,
+            zIndex: 0
           });
 
-          debugLog('? User live location marker and radius circle added:', {
-            position: userLiveCoords,
-            radius: radiusMeters
-          });
-        }
+          return { groundCircle, pulseCircle };
+        };
+
+        // Restaurant drop pin shadow (green)
+        createDropPinLine(restaurantCoords, '#22c55e');
+        // Customer drop pin shadow (red)
+        createDropPinLine(customerCoords, '#ef4444');
+
+        // Note: User live location marker removed as per simplified tracking requirements
+        // only rider marker remains variable.
 
         // Draw route based on order phase
         mapInstance.current.addListener('tilesloaded', () => {
@@ -1556,23 +1635,83 @@ const DeliveryTrackingMap = ({
 
         debugLog('? Google Map initialized successfully');
         mapInitializedRef.current = true; // Mark map as initialized
+
+        // Draw the full journey baseline immediately
+        if (restaurantCoords && customerCoords) {
+           drawBaselineRoute(restaurantCoords, customerCoords);
+        }
       } catch (error) {
         debugError('? Map initialization error:', error);
       }
     }
   }, [ENABLE_GOOGLE_DIRECTIONS, routeColor, restaurantCoords, customerCoords]); // Removed dependencies that cause re-initialization
 
+  // ─── INSTANT MARKER INITIALIZATION ───────────────────────
+  
+  // Create Restaurant Marker
   useEffect(() => {
-    if (restaurantMarkerRef.current && restaurantCoords) {
+    if (!isMapLoaded || !mapInstance.current || !restaurantCoords) return;
+    
+    if (!restaurantMarkerRef.current) {
+      const restaurantPinIconUrl = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="50" viewBox="0 0 40 50">
+          <path d="M20 0 C9 0 0 9 0 20 C0 35 20 50 20 50 C20 50 40 35 40 20 C40 9 31 0 20 0 Z" fill="#22c55e" stroke="#ffffff" stroke-width="2"/>
+          <rect x="12" y="14" width="16" height="12" rx="2.5" fill="white"/>
+          <path d="M15 12 L25 12" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
+          <path d="M17 18 L23 18" stroke="#22c55e" stroke-width="2" stroke-linecap="round"/>
+          <path d="M17 22 L23 22" stroke="#22c55e" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      `);
+
+      restaurantMarkerRef.current = new window.google.maps.Marker({
+        position: { lat: restaurantCoords.lat, lng: restaurantCoords.lng },
+        map: mapInstance.current,
+        icon: {
+          url: restaurantPinIconUrl,
+          scaledSize: new window.google.maps.Size(40, 50),
+          anchor: new window.google.maps.Point(20, 50)
+        },
+        zIndex: window.google.maps.Marker.MAX_ZINDEX + 1,
+        title: "Restaurant"
+      });
+    } else {
       restaurantMarkerRef.current.setPosition(restaurantCoords);
     }
-  }, [restaurantCoords]);
+  }, [isMapLoaded, restaurantCoords]);
 
+  // Create Customer Marker
   useEffect(() => {
-    if (customerMarkerRef.current && customerCoords) {
+    if (!isMapLoaded || !mapInstance.current || !customerCoords) return;
+
+    if (!customerMarkerRef.current) {
+      const customerLocationIconUrl = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="50" viewBox="0 0 40 50">
+          <path d="M20 0 C9 0 0 9 0 20 C0 35 20 50 20 50 C20 50 40 35 40 20 C40 9 31 0 20 0 Z" fill="#ef4444" stroke="#ffffff" stroke-width="2"/>
+          <path d="M20 11 L12.5 17.2 L14.4 17.2 L14.4 28 L18.5 28 L18.5 22.6 L21.5 22.6 L21.5 28 L25.6 28 L25.6 17.2 L27.5 17.2 Z" fill="white"/>
+        </svg>
+      `);
+
+      customerMarkerRef.current = new window.google.maps.Marker({
+        position: { lat: customerCoords.lat, lng: customerCoords.lng },
+        map: mapInstance.current,
+        icon: {
+          url: customerLocationIconUrl,
+          scaledSize: new window.google.maps.Size(40, 50),
+          anchor: new window.google.maps.Point(20, 50)
+        },
+        zIndex: window.google.maps.Marker.MAX_ZINDEX + 1,
+        title: "Your delivery location"
+      });
+    } else {
       customerMarkerRef.current.setPosition(customerCoords);
     }
-  }, [customerCoords]);
+  }, [isMapLoaded, customerCoords]);
+
+  // Create Rider/Bike Marker instantly from initial location
+  useEffect(() => {
+    if (!isMapLoaded || !mapInstance.current || !deliveryBoyLocation) return;
+    moveBikeSmoothly(deliveryBoyLocation.lat, deliveryBoyLocation.lng, deliveryBoyLocation.heading || 0);
+  }, [isMapLoaded, !!deliveryBoyLocation]);
 
   // Memoize restaurant and customer coordinates to avoid dependency issues
   const restaurantLat = restaurantCoords?.lat;
@@ -1621,8 +1760,6 @@ const DeliveryTrackingMap = ({
         lastRouteUpdateRef.current = now;
         if (ENABLE_GOOGLE_DIRECTIONS) {
           drawRoute(restaurantCoords, customerCoords);
-        } else {
-          drawStraightLineRoute(restaurantCoords, customerCoords);
         }
       }
       return;
@@ -1651,8 +1788,6 @@ const DeliveryTrackingMap = ({
       lastRouteUpdateRef.current = now;
       if (ENABLE_GOOGLE_DIRECTIONS) {
         drawRoute(route.start, route.end);
-      } else {
-        drawStraightLineRoute(route.start, route.end);
       }
       debugLog('?? Route updated:', {
         phase: order?.deliveryState?.currentPhase,
@@ -1823,53 +1958,6 @@ const DeliveryTrackingMap = ({
       }
     }
   }, [isMapLoaded, hasDeliveryPartner, deliveryBoyLat, deliveryBoyLng, deliveryBoyHeading, moveBikeSmoothly, order?.deliveryState?.currentPhase, order?.deliveryState?.status, requestCurrentLocationForTrackingIds]);
-
-  // Update user's live location marker and circle when location changes
-  useEffect(() => {
-    if (isMapLoaded && userLiveCoords && userLiveCoords.lat && userLiveCoords.lng && mapInstance.current) {
-      const userPos = { lat: userLiveCoords.lat, lng: userLiveCoords.lng };
-      const radiusMeters = Math.max(userLocationAccuracy || 50, 20);
-
-      // Update or create user location marker
-      if (userLocationMarkerRef.current) {
-        userLocationMarkerRef.current.setPosition(userPos);
-      } else {
-        userLocationMarkerRef.current = new window.google.maps.Marker({
-          position: userPos,
-          map: mapInstance.current,
-          icon: {
-            path: window.google.maps.SymbolPath.CIRCLE,
-            scale: 12,
-            fillColor: '#4285F4',
-            fillOpacity: 1,
-            strokeColor: '#FFFFFF',
-            strokeWeight: 3
-          },
-          zIndex: window.google.maps.Marker.MAX_ZINDEX + 2,
-          optimized: false,
-          title: "Your live location"
-        });
-      }
-
-      // Update or create radius circle
-      if (userLocationCircleRef.current) {
-        userLocationCircleRef.current.setCenter(userPos);
-        userLocationCircleRef.current.setRadius(radiusMeters);
-      } else {
-        userLocationCircleRef.current = new window.google.maps.Circle({
-          strokeColor: '#4285F4',
-          strokeOpacity: 0.4,
-          strokeWeight: 2,
-          fillColor: '#4285F4',
-          fillOpacity: 0.15,
-          map: mapInstance.current,
-          center: userPos,
-          radius: radiusMeters,
-          zIndex: window.google.maps.Marker.MAX_ZINDEX + 1
-        });
-      }
-    }
-  }, [isMapLoaded, userLiveCoords, userLocationAccuracy]);
 
   // Periodic check to ensure bike marker is created if it should be visible
   // DISABLED - prevents duplicate marker creation

@@ -28,6 +28,8 @@ import {
 } from '../helpers/razorpay.helper.js';
 import { getIO, rooms } from '../../../../config/socket.js';
 import { addOrderJob } from '../../../../queues/producers/order.producer.js';
+import { fetchPolyline } from '../utils/googleMaps.js';
+import { getFirebaseDB } from '../../../../config/firebase.js';
 import * as foodTransactionService from './foodTransaction.service.js';
 
 const ORDER_ID_PREFIX = "FOD-";
@@ -1570,6 +1572,43 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId) {
     to: "accepted",
   });
   await order.save();
+  await order.populate('restaurantId'); // Need coordinates for Firebase initial write
+
+  // ─── Firebase Realtime Database Tracking Initialization (Cost Optimization) ───
+  try {
+      const rest = order.restaurantId;
+      const userLoc = order.deliveryAddress?.location?.coordinates; // [lng, lat]
+      const restLoc = rest?.location?.coordinates; // [lng, lat]
+
+      if (restLoc?.[0] && userLoc?.[0]) {
+          // Fetch polyline only once upon acceptance.
+          const polyline = await fetchPolyline(
+              { lat: restLoc[1], lng: restLoc[0] },
+              { lat: userLoc[1], lng: userLoc[0] }
+          );
+
+          const db = getFirebaseDB();
+          if (db) {
+              const orderRef = db.ref(`active_orders/${order.orderId}`);
+              await orderRef.set({
+                  polyline,
+                  lat: restLoc[1], // Initial boy position at restaurant
+                  lng: restLoc[0],
+                  boy_lat: restLoc[1],
+                  boy_lng: restLoc[0],
+                  restaurant_lat: restLoc[1],
+                  restaurant_lng: restLoc[0],
+                  customer_lat: userLoc[1],
+                  customer_lng: userLoc[0],
+                  status: 'accepted',
+                  last_updated: Date.now()
+              }).catch(e => logger.error(`Firebase orderRef set error: ${e.message}`));
+          }
+      }
+  } catch (err) {
+      logger.error(`Error initializing Firebase order tracking: ${err.message}`);
+  }
+
   await foodTransactionService.updateTransactionRider(order._id, deliveryPartnerId);
 
   // Notify delivery partner (self) + restaurant about dispatch acceptance.
@@ -1614,14 +1653,16 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId) {
     );
   } catch {}
 
-    enqueueOrderEvent('delivery_accepted', {
-        orderMongoId: order._id?.toString?.(),
-        orderId: order.orderId,
-        deliveryPartnerId,
-        dispatchStatus: order.dispatch?.status,
-        orderStatus: order.orderStatus
-    });
-    return order.toObject();
+  enqueueOrderEvent("delivery_accepted", {
+    orderMongoId: order._id?.toString?.(),
+    orderId: order.orderId,
+    deliveryPartnerId,
+    dispatchStatus: order.dispatch?.status,
+    orderStatus: order.orderStatus,
+  });
+
+  // Return full populated order so delivery app has restaurant coords for route polyline
+  return getOrderById(order._id, { deliveryPartnerId });
 }
 
 export async function rejectOrderDelivery(orderId, deliveryPartnerId) {

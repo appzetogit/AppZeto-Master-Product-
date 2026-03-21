@@ -1,5 +1,8 @@
-import { useEffect } from "react";
-import { writeOrderTracking } from "@food/realtimeTracking";
+import { useEffect, useRef } from "react";
+import io from "socket.io-client";
+import { API_BASE_URL } from "@food/api/config";
+import { writeOrderTracking, writeDeliveryLocation } from "@food/realtimeTracking";
+import { extractPolylineFromDirections } from "@food/utils/liveTrackingPolyline";
 import {
   DELIVERY_LOCATION_FALLBACK_INTERVAL_MS,
   DELIVERY_LOCATION_MIN_MOVE_METERS,
@@ -34,7 +37,88 @@ export function useDeliveryGeoWatch({
   toast,
   isOnlineRef,
   activeOrderId = null,
+  userId = null,
+  restaurantId = null,
 }) {
+  // ─── Socket connection for live location emission ───
+  const socketRef = useRef(null);
+  const activeOrderIdRef = useRef(activeOrderId);
+  const userIdRef = useRef(userId);
+  const restaurantIdRef = useRef(restaurantId);
+
+  // Keep refs in sync with props to avoid stale closures in watchPosition callback
+  useEffect(() => {
+    activeOrderIdRef.current = activeOrderId;
+    userIdRef.current = userId;
+    restaurantIdRef.current = restaurantId;
+  }, [activeOrderId, userId, restaurantId]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('delivery_accessToken') || localStorage.getItem('accessToken');
+    if (!token) return;
+
+    const backendUrl = String(API_BASE_URL || '').trim()
+      .replace(/\/api\/v1\/?$/i, '').replace(/\/api\/?$/i, '');
+    if (!backendUrl) return;
+
+    socketRef.current = io(backendUrl, {
+      transports: ['websocket', 'polling'],
+      auth: { token },
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: Infinity,
+    });
+
+    socketRef.current.on('connect', () => {
+      debugLog?.('🔌 Delivery tracking socket connected:', socketRef.current?.id);
+      if (activeOrderId) {
+        socketRef.current.emit('join-tracking', activeOrderId);
+      }
+    });
+
+    socketRef.current.on('connect_error', (err) => {
+      debugWarn?.('Socket connect error:', err?.message);
+    });
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+    };
+  }, [activeOrderId]);
+
+  /**
+   * Emit location update via socket for real-time user tracking.
+   * Called alongside the existing REST API + Firebase writes.
+   */
+   const emitLocationViaSocket = (lat, lng, heading, speed, accuracy) => {
+    const currentOrderId = activeOrderIdRef.current;
+    if (!socketRef.current?.connected || !currentOrderId) return;
+    // Extract polyline from directions if available
+    let polyline = null;
+    if (directionsResponseRef && directionsResponseRef.current) {
+      try {
+        polyline = extractPolylineFromDirections(directionsResponseRef.current);
+      } catch (err) {
+        debugWarn?.("Error extracting polyline for socket emit:", err);
+      }
+    }
+
+    socketRef.current.emit("update-location", {
+      orderId: currentOrderId,
+      userId: userIdRef.current,
+      restaurantId: restaurantIdRef.current,
+      lat,
+      lng,
+      heading: typeof heading === 'number' ? heading : 0,
+      speed: typeof speed === 'number' ? speed : 0,
+      accuracy: typeof accuracy === 'number' ? accuracy : null,
+      polyline,
+      timestamp: Date.now(),
+    });
+  };
+
   // Initial location on mount
   useEffect(() => {
     if (!navigator.geolocation) {
@@ -95,12 +179,28 @@ export function useDeliveryGeoWatch({
           }
         }
 
-        if (activeOrderId) {
-          writeOrderTracking(activeOrderId, {
+        const currentOrderId = activeOrderIdRef.current;
+        if (currentOrderId) {
+          let polyline = null;
+          if (directionsResponseRef && directionsResponseRef.current) {
+            try {
+              polyline = extractPolylineFromDirections(directionsResponseRef.current);
+            } catch (err) {
+              debugWarn?.("Error extracting polyline for Firebase:", err);
+            }
+          }
+          
+          writeOrderTracking(currentOrderId, {
             lat: smoothedLocation[0],
             lng: smoothedLocation[1],
+            boy_lat: smoothedLocation[0],
+            boy_lng: smoothedLocation[1],
             heading: heading || 0,
+            accuracy: accuracy || 0,
+            polyline: polyline
           }).catch((err) => debugError?.("Firebase tracking failed:", err));
+          
+          emitLocationViaSocket(smoothedLocation[0], smoothedLocation[1], heading, 0, accuracy);
         }
 
         debugLog?.("Current location obtained on app open (filtered)", {
@@ -218,6 +318,7 @@ export function useDeliveryGeoWatch({
                         lng,
                         heading: typeof position.coords.heading === "number" ? position.coords.heading : 0,
                       }).catch(() => {});
+                      emitLocationViaSocket(lat, lng, position.coords.heading, position.coords.speed, accuracy);
                     }
                   })
                   .catch(() => {});
@@ -250,7 +351,7 @@ export function useDeliveryGeoWatch({
         localStorage.setItem("deliveryBoyLastLocation", JSON.stringify(smoothedLocation));
 
         const currentDirectionsResponse = directionsResponseRef.current;
-        if (currentDirectionsResponse?.routes?.length) {
+        if (currentDirectionsResponse?.routes?.length || currentDirectionsResponse?.fallbackPoints) {
           updateLiveTrackingPolyline(currentDirectionsResponse, smoothedLocation);
         }
 
@@ -291,11 +392,34 @@ export function useDeliveryGeoWatch({
                 .then(() => {
                   window.lastLocationSentTime = now;
                   window.lastSentLocation = smoothedLocation;
-                  if (activeOrderId) {
-                    writeOrderTracking(activeOrderId, {
+                  const currentOrderId = activeOrderIdRef.current;
+                  if (currentOrderId) {
+                    // Extract polyline from directions if available
+                    let polyline = null;
+                    if (directionsResponseRef && directionsResponseRef.current) {
+                      try {
+                        polyline = extractPolylineFromDirections(directionsResponseRef.current);
+                      } catch (err) {
+                        debugWarn?.("Error extracting polyline for Firebase/Socket:", err);
+                      }
+                    }
+
+                    writeOrderTracking(currentOrderId, {
                       lat: smoothedLat,
                       lng: smoothedLng,
                       heading: typeof heading === "number" ? heading : 0,
+                      polyline,
+                    }).catch(() => {});
+                    emitLocationViaSocket(smoothedLat, smoothedLng, heading, position.coords.speed, accuracy);
+                    writeDeliveryLocation({
+                      deliveryId: userIdRef.current,
+                      lat: smoothedLat,
+                      lng: smoothedLng,
+                      heading: typeof heading === 'number' ? heading : 0,
+                      speed: typeof position.coords.speed === 'number' ? position.coords.speed : 0,
+                      activeOrderId: currentOrderId,
+                      accuracy,
+                      polyline,
                     }).catch(() => {});
                   }
                 })

@@ -12,8 +12,9 @@ import {
   X,
   RefreshCw,
   ArrowRight,
-  CheckCircle2
+  CheckCircle2 
 } from "lucide-react"
+import { writeOrderTracking } from "@food/realtimeTracking";
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -95,10 +96,25 @@ export default function PickupDirectionsPage() {
       // Watch position updates
       const watchId = navigator.geolocation.watchPosition(
         (position) => {
-          setRiderLocation([position.coords.latitude, position.coords.longitude])
+          const newPos = [position.coords.latitude, position.coords.longitude];
+          setRiderLocation(newPos)
+          
+          // CRITICAL: Update Firebase tracking from this page too
+          // Use the first accepted restaurant's ID (which we are navigating to)
+          const primaryRestaurant = acceptedRestaurants[0]
+          const orderId = primaryRestaurant?._id || primaryRestaurant?.id
+          if (orderId) {
+            writeOrderTracking(orderId, {
+              lat: newPos[0],
+              lng: newPos[1],
+              heading: position.coords.heading || 0,
+              status: 'en_route_to_pickup',
+              timestamp: Date.now()
+            }).catch(() => {});
+          }
         },
         () => {},
-        { enableHighAccuracy: true, maximumAge: 10000 }
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
       )
       
       return () => navigator.geolocation.clearWatch(watchId)

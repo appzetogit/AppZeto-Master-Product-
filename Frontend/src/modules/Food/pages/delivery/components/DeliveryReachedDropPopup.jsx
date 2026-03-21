@@ -28,9 +28,9 @@ export default function DeliveryReachedDropPopup({
     <BottomPopup
       isOpen={isOpen}
       onClose={onClose}
-      showCloseButton={false}
-      closeOnBackdropClick={false}
-      disableSwipeToClose={true}
+      showCloseButton={true}
+      closeOnBackdropClick={true}
+      disableSwipeToClose={false}
       maxHeight="70vh"
       showHandle={false}
       showBackdrop={false}

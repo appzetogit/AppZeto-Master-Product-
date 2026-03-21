@@ -31,9 +31,9 @@ export default function DeliveryOrderIdConfirmationPopup({
     <BottomPopup
       isOpen={isOpen}
       onClose={onClose}
-      showCloseButton={false}
-      closeOnBackdropClick={false}
-      disableSwipeToClose={true}
+      showCloseButton={true}
+      closeOnBackdropClick={true}
+      disableSwipeToClose={false}
       maxHeight="60vh"
       showHandle={false}
       showBackdrop={false}

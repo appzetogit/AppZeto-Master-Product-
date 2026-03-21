@@ -27,6 +27,9 @@ import {
   IndianRupee,
   Loader2,
   Camera,
+  MessageSquare,
+  Shield,
+  RefreshCw,
 } from "lucide-react"
 import BottomPopup from "@food/components/delivery/BottomPopup"
 import FeedNavbar from "@food/components/delivery/FeedNavbar"
@@ -40,6 +43,11 @@ import DeliveryOrderIdConfirmationPopup from "./components/DeliveryOrderIdConfir
 import DeliveryReachedPickupPopup from "./components/DeliveryReachedPickupPopup"
 import DeliveryNewOrderPopup from "./components/DeliveryNewOrderPopup"
 import DeliveryRejectOrderModal from "./components/DeliveryRejectOrderModal"
+import DeliveryCustomerReviewPopup from "./components/DeliveryCustomerReviewPopup"
+import DeliveryBookGigsPopup from "./components/DeliveryBookGigsPopup"
+import DeliveryHelpOptionsPopup from "./components/DeliveryHelpOptionsPopup"
+import DeliveryEmergencyPopup from "./components/DeliveryEmergencyPopup"
+import DeliveryVerifyingOtpOverlay from "./components/DeliveryVerifyingOtpOverlay"
 import { useGigStore } from "@food/store/gigStore"
 import { useProgressStore } from "@food/store/progressStore"
 import { formatTimeDisplay, calculateTotalHours } from "@food/utils/gigUtils"
@@ -96,9 +104,9 @@ import {
   toFiniteCoordinate,
 } from "./utils/deliveryGeo"
 import { useDeliveryProximityTriggers } from "./hooks/useDeliveryProximityTriggers"
-const debugLog = (...args) => {}
-const debugWarn = (...args) => {}
-const debugError = (...args) => {}
+const debugLog = (...args) => console.log('[DeliveryHome]', ...args)
+const debugWarn = (...args) => console.warn('[DeliveryHome]', ...args)
+const debugError = (...args) => console.error('[DeliveryHome]', ...args)
 
 
 // Ola Maps API Key removed
@@ -252,7 +260,8 @@ function animateMarkerSmoothly(marker, newPosition, duration = 1500, animationRe
 }
 
 export default function DeliveryHome() {
-  const ENABLE_GOOGLE_DIRECTIONS = import.meta.env.VITE_ENABLE_GOOGLE_DIRECTIONS === 'true'
+  // Enable Google Directions API by default (unless explicitly set to false)
+const ENABLE_GOOGLE_DIRECTIONS = import.meta.env.VITE_ENABLE_GOOGLE_DIRECTIONS !== 'false';
   const DELIVERY_DROP_OTP_LENGTH = 4
   const companyName = useCompanyName()
   const navigate = useNavigate()
@@ -365,6 +374,7 @@ export default function DeliveryHome() {
   const [deliveryStatus, setDeliveryStatus] = useState(null) // Store delivery partner status
   const [rejectionReason, setRejectionReason] = useState(null) // Store rejection reason
   const [isReverifying, setIsReverifying] = useState(false) // Loading state for reverify
+  const [profile, setProfile] = useState(null) // Store full profile data
   
   // Map refs and state (Ola Maps removed)
   const mapContainerRef = useRef(null)
@@ -392,6 +402,9 @@ export default function DeliveryHome() {
   const directionsApiLastRequestRef = useRef({ key: null, timestamp: 0 }) // Prevent duplicate rapid requests
   const restaurantMarkerRef = useRef(null) // Restaurant marker on main map
   const customerMarkerRef = useRef(null) // Customer marker on main map
+  const pickupMarkerRef = useRef(null) // Pickup marker for single order
+  const restaurantDropPinRef = useRef({ ground: null, pulse: null });
+  const customerDropPinRef = useRef({ ground: null, pulse: null });
   const directionsDestinationMarkerRef = useRef(null) // Destination marker on directions map
   const directionsBikeMarkerRef = useRef(null) // Bike marker on directions map
   const lastRouteRecalculationRef = useRef(null) // Track last route recalculation time (API cost optimization)
@@ -661,6 +674,7 @@ export default function DeliveryHome() {
     bikeLogo,
     bikeMarkerRef,
     isUserPanningRef,
+    directionsMapInstanceRef,
     debugLog,
     debugWarn,
     debugError,
@@ -671,15 +685,435 @@ export default function DeliveryHome() {
   const updateLiveTrackingPolylineFnRef = useRef(null)
   const updateRoutePolylineFnRef = useRef(null)
   const calculateRouteWithDirectionsAPIFnRef = useRef(null)
+
+  // ============================================
+  // CORE HELPER FUNCTIONS (MOVED UP TO AVOID TDZ ERRORS)
+  // ============================================
+
+  /**
+   * Helper to create Zomato-style drop pin ground circles
+   * @param {Object} coords {lat, lng}
+   * @param {string} color Hex color for the circles
+   * @param {Object} refRef ref to store the created circles
+   */
+  const createDropPinLine = useCallback((coords, color, refRef) => {
+    if (!coords || !Number.isFinite(coords.lat) || !Number.isFinite(coords.lng) || !window.google?.maps || (!window.deliveryMapInstance && !directionsMapInstanceRef.current)) {
+      return;
+    }
+
+    const map = directionsMapInstanceRef.current || window.deliveryMapInstance;
+    if (!map) return;
+
+    // Clear existing if any
+    if (refRef.current) {
+      if (refRef.current.ground) {
+        refRef.current.ground.setMap(null);
+        refRef.current.ground = null;
+      }
+      if (refRef.current.pulse) {
+        refRef.current.pulse.setMap(null);
+        refRef.current.pulse = null;
+      }
+    }
+
+    // Create ground circle (static)
+    refRef.current.ground = new window.google.maps.Circle({
+      strokeColor: color,
+      strokeOpacity: 0.5,
+      strokeWeight: 2,
+      fillColor: color,
+      fillOpacity: 0.1,
+      map: map,
+      center: coords,
+      radius: 4,
+      clickable: false,
+      zIndex: 900
+    });
+
+    // Create pulse circle (static but brighter)
+    refRef.current.pulse = new window.google.maps.Circle({
+      strokeColor: color,
+      strokeOpacity: 0.8,
+      strokeWeight: 1,
+      fillColor: color,
+      fillOpacity: 0.2,
+      map: map,
+      center: coords,
+      radius: 2,
+      clickable: false,
+      zIndex: 901
+    });
+  }, []);
+
+  /**
+   * Calculate route using Directions API
+   * @param {Array} origin - [lat, lng]
+   * @param {Object} destination - {lat, lng}
+   * @returns {Promise<Object>} DirectionsResult
+   */
+  const calculateRouteWithDirectionsAPI = useCallback(async (origin, destination) => {
+    if (!ENABLE_GOOGLE_DIRECTIONS) {
+      return null;
+    }
+    if (!window.google || !window.google.maps || !window.google.maps.DirectionsService) {
+      debugWarn('?? Google Maps Directions API not available');
+      return null;
+    }
+
+    if (!Array.isArray(origin) || origin.length < 2 || !destination) {
+      return null;
+    }
+
+    const originLat = Number(origin[0]);
+    const originLng = Number(origin[1]);
+    const destLat = Number(destination.lat);
+    const destLng = Number(destination.lng);
+    if (
+      !Number.isFinite(originLat) ||
+      !Number.isFinite(originLng) ||
+      !Number.isFinite(destLat) ||
+      !Number.isFinite(destLng)
+    ) {
+      return null;
+    }
+
+    const round = (v) => Math.round(v * 10000) / 10000; // ~11m precision
+    const routeKey = `${round(originLat)},${round(originLng)}|${round(destLat)},${round(destLng)}`;
+    const now = Date.now();
+
+    // Reuse recently fetched route to minimize Google Directions calls.
+    const cached = directionsApiCacheRef.current.get(routeKey);
+    if (cached && (now - cached.timestamp) < 180000) { // 3 minutes
+      setDirectionsResponse(cached.result);
+      directionsResponseRef.current = cached.result;
+      return cached.result;
+    }
+
+    // Skip duplicate back-to-back requests for same route.
+    if (
+      directionsApiLastRequestRef.current.key === routeKey &&
+      (now - directionsApiLastRequestRef.current.timestamp) < 10000
+    ) {
+      return directionsResponseRef.current || null;
+    }
+    directionsApiLastRequestRef.current = { key: routeKey, timestamp: now };
+
+    try {
+      // Initialize Directions Service if not already created
+      if (!directionsServiceRef.current) {
+        directionsServiceRef.current = new window.google.maps.DirectionsService();
+      }
+
+      // Try TWO_WHEELER first (optimized for bike/delivery), fallback to DRIVING
+      const tryRoute = (travelMode, modeName) => {
+        return new Promise((resolve, reject) => {
+          directionsServiceRef.current.route(
+            {
+              origin: { lat: origin[0], lng: origin[1] },
+              destination: { lat: destination.lat, lng: destination.lng },
+              travelMode: travelMode,
+              provideRouteAlternatives: false, // Save API cost - don't get alternatives
+              avoidHighways: false,
+              avoidTolls: false,
+              optimizeWaypoints: false
+            },
+            (result, status) => {
+              if (status === window.google.maps.DirectionsStatus.OK) {
+                debugLog(`? Directions API route calculated successfully (${modeName})`);
+                debugLog('?? Route details:', {
+                  distance: result.routes[0].legs[0].distance?.text,
+                  duration: result.routes[0].legs[0].duration?.text,
+                  steps: result.routes[0].legs[0].steps?.length,
+                  travelMode: modeName
+                });
+                setDirectionsResponse(result);
+                directionsResponseRef.current = result; // Store in ref for callbacks
+                directionsApiCacheRef.current.set(routeKey, { result, timestamp: Date.now() });
+                // Cleanup old cache entries (>10 min)
+                const cutoff = Date.now() - 600000;
+                for (const [key, value] of directionsApiCacheRef.current.entries()) {
+                  if (!value?.timestamp || value.timestamp < cutoff) {
+                    directionsApiCacheRef.current.delete(key);
+                  }
+                }
+                resolve(result);
+              } else {
+                // Handle specific error cases - suppress console errors for REQUEST_DENIED
+                if (status === 'REQUEST_DENIED') {
+                  // Don't log as error - this is expected when billing is not enabled
+                  // Just reject silently to trigger fallback
+                  reject(new Error(`Directions API not available: ${status}`));
+                } else if (status === 'OVER_QUERY_LIMIT') {
+                  debugWarn(`?? Directions API quota exceeded (${modeName})`);
+                  reject(new Error(`Directions request failed: ${status}`));
+                } else {
+                  debugWarn(`?? Directions API failed with ${modeName}: ${status}`);
+                  reject(new Error(`Directions request failed: ${status}`));
+                }
+              }
+            }
+          );
+        });
+      };
+
+      // Try TWO_WHEELER first (if available in region)
+      try {
+        if (window.google.maps.TravelMode.TWO_WHEELER) {
+          return await tryRoute(window.google.maps.TravelMode.TWO_WHEELER, 'TWO_WHEELER');
+        }
+      } catch (twoWheelerError) {
+        debugLog('?? TWO_WHEELER mode not available, trying DRIVING...');
+      }
+
+      // Fallback to DRIVING mode
+      return await tryRoute(window.google.maps.TravelMode.DRIVING, 'DRIVING');
+    } catch (error) {
+      // Handle REQUEST_DENIED and other errors gracefully
+      if (error.message?.includes('REQUEST_DENIED') || error.message?.includes('not available')) {
+        debugWarn('?? Google Maps Directions API not available (billing/API key issue). Will use fallback route.');
+      } else {
+        debugError('? Error calculating route with Directions API:', error);
+      }
+      return null; // Return null to trigger fallback
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ENABLE_GOOGLE_DIRECTIONS]);
+
+  /**
+   * Update live tracking polyline - Rapido/Zomato style
+   * Removes polyline points behind the rider and keeps only forward route
+   * @param {Object} directionsResult - Google Maps DirectionsResult
+   * @param {Array} riderPosition - [lat, lng] Current rider position
+   * @param {Object} [targetMap] - Optional specific map instance to use
+   */
+  const updateLiveTrackingPolyline = useCallback((directionsResult, riderPosition, targetMap = null) => {
+    if (!directionsResult || !riderPosition || !window.google || !window.google.maps) {
+      return;
+    }
+
+    // CRITICAL: Don't create/update polyline if there's no active order
+    // This prevents showing default/mock polylines on page refresh
+    // But allow it if we're going to restaurant (not customer)
+    // Note: We can't use selectedRestaurant directly in callback, so we'll check it in the calling code
+    // For now, just proceed - the calling code will handle the checks
+
+    try {
+      // Extract and decode full polyline from directions result
+      let fullPolyline = [];
+      if (Array.isArray(directionsResult)) {
+        // Fallback: passed raw coordinate array instead of DirectionsResult
+        fullPolyline = directionsResult;
+      } else if (directionsResult?.routes?.[0]?.overview_polyline) {
+        // Standard Google directions
+        fullPolyline = extractPolylineFromDirections(directionsResult);
+      } else if (directionsResult?.fallbackPoints) {
+        // Mock result for straight line
+        fullPolyline = directionsResult.fallbackPoints;
+      }
+
+      if (fullPolyline.length < 2) {
+        debugWarn('?? Invalid polyline detected in updateLiveTrackingPolyline', { 
+          hasResult: !!directionsResult,
+          isArr: Array.isArray(directionsResult)
+        });
+        return;
+      }
+
+      // Store full polyline for future updates
+      fullRoutePolylineRef.current = fullPolyline;
+
+      // Convert rider position to object format
+      const riderPos = { lat: riderPosition[0], lng: riderPosition[1] };
+
+      const routeState = buildVisibleRouteFromRiderPosition(fullPolyline, riderPos, {
+        offRouteThresholdMeters: ROUTE_OFF_TRACK_THRESHOLD_METERS
+      });
+      const startPoint = fullPolyline[0];
+      const endPoint = fullPolyline[fullPolyline.length - 1];
+      const routeKey = `${fullPolyline.length}:${startPoint?.lat?.toFixed?.(5) || "0"},${startPoint?.lng?.toFixed?.(5) || "0"}->${endPoint?.lat?.toFixed?.(5) || "0"},${endPoint?.lng?.toFixed?.(5) || "0"}`;
+      const progressState = liveRouteProgressRef.current;
+      const now = Date.now();
+
+      if (progressState.routeKey !== routeKey) {
+        progressState.routeKey = routeKey;
+        progressState.distanceAlongRoute = Math.max(0, Number(routeState.distanceAlongRoute || 0));
+        progressState.updatedAt = now;
+      } else {
+        const measuredDistanceAlong = Math.max(0, Number(routeState.distanceAlongRoute || 0));
+        const elapsedSeconds = Math.max(0.2, (now - (progressState.updatedAt || now)) / 1000);
+        const maxForwardAdvance = Math.max(55, elapsedSeconds * 28); // ~100 km/h upper cap to absorb GPS spikes
+        const maxBackwardAllowance = 20; // allow tiny snap-back, prevent big route rewind
+        const minAllowed = Math.max(0, progressState.distanceAlongRoute - maxBackwardAllowance);
+        const maxAllowed = progressState.distanceAlongRoute + maxForwardAdvance;
+        const clampedDistanceAlong = Math.max(minAllowed, Math.min(measuredDistanceAlong, maxAllowed));
+        progressState.distanceAlongRoute = Math.max(progressState.distanceAlongRoute, clampedDistanceAlong);
+        progressState.updatedAt = now;
+      }
+
+      const trimmedFromLockedProgress = trimPolylineFromDistanceAlongRoute(
+        fullPolyline,
+        progressState.distanceAlongRoute
+      );
+
+      let visiblePolyline = Array.isArray(trimmedFromLockedProgress.trimmedPolyline) && trimmedFromLockedProgress.trimmedPolyline.length > 0
+        ? trimmedFromLockedProgress.trimmedPolyline
+        : fullPolyline;
+
+      // Always connect route to live rider icon (Zomato-style continuity).
+      const firstVisible = visiblePolyline[0];
+      if (!firstVisible) {
+        visiblePolyline = [riderPos, endPoint];
+      } else {
+        const riderToRouteDistance = calculateDistance(
+          riderPos.lat,
+          riderPos.lng,
+          firstVisible.lat,
+          firstVisible.lng
+        );
+        if (riderToRouteDistance > 2) {
+          visiblePolyline = [riderPos, ...visiblePolyline];
+        } else {
+          visiblePolyline = [{ lat: riderPos.lat, lng: riderPos.lng }, ...visiblePolyline.slice(1)];
+        }
+      }
+
+      if (visiblePolyline.length < 2 && endPoint) {
+        visiblePolyline = [riderPos, endPoint];
+      }
+
+      const path = visiblePolyline.map((point) => new window.google.maps.LatLng(point.lat, point.lng));
+
+      // Update or create live tracking polyline with Zomato/Rapido style
+      const map = targetMap || directionsMapInstanceRef.current || window.deliveryMapInstance;
+      
+      if (!map) {
+        debugWarn('?? Cannot update polyline - no map instance ready');
+        return;
+      }
+
+      if (liveTrackingPolylineRef.current) {
+        // Update existing polyline path smoothly
+        liveTrackingPolylineRef.current.setPath(path);
+        // Ensure it's on the correct map (re-attach if map changed)
+        if (liveTrackingPolylineRef.current.getMap() !== map) {
+          liveTrackingPolylineRef.current.setMap(map);
+        }
+        // Update shadow polyline if it exists
+        if (liveTrackingPolylineShadowRef.current) {
+          liveTrackingPolylineShadowRef.current.setPath(path);
+          if (liveTrackingPolylineShadowRef.current.getMap() !== map) {
+            liveTrackingPolylineShadowRef.current.setMap(map);
+          }
+        }
+        debugLog('? Updated existing live tracking polyline');
+      } else {
+        // Create new polyline with professional Zomato/Rapido styling
+        
+        // Create main polyline with vibrant blue color (Zomato style)
+        liveTrackingPolylineRef.current = new window.google.maps.Polyline({
+          path: path,
+          geodesic: true,
+          strokeColor: '#1E88E5', // Vibrant blue like Zomato (more visible than #4285F4)
+          strokeOpacity: 1.0,
+          strokeWeight: 6, // Optimal thickness for visibility
+          zIndex: 1000, // High z-index to be above other map elements
+          icons: [], // No icons/dots - clean solid line
+          map: map
+        });
+        
+        // Create shadow/outline polyline for better visibility (like Zomato/Rapido)
+        // This creates a subtle outline effect for better contrast
+        if (!liveTrackingPolylineShadowRef.current) {
+          liveTrackingPolylineShadowRef.current = new window.google.maps.Polyline({
+            path: path,
+            geodesic: true,
+            strokeColor: '#FFFFFF', // White shadow/outline
+            strokeOpacity: 0.6,
+            strokeWeight: 10, // Slightly thicker for shadow effect
+            zIndex: 999, // Behind main polyline
+            icons: [],
+            map: map
+          });
+        } else {
+          liveTrackingPolylineShadowRef.current.setPath(path);
+          if (liveTrackingPolylineShadowRef.current.getMap() !== map) {
+            liveTrackingPolylineShadowRef.current.setMap(map);
+          }
+        }
+        
+        debugLog('? Created new live tracking polyline on map with Zomato/Rapido styling');
+      }
+
+      debugLog(`? Live tracking polyline updated: ${visiblePolyline.length} points remaining, ${Number(routeState.distanceFromRoute || 0).toFixed(2)}m from route, progress ${Math.round((trimmedFromLockedProgress.progress || 0) * 100)}%`);
+      debugLog(`?? Polyline path has ${path.length} points, map: ${window.deliveryMapInstance ? 'ready' : 'not ready'}`);
+    } catch (error) {
+      debugError('? Error updating live tracking polyline:', error);
+    }
+  }, []);
+
+  /**
+   * Smoothly animate rider marker to new position with rotation
+   * @param {Array} newPosition - [lat, lng] New rider position
+   * @param {number} heading - Heading/bearing in degrees (0-360)
+   */
+  const animateRiderMarker = useCallback((newPosition, heading) => {
+    if (!window.google || !window.google.maps || !bikeMarkerRef.current) {
+      return;
+    }
+
+    const [newLat, newLng] = newPosition;
+    const currentPosition = lastRiderPositionRef.current || { lat: newLat, lng: newLng };
+
+    // Cancel any existing animation
+    if (markerAnimationCancelRef.current) {
+      markerAnimationCancelRef.current();
+    }
+
+    // Animate marker smoothly
+    const cancelAnimation = animateMarker(
+      currentPosition,
+      { lat: newLat, lng: newLng },
+      500, // 500ms animation duration
+      (interpolated) => {
+        if (bikeMarkerRef.current) {
+          // Update marker position
+          bikeMarkerRef.current.setPosition({
+            lat: interpolated.lat,
+            lng: interpolated.lng
+          });
+
+          // Update rotation if heading available
+          if (heading !== null && heading !== undefined) {
+            getRotatedBikeIcon(heading).then(rotatedIconUrl => {
+              if (bikeMarkerRef.current) {
+                const currentIcon = bikeMarkerRef.current.getIcon();
+                bikeMarkerRef.current.setIcon({
+                  url: rotatedIconUrl,
+                  scaledSize: currentIcon?.scaledSize || new window.google.maps.Size(60, 60),
+                  anchor: currentIcon?.anchor || new window.google.maps.Point(30, 30)
+                });
+              }
+            });
+          }
+        }
+      }
+    );
+
+    markerAnimationCancelRef.current = cancelAnimation;
+    lastRiderPositionRef.current = { lat: newLat, lng: newLng };
+  }, []);
+
   const updateLiveTrackingPolylineSafe = useCallback((...args) => {
-    return updateLiveTrackingPolylineFnRef.current?.(...args)
-  }, [])
+    return updateLiveTrackingPolylineFnRef.current?.(...args) || updateLiveTrackingPolyline(...args)
+  }, [updateLiveTrackingPolyline])
+
   const updateRoutePolylineSafe = useCallback((...args) => {
     return updateRoutePolylineFnRef.current?.(...args)
   }, [])
+
   const calculateRouteWithDirectionsAPISafe = useCallback((...args) => {
-    return calculateRouteWithDirectionsAPIFnRef.current?.(...args)
-  }, [])
+    return calculateRouteWithDirectionsAPIFnRef.current?.(...args) || calculateRouteWithDirectionsAPI(...args)
+  }, [calculateRouteWithDirectionsAPI])
 
   useDeliveryGeoWatch({
     deliveryAPI,
@@ -707,7 +1141,9 @@ export default function DeliveryHome() {
     debugError,
     toast,
     isOnlineRef,
-    activeOrderId: selectedRestaurant?._id || selectedRestaurant?.id || null,
+    activeOrderId: selectedRestaurant?.orderId || selectedRestaurant?._id || selectedRestaurant?.id || null,
+    userId: profile?._id || profile?.id || null,
+    restaurantId: selectedRestaurant?.restaurantId || selectedRestaurant?.restaurant?._id || null,
   })
   const deliveryOtpInputRefs = useRef([])
   const deliveryOtpSingleInputRef = useRef(null)
@@ -845,6 +1281,8 @@ export default function DeliveryHome() {
     showReachedDropPopup,
     showreachedPickupPopup
   ])
+
+  /** Helper functions moved up to avoid TDZ errors **/
 
   const getRestaurantMarkerIcon = useCallback(() => {
     const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="52" height="60" viewBox="0 0 52 60"><path fill="#FF6B35" d="M26 2c-9.94 0-18 8.06-18 18 0 13.5 18 38 18 38s18-24.5 18-38c0-9.94-8.06-18-18-18z"/><circle cx="26" cy="20" r="12" fill="#FFF7ED"/><path fill="#FF6B35" d="M20 14h2v12h-2zm10 0h2v12h-2zm-5 0h2v5h2v2h-2v5h-2v-5h-2v-2h2z"/> </svg>'
@@ -1784,7 +2222,7 @@ export default function DeliveryHome() {
           }
           
           // Validate coordinates are reasonable for India (basic sanity check)
-          // India: Latitude 8.4� to 37.6�, Longitude 68.7� to 97.25�
+          // India: Latitude 8.4 to 37.6, Longitude 68.7 to 97.25
           const isInIndiaRange = latitude >= 8 && latitude <= 38 && longitude >= 68 && longitude <= 98
           if (!isInIndiaRange) {
             debugWarn("?? Coordinates outside India range - might be incorrect:", { 
@@ -2722,7 +3160,7 @@ export default function DeliveryHome() {
     const circleWidth = 56
     const padding = 16
     const maxSwipe = buttonWidth - circleWidth - (padding * 2)
-    const threshold = maxSwipe * 0.5 // 50% of max swipe � half slide completes and goes to next step
+    const threshold = maxSwipe * 0.5 // 50% of max swipe  half slide completes and goes to next step
 
     const progressFromDelta = maxSwipe > 0 ? Math.min(Math.max(deltaX / maxSwipe, 0), 1) : 0
     const lastProgress = reachedDropLastProgressRef.current
@@ -3006,8 +3444,8 @@ export default function DeliveryHome() {
       setOrderIdConfirmIsAnimatingToComplete(true)
       setOrderIdConfirmButtonProgress(1)
 
-      // Close popup after animation, then confirm order ID and show polyline to customer
-      setTimeout(async () => {
+       // Close popup after animation, then confirm order ID and show polyline to customer
+       setTimeout(async () => {
         setShowOrderIdConfirmationPopup(false)
         
         // Get order ID from selectedRestaurant
@@ -3525,7 +3963,7 @@ export default function DeliveryHome() {
     const circleWidth = 56
     const padding = 16
     const maxSwipe = buttonWidth - circleWidth - (padding * 2)
-    const threshold = maxSwipe * 0.5 // 50% � half slide completes and goes to next step
+    const threshold = maxSwipe * 0.5 // 50%  half slide completes and goes to next step
 
     const progressFromDelta = maxSwipe > 0 ? Math.min(Math.max(deltaX / maxSwipe, 0), 1) : 0
     const lastProgress = orderDeliveredLastProgressRef.current
@@ -3609,12 +4047,42 @@ export default function DeliveryHome() {
       setIsAnimatingToComplete(true)
       setAcceptButtonProgress(1)
 
-      // Navigate to pickup directions page after animation
-      setTimeout(() => {
-        navigate("/delivery/pickup-directions", {
-          state: { restaurants: mockRestaurants },
-          replace: false
-        })
+       // Navigate to pickup directions page after animation
+       setTimeout(async () => {
+         // Use the actual selected restaurant if available, otherwise fallback to mock for testing
+         const restaurantData = selectedRestaurant || mockRestaurants[0];
+         const orderIdForTracking = restaurantData._id || restaurantData.id;
+
+         // Try to calculate route before navigating to ensure data is ready
+         if (riderLocation && restaurantData.lat && restaurantData.lng) {
+           try {
+             const directionsResult = await calculateRouteWithDirectionsAPISafe(riderLocation, {
+               lat: restaurantData.lat,
+               lng: restaurantData.lng
+             });
+             
+             if (directionsResult) {
+               const polyline = extractPolylineFromDirections(directionsResult);
+               if (orderIdForTracking) {
+                 writeOrderTracking(orderIdForTracking, {
+                   lat: riderLocation[0],
+                   lng: riderLocation[1],
+                   heading: 0,
+                   polyline,
+                   status: 'accepted',
+                   timestamp: Date.now()
+                 }).catch(() => {});
+               }
+             }
+           } catch (err) {
+             debugWarn('? Navigation routing pre-fetch failed:', err);
+           }
+         }
+
+         navigate("/delivery/pickup-directions", {
+           state: { restaurants: [restaurantData] }, // Pass actual restaurant
+           replace: false
+         })
 
         // Reset after navigation
         setTimeout(() => {
@@ -4398,7 +4866,8 @@ export default function DeliveryHome() {
             total: firstOrder.pricing?.total || 0,
             paymentMethod: firstOrder.paymentMethod || firstOrder.payment?.method || 'cod',
             amount: firstOrder.riderEarning || firstOrder.pricing?.total || 0,
-            deliveryVerification: firstOrder.deliveryVerification || null
+            deliveryVerification: firstOrder.deliveryVerification || null,
+            restaurantId: firstOrder.restaurantId?._id || firstOrder.restaurantId?.id || null
           }
           
           setSelectedRestaurant(restaurantData)
@@ -4474,12 +4943,13 @@ export default function DeliveryHome() {
       try {
         const response = await deliveryAPI.getProfile()
         if (response?.data?.success && response?.data?.data?.profile) {
-          const profile = response.data.data.profile
-          const bankDetails = profile?.documents?.bankDetails
+          const profileData = response.data.data.profile
+          setProfile(profileData)
+          const bankDetails = profileData?.documents?.bankDetails
           
           // Store delivery partner status first
-          if (profile?.status) {
-            setDeliveryStatus(profile.status)
+          if (profileData?.status) {
+            setDeliveryStatus(profileData.status)
           }
           
           // Store rejection reason if status is blocked
@@ -4831,6 +5301,9 @@ export default function DeliveryHome() {
             clickableIcons: false, // Avoid Geocoding/Places calls from default POI clicks
             disableDefaultUI: false,
             zoomControl: true,
+            zoomControlOptions: {
+              position: window.google.maps.ControlPosition.TOP_RIGHT
+            },
             mapTypeControl: false,
             streetViewControl: false,
             fullscreenControl: false
@@ -5239,6 +5712,9 @@ export default function DeliveryHome() {
             restaurantMarkerRef.current.setIcon(getRestaurantMarkerIcon());
             restaurantMarkerRef.current.setTitle(selectedRestaurant.name || 'Restaurant');
             restaurantMarkerRef.current.setZIndex(1200);
+
+            // Add Zomato-style drop pin line (ground circles)
+            createDropPinLine(restaurantLocation, '#10b981', restaurantDropPinRef);
           }
         } else {
           // Marker doesn't exist, create it
@@ -5299,9 +5775,7 @@ export default function DeliveryHome() {
 
   // Create restaurant marker when selectedRestaurant changes
   useEffect(() => {
-    if (!window.deliveryMapInstance || !selectedRestaurant || !selectedRestaurant.lat || !selectedRestaurant.lng) {
-      return;
-    }
+    if (!window.deliveryMapInstance || !selectedRestaurant) return;
 
     const orderStatus = selectedRestaurant?.orderStatus || selectedRestaurant?.status || ''
     const deliveryPhase = selectedRestaurant?.deliveryPhase || selectedRestaurant?.deliveryState?.currentPhase || ''
@@ -5320,34 +5794,36 @@ export default function DeliveryHome() {
       return
     }
 
-    // Only create marker if it doesn't exist or is on wrong map
+    if (!selectedRestaurant.lat || !selectedRestaurant.lng) return;
+
+    const restaurantLocation = {
+      lat: Number(selectedRestaurant.lat),
+      lng: Number(selectedRestaurant.lng)
+    };
+
     if (!restaurantMarkerRef.current || restaurantMarkerRef.current.getMap() !== window.deliveryMapInstance) {
-      const restaurantLocation = {
-        lat: selectedRestaurant.lat,
-        lng: selectedRestaurant.lng
-      };
-      
-      // Remove old marker if exists
-      if (directionsDestinationMarkerRef.current) {
-        directionsDestinationMarkerRef.current.setMap(null);
+      if (!restaurantMarkerRef.current) {
+        createRestaurantMapMarker(restaurantLocation, selectedRestaurant.name || 'Restaurant');
+        debugLog('? Restaurant marker created on main map');
+      } else {
+        restaurantMarkerRef.current.setMap(window.deliveryMapInstance);
+        restaurantMarkerRef.current.setPosition(restaurantLocation);
+        restaurantMarkerRef.current.setIcon(getRestaurantMarkerIcon());
+        restaurantMarkerRef.current.setTitle(selectedRestaurant.name || 'Restaurant');
+        restaurantMarkerRef.current.setZIndex(1200);
       }
       
-      // Create new restaurant marker
-          createRestaurantMapMarker(restaurantLocation, selectedRestaurant.name || 'Restaurant')
-          
-          debugLog('? Restaurant marker created/updated on main map');
-        } else {
-          // Update position if marker exists
-          restaurantMarkerRef.current.setPosition({
-            lat: selectedRestaurant.lat,
-            lng: selectedRestaurant.lng
-          });
-          restaurantMarkerRef.current.setIcon(getRestaurantMarkerIcon());
-          restaurantMarkerRef.current.setMap(window.deliveryMapInstance);
-          restaurantMarkerRef.current.setTitle(selectedRestaurant.name || 'Restaurant');
-          restaurantMarkerRef.current.setZIndex(1200);
-        }
-  }, [createRestaurantMapMarker, getRestaurantMarkerIcon, selectedRestaurant?.lat, selectedRestaurant?.lng, selectedRestaurant?.name])
+      // Update drop pin
+      createDropPinLine(restaurantLocation, '#10b981', restaurantDropPinRef);
+    } else {
+      // Just update position and icon if it's already on the map
+      restaurantMarkerRef.current.setPosition(restaurantLocation);
+      restaurantMarkerRef.current.setIcon(getRestaurantMarkerIcon());
+      
+      // Update drop pin
+      createDropPinLine(restaurantLocation, '#10b981', restaurantDropPinRef);
+    }
+  }, [createRestaurantMapMarker, getRestaurantMarkerIcon, selectedRestaurant?.lat, selectedRestaurant?.lng, selectedRestaurant?.name, createDropPinLine])
 
   // Create/update customer marker on main map so delivery destination icon is always visible.
   useEffect(() => {
@@ -5416,11 +5892,16 @@ export default function DeliveryHome() {
         title: selectedRestaurant.customerName || 'Customer',
         zIndex: 1150
       });
+      // Update drop pin
+      createDropPinLine(customerLocation, '#ef4444', customerDropPinRef);
     } else {
       customerMarkerRef.current.setPosition(customerLocation);
       customerMarkerRef.current.setIcon(customerIcon);
       customerMarkerRef.current.setTitle(selectedRestaurant.customerName || 'Customer');
       customerMarkerRef.current.setMap(window.deliveryMapInstance);
+      
+      // Update drop pin
+      createDropPinLine(customerLocation, '#ef4444', customerDropPinRef);
     }
   }, [
     selectedRestaurant?.customerLat,
@@ -5430,7 +5911,8 @@ export default function DeliveryHome() {
     selectedRestaurant?.status,
     selectedRestaurant?.deliveryPhase,
     selectedRestaurant?.deliveryState?.currentPhase,
-    getRouteEndDestination
+    getRouteEndDestination,
+    createDropPinLine
   ])
 
   useEffect(() => {
@@ -5440,341 +5922,6 @@ export default function DeliveryHome() {
       customerMarkerRef.current = null;
     }
   }, [selectedRestaurant])
-
-  // Calculate route using Google Maps Directions API (Zomato-style road-based routing)
-  // Optimized for TWO_WHEELER mode with DRIVING fallback
-  // NOTE: Must be defined BEFORE the useEffect that uses it (Rules of Hooks)
-  const calculateRouteWithDirectionsAPI = useCallback(async (origin, destination) => {
-    if (!ENABLE_GOOGLE_DIRECTIONS) {
-      return null;
-    }
-    if (!window.google || !window.google.maps || !window.google.maps.DirectionsService) {
-      debugWarn('?? Google Maps Directions API not available');
-      return null;
-    }
-
-    if (!Array.isArray(origin) || origin.length < 2 || !destination) {
-      return null;
-    }
-
-    const originLat = Number(origin[0]);
-    const originLng = Number(origin[1]);
-    const destLat = Number(destination.lat);
-    const destLng = Number(destination.lng);
-    if (
-      !Number.isFinite(originLat) ||
-      !Number.isFinite(originLng) ||
-      !Number.isFinite(destLat) ||
-      !Number.isFinite(destLng)
-    ) {
-      return null;
-    }
-
-    const round = (v) => Math.round(v * 10000) / 10000; // ~11m precision
-    const routeKey = `${round(originLat)},${round(originLng)}|${round(destLat)},${round(destLng)}`;
-    const now = Date.now();
-
-    // Reuse recently fetched route to minimize Google Directions calls.
-    const cached = directionsApiCacheRef.current.get(routeKey);
-    if (cached && (now - cached.timestamp) < 180000) { // 3 minutes
-      setDirectionsResponse(cached.result);
-      directionsResponseRef.current = cached.result;
-      return cached.result;
-    }
-
-    // Skip duplicate back-to-back requests for same route.
-    if (
-      directionsApiLastRequestRef.current.key === routeKey &&
-      (now - directionsApiLastRequestRef.current.timestamp) < 10000
-    ) {
-      return directionsResponseRef.current || null;
-    }
-    directionsApiLastRequestRef.current = { key: routeKey, timestamp: now };
-
-    try {
-      // Initialize Directions Service if not already created
-      if (!directionsServiceRef.current) {
-        directionsServiceRef.current = new window.google.maps.DirectionsService();
-      }
-
-      // Try TWO_WHEELER first (optimized for bike/delivery), fallback to DRIVING
-      const tryRoute = (travelMode, modeName) => {
-        return new Promise((resolve, reject) => {
-          directionsServiceRef.current.route(
-            {
-              origin: { lat: origin[0], lng: origin[1] },
-              destination: { lat: destination.lat, lng: destination.lng },
-              travelMode: travelMode,
-              provideRouteAlternatives: false, // Save API cost - don't get alternatives
-              avoidHighways: false,
-              avoidTolls: false,
-              optimizeWaypoints: false
-            },
-            (result, status) => {
-              if (status === window.google.maps.DirectionsStatus.OK) {
-                debugLog(`? Directions API route calculated successfully (${modeName})`);
-                debugLog('?? Route details:', {
-                  distance: result.routes[0].legs[0].distance?.text,
-                  duration: result.routes[0].legs[0].duration?.text,
-                  steps: result.routes[0].legs[0].steps?.length,
-                  travelMode: modeName
-                });
-                setDirectionsResponse(result);
-                directionsResponseRef.current = result; // Store in ref for callbacks
-                directionsApiCacheRef.current.set(routeKey, { result, timestamp: Date.now() });
-                // Cleanup old cache entries (>10 min)
-                const cutoff = Date.now() - 600000;
-                for (const [key, value] of directionsApiCacheRef.current.entries()) {
-                  if (!value?.timestamp || value.timestamp < cutoff) {
-                    directionsApiCacheRef.current.delete(key);
-                  }
-                }
-                resolve(result);
-              } else {
-                // Handle specific error cases - suppress console errors for REQUEST_DENIED
-                if (status === 'REQUEST_DENIED') {
-                  // Don't log as error - this is expected when billing is not enabled
-                  // Just reject silently to trigger fallback
-                  reject(new Error(`Directions API not available: ${status}`));
-                } else if (status === 'OVER_QUERY_LIMIT') {
-                  debugWarn(`?? Directions API quota exceeded (${modeName})`);
-                  reject(new Error(`Directions request failed: ${status}`));
-                } else {
-                  debugWarn(`?? Directions API failed with ${modeName}: ${status}`);
-                  reject(new Error(`Directions request failed: ${status}`));
-                }
-              }
-            }
-          );
-        });
-      };
-
-      // Try TWO_WHEELER first (if available in region)
-      try {
-        if (window.google.maps.TravelMode.TWO_WHEELER) {
-          return await tryRoute(window.google.maps.TravelMode.TWO_WHEELER, 'TWO_WHEELER');
-        }
-      } catch (twoWheelerError) {
-        debugLog('?? TWO_WHEELER mode not available, trying DRIVING...');
-      }
-
-      // Fallback to DRIVING mode
-      return await tryRoute(window.google.maps.TravelMode.DRIVING, 'DRIVING');
-    } catch (error) {
-      // Handle REQUEST_DENIED and other errors gracefully
-      if (error.message?.includes('REQUEST_DENIED') || error.message?.includes('not available')) {
-        debugWarn('?? Google Maps Directions API not available (billing/API key issue). Will use fallback route.');
-      } else {
-        debugError('? Error calculating route with Directions API:', error);
-      }
-      return null; // Return null to trigger fallback
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ENABLE_GOOGLE_DIRECTIONS]);
-
-  /**
-   * Update live tracking polyline - Rapido/Zomato style
-   * Removes polyline points behind the rider and keeps only forward route
-   * @param {Object} directionsResult - Google Maps DirectionsResult
-   * @param {Array} riderPosition - [lat, lng] Current rider position
-   */
-  const updateLiveTrackingPolyline = useCallback((directionsResult, riderPosition) => {
-    if (!directionsResult || !riderPosition || !window.google || !window.google.maps) {
-      return;
-    }
-
-    // CRITICAL: Don't create/update polyline if there's no active order
-    // This prevents showing default/mock polylines on page refresh
-    // But allow it if we're going to restaurant (not customer)
-    // Note: We can't use selectedRestaurant directly in callback, so we'll check it in the calling code
-    // For now, just proceed - the calling code will handle the checks
-
-    try {
-      // Extract and decode full polyline from directions result
-      const fullPolyline = extractPolylineFromDirections(directionsResult);
-      
-      if (fullPolyline.length < 2) {
-        debugWarn('?? Invalid polyline from directions result');
-        return;
-      }
-
-      // Store full polyline for future updates
-      fullRoutePolylineRef.current = fullPolyline;
-
-      // Convert rider position to object format
-      const riderPos = { lat: riderPosition[0], lng: riderPosition[1] };
-
-      const routeState = buildVisibleRouteFromRiderPosition(fullPolyline, riderPos, {
-        offRouteThresholdMeters: ROUTE_OFF_TRACK_THRESHOLD_METERS
-      });
-      const startPoint = fullPolyline[0];
-      const endPoint = fullPolyline[fullPolyline.length - 1];
-      const routeKey = `${fullPolyline.length}:${startPoint?.lat?.toFixed?.(5) || "0"},${startPoint?.lng?.toFixed?.(5) || "0"}->${endPoint?.lat?.toFixed?.(5) || "0"},${endPoint?.lng?.toFixed?.(5) || "0"}`;
-      const progressState = liveRouteProgressRef.current;
-      const now = Date.now();
-
-      if (progressState.routeKey !== routeKey) {
-        progressState.routeKey = routeKey;
-        progressState.distanceAlongRoute = Math.max(0, Number(routeState.distanceAlongRoute || 0));
-        progressState.updatedAt = now;
-      } else {
-        const measuredDistanceAlong = Math.max(0, Number(routeState.distanceAlongRoute || 0));
-        const elapsedSeconds = Math.max(0.2, (now - (progressState.updatedAt || now)) / 1000);
-        const maxForwardAdvance = Math.max(55, elapsedSeconds * 28); // ~100 km/h upper cap to absorb GPS spikes
-        const maxBackwardAllowance = 20; // allow tiny snap-back, prevent big route rewind
-        const minAllowed = Math.max(0, progressState.distanceAlongRoute - maxBackwardAllowance);
-        const maxAllowed = progressState.distanceAlongRoute + maxForwardAdvance;
-        const clampedDistanceAlong = Math.max(minAllowed, Math.min(measuredDistanceAlong, maxAllowed));
-        progressState.distanceAlongRoute = Math.max(progressState.distanceAlongRoute, clampedDistanceAlong);
-        progressState.updatedAt = now;
-      }
-
-      const trimmedFromLockedProgress = trimPolylineFromDistanceAlongRoute(
-        fullPolyline,
-        progressState.distanceAlongRoute
-      );
-
-      let visiblePolyline = Array.isArray(trimmedFromLockedProgress.trimmedPolyline) && trimmedFromLockedProgress.trimmedPolyline.length > 0
-        ? trimmedFromLockedProgress.trimmedPolyline
-        : fullPolyline;
-
-      // Always connect route to live rider icon (Zomato-style continuity).
-      const firstVisible = visiblePolyline[0];
-      if (!firstVisible) {
-        visiblePolyline = [riderPos, endPoint];
-      } else {
-        const riderToRouteDistance = calculateDistance(
-          riderPos.lat,
-          riderPos.lng,
-          firstVisible.lat,
-          firstVisible.lng
-        );
-        if (riderToRouteDistance > 2) {
-          visiblePolyline = [riderPos, ...visiblePolyline];
-        } else {
-          visiblePolyline = [{ lat: riderPos.lat, lng: riderPos.lng }, ...visiblePolyline.slice(1)];
-        }
-      }
-
-      if (visiblePolyline.length < 2 && endPoint) {
-        visiblePolyline = [riderPos, endPoint];
-      }
-
-      const path = visiblePolyline.map((point) => new window.google.maps.LatLng(point.lat, point.lng));
-
-      // Update or create live tracking polyline with Zomato/Rapido style
-      if (liveTrackingPolylineRef.current) {
-        // Update existing polyline path smoothly
-        liveTrackingPolylineRef.current.setPath(path);
-        // Ensure it's on the map
-        if (liveTrackingPolylineRef.current.getMap() === null) {
-          liveTrackingPolylineRef.current.setMap(window.deliveryMapInstance);
-        }
-        // Update shadow polyline if it exists
-        if (liveTrackingPolylineShadowRef.current) {
-          liveTrackingPolylineShadowRef.current.setPath(path);
-          if (liveTrackingPolylineShadowRef.current.getMap() === null) {
-            liveTrackingPolylineShadowRef.current.setMap(window.deliveryMapInstance);
-          }
-        }
-        debugLog('? Updated existing live tracking polyline');
-      } else {
-        // Create new polyline with professional Zomato/Rapido styling
-        if (!window.deliveryMapInstance) {
-          debugWarn('?? Cannot create polyline - map instance not ready');
-          return;
-        }
-        
-        // Create main polyline with vibrant blue color (Zomato style)
-        liveTrackingPolylineRef.current = new window.google.maps.Polyline({
-          path: path,
-          geodesic: true,
-          strokeColor: '#1E88E5', // Vibrant blue like Zomato (more visible than #4285F4)
-          strokeOpacity: 1.0,
-          strokeWeight: 6, // Optimal thickness for visibility
-          zIndex: 1000, // High z-index to be above other map elements
-          icons: [], // No icons/dots - clean solid line
-          map: window.deliveryMapInstance
-        });
-        
-        // Create shadow/outline polyline for better visibility (like Zomato/Rapido)
-        // This creates a subtle outline effect for better contrast
-        if (!liveTrackingPolylineShadowRef.current) {
-          liveTrackingPolylineShadowRef.current = new window.google.maps.Polyline({
-            path: path,
-            geodesic: true,
-            strokeColor: '#FFFFFF', // White shadow/outline
-            strokeOpacity: 0.6,
-            strokeWeight: 10, // Slightly thicker for shadow effect
-            zIndex: 999, // Behind main polyline
-            icons: [],
-            map: window.deliveryMapInstance
-          });
-        } else {
-          liveTrackingPolylineShadowRef.current.setPath(path);
-        }
-        
-        debugLog('? Created new live tracking polyline on map with Zomato/Rapido styling');
-      }
-
-      debugLog(`? Live tracking polyline updated: ${visiblePolyline.length} points remaining, ${Number(routeState.distanceFromRoute || 0).toFixed(2)}m from route, progress ${Math.round((trimmedFromLockedProgress.progress || 0) * 100)}%`);
-      debugLog(`?? Polyline path has ${path.length} points, map: ${window.deliveryMapInstance ? 'ready' : 'not ready'}`);
-    } catch (error) {
-      debugError('? Error updating live tracking polyline:', error);
-    }
-  }, []);
-
-  /**
-   * Smoothly animate rider marker to new position with rotation
-   * @param {Array} newPosition - [lat, lng] New rider position
-   * @param {number} heading - Heading/bearing in degrees (0-360)
-   */
-  const animateRiderMarker = useCallback((newPosition, heading) => {
-    if (!window.google || !window.google.maps || !bikeMarkerRef.current) {
-      return;
-    }
-
-    const [newLat, newLng] = newPosition;
-    const currentPosition = lastRiderPositionRef.current || { lat: newLat, lng: newLng };
-
-    // Cancel any existing animation
-    if (markerAnimationCancelRef.current) {
-      markerAnimationCancelRef.current();
-    }
-
-    // Animate marker smoothly
-    const cancelAnimation = animateMarker(
-      currentPosition,
-      { lat: newLat, lng: newLng },
-      500, // 500ms animation duration
-      (interpolated) => {
-        if (bikeMarkerRef.current) {
-          // Update marker position
-          bikeMarkerRef.current.setPosition({
-            lat: interpolated.lat,
-            lng: interpolated.lng
-          });
-
-          // Update rotation if heading available
-          if (heading !== null && heading !== undefined) {
-            getRotatedBikeIcon(heading).then(rotatedIconUrl => {
-              if (bikeMarkerRef.current) {
-                const currentIcon = bikeMarkerRef.current.getIcon();
-                bikeMarkerRef.current.setIcon({
-                  url: rotatedIconUrl,
-                  scaledSize: currentIcon?.scaledSize || new window.google.maps.Size(60, 60),
-                  anchor: currentIcon?.anchor || new window.google.maps.Point(30, 30)
-                });
-              }
-            });
-          }
-        }
-      }
-    );
-
-    markerAnimationCancelRef.current = cancelAnimation;
-    lastRiderPositionRef.current = { lat: newLat, lng: newLng };
-  }, []);
 
   // Initialize Directions Map with Google Maps Directions API (Zomato-style)
   useEffect(() => {
@@ -5792,6 +5939,17 @@ export default function DeliveryHome() {
       }
       if (restaurantMarkerRef.current) {
         restaurantMarkerRef.current.setMap(null);
+        restaurantMarkerRef.current = null;
+      }
+      
+      // Clear drop pins
+      if (restaurantDropPinRef.current.ground) {
+        restaurantDropPinRef.current.ground.setMap(null);
+        restaurantDropPinRef.current.ground = null;
+      }
+      if (restaurantDropPinRef.current.pulse) {
+        restaurantDropPinRef.current.pulse.setMap(null);
+        restaurantDropPinRef.current.pulse = null;
       }
       if (directionsBikeMarkerRef.current) {
         directionsBikeMarkerRef.current.setMap(null);
@@ -5854,6 +6012,9 @@ export default function DeliveryHome() {
           mapTypeId: window.google.maps.MapTypeId.ROADMAP || 'roadmap',
           disableDefaultUI: false,
           zoomControl: true,
+          zoomControlOptions: {
+            position: window.google.maps.ControlPosition.TOP_RIGHT
+          },
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: false
@@ -5891,15 +6052,14 @@ export default function DeliveryHome() {
         const routeResult = await calculateRouteWithDirectionsAPI(currentLocation, destinationLocation);
         
         if (routeResult) {
-          // Don't create main route polyline - only live tracking polyline will be shown
-          // Remove old custom polyline if exists (cleanup)
+          // ============================================
+          // SUCCESS: Use Road-based Route
+          // ============================================
           try {
             if (routePolylineRef.current) {
               routePolylineRef.current.setMap(null);
               routePolylineRef.current = null;
             }
-            
-            // Remove DirectionsRenderer from map
             if (directionsRendererRef.current) {
               directionsRendererRef.current.setMap(null);
             }
@@ -5907,27 +6067,26 @@ export default function DeliveryHome() {
             debugWarn('?? Error cleaning up polyline:', e);
           }
           
-          // Fit bounds to show entire route
           const bounds = routeResult.routes[0].bounds;
           if (bounds) {
             map.fitBounds(bounds, { padding: 50 });
           }
 
+          updateLiveTrackingPolyline(routeResult, currentLocation, map);
+          setShowRoutePath(true);
+        } else {
+          // ============================================
+          // FAILURE: Directions API failed or disabled
+          // ============================================
+          debugWarn('?? Directions API failed to return a route. Ensure Directions API is enabled in your Google Cloud Console.');
+          setShowRoutePath(false);
+          setDirectionsMapLoading(false);
+        }
+
           // Add custom Destination Marker (Restaurant or Customer)
           const markerIcon = navigationMode === 'customer' 
-            ? `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
-                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="#10B981">
-                  <path d="M12 2C8.13 2 5 5.13 5 9c0 4.17 4.42 9.92 6.24 12.11.4.48 1.08.48 1.52 0C14.58 18.92 19 13.17 19 9c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5 14.5 7.62 14.5 9 13.38 11.5 12 11.5z"/>
-                  <circle cx="12" cy="9" r="3" fill="#FFFFFF"/>
-                </svg>
-              `)}`
-            : `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
-                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="#FF6B35">
-                  <path d="M12 2C8.13 2 5 5.13 5 9c0 4.17 4.42 9.92 6.24 12.11.4.48 1.08.48 1.52 0C14.58 18.92 19 13.17 19 9c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5 14.5 7.62 14.5 9 13.38 11.5 12 11.5z"/>
-                  <circle cx="12" cy="9" r="3" fill="#FFFFFF"/>
-                  <path d="M8 16h2v6H8zm6 0h2v6h-2z" fill="#FFFFFF"/>
-                </svg>
-              `)}`;
+            ? `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="#10B981"><path d="M12 2C8.13 2 5 5.13 5 9c0 4.17 4.42 9.92 6.24 12.11.4.48 1.08.48 1.52 0C14.58 18.92 19 13.17 19 9c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5 14.5 7.62 14.5 9 13.38 11.5 12 11.5z"/><circle cx="12" cy="9" r="3" fill="#FFFFFF"/></svg>`)}`
+            : `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="#FF6B35"><path d="M12 2C8.13 2 5 5.13 5 9c0 4.17 4.42 9.92 6.24 12.11.4.48 1.08.48 1.52 0C14.58 18.92 19 13.17 19 9c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5 14.5 7.62 14.5 9 13.38 11.5 12 11.5z"/><circle cx="12" cy="9" r="3" fill="#FFFFFF"/><path d="M8 16h2v6H8zm6 0h2v6h-2z" fill="#FFFFFF"/></svg>`)}`;
           
           if (!directionsDestinationMarkerRef.current) {
             directionsDestinationMarkerRef.current = new window.google.maps.Marker({
@@ -5971,16 +6130,8 @@ export default function DeliveryHome() {
           }
 
           debugLog('? Directions Map initialized with route');
-        } else {
-          debugWarn('?? Failed to calculate route, using fallback polyline');
-          // Fallback to simple polyline if Directions API fails
-          if (routePolyline && routePolyline.length > 0) {
-            updateRoutePolyline();
-          }
-        }
-
-        setDirectionsMapLoading(false);
-      } catch (error) {
+          setDirectionsMapLoading(false);
+        } catch (error) {
         debugError('? Error initializing directions map:', error);
         debugError('? Error stack:', error.stack);
         setDirectionsMapLoading(false);
@@ -6145,9 +6296,60 @@ export default function DeliveryHome() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routePolyline, directionsResponse])
 
+  // Automatically calculate/update route when order or location changes
+  useEffect(() => {
+    const triggerRouteCalc = async () => {
+      if (!selectedRestaurant || !riderLocation || riderLocation.length !== 2) return;
+
+      const phase = selectedRestaurant?.deliveryPhase || selectedRestaurant?.deliveryState?.currentPhase || '';
+      const orderStatus = selectedRestaurant?.orderStatus || selectedRestaurant?.status || '';
+      
+      const isToCustomer = 
+        phase === 'en_route_to_delivery' || 
+        phase === 'at_delivery' ||
+        orderStatus === 'out_for_delivery';
+        
+      const customerDestination = getCustomerDestination(selectedRestaurant);
+      const restaurantDestination = {
+        lat: toFiniteCoordinate(selectedRestaurant?.lat),
+        lng: toFiniteCoordinate(selectedRestaurant?.lng)
+      };
+
+      const destination = (isToCustomer && customerDestination) ? customerDestination : restaurantDestination;
+
+      if (!Number.isFinite(destination?.lat) || !Number.isFinite(destination?.lng)) {
+        debugWarn('?? Cannot calculate route: destination missing', { isToCustomer, destination });
+        return;
+      }
+
+      debugLog('??? Auto-calculating route for main map...', { destination });
+      
+      // Attempt road-based route first
+      const result = await calculateRouteWithDirectionsAPI(riderLocation, destination);
+      
+      if (result) {
+        setDirectionsResponse(result);
+        directionsResponseRef.current = result;
+        updateLiveTrackingPolyline(result, riderLocation);
+      } else {
+        debugWarn('?? Main map route calc failed. No directional route available.');
+        setShowRoutePath(false);
+      }
+    };
+
+    triggerRouteCalc();
+  }, [
+    selectedRestaurant?.id, 
+    selectedRestaurant?.status, 
+    selectedRestaurant?.deliveryPhase,
+    // Only recalc if moved significantly to save battery (handled inside calc if needed, 
+    // but here we depend on riderLocation to initially show it)
+    !!riderLocation,
+    !!window.deliveryMapInstance
+  ]);
+
   // Handle directionsResponse updates - Show route on main map when directions are calculated
   useEffect(() => {
-    // Only show route if there's an active order (selectedRestaurant)
     if (!selectedRestaurant) {
       // Clear route if no active order
       if (routePolylineRef.current) {
@@ -6288,12 +6490,17 @@ export default function DeliveryHome() {
       if (directionsRendererRef.current) {
         directionsRendererRef.current.setMap(null);
       }
+
+      // Immediately trigger polyline update if we have rider location
+      if (directionsResponse && window.deliveryMapInstance && riderLocation) {
+        updateLiveTrackingPolyline(directionsResponse, riderLocation);
+      }
     } catch (error) {
       debugError('? Error setting directions on renderer:', error);
       debugError('? directionsResponse type:', typeof directionsResponse);
       debugError('? directionsResponse:', directionsResponse);
     }
-  }, [directionsResponse, selectedRestaurant])
+  }, [directionsResponse, selectedRestaurant, riderLocation])
 
   // Restore active order from localStorage on page load/refresh
   useEffect(() => {
@@ -6426,7 +6633,11 @@ export default function DeliveryHome() {
               activeOrderData.restaurantInfo?.payment ||
               'cod',
             customerAddress:
+              verifiedOrder?.deliveryAddress?.formattedAddress ||
               verifiedOrder?.address?.formattedAddress ||
+              (verifiedOrder?.deliveryAddress?.street
+                ? `${verifiedOrder.deliveryAddress.street}, ${verifiedOrder.deliveryAddress.city || ''}, ${verifiedOrder.deliveryAddress.state || ''}`.trim()
+                : '') ||
               (verifiedOrder?.address?.street
                 ? `${verifiedOrder.address.street}, ${verifiedOrder.address.city || ''}, ${verifiedOrder.address.state || ''}`.trim()
                 : '') ||
@@ -6491,10 +6702,10 @@ export default function DeliveryHome() {
             restoredStatus === 'en_route_to_delivery' ||
             restoredStatus === 'out_for_delivery';
           const destinationLat = isDeliveryLeg
-            ? (verifiedOrder?.address?.location?.coordinates?.[1] ?? restoredInfo?.customerLat)
+            ? (verifiedOrder?.deliveryAddress?.location?.coordinates?.[1] ?? verifiedOrder?.address?.location?.coordinates?.[1] ?? restoredInfo?.customerLat)
             : restoredInfo?.lat;
           const destinationLng = isDeliveryLeg
-            ? (verifiedOrder?.address?.location?.coordinates?.[0] ?? restoredInfo?.customerLng)
+            ? (verifiedOrder?.deliveryAddress?.location?.coordinates?.[0] ?? verifiedOrder?.address?.location?.coordinates?.[0] ?? restoredInfo?.customerLng)
             : restoredInfo?.lng;
 
           if (destinationLat != null && destinationLng != null && riderLocation && riderLocation.length === 2) {
@@ -6518,27 +6729,30 @@ export default function DeliveryHome() {
                   // Fallback to coordinates if Directions API fails
                   if (activeOrderData.routeCoordinates && activeOrderData.routeCoordinates.length > 0) {
                     setRoutePolyline(activeOrderData.routeCoordinates);
+                    setShowRoutePath(true);
                     debugLog('? Using fallback route coordinates from localStorage');
                   }
                 }
               }).catch(err => {
-                debugError('? Error recalculating route with Directions API:', err);
+                debugError('? Error recalculating route:', err);
                 // Fallback to coordinates
                 if (activeOrderData.routeCoordinates && activeOrderData.routeCoordinates.length > 0) {
                   setRoutePolyline(activeOrderData.routeCoordinates);
+                  setShowRoutePath(true);
                   debugLog('? Using fallback route coordinates from localStorage');
                 }
               });
+              } else if (activeOrderData.routeCoordinates && activeOrderData.routeCoordinates.length > 0) {
+                // Use saved coordinates if we don't have Directions API flag
+                setRoutePolyline(activeOrderData.routeCoordinates);
+                setShowRoutePath(true);
+                debugLog('? Restored route polyline from localStorage');
+              }
             } else if (activeOrderData.routeCoordinates && activeOrderData.routeCoordinates.length > 0) {
-              // Use saved coordinates if we don't have Directions API flag
               setRoutePolyline(activeOrderData.routeCoordinates);
-              debugLog('? Restored route polyline from localStorage');
+              setShowRoutePath(true);
+              debugLog('? Restored route polyline from localStorage (fallback)');
             }
-          } else if (activeOrderData.routeCoordinates && activeOrderData.routeCoordinates.length > 0) {
-            // Fallback: Use coordinates if restaurant info or rider location not available
-            setRoutePolyline(activeOrderData.routeCoordinates);
-            debugLog('? Restored route polyline from localStorage (fallback)');
-          }
         };
 
         waitForMap();
@@ -6938,12 +7152,14 @@ export default function DeliveryHome() {
     }
 
     // Always use custom polyline (DirectionsRenderer is never active - it adds dots)
+    const map = directionsMapInstanceRef.current || window.deliveryMapInstance;
+    
     if (routePolylineRef.current) {
       if (showRoutePath && routeHistoryRef.current.length >= 2) {
-        routePolylineRef.current.setMap(window.deliveryMapInstance);
+        routePolylineRef.current.setMap(map);
       } else if (routePolyline && routePolyline.length > 0) {
         // Show route polyline if we have route data (from order acceptance)
-        routePolylineRef.current.setMap(window.deliveryMapInstance);
+        routePolylineRef.current.setMap(map);
       } else {
         routePolylineRef.current.setMap(null);
       }
@@ -7619,7 +7835,7 @@ selectedRestaurant?.lng || null,
     deliveryAPI.getOrderDetails(orderId)
       .then(res => {
         const order = res.data?.data?.order || res.data?.order
-        const coords = order?.address?.location?.coordinates
+        const coords = order?.deliveryAddress?.location?.coordinates || order?.address?.location?.coordinates
         const lat = coords?.[1]
         const lng = coords?.[0]
         if (lat != null && lng != null && !(lat === 0 && lng === 0) && selectedRestaurant) {
@@ -7790,6 +8006,7 @@ selectedRestaurant?.lng || null,
     routePolyline,
     routePolylineRef,
     directionsRendererRef,
+    directionsMapInstanceRef,
     debugLog,
     debugWarn,
   })
@@ -8513,7 +8730,6 @@ selectedRestaurant?.lng || null,
               transition: 'filter 220ms ease'
             }}
           />
-
           {!isOnline && (
             <div className="absolute inset-0 z-[6] pointer-events-none bg-slate-500/20">
               <div className="absolute top-3 right-3 rounded-full bg-slate-800/80 text-white text-xs font-medium px-3 py-1">
@@ -8599,146 +8815,63 @@ selectedRestaurant?.lng || null,
             </motion.div>
           )}
 
-          {/* Floating Action Button - My Location */}
-          <motion.button
-            onClick={() => {
-              if (navigator.geolocation) {
-                setIsRefreshingLocation(true)
-                navigator.geolocation.getCurrentPosition(
-                  (position) => {
-                    // Validate coordinates
-                    const latitude = position.coords.latitude
-                    const longitude = position.coords.longitude
-                    
-                    // Validate coordinates are valid numbers
-                    if (typeof latitude !== 'number' || typeof longitude !== 'number' || 
-                        isNaN(latitude) || isNaN(longitude) ||
-                        latitude < -90 || latitude > 90 || 
-                        longitude < -180 || longitude > 180) {
-                      debugWarn("?? Invalid coordinates received:", { latitude, longitude })
-                      setIsRefreshingLocation(false)
-                      return
-                    }
-                    
-                    const newLocation = [latitude, longitude] // [lat, lng] format
-                    
-                    // Calculate heading from previous location
-                    let heading = null
-                    if (lastLocationRef.current) {
-                      const [prevLat, prevLng] = lastLocationRef.current
-                      heading = calculateHeading(prevLat, prevLng, latitude, longitude)
-                    }
-                    
-                    // Save location to localStorage (for refresh handling)
-                    localStorage.setItem('deliveryBoyLastLocation', JSON.stringify(newLocation))
-                    
-                    // Update route history
-                    if (lastLocationRef.current) {
-                      routeHistoryRef.current.push({
-                        lat: latitude,
-                        lng: longitude
-                      })
-                      if (routeHistoryRef.current.length > 1000) {
-                        routeHistoryRef.current.shift()
+
+
+          {/* Custom Controls - Grouped Top Right for simplicity */}
+          <div className="absolute top-24 right-3 z-20 flex flex-col gap-3 items-end pointer-events-none">
+            {/* Directions Toggle (Simple Design) */}
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => {
+                const phase = newOrder?.deliveryState?.currentPhase;
+                if (phase === 'at_pickup' || phase === 'assigned') {
+                  setShowreachedPickupPopup(true);
+                } else if (phase === 'at_drop' || phase === 'en_route_to_delivery') {
+                  setShowReachedDropPopup(true);
+                }
+              }}
+              className="pointer-events-auto w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-blue-600 border border-gray-100"
+            >
+              <TargetIcon className="w-6 h-6" />
+            </motion.button>
+
+            {/* My Location Button (Simple Design) */}
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => {
+                if (navigator.geolocation) {
+                  setIsRefreshingLocation(true)
+                  navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                      const latitude = position.coords.latitude
+                      const longitude = position.coords.longitude
+                      if (window.deliveryMapInstance) {
+                        window.deliveryMapInstance.setCenter({ lat: latitude, lng: longitude });
+                        window.deliveryMapInstance.setZoom(16);
+                        createOrUpdateBikeMarker(latitude, longitude, null, true);
                       }
-                    } else {
-                      routeHistoryRef.current = [{
-                        lat: latitude,
-                        lng: longitude
-                      }]
-                    }
-                    
-                    // Update bike marker (only if online - blue dot नहीं, bike icon)
-                    if (window.deliveryMapInstance) {
-                      // Always show bike marker on map (both offline and online)
-                      // Center map automatically (Zomato style) unless user is panning
-                      createOrUpdateBikeMarker(latitude, longitude, heading, !isUserPanningRef.current)
-                      updateRoutePolyline()
-                    }
-                    
-                    setRiderLocation(newLocation)
-                    lastLocationRef.current = newLocation
-                    
-                    debugLog("?? Location refreshed:", { 
-                      latitude, 
-                      longitude, 
-                      heading,
-                      accuracy: position.coords.accuracy,
-                      isOnline: isOnlineRef.current
-                    })
-                    
-                    // Stop refreshing animation after a short delay
-                    setTimeout(() => {
-                      setIsRefreshingLocation(false)
-                    }, 800)
-                  },
-                  (error) => {
-                    debugError('Error getting location:', error)
-                    setIsRefreshingLocation(false)
-                  },
-                  { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-                )
-              }
-            }}
-            className="absolute bottom-44 right-3 w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50 transition-colors z-20 overflow-visible"
-            whileTap={{ scale: 0.92 }}
-            transition={{ 
-              type: "spring", 
-              stiffness: 300, 
-              damping: 25,
-              mass: 0.5
-            }}
-          >
-            <div className="relative w-full h-full flex items-center justify-center">
-              {/* Ripple effect */}
-              {isRefreshingLocation && (
-                <motion.div
-                  className="absolute inset-0 rounded-full bg-blue-500/20"
-                  initial={{ scale: 0.9, opacity: 0.6 }}
-                  animate={{ 
-                    scale: [0.9, 1.6, 1.8],
-                    opacity: [0.6, 0.3, 0]
-                  }}
-                  transition={{
-                    duration: 2,
-                    repeat: Infinity,
-                    ease: [0.25, 0.46, 0.45, 0.94], // Smooth ease-out
-                    times: [0, 0.5, 1]
-                  }}
-                />
-              )}
-              
-              {/* Icon with smooth animations */}
-              <motion.div
-                className="relative z-10"
-                animate={{
-                  rotate: isRefreshingLocation ? 360 : 0,
-                  scale: isRefreshingLocation ? [1, 1.1, 1] : 1,
-                }}
-                transition={{
-                  rotate: {
-                    duration: 2,
-                    repeat: isRefreshingLocation ? Infinity : 0,
-                    ease: "linear", // Linear for smooth continuous rotation
-                    type: "tween"
-                  },
-                  scale: {
-                    duration: 1.5,
-                    repeat: isRefreshingLocation ? Infinity : 0,
-                    ease: [0.4, 0, 0.6, 1], // Smooth ease-in-out
-                    type: "tween",
-                    times: [0, 0.5, 1]
-                  }
-                }}
-              >
-                <MapPin 
-                  className={`w-6 h-6 transition-colors duration-500 ease-in-out ${
-                    isRefreshingLocation ? 'text-blue-600' : 'text-gray-700'
-                  }`} 
-                />
-              </motion.div>
-            </div>
-          </motion.button>
+                      setRiderLocation([latitude, longitude]);
+                      setTimeout(() => setIsRefreshingLocation(false), 800);
+                    },
+                    () => setIsRefreshingLocation(false),
+                    { enableHighAccuracy: true }
+                  )
+                }
+              }}
+              className="pointer-events-auto w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-gray-700 border border-gray-100"
+            >
+              <MapPin className={`w-6 h-6 ${isRefreshingLocation ? 'text-blue-600 animate-pulse' : ''}`} />
+            </motion.button>
+
+            {/* Emergency SOS Button (Simple Design) */}
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() => setShowEmergencyPopup(true)}
+              className="pointer-events-auto w-12 h-12 bg-red-600 rounded-full shadow-lg flex items-center justify-center text-white border-2 border-red-500 animate-[pulse_2s_infinite]"
+            >
+              <Shield className="w-6 h-6" />
+            </motion.button>
+          </div>
 
           {/* Floating Banner - Status Message */}
           {mapViewMode === "hotspot" && (deliveryStatus === "pending" || deliveryStatus === "blocked") && (
@@ -9172,193 +9305,26 @@ selectedRestaurant?.lng || null,
         </>
       )}
 
-      {/* Help Popup */}
-      <BottomPopup
+      <DeliveryHelpOptionsPopup
         isOpen={showHelpPopup}
         onClose={() => setShowHelpPopup(false)}
-        title="How can we help?"
-        showCloseButton={true}
-        closeOnBackdropClick={true}
-        maxHeight="70vh"
-      >
-        <div className="py-2">
-          {helpOptions.map((option) => (
-            <button
-              key={option.id}
-              onClick={() => handleHelpOptionClick(option)}
-              className="w-full flex items-center gap-4 p-4 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0"
-            >
-              {/* Icon */}
-              <div className="shrink-0 w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
-                {option.icon === "helpCenter" && (
-                  <HelpCircle className="w-6 h-6 text-gray-700" />
-                )}
-                {option.icon === "ticket" && (
-                  <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
-                  </svg>
-                )}
-                {option.icon === "idCard" && (
-                  <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
-                  </svg>
-                )}
-                {option.icon === "language" && (
-                  <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
-                  </svg>
-                )}
-              </div>
+        helpOptions={helpOptions}
+        onOptionClick={handleHelpOptionClick}
+      />
 
-              {/* Text Content */}
-              <div className="flex-1 text-left">
-                <h3 className="text-base font-semibold text-gray-900 mb-1">{option.title}</h3>
-                <p className="text-sm text-gray-600">{option.subtitle}</p>
-              </div>
-
-              {/* Arrow Icon */}
-              <ArrowRight className="w-5 h-5 text-gray-400 shrink-0" />
-            </button>
-          ))}
-        </div>
-      </BottomPopup>
-
-      {/* Emergency Help Popup */}
-      <BottomPopup
+      <DeliveryEmergencyPopup
         isOpen={showEmergencyPopup}
         onClose={() => setShowEmergencyPopup(false)}
-        title="Emergency help"
-        showCloseButton={true}
-        closeOnBackdropClick={true}
-        maxHeight="70vh"
-      >
-        <div className="py-2">
-          {emergencyOptions.map((option, index) => (
-            <button
-              key={option.id}
-              onClick={() => handleEmergencyOptionClick(option)}
-              className="w-full flex items-center gap-4 p-4 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0"
-            >
-              {/* Icon */}
-              <div className="shrink-0 w-14 h-14 rounded-lg flex items-center justify-center">
-                {option.icon === "ambulance" && (
-                  <div className="w-14 h-14 bg-white rounded-lg flex items-center justify-center shadow-sm border border-gray-200 relative overflow-hidden">
-                    {/* Ambulance vehicle */}
-                    <div className="absolute inset-0 bg-blue-500"></div>
-                    {/* Red and blue lights on roof */}
-                    <div className="absolute top-1 left-2 w-2 h-3 bg-red-500 rounded-sm"></div>
-                    <div className="absolute top-1 right-2 w-2 h-3 bg-blue-500 rounded-sm"></div>
-                    {/* Star of Life emblem */}
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-white rounded-full flex items-center justify-center">
-                      <svg className="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12 2L2 7v10l10 5 10-5V7l-10-5zm0 2.18l8 4v7.64l-8 4-8-4V8.18l8-4z" />
-                        <path d="M12 8L6 11v6l6 3 6-3v-6l-6-3z" />
-                      </svg>
-                    </div>
-                    {/* AMBULANCE text */}
-                    <div className="absolute bottom-1 left-0 right-0 text-[6px] font-bold text-white text-center">AMBULANCE</div>
-                  </div>
-                )}
-                {option.icon === "siren" && (
-                  <div className="w-14 h-14 bg-white rounded-lg flex items-center justify-center shadow-sm border border-gray-200 relative">
-                    {/* Red siren dome */}
-                    <div className="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center relative">
-                      {/* Yellow light rays */}
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-12 h-12 border-2 border-yellow-400 rounded-full animate-pulse"></div>
-                      </div>
-                      {/* Phone icon inside */}
-                      <Phone className="w-5 h-5 text-yellow-400 z-10" />
-                    </div>
-                  </div>
-                )}
-                {option.icon === "police" && (
-                  <div className="w-14 h-14 bg-white rounded-lg flex items-center justify-center shadow-sm border border-gray-200">
-                    {/* Police officer bust */}
-                    <div className="relative">
-                      {/* Head */}
-                      <div className="w-10 h-10 bg-gray-300 rounded-full"></div>
-                      {/* Cap */}
-                      <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-8 h-4 bg-amber-700 rounded-t-lg"></div>
-                      {/* Cap peak */}
-                      <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-10 h-1 bg-amber-800"></div>
-                      {/* Mustache */}
-                      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-6 h-2 bg-gray-800 rounded-full"></div>
-                    </div>
-                  </div>
-                )}
-                {option.icon === "insurance" && (
-                  <div className="w-14 h-14 bg-yellow-400 rounded-lg flex items-center justify-center shadow-sm border border-gray-200 relative">
-                    {/* Card shape */}
-                    <div className="w-12 h-8 bg-white rounded-sm relative">
-                      {/* Red heart and cross on left */}
-                      <div className="absolute left-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
-                        <svg className="w-3 h-3 text-red-500" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-                        </svg>
-                        <div className="w-0.5 h-3 bg-red-500"></div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+        emergencyOptions={emergencyOptions}
+        onOptionClick={handleEmergencyOptionClick}
+      />
 
-              {/* Text Content */}
-              <div className="flex-1 text-left">
-                <h3 className="text-base font-semibold text-gray-900 mb-1">{option.title}</h3>
-                <p className="text-sm text-gray-600">{option.subtitle}</p>
-              </div>
 
-              {/* Arrow Icon */}
-              <ArrowRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
-            </button>
-          ))}
-        </div>
-      </BottomPopup>
-
-      {/* Book Gigs Popup */}
-      <BottomPopup
+      <DeliveryBookGigsPopup
         isOpen={showBookGigsPopup}
         onClose={() => setShowBookGigsPopup(false)}
-        title="Book gigs to go online"
-        showCloseButton={true}
-        closeOnBackdropClick={true}
-        maxHeight="auto"
-      >
-        <div className="py-4">
-          {/* Gig Details Card */}
-          <div className="mb-6 rounded-lg overflow-hidden shadow-sm border border-gray-200">
-            {/* Header - Teal background */}
-            <div className="bg-teal-100 px-4 py-3 flex items-center gap-3">
-              <div className="w-8 h-8 bg-teal-600 rounded-full flex items-center justify-center">
-                <span className="text-white font-bold text-sm">g</span>
-              </div>
-              <span className="text-teal-700 font-semibold">Gig details</span>
-            </div>
-            
-            {/* Body - White background */}
-            <div className="bg-white px-4 py-4">
-              <p className="text-gray-900 text-sm">Gig booking open in your zone</p>
-            </div>
-          </div>
-
-          {/* Description */}
-          <p className="text-gray-900 text-sm mb-6">
-            Book your Gigs now to go online and start delivering orders
-          </p>
-
-          {/* Book Gigs Button */}
-          <button
-            onClick={() => {
-              setShowBookGigsPopup(false)
-              navigate("/delivery/gig")
-            }}
-            className="w-full bg-black hover:bg-gray-800 text-white font-semibold py-4 rounded-lg transition-colors"
-          >
-            Book gigs
-          </button>
-        </div>
-      </BottomPopup>
+        navigate={navigate}
+      />
 
       <DeliveryNewOrderPopup
         isOpen={showNewOrderPopup}
@@ -9411,6 +9377,19 @@ selectedRestaurant?.lng || null,
               key="directions-map-container" // Fixed key - don't remount on location change
               style={{ height: '100%', width: '100%', zIndex: 1 }}
             />
+            
+            {/* Close Button overlay */}
+            <div className="absolute top-6 left-6 z-[1000] pointer-events-auto">
+              <button
+                onClick={() => {
+                  setShowDirectionsMap(false);
+                  setNavigationMode(null);
+                }}
+                className="w-12 h-12 bg-white rounded-full shadow-2xl flex items-center justify-center border border-gray-100 active:scale-95 transition-transform"
+              >
+                <X className="w-6 h-6 text-slate-800" />
+              </button>
+            </div>
             
             {/* Loading indicator */}
             {directionsMapLoading && (
@@ -9508,134 +9487,23 @@ selectedRestaurant?.lng || null,
       />
 
       {/* Customer Review Popup - shown after Order Delivered */}
-      <BottomPopup
+      <DeliveryCustomerReviewPopup
         isOpen={showCustomerReviewPopup}
         onClose={() => setShowCustomerReviewPopup(false)}
-        showCloseButton={false}
-        closeOnBackdropClick={false}
-        maxHeight="80vh"
-        showHandle={true}
-      >
-        <div className="">
-          <div className="text-center mb-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-2">
-              Rate Your Experience
-            </h2>
-            <p className="text-gray-600 text-sm mb-6">
-              How was your delivery experience?
-            </p>
-            
-            {/* Star Rating */}
-            <div className="flex justify-center gap-2 mb-6">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  onClick={() => setCustomerRating(star)}
-                  className="text-4xl transition-transform hover:scale-110"
-                >
-                  {star <= customerRating ? (
-                    <span className="text-yellow-400">?</span>
-                  ) : (
-                    <span className="text-gray-300">?</span>
-                  )}
-                </button>
-              ))}
-            </div>
-
-            {/* Optional Review Text */}
-            <div className="mb-6">
-              <label className="block text-left text-sm font-medium text-gray-700 mb-2">
-                Review (Optional)
-              </label>
-              <textarea
-                value={customerReviewText}
-                onChange={(e) => setCustomerReviewText(e.target.value)}
-                placeholder="Share your experience..."
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
-                rows={4}
-              />
-            </div>
-
-            {/* Submit Button */}
-            <button
-              onClick={async () => {
-                // Get order ID - use MongoDB _id for API call
-                const orderIdForApi = selectedRestaurant?.id || 
-                                    newOrder?.orderMongoId || 
-                                    newOrder?._id ||
-                                    selectedRestaurant?.orderId || 
-                                    newOrder?.orderId
-                
-                // Save review by calling completeDelivery API with rating and review
-                if (orderIdForApi) {
-                  try {
-                    // Customer review UI is not tied to payment finalization here.
-                    // We defer `completeDelivery` until rider taps `Complete` in Payment overlay,
-                    // so QR COD can be auto-verified securely.
-                    debugLog('?? Customer review submitted (UI only):', {
-                      orderId: orderIdForApi,
-                      rating: customerRating,
-                      review: customerReviewText
-                    })
-
-                    setShowCustomerReviewPopup(false)
-                    setShowPaymentPage(true)
-                    
-                    // Call completeDelivery API with rating and review
-                    const response = await deliveryAPI.completeDelivery(orderIdForApi, {
-                      rating: customerRating > 0 ? customerRating : null,
-                      review: customerReviewText.trim() || "",
-                    })
-                    
-                    if (response.data?.success) {
-                      // Get updated earnings from response
-                      // Note: completeDelivery API already adds earnings and COD cash collected to wallet
-                      const earnings = response.data.data?.earnings?.amount || 
-                                     response.data.data?.totalEarning ||
-                                     orderEarnings
-                      setOrderEarnings(earnings)
-                      
-                      debugLog('? Delivery completed and earnings added to wallet:', earnings)
-                      debugLog('? Wallet transaction:', response.data.data?.walletTransaction)
-                      
-                      // Notify wallet listeners (Pocket balance, Pocket page) so cash collected updates
-                      window.dispatchEvent(new Event('deliveryWalletStateUpdated'))
-                      
-                      // Show success message
-                      if (earnings > 0) {
-                        toast.success(`₹${earnings.toFixed(2)} added to your wallet! 🎉💰`)
-                      }
-                      
-                      // Close review popup and show payment page
-                      setShowCustomerReviewPopup(false)
-                      setShowPaymentPage(true)
-                    } else {
-                      debugError('? Failed to submit review:', response.data)
-                      toast.error(response.data?.message || 'Failed to submit review. Please try again.')
-                    }
-                  } catch (error) {
-                    debugError('? Error submitting review:', error)
-                    toast.error('Failed to submit review. Please try again.')
-                    // Still show payment page even if review fails
-                    setShowCustomerReviewPopup(false)
-                    setShowPaymentPage(true)
-                  }
-                } else {
-                  // If no order ID, just show payment page
-                  setShowCustomerReviewPopup(false)
-                  setShowPaymentPage(true)
-                }
-              }}
-              className="w-full bg-green-600 text-white py-4 rounded-xl font-semibold text-lg hover:bg-green-700 transition-colors shadow-lg"
-            >
-              Submit Review
-            </button>
-          </div>
-        </div>
-      </BottomPopup>
+        selectedRestaurant={selectedRestaurant}
+        newOrder={newOrder}
+        orderEarnings={orderEarnings}
+        setOrderEarnings={setOrderEarnings}
+        setShowCustomerReviewPopup={setShowCustomerReviewPopup}
+        setShowPaymentPage={setShowPaymentPage}
+        deliveryAPI={deliveryAPI}
+        debugLog={debugLog}
+        debugError={debugError}
+      />
 
       <DeliveryPaymentOverlay
         isOpen={showPaymentPage}
+        onClose={() => setShowPaymentPage(false)}
         selectedRestaurant={selectedRestaurant}
         newOrder={newOrder}
         orderEarnings={orderEarnings}
@@ -9722,24 +9590,9 @@ selectedRestaurant?.lng || null,
         }}
       />
 
-      <AnimatePresence>
-        {isVerifyingDeliveryOtp && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[260] bg-black/45 backdrop-blur-[2px] flex items-center justify-center px-6"
-          >
-            <div className="w-full max-w-xs rounded-2xl bg-white shadow-2xl p-6 text-center">
-              <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4">
-                <Loader2 className="w-7 h-7 text-emerald-600 animate-spin" />
-              </div>
-              <p className="text-base font-semibold text-gray-900">Verifying OTP</p>
-              <p className="text-sm text-gray-600 mt-1">Please wait...</p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <DeliveryVerifyingOtpOverlay
+        isVisible={isVerifyingDeliveryOtp}
+      />
     </div>
   )
 }

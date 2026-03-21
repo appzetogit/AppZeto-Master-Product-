@@ -23,7 +23,6 @@ const restaurantCommissionSchema = new mongoose.Schema(
     { collection: 'food_restaurant_commissions', timestamps: true }
 );
 
-restaurantCommissionSchema.index({ restaurantId: 1 }, { unique: true });
 
 export const FoodRestaurantCommission = mongoose.model('FoodRestaurantCommission', restaurantCommissionSchema);
 

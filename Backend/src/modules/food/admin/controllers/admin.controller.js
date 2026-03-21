@@ -1261,3 +1261,40 @@ export async function processRefund(req, res, next) {
         next(error);
     }
 }
+export async function getWithdrawals(req, res, next) {
+    try {
+        const data = await adminService.getWithdrawals(req.query || {});
+        res.status(200).json({ success: true, message: 'Withdrawals fetched successfully', data });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function updateWithdrawalStatus(req, res, next) {
+    try {
+        const { id } = req.params;
+        const data = await adminService.updateWithdrawalStatus(id, req.body || {});
+        res.status(200).json({ success: true, message: 'Withdrawal status updated successfully', data });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function getDeliveryWithdrawals(req, res, next) {
+    try {
+        const data = await adminService.getDeliveryWithdrawals(req.query || {});
+        res.status(200).json({ success: true, message: 'Delivery withdrawals fetched successfully', data });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function updateDeliveryWithdrawalStatus(req, res, next) {
+    try {
+        const { id } = req.params;
+        const data = await adminService.updateDeliveryWithdrawalStatus(id, req.body || {});
+        res.status(200).json({ success: true, message: 'Delivery withdrawal status updated successfully', data });
+    } catch (error) {
+        next(error);
+    }
+}

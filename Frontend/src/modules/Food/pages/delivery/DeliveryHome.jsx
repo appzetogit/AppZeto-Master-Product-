@@ -887,7 +887,9 @@ export default function DeliveryHome() {
   const [isOnline, setIsOnline] = useState(() => {
     try {
       const raw = localStorage.getItem(LS_KEY)
-      const value = raw ? JSON.parse(raw) === true : false
+      // Only default to online if we actually have a session token
+      const hasToken = !!(localStorage.getItem("delivery_accessToken") || localStorage.getItem("accessToken"))
+      const value = (raw && hasToken) ? JSON.parse(raw) === true : false
       isOnlineRef.current = value // Initialize ref
       return value
     } catch {
@@ -3888,7 +3890,7 @@ export default function DeliveryHome() {
       
       // Extract earnings from notification - backend now calculates and sends estimatedEarnings
       const deliveryFee = newOrder.deliveryFee || 0;
-      const earned = newOrder.estimatedEarnings;
+      const earned = newOrder.riderEarning || newOrder.estimatedEarnings;
       let earnedValue = 0;
       
       if (earned) {
@@ -3958,13 +3960,14 @@ export default function DeliveryHome() {
         estimatedEarnings: effectiveEarnings,
         deliveryFee,
         amount: earnedValue > 0 ? earnedValue : (deliveryFee > 0 ? deliveryFee : 0),
-        customerName: newOrder.customerName,
-        customerAddress: newOrder.customerLocation?.address || 'Customer address',
-        customerLat: newOrder.customerLocation?.latitude,
-        customerLng: newOrder.customerLocation?.longitude,
+        customerName: newOrder.customerName || 'Customer',
+        customerAddress: newOrder.deliveryAddress?.formattedAddress || newOrder.deliveryAddress?.address || newOrder.customerLocation?.address || 'Customer address',
+        customerLat: newOrder.deliveryAddress?.location?.coordinates?.[1] || newOrder.customerLocation?.latitude,
+        customerLng: newOrder.deliveryAddress?.location?.coordinates?.[0] || newOrder.customerLocation?.longitude,
         items: newOrder.items || [],
         total: Number(newOrder.total ?? newOrder.pricing?.total ?? 0) || 0,
-        paymentMethod: newOrder.paymentMethod || newOrder.payment?.method || newOrder.payment || 'cod'
+        paymentMethod: newOrder.paymentMethod || newOrder.payment?.method || newOrder.payment || 'cod',
+        restaurantName: newOrder.restaurantName || newOrder.name || 'Restaurant'
       }
       
       setSelectedRestaurant(restaurantData)
@@ -4372,7 +4375,8 @@ export default function DeliveryHome() {
           const restaurantData = {
             id: firstOrder._id?.toString() || firstOrder.orderId,
             orderId: firstOrder.orderId,
-            name: firstOrder.restaurantId?.name || 'Restaurant',
+            name: firstOrder.restaurantId?.restaurantName || firstOrder.restaurantId?.name || 'Restaurant',
+            restaurantName: firstOrder.restaurantId?.restaurantName || firstOrder.restaurantId?.name || 'Restaurant',
             address: restaurantAddress,
             lat: firstOrder.restaurantId?.location?.coordinates?.[1],
             lng: firstOrder.restaurantId?.location?.coordinates?.[0],
@@ -4382,7 +4386,7 @@ export default function DeliveryHome() {
               ? 'Calculating...' 
               : '0 km',
             pickupDistance: pickupDistance,
-            estimatedEarnings: firstOrder.pricing?.deliveryFee || 0,
+            estimatedEarnings: firstOrder.riderEarning || firstOrder.pricing?.deliveryFee || 0,
             customerName: firstOrder.userId?.name || 'Customer',
             customerAddress: firstOrder.address?.formattedAddress || 
                            (firstOrder.address?.street 
@@ -4393,7 +4397,7 @@ export default function DeliveryHome() {
             items: firstOrder.items || [],
             total: firstOrder.pricing?.total || 0,
             paymentMethod: firstOrder.paymentMethod || firstOrder.payment?.method || 'cod',
-            amount: firstOrder.pricing?.total || 0,
+            amount: firstOrder.riderEarning || firstOrder.pricing?.total || 0,
             deliveryVerification: firstOrder.deliveryVerification || null
           }
           
@@ -6388,6 +6392,11 @@ export default function DeliveryHome() {
             lat: restaurantCoords?.[1] ?? activeOrderData.restaurantInfo?.lat,
             lng: restaurantCoords?.[0] ?? activeOrderData.restaurantInfo?.lng,
             customerName: verifiedOrder?.userId?.name || activeOrderData.restaurantInfo?.customerName,
+            name: verifiedOrder?.restaurantId?.restaurantName || activeOrderData.restaurantInfo?.name || activeOrderData.restaurantInfo?.restaurantName || 'Restaurant',
+            restaurantName: verifiedOrder?.restaurantId?.restaurantName || activeOrderData.restaurantInfo?.restaurantName || activeOrderData.restaurantInfo?.name || 'Restaurant',
+            address: verifiedOrder?.restaurantId?.address || verifiedOrder?.restaurantId?.location?.formattedAddress || activeOrderData.restaurantInfo?.address,
+            phone: verifiedOrder?.restaurantId?.phone || activeOrderData.restaurantInfo?.phone,
+            ownerPhone: verifiedOrder?.restaurantId?.ownerPhone || activeOrderData.restaurantInfo?.ownerPhone,
             total:
               Number(
                 verifiedOrder?.pricing?.total ??

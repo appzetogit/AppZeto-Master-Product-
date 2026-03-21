@@ -1,4 +1,5 @@
 import { registerDeliveryPartner, updateDeliveryPartnerProfile, updateDeliveryPartnerBankDetails, listSupportTicketsByPartner, createSupportTicket, getSupportTicketByIdAndPartner, updateDeliveryPartnerDetails, updateDeliveryPartnerProfilePhotoBase64, updateDeliveryAvailability, getDeliveryPartnerWallet, getDeliveryPartnerEarnings, getDeliveryPartnerTripHistory, getDeliveryPocketDetails } from '../services/delivery.service.js';
+import { getDeliveryPartnerWalletEnhanced, requestDeliveryWithdrawal } from '../services/deliveryFinance.service.js';
 import { getDeliveryCashLimitSettings, getDeliveryEmergencyHelp } from '../../admin/services/admin.service.js';
 import { validateDeliveryRegisterDto, validateDeliveryProfileUpdateDto, validateDeliveryBankDetailsDto } from '../validators/delivery.validator.js';
 import { sendResponse } from '../../../../utils/response.js';
@@ -111,8 +112,18 @@ export const updateAvailabilityController = async (req, res, next) => {
 export const getWalletController = async (req, res, next) => {
     try {
         const deliveryPartnerId = req.user?.userId;
-        const wallet = await getDeliveryPartnerWallet(deliveryPartnerId);
+        const wallet = await getDeliveryPartnerWalletEnhanced(deliveryPartnerId);
         return sendResponse(res, 200, 'Wallet fetched successfully', { wallet });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const createWithdrawalRequestController = async (req, res, next) => {
+    try {
+        const deliveryPartnerId = req.user?.userId;
+        const result = await requestDeliveryWithdrawal(deliveryPartnerId, req.body || {});
+        return sendResponse(res, 201, 'Withdrawal request submitted successfully', { withdrawal: result });
     } catch (error) {
         next(error);
     }

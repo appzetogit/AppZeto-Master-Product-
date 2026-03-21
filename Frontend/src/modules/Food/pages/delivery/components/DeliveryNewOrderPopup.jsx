@@ -38,6 +38,11 @@ export default function DeliveryNewOrderPopup({
       ? Number(data?.estimatedEarnings?.totalEarning || data?.estimatedEarnings?.basePayout || 0)
       : Number(data?.estimatedEarnings || 0)) || 0;
 
+  const orderTotalAmount = Number(data?.total || data?.amount || data?.orderTotal || 0);
+  const paymentMethodRaw = String(data?.paymentMethod || data?.payment?.method || data?.payment || 'cod').toLowerCase();
+  const isCod = paymentMethodRaw === 'cash' || paymentMethodRaw === 'cod' || paymentMethodRaw === 'cash_on_delivery' || paymentMethodRaw === 'razorpay_qr';
+  const displayPaymentMethod = paymentMethodRaw === 'razorpay_qr' ? 'Cash on Delivery (QR)' : (isCod ? 'Cash on Delivery' : 'Paid Online');
+
   return (
     <AnimatePresence>
       <motion.div key="new-order-root">
@@ -47,7 +52,7 @@ export default function DeliveryNewOrderPopup({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/50 z-100"
+            className="fixed inset-0 bg-black/50 z-[100]"
           />
         )}
 
@@ -57,7 +62,7 @@ export default function DeliveryNewOrderPopup({
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="fixed bottom-0 left-0 right-0 z-115 flex justify-center pb-2"
+            className="fixed bottom-0 left-0 right-0 z-[115] flex justify-center pb-2"
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
@@ -88,32 +93,38 @@ export default function DeliveryNewOrderPopup({
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
-          className="fixed bottom-0 left-0 right-0 bg-transparent rounded-t-3xl z-110 overflow-visible"
+          className="fixed bottom-0 left-0 right-0 bg-transparent rounded-t-3xl z-[110] overflow-visible"
           style={{ touchAction: "none" }}
         >
           <div className="flex justify-center pt-4 pb-2 cursor-grab active:cursor-grabbing">
             <div className="w-12 h-1.5 bg-white/30 rounded-full" />
           </div>
 
-          <div className="bg-green-500 rounded-t-3xl">
+          <div className="bg-green-500 rounded-t-3xl border-b border-green-600 border-opacity-30">
             <div className="px-6 pt-5 pb-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-white/90 text-sm">New order</p>
-                  <p className="text-white font-bold text-xl">{data?.restaurantName || data?.restaurant || "Restaurant"}</p>
+                  <p className="text-white font-bold text-xl">{data?.restaurantName || data?.name || data?.restaurant || "Restaurant"}</p>
                 </div>
-                <div className="bg-white/15 rounded-xl px-3 py-2 text-white text-sm font-semibold">
+                <div className="bg-white/20 rounded-xl px-3 py-2 text-white text-sm font-semibold shadow-inner">
                   {Math.max(0, Number(countdownSeconds) || 0)}s
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-t-3xl">
+          <div className="bg-white rounded-t-2xl shadow-[0_-8px_15px_-3px_rgba(0,0,0,0.1)] -mt-2">
             <div className="p-6">
-              <div className="mb-5">
-                <p className="text-gray-500 text-sm mb-1">Estimated earnings</p>
-                <p className="text-4xl font-bold text-gray-900 mb-2">₹{estimatedEarnings.toFixed(2)}</p>
+              <div className="mb-6 flex flex-row items-center justify-between border-b border-gray-100 pb-5">
+                <div>
+                  <p className="text-gray-500 text-sm mb-1 font-medium">Estimated earnings</p>
+                  <p className="text-3xl font-extrabold text-gray-900 tracking-tight">₹{estimatedEarnings.toFixed(2)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-gray-500 text-sm mb-1 font-medium">{displayPaymentMethod}</p>
+                  <p className="text-2xl font-bold text-gray-800 tracking-tight">₹{orderTotalAmount.toFixed(2)}</p>
+                </div>
               </div>
 
               <div className="relative w-full">

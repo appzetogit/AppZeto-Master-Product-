@@ -1,7 +1,7 @@
 import { useParams, Link } from "react-router-dom"
 
 import { Download, ArrowLeft, FileText, Printer } from "lucide-react"
-import { useRef } from "react"
+import { useRef, useState, useEffect } from "react"
 import AnimatedPage from "@food/components/user/AnimatedPage"
 import ScrollReveal from "@food/components/user/ScrollReveal"
 import { Card, CardHeader, CardTitle, CardContent } from "@food/components/ui/card"
@@ -14,14 +14,49 @@ export default function OrderInvoice() {
   const companyName = useCompanyName()
   const { orderId } = useParams()
   const { getOrderById } = useOrders()
-  const order = getOrderById(orderId)
+  const [order, setOrder] = useState(() => getOrderById(orderId))
+  const [loading, setLoading] = useState(!order)
+  const [error, setError] = useState(null)
   const invoiceRef = useRef(null)
 
-  if (!order) {
+  useEffect(() => {
+    if (order) return
+
+    const fetchOrder = async () => {
+      try {
+        setLoading(true)
+        const response = await orderAPI.getOrderDetails(orderId)
+        if (response.data?.success && response.data.data?.order) {
+          setOrder(response.data.data.order)
+        } else {
+          setError("Order not found")
+        }
+      } catch (err) {
+        setError("Failed to load invoice details")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchOrder()
+  }, [orderId, order])
+
+  if (loading) {
     return (
       <AnimatedPage className="min-h-screen bg-[#f5f5f5] dark:bg-[#0a0a0a] p-4">
         <div className="max-w-4xl mx-auto text-center py-20">
-          <h1 className="text-lg sm:text-xl md:text-2xl font-bold mb-4">Order Not Found</h1>
+          <div className="w-8 h-8 border-2 border-[#EB590E] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Generating invoice...</p>
+        </div>
+      </AnimatedPage>
+    )
+  }
+
+  if (error || !order) {
+    return (
+      <AnimatedPage className="min-h-screen bg-[#f5f5f5] dark:bg-[#0a0a0a] p-4">
+        <div className="max-w-4xl mx-auto text-center py-20">
+          <h1 className="text-lg sm:text-xl md:text-2xl font-bold mb-4">{error || 'Order Not Found'}</h1>
           <Link to="/user/orders">
             <Button>Back to Orders</Button>
           </Link>

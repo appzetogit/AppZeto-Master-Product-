@@ -12,6 +12,10 @@ import {
     uploadRestaurantMenuImageController
 } from '../controllers/restaurant.controller.js';
 import {
+    createWithdrawalRequestController,
+    listMyWithdrawalsController
+} from '../controllers/withdrawal.controller.js';
+import {
     listCategoriesController,
     createCategoryController,
     updateCategoryController,
@@ -74,6 +78,8 @@ router.patch('/availability', authMiddleware, requireRestaurant, updateRestauran
 router.get('/outlet-timings', authMiddleware, requireRestaurant, getCurrentRestaurantOutletTimingsController);
 router.put('/outlet-timings', authMiddleware, requireRestaurant, upsertCurrentRestaurantOutletTimingsController);
 router.get('/finance', authMiddleware, requireRestaurant, getRestaurantFinanceController);
+router.post('/withdraw', authMiddleware, requireRestaurant, createWithdrawalRequestController);
+router.get('/withdrawals', authMiddleware, requireRestaurant, listMyWithdrawalsController);
 router.post(
     '/profile/profile-image',
     authMiddleware,
@@ -115,6 +121,7 @@ router.delete('/addons/:id', authMiddleware, requireRestaurant, deleteAddonContr
 // Orders (restaurant dashboard)
 router.get('/orders', authMiddleware, requireRestaurant, orderController.listOrdersRestaurantController);
 router.patch('/orders/:orderId/status', authMiddleware, requireRestaurant, orderController.updateOrderStatusRestaurantController);
+router.post('/orders/:orderId/resend-notification', authMiddleware, requireRestaurant, orderController.resendDeliveryNotificationRestaurantController);
 
 export default router;
 

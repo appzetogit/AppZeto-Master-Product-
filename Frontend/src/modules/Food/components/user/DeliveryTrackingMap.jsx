@@ -204,10 +204,10 @@ const DeliveryTrackingMap = ({
       path: pathToRender,
       geodesic: true,
       strokeColor: routeColor,
-      strokeOpacity: 0.8,
-      strokeWeight: 4,
+      strokeOpacity: 0.92,
+      strokeWeight: 5,
       map: mapInstance.current,
-      zIndex: 1
+      zIndex: 2
     });
   }, [routeColor]);
 
@@ -409,8 +409,8 @@ const DeliveryTrackingMap = ({
     if (normalizedPoints.length < 2) return false;
     visibleRoutePolylinePointsRef.current = normalizedPoints;
 
-    if (!isMapLoaded || !mapInstance.current || !window.google?.maps) {
-      return true;
+    if (!mapInstance.current || !window.google?.maps) {
+      return false;
     }
 
     if (routePolylineRef.current) {
@@ -421,10 +421,10 @@ const DeliveryTrackingMap = ({
       path: normalizedPoints,
       geodesic: true,
       strokeColor: routeColor,
-      strokeOpacity: 0.8,
-      strokeWeight: 4,
+      strokeOpacity: 0.92,
+      strokeWeight: 5,
       map: mapInstance.current,
-      zIndex: 1
+      zIndex: 2
     });
 
     if (directionsRendererRef.current) {
@@ -432,7 +432,58 @@ const DeliveryTrackingMap = ({
     }
 
     return true;
-  }, [isMapLoaded, normalizeRoutePoints, routeColor]);
+  }, [normalizeRoutePoints, routeColor]);
+
+  const fitRouteViewportIfNeeded = useCallback((start, end) => {
+    if (!mapInstance.current || !window.google?.maps) return;
+    if (userHasInteractedRef.current) return;
+    const sLat = Number(start?.lat);
+    const sLng = Number(start?.lng);
+    const eLat = Number(end?.lat);
+    const eLng = Number(end?.lng);
+    if (![sLat, sLng, eLat, eLng].every(Number.isFinite)) return;
+    const bounds = new window.google.maps.LatLngBounds();
+    bounds.extend({ lat: sLat, lng: sLng });
+    bounds.extend({ lat: eLat, lng: eLng });
+    mapInstance.current.fitBounds(bounds, 48);
+  }, []);
+
+  /**
+   * Road-like path without Directions: geodesic segment from A → B.
+   * Uses {@link renderVisibleRoute} (full path) — never rider-snaps the baseline, which was hiding the line.
+   */
+  const drawStraightLineRoute = useCallback((start, end) => {
+    if (!MAPS_ENABLED || !mapInstance.current || !window.google?.maps) return false;
+    if (!start || !end) return false;
+    const sLat = Number(start.lat);
+    const sLng = Number(start.lng);
+    const eLat = Number(end.lat);
+    const eLng = Number(end.lng);
+    if (![sLat, sLng, eLat, eLng].every(Number.isFinite)) return false;
+    if (sLat === eLat && sLng === eLng) return false;
+
+    const points = [
+      { lat: sLat, lng: sLng },
+      { lat: eLat, lng: eLng },
+    ];
+    routePolylinePointsRef.current = points;
+    visibleRoutePolylinePointsRef.current = points;
+    maxDistanceAlongRouteRef.current = 0;
+    activeRouteSignatureRef.current = null;
+
+    const ok = renderVisibleRoute(points);
+    if (ok) {
+      fitRouteViewportIfNeeded(start, end);
+    }
+
+    if (bikeMarkerRef.current && !animationControllerRef.current) {
+      animationControllerRef.current = new RouteBasedAnimationController(
+        bikeMarkerRef.current,
+        points,
+      );
+    }
+    return ok;
+  }, [renderVisibleRoute, fitRouteViewportIfNeeded]);
 
   const updateRenderedRouteForLocation = useCallback((location, routeOverride = null) => {
     const baseRoute = routeOverride || routePolylinePointsRef.current;
@@ -526,30 +577,6 @@ const DeliveryTrackingMap = ({
     deliveryBoyData?.polyline
   ]);
 
-  useEffect(() => {
-    if (!isMapLoaded) return;
-    if (!routePolylinePointsRef.current || routePolylinePointsRef.current.length < 2) return;
-    updateRenderedRouteForLocation(currentLocation, routePolylinePointsRef.current);
-  }, [isMapLoaded, updateRenderedRouteForLocation, routeColor, currentLocation]);
-
-  useEffect(() => {
-    if (!isMapLoaded || !mapInstance.current || !window.google?.maps) return;
-
-    const storedPoints = getStoredRoutePoints();
-    if (!storedPoints || storedPoints.length < 2) return;
-
-    routePolylinePointsRef.current = storedPoints;
-
-    if (bikeMarkerRef.current && !animationControllerRef.current) {
-      animationControllerRef.current = new RouteBasedAnimationController(
-        bikeMarkerRef.current,
-        storedPoints
-      );
-    }
-
-    updateRenderedRouteForLocation(currentLocation, storedPoints);
-  }, [getStoredRoutePoints, isMapLoaded, routeColor, currentLocation, updateRenderedRouteForLocation]);
-
   // Check if delivery partner is assigned (memoized to avoid dependency issues)
   // MUST be defined BEFORE any useEffect that uses it
   const hasDeliveryPartner = useMemo(() => {
@@ -580,6 +607,46 @@ const DeliveryTrackingMap = ({
 
     return hasPartner;
   }, [order?.deliveryPartnerId, order?.deliveryPartner, order?.assignmentInfo?.deliveryPartnerId, order?.deliveryState?.status, order?.deliveryState?.currentPhase]);
+
+  /** Same predicate as `hasDeliveryPartnerForRoute` in the route effect — partner *id* alone must not enable trim on the baseline. */
+  const hasActiveDeliveryRoute = useMemo(() => {
+    const routePhase = order?.deliveryState?.currentPhase;
+    const routeStatus = order?.deliveryState?.status;
+    return (
+      routeStatus === 'accepted' ||
+      routePhase === 'en_route_to_pickup' ||
+      routePhase === 'at_pickup' ||
+      routePhase === 'en_route_to_delivery' ||
+      (routeStatus && routeStatus !== 'pending')
+    );
+  }, [order?.deliveryState?.currentPhase, order?.deliveryState?.status]);
+
+  useEffect(() => {
+    if (!isMapLoaded) return;
+    // Do not trim the restaurant → drop "baseline" using rider/user GPS — it made the polyline vanish.
+    if (!hasActiveDeliveryRoute) return;
+    if (!routePolylinePointsRef.current || routePolylinePointsRef.current.length < 2) return;
+    updateRenderedRouteForLocation(currentLocation, routePolylinePointsRef.current);
+  }, [isMapLoaded, hasActiveDeliveryRoute, updateRenderedRouteForLocation, routeColor, currentLocation]);
+
+  useEffect(() => {
+    if (!isMapLoaded || !mapInstance.current || !window.google?.maps) return;
+    if (!hasActiveDeliveryRoute) return;
+
+    const storedPoints = getStoredRoutePoints();
+    if (!storedPoints || storedPoints.length < 2) return;
+
+    routePolylinePointsRef.current = storedPoints;
+
+    if (bikeMarkerRef.current && !animationControllerRef.current) {
+      animationControllerRef.current = new RouteBasedAnimationController(
+        bikeMarkerRef.current,
+        storedPoints
+      );
+    }
+
+    updateRenderedRouteForLocation(currentLocation, storedPoints);
+  }, [getStoredRoutePoints, isMapLoaded, hasActiveDeliveryRoute, routeColor, currentLocation, updateRenderedRouteForLocation]);
 
   // Determine which route to show based on order phase
   const getRouteToShow = useCallback(() => {
@@ -839,13 +906,14 @@ const DeliveryTrackingMap = ({
             }
           }
         } else {
-          // CRITICAL: If no polyline, DO NOT show bike at raw GPS location
-          // Wait for route to be generated first
-          debugWarn('?????? NO POLYLINE AVAILABLE - Bike marker NOT updated to prevent off-road display');
-          debugWarn('?? Waiting for route to be generated before showing bike position');
-          // Don't update marker position - keep it at last known position on route
-          // This prevents bike from jumping to buildings/footpaths
-          return; // Exit early - don't update marker
+          // No polyline yet (Directions loading or disabled): still show rider at live GPS — empty map is worse than slightly off-road.
+          const nearestPosition = new window.google.maps.LatLng(lat, lng);
+          bikeMarkerRef.current.setPosition(nearestPosition);
+          if (typeof bikeMarkerRef.current.setRotation === 'function') {
+            bikeMarkerRef.current.setRotation(heading || 0);
+          } else {
+            bikeMarkerRef.current._rotation = heading || 0;
+          }
         }
 
         // Ensure bike is visible
@@ -1534,17 +1602,11 @@ const DeliveryTrackingMap = ({
       }
     }
 
-    // Throttle route updates to avoid too many API calls
     const now = Date.now();
-    const routeColorChanged = lastRouteColorRef.current !== routeColor;
-    if (routeColorChanged) {
+    if (lastRouteColorRef.current !== routeColor) {
       lastRouteColorRef.current = routeColor;
     }
-    if (!routeColorChanged && lastRouteUpdateRef.current && (now - lastRouteUpdateRef.current) < 20000) {
-      return; // Skip if updated less than 20 seconds ago
-    }
 
-    // Only draw route if delivery partner is assigned
     const routePhase = order?.deliveryState?.currentPhase;
     const routeStatus = order?.deliveryState?.status;
     const hasDeliveryPartnerForRoute = routeStatus === 'accepted' ||
@@ -1553,17 +1615,15 @@ const DeliveryTrackingMap = ({
       routePhase === 'en_route_to_delivery' ||
       (routeStatus && routeStatus !== 'pending');
 
-    // Only draw route if delivery partner is assigned
+    // Zomato-style: show restaurant → customer line while order is being prepared (no rider / rider not en route yet).
     if (!hasDeliveryPartnerForRoute) {
-      // Clear any existing route if delivery partner is not assigned
-      if (routePolylineRef.current) {
-        routePolylineRef.current.setMap(null);
-        routePolylineRef.current = null;
-      }
-      maxDistanceAlongRouteRef.current = 0;
-      activeRouteSignatureRef.current = null;
-      if (directionsRendererRef.current) {
-        directionsRendererRef.current.setDirections({ routes: [] });
+      if (restaurantCoords && customerCoords) {
+        lastRouteUpdateRef.current = now;
+        if (ENABLE_GOOGLE_DIRECTIONS) {
+          drawRoute(restaurantCoords, customerCoords);
+        } else {
+          drawStraightLineRoute(restaurantCoords, customerCoords);
+        }
       }
       return;
     }
@@ -1589,7 +1649,11 @@ const DeliveryTrackingMap = ({
     const route = desiredRoute;
     if (route.start && route.end) {
       lastRouteUpdateRef.current = now;
-      drawRoute(route.start, route.end);
+      if (ENABLE_GOOGLE_DIRECTIONS) {
+        drawRoute(route.start, route.end);
+      } else {
+        drawStraightLineRoute(route.start, route.end);
+      }
       debugLog('?? Route updated:', {
         phase: order?.deliveryState?.currentPhase,
         status: order?.deliveryState?.status,
@@ -1622,7 +1686,7 @@ const DeliveryTrackingMap = ({
         }
       }
     }
-  }, [isMapLoaded, deliveryBoyLat, deliveryBoyLng, order?.deliveryState?.currentPhase, order?.deliveryState?.status, restaurantLat, restaurantLng, customerCoords?.lat, customerCoords?.lng, moveBikeSmoothly, desiredRoute, drawRoute, hasDeliveryPartner, routeColor, currentLocation, updateRenderedRouteForLocation, routeMatchesDesiredTarget]);
+  }, [isMapLoaded, deliveryBoyLat, deliveryBoyLng, order?.deliveryState?.currentPhase, order?.deliveryState?.status, restaurantLat, restaurantLng, customerCoords?.lat, customerCoords?.lng, moveBikeSmoothly, desiredRoute, drawRoute, drawStraightLineRoute, routeColor, updateRenderedRouteForLocation, routeMatchesDesiredTarget, ENABLE_GOOGLE_DIRECTIONS, order?.status]);
 
   // Update bike when REAL location changes (from socket)
   useEffect(() => {

@@ -270,11 +270,23 @@ const getRestaurantAddressFromOrder = (apiOrder, previousOrder = null, explicitR
   return previousOrder?.restaurantAddress || apiOrder?.restaurantAddress || apiOrder?.restaurant?.address || 'Restaurant location'
 }
 
+const getCustomerCoordsFromApiOrder = (apiOrder, previousOrder = null) => {
+  const addr = apiOrder?.address || apiOrder?.deliveryAddress || {}
+  const fromLoc = addr?.location?.coordinates
+  if (Array.isArray(fromLoc) && fromLoc.length >= 2) return fromLoc
+  const flat = addr?.coordinates
+  if (Array.isArray(flat) && flat.length >= 2) return flat
+  const prev = previousOrder?.address?.coordinates || previousOrder?.address?.location?.coordinates
+  if (Array.isArray(prev) && prev.length >= 2) return prev
+  return null
+}
+
 const transformOrderForTracking = (apiOrder, previousOrder = null, explicitRestaurantCoords = null, explicitRestaurantAddress = null) => {
   const restaurantCoords = explicitRestaurantCoords || getRestaurantCoordsFromOrder(apiOrder, previousOrder?.restaurantLocation?.coordinates)
   const restaurantAddress = getRestaurantAddressFromOrder(apiOrder, previousOrder, explicitRestaurantAddress)
   // API returns `deliveryAddress`; some paths use `address`
   const addr = apiOrder?.address || apiOrder?.deliveryAddress || {}
+  const customerCoordsResolved = getCustomerCoordsFromApiOrder(apiOrder, previousOrder)
 
   return {
     id: apiOrder?.orderId || apiOrder?._id,
@@ -304,7 +316,7 @@ const transformOrderForTracking = (apiOrder, previousOrder = null, explicitResta
         (addr?.street && addr?.city
           ? `${addr.street}${addr.additionalDetails ? `, ${addr.additionalDetails}` : ''}, ${addr.city}${addr.state ? `, ${addr.state}` : ''}${addr.zipCode ? ` ${addr.zipCode}` : ''}`
           : previousOrder?.address?.formattedAddress || addr?.city || ''),
-      coordinates: addr?.location?.coordinates || previousOrder?.address?.coordinates || null
+      coordinates: customerCoordsResolved || addr?.location?.coordinates || previousOrder?.address?.coordinates || null
     },
     restaurantLocation: {
       coordinates: restaurantCoords
@@ -424,6 +436,7 @@ export default function OrderTracking() {
   const [timerNow, setTimerNow] = useState(Date.now())
   const lastRealtimeRefreshRef = useRef(0)
   const trackingOrderIdsRef = useRef(new Set())
+  const terminalPollStopRef = useRef(false)
 
   // Delivery handover OTP received via socket event.
   // Kept separately so UI still renders even if the event arrives
@@ -479,6 +492,15 @@ export default function OrderTracking() {
     window.addEventListener('deliveryDropOtp', handleDeliveryDropOtp)
     return () => window.removeEventListener('deliveryDropOtp', handleDeliveryDropOtp)
   }, [orderId, order])
+
+  // Socket notifications include order ids — keep a set so events match this page.
+  useEffect(() => {
+    const s = trackingOrderIdsRef.current
+    s.add(String(orderId))
+    if (order?.orderId) s.add(String(order.orderId))
+    if (order?.mongoId) s.add(String(order.mongoId))
+    if (order?.id) s.add(String(order.id))
+  }, [orderId, order?.orderId, order?.mongoId, order?.id])
 
   // Clear OTP when order is finalized.
   useEffect(() => {
@@ -631,9 +653,10 @@ export default function OrderTracking() {
     let isSubscribed = true;
     let requestInProgress = false;
 
-    const poll = async () => {
+    const poll = async (isInitial = false) => {
       // Don't poll if component unmounted or request already in flight
       if (!isSubscribed || requestInProgress) return;
+      if (terminalPollStopRef.current && !isInitial) return;
 
       requestInProgress = true;
       try {
@@ -646,22 +669,37 @@ export default function OrderTracking() {
           setOrder(prev => {
              // Use functional update to check against last state without depending on 'order' object
              const transformedOrder = transformOrderForTracking(apiOrder, prev);
+             const ui = mapOrderToTrackingUiStatus(transformedOrder)
+             terminalPollStopRef.current = ui === 'delivered' || ui === 'cancelled'
              return transformedOrder;
           });
+        } else if (isInitial) {
+          setError(response.data?.message || 'Order not found');
         }
       } catch (err) {
         debugError('Error polling order updates:', err);
+        if (isInitial) {
+          setError(err.response?.data?.message || 'Failed to connect to server');
+        }
       } finally {
         requestInProgress = false;
+        if (isInitial) {
+          setLoading(false);
+        }
       }
     };
 
-    // Calculate poll interval based on current state (captured once when interval starts or restarts)
-    // For live tracking, we want updates. 10s is a good balance between "realtime" and "not spamming".
-    const interval = setInterval(poll, 10000);
+    terminalPollStopRef.current = false
+
+    // Same order: one in-flight + short client cache in orderAPI — avoid hammering the server.
+    const tick = () => {
+      if (terminalPollStopRef.current) return
+      poll(false)
+    }
+    const interval = setInterval(tick, 15000);
 
     // Run once immediately
-    poll();
+    poll(true);
 
     return () => {
       isSubscribed = false;
@@ -690,6 +728,12 @@ export default function OrderTracking() {
     }
   }, [orderId, getOrderById])
 
+  useEffect(() => {
+    if (!order) return
+    const ui = mapOrderToTrackingUiStatus(order)
+    terminalPollStopRef.current = ui === 'delivered' || ui === 'cancelled'
+  }, [order])
+
   // Post-checkout splash only — real status comes from API / poll / socket.
   useEffect(() => {
     if (!confirmed) return
@@ -713,8 +757,8 @@ export default function OrderTracking() {
 
       const evtKeys = [evtOrderId, orderMongoId, payload?._id].filter(Boolean).map(String)
       const idMatches =
-        !orderId ||
         evtKeys.length === 0 ||
+        evtKeys.some((k) => String(k) === String(orderId)) ||
         evtKeys.some((k) => trackingOrderIdsRef.current.has(k))
 
       debugLog('?? Order status notification received:', { message, status, idMatches });
@@ -807,7 +851,7 @@ export default function OrderTracking() {
         setShowCancelDialog(false);
         setCancellationReason("");
         // Refresh order data
-        const orderResponse = await orderAPI.getOrderDetails(orderId);
+        const orderResponse = await orderAPI.getOrderDetails(orderId, { force: true });
         if (orderResponse.data?.success && orderResponse.data.data?.order) {
           const apiOrder = orderResponse.data.data.order;
           setOrder(transformOrderForTracking(apiOrder, order));
@@ -846,7 +890,7 @@ export default function OrderTracking() {
   const handleRefresh = async () => {
     setIsRefreshing(true)
     try {
-      const response = await orderAPI.getOrderDetails(orderId)
+      const response = await orderAPI.getOrderDetails(orderId, { force: true })
       if (response.data?.success && response.data.data?.order) {
         const apiOrder = response.data.data.order
 

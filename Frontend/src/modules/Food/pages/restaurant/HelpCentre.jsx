@@ -9,10 +9,10 @@ import {
   Building2, 
   FileText, 
   Wallet,
+  LifeBuoy,
   ChevronRight,
 } from "lucide-react"
 import BottomNavOrders from "@food/components/restaurant/BottomNavOrders"
-import { toast } from "sonner"
 
 const helpTopics = [
   {
@@ -49,6 +49,13 @@ const helpTopics = [
     title: "Payments",
     subtitle: "Statement of account, invoices etc.",
     path: "/restaurant/hub-finance"
+  },
+  {
+    id: 7,
+    icon: LifeBuoy,
+    title: "Support",
+    subtitle: "Raise ticket and get admin response",
+    path: "/restaurant/help-centre/support"
   }
 ]
 

@@ -1231,6 +1231,16 @@ export const restaurantAPI = {
       params,
       contextModule: "restaurant",
     }),
+  /** Restaurant support tickets */
+  createSupportTicket: (body = {}) =>
+    apiClient.post("/food/restaurant/support/tickets", body ?? {}, {
+      contextModule: "restaurant",
+    }),
+  getSupportTickets: (params = {}) =>
+    apiClient.get("/food/restaurant/support/tickets", {
+      params,
+      contextModule: "restaurant",
+    }),
 };
 
 function stableStringify(value) {

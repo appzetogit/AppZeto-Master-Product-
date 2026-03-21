@@ -23,6 +23,7 @@ import { FoodReferralLog } from '../models/referralLog.model.js';
 import { FoodSafetyEmergencyReport } from '../models/safetyEmergencyReport.model.js';
 import { FoodAddon } from '../../restaurant/models/foodAddon.model.js';
 import { FoodSupportTicket } from '../../user/models/supportTicket.model.js';
+import { FoodRestaurantSupportTicket } from '../../restaurant/models/supportTicket.model.js';
 import { FoodOrder } from '../../orders/models/order.model.js';
 import { FoodTransaction } from '../../orders/models/foodTransaction.model.js';
 import { FoodRestaurantWithdrawal } from '../../restaurant/models/foodRestaurantWithdrawal.model.js';
@@ -964,29 +965,87 @@ export async function getSupportTickets(query = {}) {
     const limit = Math.min(Math.max(parseInt(query.limit, 10) || 50, 1), 1000);
     const page = Math.max(parseInt(query.page, 10) || 1, 1);
     const skip = (page - 1) * limit;
-    const filter = {};
+    const source = String(query.source || 'all').toLowerCase();
+    const search = String(query.search || '').trim();
+
+    const userFilter = {};
+    const restaurantFilter = {};
     if (query.status && ['open', 'in-progress', 'resolved'].includes(String(query.status))) {
-        filter.status = String(query.status);
+        userFilter.status = String(query.status);
+        restaurantFilter.status = String(query.status);
     }
     if (query.type && ['order', 'restaurant', 'other'].includes(String(query.type))) {
-        filter.type = String(query.type);
+        userFilter.type = String(query.type);
     }
-    const [list, total] = await Promise.all([
-        FoodSupportTicket.find(filter)
-            .sort({ createdAt: -1 })
-            .skip(skip)
-            .limit(limit)
-            .populate('userId', 'name phone email')
-            .populate('restaurantId', 'restaurantName city area')
-            .populate({
-                path: 'orderId',
-                select: 'restaurantId',
-                populate: { path: 'restaurantId', select: 'restaurantName city area' }
-            })
-            .lean(),
-        FoodSupportTicket.countDocuments(filter)
+    if (query.category && ['orders', 'payments', 'menu', 'restaurant', 'technical', 'other'].includes(String(query.category))) {
+        restaurantFilter.category = String(query.category);
+    }
+
+    const userSearchOr = [];
+    const restaurantSearchOr = [];
+    if (search) {
+        const searchRegex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+        userSearchOr.push(
+            { issueType: searchRegex },
+            { description: searchRegex }
+        );
+        restaurantSearchOr.push(
+            { issueType: searchRegex },
+            { subject: searchRegex },
+            { description: searchRegex },
+            { orderRef: searchRegex }
+        );
+        const [restaurantIds, userIds, orderIds] = await Promise.all([
+            FoodRestaurant.find({ restaurantName: searchRegex }).select('_id').lean(),
+            FoodUser.find({ name: searchRegex }).select('_id').lean(),
+            FoodOrder.find({ orderId: searchRegex }).select('_id').lean()
+        ]);
+        if (restaurantIds.length) {
+            const ids = restaurantIds.map((r) => r._id);
+            userSearchOr.push({ restaurantId: { $in: ids } });
+            restaurantSearchOr.push({ restaurantId: { $in: ids } });
+        }
+        if (userIds.length) {
+            userSearchOr.push({ userId: { $in: userIds.map((u) => u._id) } });
+        }
+        if (orderIds.length) {
+            userSearchOr.push({ orderId: { $in: orderIds.map((o) => o._id) } });
+        }
+    }
+    if (userSearchOr.length) userFilter.$or = userSearchOr;
+    if (restaurantSearchOr.length) restaurantFilter.$or = restaurantSearchOr;
+
+    const shouldFetchUser = source === 'all' || source === 'user';
+    const shouldFetchRestaurant = source === 'all' || source === 'restaurant';
+
+    const [userList, userTotal, restaurantList, restaurantTotal] = await Promise.all([
+        shouldFetchUser
+            ? FoodSupportTicket.find(userFilter)
+                  .sort({ createdAt: -1 })
+                  .skip(source === 'all' ? 0 : skip)
+                  .limit(source === 'all' ? limit * page : limit)
+                  .populate('userId', 'name phone email')
+                  .populate('restaurantId', 'restaurantName city area')
+                  .populate({
+                      path: 'orderId',
+                      select: 'restaurantId',
+                      populate: { path: 'restaurantId', select: 'restaurantName city area' }
+                  })
+                  .lean()
+            : Promise.resolve([]),
+        shouldFetchUser ? FoodSupportTicket.countDocuments(userFilter) : Promise.resolve(0),
+        shouldFetchRestaurant
+            ? FoodRestaurantSupportTicket.find(restaurantFilter)
+                  .sort({ createdAt: -1 })
+                  .skip(source === 'all' ? 0 : skip)
+                  .limit(source === 'all' ? limit * page : limit)
+                  .populate('restaurantId', 'restaurantName city area')
+                  .lean()
+            : Promise.resolve([]),
+        shouldFetchRestaurant ? FoodRestaurantSupportTicket.countDocuments(restaurantFilter) : Promise.resolve(0)
     ]);
-    const tickets = list.map((t) => {
+
+    const mappedUserTickets = userList.map((t) => {
         const user =
             t.userId && typeof t.userId === 'object' && t.userId !== null
                 ? {
@@ -1032,6 +1091,7 @@ export async function getSupportTickets(query = {}) {
 
         return {
             _id: t._id,
+            source: 'user',
             userId,
             type: t.type,
             orderId: t.orderId || null,
@@ -1047,11 +1107,64 @@ export async function getSupportTickets(query = {}) {
             restaurantName
         };
     });
+
+    const mappedRestaurantTickets = restaurantList.map((t) => {
+        const restaurant =
+            t.restaurantId && typeof t.restaurantId === 'object'
+                ? {
+                      _id: t.restaurantId._id,
+                      name: t.restaurantId.restaurantName || '',
+                      city: t.restaurantId.city || '',
+                      area: t.restaurantId.area || ''
+                  }
+                : null;
+        const restaurantId =
+            restaurant && restaurant._id ? String(restaurant._id) : t.restaurantId ? String(t.restaurantId) : null;
+        return {
+            _id: t._id,
+            source: 'restaurant',
+            userId: null,
+            type: 'restaurant-support',
+            category: t.category || 'other',
+            orderId: null,
+            orderRef: t.orderRef || '',
+            restaurantId,
+            issueType: t.issueType,
+            subject: t.subject || '',
+            description: t.description,
+            priority: t.priority || 'medium',
+            status: t.status,
+            adminResponse: t.adminResponse,
+            createdAt: t.createdAt,
+            updatedAt: t.updatedAt,
+            user: null,
+            restaurant,
+            restaurantName: restaurant ? restaurant.name : ''
+        };
+    });
+
+    let tickets = [];
+    let total = 0;
+    if (source === 'user') {
+        tickets = mappedUserTickets;
+        total = userTotal;
+    } else if (source === 'restaurant') {
+        tickets = mappedRestaurantTickets;
+        total = restaurantTotal;
+    } else {
+        const merged = [...mappedUserTickets, ...mappedRestaurantTickets].sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        tickets = merged.slice(skip, skip + limit);
+        total = userTotal + restaurantTotal;
+    }
+
     return { tickets, total, page, limit };
 }
 
 export async function updateSupportTicket(id, body = {}) {
     if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+    const source = String(body.source || 'user').toLowerCase();
     const set = {};
     if (body.status && ['open', 'in-progress', 'resolved'].includes(String(body.status))) {
         set.status = String(body.status);
@@ -1059,7 +1172,9 @@ export async function updateSupportTicket(id, body = {}) {
     if (typeof body.adminResponse === 'string') {
         set.adminResponse = body.adminResponse;
     }
-    const updated = await FoodSupportTicket.findByIdAndUpdate(id, { $set: set }, { new: true }).lean();
+    if (!Object.keys(set).length) return null;
+    const model = source === 'restaurant' ? FoodRestaurantSupportTicket : FoodSupportTicket;
+    const updated = await model.findByIdAndUpdate(id, { $set: set }, { new: true }).lean();
     return updated || null;
 }
 

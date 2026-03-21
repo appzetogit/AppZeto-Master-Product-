@@ -123,7 +123,7 @@ export const adminSidebarMenu = [
       },
       {
         type: "link",
-        label: "Support Tickets",
+        label: "Support Tickets (User & Restaurant)",
         path: "/admin/food/support-tickets",
         icon: "MessageSquare",
       },

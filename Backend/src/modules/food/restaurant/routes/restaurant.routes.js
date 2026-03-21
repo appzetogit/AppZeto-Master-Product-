@@ -13,6 +13,10 @@ import {
     getRestaurantComplaintsController
 } from '../controllers/restaurant.controller.js';
 import {
+    createRestaurantSupportTicketController,
+    listRestaurantSupportTicketsController
+} from '../controllers/supportTicket.controller.js';
+import {
     createWithdrawalRequestController,
     listMyWithdrawalsController
 } from '../controllers/withdrawal.controller.js';
@@ -131,6 +135,8 @@ router.post('/orders/:orderId/resend-notification', authMiddleware, requireResta
 
 // Complaints (restaurant dashboard)
 router.get('/complaints', authMiddleware, requireRestaurant, getRestaurantComplaintsController);
+router.post('/support/tickets', authMiddleware, requireRestaurant, createRestaurantSupportTicketController);
+router.get('/support/tickets', authMiddleware, requireRestaurant, listRestaurantSupportTicketsController);
 
 export default router;
 

@@ -221,7 +221,7 @@ export default function AdminHome() {
               helper="Rolling 12 months"
               icon={<ShoppingBag className="h-5 w-5 text-emerald-600" />}
               accent="bg-emerald-200/40"
-              path="/admin/transaction-report"
+              path="/admin/food/transaction-report"
             />
             <MetricCard
               title="Commission earned"
@@ -229,7 +229,7 @@ export default function AdminHome() {
               helper="Restaurant commission"
               icon={<ArrowUpRight className="h-5 w-5 text-indigo-600" />}
               accent="bg-indigo-200/40"
-              path="/admin/restaurants/commission"
+              path="/admin/food/restaurants/commission"
             />
             <MetricCard
               title="Orders processed"
@@ -237,7 +237,7 @@ export default function AdminHome() {
               helper="Fulfilled & billed"
               icon={<Activity className="h-5 w-5 text-amber-600" />}
               accent="bg-amber-200/40"
-              path="/admin/orders/all"
+              path="/admin/food/orders/processing"
             />
             <MetricCard
               title="Platform fee"
@@ -245,7 +245,7 @@ export default function AdminHome() {
               helper="Total platform fees"
               icon={<CreditCard className="h-5 w-5 text-purple-600" />}
               accent="bg-purple-200/40"
-              path="/admin/fee-settings"
+              path="/admin/food/fee-settings"
             />
             <MetricCard
               title="Delivery fee"
@@ -253,7 +253,7 @@ export default function AdminHome() {
               helper="Total delivery fees"
               icon={<Truck className="h-5 w-5 text-blue-600" />}
               accent="bg-blue-200/40"
-              path="/admin/transaction-report"
+              path="/admin/food/transaction-report"
             />
             <MetricCard
               title="GST"
@@ -261,7 +261,7 @@ export default function AdminHome() {
               helper="Total GST collected"
               icon={<Receipt className="h-5 w-5 text-orange-600" />}
               accent="bg-orange-200/40"
-              path="/admin/tax-report"
+              path="/admin/food/tax-report"
             />
             <MetricCard
               title="Total revenue"
@@ -269,7 +269,7 @@ export default function AdminHome() {
               helper={totalRevenueHelper}
               icon={<DollarSign className="h-5 w-5 text-green-600" />}
               accent="bg-green-200/40"
-              path="/admin/transaction-report"
+              path="/admin/food/transaction-report"
             />
             <MetricCard
               title="Total restaurants"
@@ -277,7 +277,7 @@ export default function AdminHome() {
               helper="All registered restaurants"
               icon={<Store className="h-5 w-5 text-blue-600" />}
               accent="bg-blue-200/40"
-              path="/admin/restaurants"
+              path="/admin/food/restaurants"
             />
             <MetricCard
               title="Restaurant request pending"
@@ -285,7 +285,7 @@ export default function AdminHome() {
               helper="Awaiting approval"
               icon={<UserCheck className="h-5 w-5 text-orange-600" />}
               accent="bg-orange-200/40"
-              path="/admin/restaurants/joining-request"
+              path="/admin/food/restaurants/joining-request"
             />
             <MetricCard
               title="Total delivery boy"
@@ -293,7 +293,7 @@ export default function AdminHome() {
               helper="All delivery partners"
               icon={<Truck className="h-5 w-5 text-indigo-600" />}
               accent="bg-indigo-200/40"
-              path="/admin/delivery-partners"
+              path="/admin/food/delivery-partners"
             />
             <MetricCard
               title="Delivery boy request pending"
@@ -301,7 +301,7 @@ export default function AdminHome() {
               helper="Awaiting verification"
               icon={<Clock className="h-5 w-5 text-yellow-600" />}
               accent="bg-yellow-200/40"
-              path="/admin/delivery-partners/join-request"
+              path="/admin/food/delivery-partners/join-request"
             />
             <MetricCard
               title="Total foods"
@@ -309,7 +309,7 @@ export default function AdminHome() {
               helper="Active menu items"
               icon={<Package className="h-5 w-5 text-purple-600" />}
               accent="bg-purple-200/40"
-              path="/admin/foods"
+              path="/admin/food/foods"
             />
             <MetricCard
               title="Total addons"
@@ -317,7 +317,7 @@ export default function AdminHome() {
               helper="Active addon items"
               icon={<Plus className="h-5 w-5 text-pink-600" />}
               accent="bg-pink-200/40"
-              path="/admin/addons"
+              path="/admin/food/addons"
             />
             <MetricCard
               title="Total customers"
@@ -325,7 +325,7 @@ export default function AdminHome() {
               helper="Registered users"
               icon={<UserCircle className="h-5 w-5 text-cyan-600" />}
               accent="bg-cyan-200/40"
-              path="/admin/customers"
+              path="/admin/food/customers"
             />
             <MetricCard
               title="Pending orders"
@@ -333,7 +333,7 @@ export default function AdminHome() {
               helper="Orders awaiting processing"
               icon={<Clock className="h-5 w-5 text-red-600" />}
               accent="bg-red-200/40"
-              path="/admin/orders/pending"
+              path="/admin/food/orders/pending"
             />
             <MetricCard
               title="Completed orders"
@@ -341,7 +341,7 @@ export default function AdminHome() {
               helper="Successfully delivered"
               icon={<CheckCircle className="h-5 w-5 text-emerald-600" />}
               accent="bg-emerald-200/40"
-              path="/admin/orders/delivered"
+              path="/admin/food/orders/delivered"
             />
           </div>
 
@@ -446,14 +446,14 @@ export default function AdminHome() {
                   {orderStats.map((item) => (
                     <div
                       key={item.label}
-                      onClick={() => {
+                    onClick={() => {
                         const routes = {
-                          'Delivered': '/admin/orders/delivered',
-                          'Cancelled': '/admin/orders/canceled',
-                          'Refunded': '/admin/orders/refunded',
-                          'Pending': '/admin/orders/pending'
+                          'Delivered': '/admin/food/orders/delivered',
+                          'Cancelled': '/admin/food/orders/canceled',
+                          'Refunded': '/admin/food/orders/refunded',
+                          'Pending': '/admin/food/orders/pending'
                         }
-                        navigate(routes[item.label] || '/admin/orders/all')
+                        navigate(routes[item.label] || '/admin/food/orders/all')
                       }}
                       className="flex items-center justify-between rounded-xl border border-neutral-200 bg-white px-3 py-2 cursor-pointer hover:bg-neutral-50 hover:border-neutral-300 transition-all group"
                     >
@@ -578,12 +578,12 @@ export default function AdminHome() {
                     key={item.label}
                     onClick={() => {
                       const routes = {
-                        'Delivered': '/admin/orders/delivered',
-                        'Cancelled': '/admin/orders/canceled',
-                        'Refunded': '/admin/orders/refunded',
-                        'Pending': '/admin/orders/pending'
+                        'Delivered': '/admin/food/orders/delivered',
+                        'Cancelled': '/admin/food/orders/canceled',
+                        'Refunded': '/admin/food/orders/refunded',
+                        'Pending': '/admin/food/orders/pending'
                       }
-                      navigate(routes[item.label] || '/admin/orders/all')
+                      navigate(routes[item.label] || '/admin/food/orders/all')
                     }}
                     className="flex items-center justify-between rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-3 cursor-pointer hover:bg-neutral-100 transition-colors group"
                   >
@@ -615,20 +615,23 @@ function MetricCard({ title, value, helper, icon, accent, path }) {
   const navigate = useNavigate()
   return (
     <Card
-      className="overflow-hidden border-neutral-200 bg-white p-0 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
+      className="group relative overflow-hidden border-neutral-200 bg-white p-0 cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 active:scale-[0.98]"
       onClick={() => path && navigate(path)}
     >
-      <CardContent className="relative flex flex-col gap-2 px-4 pb-4 pt-4">
-        <div className={`absolute inset-0 ${accent} `} />
-        <div className="relative flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">{title}</p>
-            <p className="text-2xl font-semibold text-neutral-900">{value}</p>
-            <p className="text-xs text-neutral-500">{helper}</p>
+      <CardContent className="relative flex flex-col gap-2 px-4 pb-4 pt-4 h-full">
+        <div className={`absolute inset-0 opacity-40 transition-opacity duration-300 group-hover:opacity-60 ${accent}`} />
+        <div className="relative flex items-center justify-between z-10">
+          <div className="flex-1 min-w-0 mr-2">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-neutral-500 font-bold mb-1 truncate">{title}</p>
+            <p className="text-xl font-bold text-neutral-900 leading-tight mb-1">{value}</p>
+            <p className="text-[10px] text-neutral-500 font-medium line-clamp-1">{helper}</p>
           </div>
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/80 ring-1 ring-neutral-200 shadow-sm transition-transform duration-300 group-hover:rotate-12">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/90 ring-1 ring-neutral-200 shadow-sm transition-all duration-300 group-hover:scale-110 group-hover:rotate-6 group-hover:shadow-md">
             {icon}
           </div>
+        </div>
+        <div className="absolute bottom-2 right-2 opacity-0 transform translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0">
+          <ArrowUpRight className="h-3 w-3 text-neutral-400" />
         </div>
       </CardContent>
     </Card>

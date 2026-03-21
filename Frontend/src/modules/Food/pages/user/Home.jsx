@@ -2232,6 +2232,21 @@ export default function Home() {
           onMouseLeave={handleMouseUp}
         >
           <div className="absolute inset-0 z-0">
+            {/* Shining Glint Effect */}
+            <div className="absolute inset-0 z-10 pointer-events-none overflow-hidden">
+              <motion.div 
+                animate={{ 
+                  x: ['-200%', '200%'],
+                }}
+                transition={{ 
+                  duration: 2.5, 
+                  repeat: Infinity, 
+                  repeatDelay: 5,
+                  ease: "easeInOut"
+                }}
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent skew-x-[-20deg] w-[150%] h-full"
+              />
+            </div>
             {heroBannerImages.map((image, index) => (
               <div
                 key={`${index}-${image}`}
@@ -2534,7 +2549,23 @@ export default function Home() {
                         to={`/user/category/${category.slug}`}
                         className="flex flex-col items-center gap-2 group"
                       >
-                        <div className="w-full aspect-square rounded-full overflow-hidden shadow-sm border border-gray-100 bg-white group-active:scale-95 transition-all duration-300">
+                        <div className="relative w-full aspect-square rounded-full overflow-hidden shadow-sm border border-gray-100 bg-white group-active:scale-95 transition-all duration-300">
+                          {/* Shining Glint Effect */}
+                          <div className="absolute inset-0 z-10 pointer-events-none overflow-hidden">
+                            <motion.div 
+                              animate={{ 
+                                x: ['-200%', '200%'],
+                              }}
+                              transition={{ 
+                                duration: 2, 
+                                repeat: Infinity, 
+                                repeatDelay: 3 + index * 0.5,
+                                ease: "easeInOut"
+                              }}
+                              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent skew-x-[-20deg] w-[150%] h-full"
+                            />
+                          </div>
+                      
                           <OptimizedImage 
                             src={category.image} 
                             alt={category.name} 
@@ -2766,7 +2797,7 @@ export default function Home() {
             className="content-auto space-y-0 pt-3 sm:pt-4 lg:pt-6 pb-8 md:pb-10"
             initial={false}
             animate={{ opacity: 1 }}>
-            <div className="px-1 mb-3 lg:mb-4">
+            <div className="px-4 mb-3 lg:mb-4">
               <div className="flex flex-col gap-0.5 lg:gap-1">
                 <h2 className="text-xs sm:text-sm lg:text-base font-semibold text-gray-400 tracking-widest uppercase">
                   {filteredRestaurants.length} Restaurants Delivering to You
@@ -2798,7 +2829,7 @@ export default function Home() {
                 )}
               </AnimatePresence>
               <div
-                className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-5 xl:gap-6 pt-1 sm:pt-1.5 lg:pt-2 items-stretch ${isLoadingFilterResults || loadingRestaurants ? "opacity-50" : "opacity-100"} transition-opacity duration-300`}>
+                className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-4 lg:gap-5 xl:gap-6 px-4 pt-1 sm:pt-1.5 lg:pt-2 items-stretch ${isLoadingFilterResults || loadingRestaurants ? "opacity-50" : "opacity-100"} transition-opacity duration-300`}>
                 {filteredRestaurants.map((restaurant, index) => {
                   const nameStr =
                     typeof restaurant?.name === "string"
@@ -2891,7 +2922,7 @@ export default function Home() {
 
                               {/* Featured Dish Badge - Top Left */}
                               <div className="absolute top-4 left-4 flex items-center z-10 transform transition-transform duration-300 group-hover:scale-105">
-                                <div className="bg-black/70 backdrop-blur-lg text-white px-4 py-1.5 rounded-full text-[11px] font-black tracking-tight flex items-center shadow-2xl border border-white/20">
+                                <div className="bg-black/70 backdrop-blur-lg text-white px-4 py-1.5 rounded-full text-[11px] font-medium tracking-tight flex items-center shadow-2xl border border-white/20">
                                   {restaurant.featuredDish} • ₹
                                   {restaurant.featuredPrice}
                                 </div>
@@ -2928,19 +2959,19 @@ export default function Home() {
                                 {/* Restaurant Name & Rating */}
                                 <div className="flex items-start justify-between gap-2 mb-2 lg:mb-3">
                                   <div className="flex-1 min-w-0">
-                                    <h3 className="text-lg lg:text-2xl font-black text-gray-950 dark:text-white line-clamp-1 leading-tight tracking-tighter transition-colors duration-300 group-hover:text-[#ef4f5f]">
+                                    <h3 className="text-lg lg:text-2xl font-medium text-gray-950 dark:text-white line-clamp-1 leading-tight tracking-tight transition-colors duration-300 group-hover:text-[#ef4f5f]">
                                       {restaurant.name}
                                     </h3>
                                     <div className="flex flex-wrap items-center gap-2 mt-2">
                                       <span
-                                        className={`inline-flex rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest shadow-sm ${availability.isOpen ? "bg-emerald-500 text-white" : "bg-gray-400 text-white"}`}>
+                                        className={`inline-flex rounded-full px-3 py-1 text-[10px] font-medium uppercase tracking-widest shadow-sm ${availability.isOpen ? "bg-emerald-500 text-white" : "bg-gray-400 text-white"}`}>
                                         {availability.isOpen
                                           ? "Open now"
                                           : "Offline"}
                                       </span>
                                       {availability.isOpen &&
                                         availability.closingCountdownLabel && (
-                                          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100 text-[10px] font-black uppercase tracking-wide">
+                                          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100 text-[10px] font-medium uppercase tracking-wide">
                                             <Timer
                                               className="h-3 w-3 flex-shrink-0"
                                               strokeWidth={2.5}
@@ -2953,7 +2984,7 @@ export default function Home() {
                                     </div>
                                   </div>
                                   <div className={`flex-shrink-0 ${Number(restaurant.rating) > 0 ? "bg-[#259539]" : "bg-gray-400"} text-white px-3 py-1.5 rounded-2xl flex items-center gap-1.5 shadow-md transform transition-transform duration-300 group-hover:scale-110`}>
-                                    <span className="text-sm lg:text-lg font-black tracking-tight">
+                                    <span className="text-sm lg:text-lg font-medium tracking-tight">
                                       {Number(restaurant.rating) > 0 ? Number(restaurant.rating).toFixed(1) : "NEW"}
                                     </span>
                                     {Number(restaurant.rating) > 0 && <Star className="h-3.5 w-3.5 lg:h-4.5 lg:w-4.5 fill-white text-white" strokeWidth={0} />}

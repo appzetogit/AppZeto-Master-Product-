@@ -204,10 +204,10 @@ const RestaurantCard = ({
 
       <div className="p-3 sm:p-4">
         <div className="flex justify-between items-start gap-2 mb-1">
-          <h3 className="text-sm sm:text-base font-bold text-gray-900 dark:text-gray-100 line-clamp-1 group-hover:text-primary-orange transition-colors duration-300 flex-1">
+          <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-gray-100 line-clamp-1 group-hover:text-primary-orange transition-colors duration-300 flex-1">
             {restaurant.name}
           </h3>
-          <div className="flex items-center gap-1 bg-green-500 text-white px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-bold shadow-sm flex-shrink-0">
+          <div className="flex items-center gap-1 bg-green-600 text-white px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-medium shadow-sm flex-shrink-0">
             <span>{restaurant.rating}</span>
             <Star className="w-2.5 h-2.5 fill-current" />
           </div>
@@ -220,11 +220,11 @@ const RestaurantCard = ({
         <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-800">
           <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
             <Clock className="w-3.5 h-3.5 text-primary-orange" />
-            <span className="text-[10px] sm:text-[11px] font-medium">{restaurant.deliveryTime || "25-35 min"}</span>
+            <span className="text-[10px] sm:text-[11px] font-normal">{restaurant.deliveryTime || "25-35 min"}</span>
           </div>
-          <div className="flex items-center gap-1 text-gray-800 dark:text-gray-200">
+          <div className="flex items-center gap-1 text-gray-700 dark:text-gray-200">
             <IndianRupee className="w-3 h-3 text-primary-orange" />
-            <span className="text-[10px] sm:text-[11px] font-bold">{restaurant.avgPrice || "200 for two"}</span>
+            <span className="text-[10px] sm:text-[11px] font-medium">{restaurant.avgPrice || "200 for two"}</span>
           </div>
         </div>
       </div>

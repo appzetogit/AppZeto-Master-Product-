@@ -169,8 +169,8 @@ export default function OrdersPage() {
               amount: order.pricing?.total || 0,
               status: order.status || 'pending',
               createdAt: order.createdAt,
-              customerName: order.userId?.name || 'Customer',
-              customerPhone: order.userId?.phone || '',
+              customerName: order.userId?.name || order.customerName || 'Customer',
+              customerPhone: order.userId?.phone || order.customerPhone || '',
               address: order.address
             }
           })
@@ -239,8 +239,8 @@ export default function OrdersPage() {
                 amount: order.pricing?.total || 0,
                 status: order.status || 'pending',
                 createdAt: order.createdAt,
-                customerName: order.userId?.name || 'Customer',
-                customerPhone: order.userId?.phone || '',
+                customerName: order.userId?.name || order.customerName || 'Customer',
+                customerPhone: order.userId?.phone || order.customerPhone || '',
                 address: order.address
               }
             })
@@ -292,8 +292,8 @@ export default function OrdersPage() {
                 amount: order.pricing?.total || 0,
                 status: order.status || 'pending',
                 createdAt: order.createdAt,
-                customerName: order.userId?.name || 'Customer',
-                customerPhone: order.userId?.phone || '',
+                customerName: order.userId?.name || order.customerName || 'Customer',
+                customerPhone: order.userId?.phone || order.customerPhone || '',
                 address: order.address
               }
             })

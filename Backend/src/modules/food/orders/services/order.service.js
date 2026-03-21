@@ -1200,6 +1200,7 @@ export async function listOrdersRestaurant(restaurantId, query) {
   const filter = { restaurantId: new mongoose.Types.ObjectId(restaurantId) };
   const [docs, total] = await Promise.all([
     FoodOrder.find(filter)
+      .populate("userId", "name phone email profileImage")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)

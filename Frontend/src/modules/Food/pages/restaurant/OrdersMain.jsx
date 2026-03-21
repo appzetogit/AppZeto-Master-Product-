@@ -71,7 +71,7 @@ const transformOrderForList = (order) => ({
   orderId: order.orderId || order._id,
   mongoId: order._id,
   status: order.status || "pending",
-  customerName: order.userId?.name || "Customer",
+  customerName: order.userId?.name || order.customerName || "Customer",
   type: "Home Delivery",
   tableOrToken: null,
   timePlaced: new Date(getAllOrdersTimestamp(order)).toLocaleDateString(
@@ -122,7 +122,7 @@ function CompletedOrders({ onSelectOrder, refreshToken = 0 }) {
             orderId: order.orderId || order._id,
             mongoId: order._id,
             status: order.status || "delivered",
-            customerName: order.userId?.name || "Customer",
+            customerName: order.userId?.name || order.customerName || "Customer",
             type: "Home Delivery",
             tableOrToken: null,
             timePlaced: new Date(order.createdAt).toLocaleTimeString("en-US", {
@@ -328,7 +328,7 @@ function CancelledOrders({ onSelectOrder, refreshToken = 0 }) {
             orderId: order.orderId || order._id,
             mongoId: order._id,
             status: order.status || "cancelled",
-            customerName: order.userId?.name || "Customer",
+            customerName: order.userId?.name || order.customerName || "Customer",
             type: "Home Delivery",
             tableOrToken: null,
             timePlaced: new Date(order.createdAt).toLocaleTimeString("en-US", {

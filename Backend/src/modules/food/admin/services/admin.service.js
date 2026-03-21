@@ -14,6 +14,7 @@ import { FoodEarningAddonHistory } from '../models/earningAddonHistory.model.js'
 import { FoodRestaurantCommission } from '../models/restaurantCommission.model.js';
 import { FoodDeliveryCommissionRule } from '../models/deliveryCommissionRule.model.js';
 import { FoodFeeSettings } from '../models/feeSettings.model.js';
+import { FeedbackExperience } from '../models/feedbackExperience.model.js';
 import { FoodUser } from '../../../../core/users/user.model.js';
 import { FoodRefreshToken } from '../../../../core/refreshTokens/refreshToken.model.js';
 import { FoodDeliveryCashLimit } from '../models/deliveryCashLimit.model.js';
@@ -1652,6 +1653,78 @@ export async function deleteSafetyEmergencyReport(id) {
     return deleted;
 }
 
+export async function getContactMessages(query = {}) {
+    const limit = Math.min(Math.max(parseInt(query.limit, 10) || 10, 1), 100);
+    const page = Math.max(parseInt(query.page, 10) || 1, 1);
+    const skip = (page - 1) * limit;
+
+    // Fix old records with 'User' instead of 'FoodUser' for population to work
+    await FeedbackExperience.updateMany({ userModel: 'User' }, { $set: { userModel: 'FoodUser' } });
+
+    const filter = {};
+    if (query.rating && !isNaN(query.rating)) {
+        filter.rating = parseInt(query.rating);
+    }
+
+    if (query.search && String(query.search).trim()) {
+        const term = String(query.search).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const searchRegex = new RegExp(term, 'i');
+        
+        const [users, restaurants, partners] = await Promise.all([
+            FoodUser.find({
+                $or: [{ name: searchRegex }, { email: searchRegex }, { phone: searchRegex }]
+            }).select('_id').lean(),
+            FoodRestaurant.find({
+                $or: [{ restaurantName: searchRegex }, { ownerEmail: searchRegex }, { ownerPhone: searchRegex }]
+            }).select('_id').lean(),
+            FoodDeliveryPartner.find({
+                $or: [{ name: searchRegex }, { email: searchRegex }, { phone: searchRegex }]
+            }).select('_id').lean()
+        ]);
+
+        filter.$or = [
+            { comment: searchRegex },
+            { userId: { $in: [...users.map(u => u._id), ...restaurants.map(r => r._id), ...partners.map(p => p._id)] } }
+        ];
+    }
+
+    const [list, total] = await Promise.all([
+        FeedbackExperience.find(filter)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .populate('userId')
+            .lean(),
+        FeedbackExperience.countDocuments(filter)
+    ]);
+
+    const reviews = list.map((doc) => {
+        const user = (doc.userId && typeof doc.userId === 'object') ? doc.userId : {};
+        return {
+            _id: doc._id,
+            customer: {
+                name: user.name || user.restaurantName || 'Unknown',
+                email: user.email || user.ownerEmail || 'N/A',
+                phone: user.phone || user.ownerPhone || 'N/A'
+            },
+            comment: doc.comment || '',
+            rating: doc.rating || 0,
+            submittedAt: doc.createdAt,
+            module: doc.module
+        };
+    });
+
+    return {
+        reviews,
+        pagination: {
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit) || 1
+        }
+    };
+}
+
 // ----- Delivery Cash Limit (admin) -----
 export async function getDeliveryCashLimitSettings() {
     const doc = await FoodDeliveryCashLimit.findOne({ isActive: true }).sort({ createdAt: -1 }).lean();
@@ -1735,6 +1808,62 @@ export async function upsertDeliveryEmergencyHelp(body = {}) {
         contactPolice: created.contactPolice || '',
         insurance: created.insurance || ''
     };
+}
+
+export async function getRestaurantReviews(query = {}) {
+    const limit = Math.min(Math.max(parseInt(query.limit, 10) || 50, 1), 1000);
+    const page = Math.max(parseInt(query.page, 10) || 1, 1);
+    const skip = (page - 1) * limit;
+
+    const filter = {
+        'ratings.restaurant.rating': { $exists: true, $ne: null }
+    };
+
+    if (query.search && String(query.search).trim()) {
+        const term = String(query.search).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const searchRegex = new RegExp(term, 'i');
+        
+        const restaurants = await FoodRestaurant.find({
+            $or: [{ restaurantName: searchRegex }]
+        }).select('_id').lean();
+        
+        const customers = await FoodUser.find({
+            $or: [{ name: searchRegex }, { email: searchRegex }]
+        }).select('_id').lean();
+
+        filter.$or = [
+            { orderId: searchRegex },
+            { 'ratings.restaurant.comment': searchRegex },
+            { restaurantId: { $in: restaurants.map(r => r._id) } },
+            { userId: { $in: customers.map(c => c._id) } }
+        ];
+    }
+
+    const [docs, total] = await Promise.all([
+        FoodOrder.find(filter)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .populate('userId', 'name email phone')
+            .populate('restaurantId', 'restaurantName')
+            .select('orderId userId restaurantId ratings.restaurant createdAt')
+            .lean(),
+        FoodOrder.countDocuments(filter)
+    ]);
+
+    const reviews = docs.map((doc, index) => ({
+        sl: skip + index + 1,
+        orderId: doc.orderId,
+        restaurant: doc.restaurantId?.restaurantName || 'Unknown',
+        restaurantId: doc.restaurantId?._id || 'N/A',
+        customer: doc.userId?.name || 'Unknown',
+        customerId: doc.userId?._id || 'N/A',
+        review: doc.ratings?.restaurant?.comment || '',
+        rating: doc.ratings?.restaurant?.rating || 0,
+        submittedAt: doc.createdAt
+    }));
+
+    return { reviews, total, page, limit };
 }
 
 export async function getRestaurantById(id) {
@@ -3455,6 +3584,73 @@ export async function getDeliveryPartnerById(id) {
             }
             : null
     };
+}
+
+export async function getDeliverymanReviews(query = {}) {
+    const limit = Math.min(Math.max(parseInt(query.limit, 10) || 50, 1), 1000);
+    const page = Math.max(parseInt(query.page, 10) || 1, 1);
+    const skip = (page - 1) * limit;
+
+    const filter = {
+        'ratings.deliveryPartner.rating': { $exists: true, $ne: null }
+    };
+
+    if (query.search && String(query.search).trim()) {
+        const term = String(query.search).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const searchRegex = new RegExp(term, 'i');
+        
+        // Find delivery partners matching search
+        const partners = await FoodDeliveryPartner.find({
+            $or: [
+                { name: searchRegex },
+                { phone: searchRegex }
+            ]
+        }).select('_id').lean();
+        
+        // Find customers matching search
+        const customers = await FoodUser.find({
+            $or: [
+                { name: searchRegex },
+                { email: searchRegex }
+            ]
+        }).select('_id').lean();
+
+        filter.$or = [
+            { orderId: searchRegex },
+            { 'ratings.deliveryPartner.comment': searchRegex },
+            { 'dispatch.deliveryPartnerId': { $in: partners.map(p => p._id) } },
+            { userId: { $in: customers.map(c => c._id) } }
+        ];
+    }
+
+    const [docs, total] = await Promise.all([
+        FoodOrder.find(filter)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .populate('userId', 'name email phone')
+            .populate('dispatch.deliveryPartnerId', 'name phone')
+            .select('orderId userId dispatch.deliveryPartnerId ratings.deliveryPartner createdAt deliveryState.deliveredAt')
+            .lean(),
+        FoodOrder.countDocuments(filter)
+    ]);
+
+    const reviews = docs.map((doc, index) => ({
+        sl: skip + index + 1,
+        orderId: doc.orderId,
+        deliveryman: doc.dispatch?.deliveryPartnerId?.name || 'Unknown',
+        deliverymanId: doc.dispatch?.deliveryPartnerId?._id || 'N/A',
+        deliverymanPhone: doc.dispatch?.deliveryPartnerId?.phone || 'N/A',
+        customer: doc.userId?.name || 'Unknown',
+        customerId: doc.userId?._id || 'N/A',
+        customerPhone: doc.userId?.phone || 'N/A',
+        review: doc.ratings?.deliveryPartner?.comment || '',
+        rating: doc.ratings?.deliveryPartner?.rating || 0,
+        submittedAt: doc.createdAt,
+        deliveredAt: doc.deliveryState?.deliveredAt
+    }));
+
+    return { reviews, total, page, limit };
 }
 
 export async function approveDeliveryPartner(id) {

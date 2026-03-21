@@ -232,6 +232,16 @@ export const adminAPI = {
       params,
       contextModule: "admin",
     }),
+  getDeliverymanReviews: (params = {}) =>
+    apiClient.get("/food/admin/delivery/reviews", {
+      params,
+      contextModule: "admin",
+    }),
+  getContactMessages: (params = {}) =>
+    apiClient.get("/food/admin/contact-messages", {
+      params,
+      contextModule: "admin",
+    }),
   /** Dashboard summary stats (admin home) */
   getDashboardStats: (params = {}) =>
     apiClient.get("/food/admin/dashboard-stats", {
@@ -314,6 +324,11 @@ export const adminAPI = {
       params: { limit: 1000, ...params },
       contextModule: "admin",
       ...config,
+    }),
+  getRestaurantReviews: (params = {}) =>
+    apiClient.get("/food/admin/restaurants/reviews", {
+      params: { page: 1, limit: 1000, ...params },
+      contextModule: "admin",
     }),
   /** Categories (admin) */
   getCategories: (params = {}) =>

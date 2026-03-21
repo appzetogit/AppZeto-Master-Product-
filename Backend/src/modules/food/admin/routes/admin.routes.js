@@ -51,6 +51,7 @@ router.get('/reports/transactions', adminController.getTransactionReport);
 router.get('/reports/tax', adminController.getTaxReport);
 router.get('/reports/tax/:id', adminController.getTaxReportDetail);
 router.get('/restaurants/pending', adminController.getPendingRestaurants);
+router.get('/restaurants/reviews', adminController.getRestaurantReviews);
 router.get('/restaurants/:id', adminController.getRestaurantById);
 router.get('/restaurants/:id/analytics', adminController.getRestaurantAnalytics);
 router.get('/restaurants/:id/menu', adminController.getRestaurantMenuById);
@@ -139,6 +140,8 @@ router.post('/delivery/commission-rules', adminController.createDeliveryCommissi
 router.patch('/delivery/commission-rules/:id', adminController.updateDeliveryCommissionRule);
 router.delete('/delivery/commission-rules/:id', adminController.deleteDeliveryCommissionRule);
 router.patch('/delivery/commission-rules/:id/status', adminController.toggleDeliveryCommissionRuleStatus);
+router.get('/delivery/reviews', adminController.getDeliverymanReviews);
+router.get('/contact-messages', adminController.getContactMessages);
 router.get('/delivery/earning-addons', adminController.getEarningAddons);
 router.post('/delivery/earning-addons', adminController.createEarningAddon);
 router.patch('/delivery/earning-addons/:id', adminController.updateEarningAddon);

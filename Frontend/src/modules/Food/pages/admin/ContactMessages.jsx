@@ -1,8 +1,7 @@
 import { useState, useEffect, useMemo } from "react"
 import { Search, ArrowUpDown, Settings, Folder, ChevronDown, Eye, Loader2, Star } from "lucide-react"
 import { toast } from "sonner"
-import apiClient from "@food/api/axios"
-import { API_ENDPOINTS } from "@food/api/config"
+import { adminAPI } from "@food/api"
 import {
   Dialog,
   DialogContent,
@@ -17,10 +16,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@food/components/ui/dropdown-menu"
+
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
-
 
 export default function ContactMessages() {
   const [searchQuery, setSearchQuery] = useState("")
@@ -43,38 +42,25 @@ export default function ContactMessages() {
         page: currentPage,
         limit: 10,
         rating: ratingFilter !== 'all' ? ratingFilter : undefined,
-        sortBy: 'submittedAt',
-        sortOrder: 'desc'
+        search: searchQuery.trim() || undefined
       }
       
-      // Remove undefined params
-      Object.keys(params).forEach(key => params[key] === undefined && delete params[key])
-      
-      const response = await apiClient.get(API_ENDPOINTS.ADMIN.REVIEWS, { params })
+      const response = await adminAPI.getContactMessages(params)
       
       if (response.data && response.data.success) {
         setFeedbacks(response.data.data?.reviews || [])
         setTotalPages(response.data.data?.pagination?.totalPages || 1)
       } else {
-        // Handle case where response doesn't have expected structure
         setFeedbacks([])
         setTotalPages(1)
       }
     } catch (error) {
       debugError('Error fetching reviews:', error)
-      debugError('Error response:', error.response)
-      debugError('Error status:', error.response?.status)
-      debugError('Error data:', error.response?.data)
-      debugError('Error message:', error.message)
-      
-      // Set empty state on error
       setFeedbacks([])
       setTotalPages(1)
-      
-      // Show user-friendly error message
       const errorMessage = error.response?.data?.message || 
                           error.message || 
-                          'Failed to load reviews. Please check your connection and try again.'
+                          'Failed to load reviews.'
       toast.error(errorMessage)
     } finally {
       setLoading(false)
@@ -104,28 +90,8 @@ export default function ContactMessages() {
   }
 
   const filteredFeedbacks = useMemo(() => {
-    let filtered = feedbacks
-    
-    // Filter by search query
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim()
-      filtered = filtered.filter(feedback => {
-        const itemNames = feedback.items?.map(item => item.name?.toLowerCase()).join(' ') || ''
-        return (
-          feedback.customer?.name?.toLowerCase().includes(query) ||
-          feedback.customer?.email?.toLowerCase().includes(query) ||
-          feedback.comment?.toLowerCase().includes(query) ||
-          feedback.orderId?.toLowerCase().includes(query) ||
-          feedback.restaurantName?.toLowerCase().includes(query) ||
-          feedback.deliveryPartner?.name?.toLowerCase().includes(query) ||
-          feedback.deliveryPartner?.id?.toString().toLowerCase().includes(query) ||
-          itemNames.includes(query)
-        )
-      })
-    }
-    
-    return filtered
-  }, [feedbacks, searchQuery])
+    return feedbacks
+  }, [feedbacks])
 
   const getRatingBadge = (rating) => {
     const ratingColors = {
@@ -230,30 +196,6 @@ export default function ContactMessages() {
                 </th>
                 <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
                   <div className="flex items-center gap-2">
-                    <span>Order ID</span>
-                    <ArrowUpDown className="w-3 h-3 text-slate-400 cursor-pointer hover:text-slate-600" />
-                  </div>
-                </th>
-                <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
-                  <div className="flex items-center gap-2">
-                    <span>Restaurant</span>
-                    <ArrowUpDown className="w-3 h-3 text-slate-400 cursor-pointer hover:text-slate-600" />
-                  </div>
-                </th>
-                <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
-                  <div className="flex items-center gap-2">
-                    <span>Delivery Boy</span>
-                    <ArrowUpDown className="w-3 h-3 text-slate-400 cursor-pointer hover:text-slate-600" />
-                  </div>
-                </th>
-                <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
-                  <div className="flex items-center gap-2">
-                    <span>Food Items</span>
-                    <ArrowUpDown className="w-3 h-3 text-slate-400 cursor-pointer hover:text-slate-600" />
-                  </div>
-                </th>
-                <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
-                  <div className="flex items-center gap-2">
                     <span>Feedback</span>
                     <ArrowUpDown className="w-3 h-3 text-slate-400 cursor-pointer hover:text-slate-600" />
                   </div>
@@ -308,48 +250,6 @@ export default function ContactMessages() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm text-slate-700">{feedback.customer?.email || 'N/A'}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm font-medium text-slate-900">{feedback.orderId || 'N/A'}</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-sm font-medium text-slate-900">{feedback.restaurantName || 'N/A'}</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col gap-1">
-                        {feedback.deliveryPartner ? (
-                          <>
-                            {feedback.deliveryPartner.name && (
-                              <span className="text-sm font-medium text-slate-900">{feedback.deliveryPartner.name}</span>
-                            )}
-                            {feedback.deliveryPartner.id && (
-                              <span className="text-xs text-slate-500 font-mono">
-                                ID: {String(feedback.deliveryPartner.id)}
-                              </span>
-                            )}
-                          </>
-                        ) : (
-                          <span className="text-sm text-slate-500">N/A</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 max-w-xs">
-                      <div className="flex flex-col gap-1">
-                        {feedback.items && feedback.items.length > 0 ? (
-                          <>
-                            {feedback.items.slice(0, 2).map((item, idx) => (
-                              <span key={idx} className="text-xs text-slate-700 line-clamp-1">
-                                {item.quantity}x {item.name}
-                              </span>
-                            ))}
-                            {feedback.items.length > 2 && (
-                              <span className="text-xs text-slate-500">+{feedback.items.length - 2} more</span>
-                            )}
-                          </>
-                        ) : (
-                          <span className="text-xs text-slate-500">N/A</span>
-                        )}
-                      </div>
                     </td>
                     <td className="px-6 py-4 max-w-md">
                       <span className="text-sm text-slate-700 line-clamp-2">
@@ -441,73 +341,8 @@ export default function ContactMessages() {
                       <p className="text-base font-semibold text-slate-900 dark:text-white">{selectedFeedback.customer.phone}</p>
                     </div>
                   )}
-                  {selectedFeedback.orderId && (
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Order ID</label>
-                      <p className="text-base font-semibold text-slate-900 dark:text-white">{selectedFeedback.orderId}</p>
-                    </div>
-                  )}
-                   {selectedFeedback.restaurantName && (
-                     <div className="space-y-1">
-                       <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Restaurant</label>
-                       <p className="text-base font-semibold text-slate-900 dark:text-white">{selectedFeedback.restaurantName}</p>
-                     </div>
-                   )}
-                   {selectedFeedback.deliveryPartner?.name && (
-                     <div className="space-y-1">
-                       <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Delivery Boy Name</label>
-                       <p className="text-base font-semibold text-slate-900 dark:text-white">{selectedFeedback.deliveryPartner.name}</p>
-                     </div>
-                   )}
-                   {selectedFeedback.deliveryPartner?.id && (
-                     <div className="space-y-1">
-                       <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Delivery Boy ID</label>
-                       <p className="text-base font-semibold text-slate-900 dark:text-white font-mono text-sm">
-                         {selectedFeedback.deliveryPartner.id.toString()}
-                       </p>
-                     </div>
-                   )}
-                   {selectedFeedback.deliveryPartner?.phone && (
-                     <div className="space-y-1">
-                       <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Delivery Boy Phone</label>
-                       <p className="text-base font-semibold text-slate-900 dark:text-white">{selectedFeedback.deliveryPartner.phone}</p>
-                     </div>
-                   )}
                 </div>
               </div>
-
-               {/* Food Items Section */}
-               {selectedFeedback.items && selectedFeedback.items.length > 0 && (
-                 <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl p-5 border border-purple-200 dark:border-purple-800">
-                   <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-5 flex items-center gap-3">
-                     <div className="w-1 h-6 bg-gradient-to-b from-purple-500 to-pink-600 rounded-full"></div>
-                     Food Items Ordered
-                   </h3>
-                   <div className="bg-white dark:bg-slate-800 rounded-lg p-5 border border-slate-200 dark:border-slate-700 shadow-sm">
-                     <div className="space-y-2">
-                       {selectedFeedback.items.map((item, index) => (
-                         <div key={index} className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-700 last:border-b-0">
-                           <div className="flex-1">
-                             <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                               {item.quantity}x {item.name}
-                             </p>
-                             {item.price && (
-                               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                 {"\u20B9"}{item.price} each
-                               </p>
-                             )}
-                           </div>
-                           {item.price && (
-                             <p className="text-sm font-bold text-slate-900 dark:text-white">
-                               {"\u20B9"}{(item.price * item.quantity).toFixed(2)}
-                             </p>
-                           )}
-                         </div>
-                       ))}
-                     </div>
-                   </div>
-                 </div>
-               )}
 
                {/* Rating Section */}
                <div className="bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 rounded-xl p-5 border border-yellow-200 dark:border-yellow-800">
@@ -548,18 +383,6 @@ export default function ContactMessages() {
                   <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-2">Submitted At</label>
                   <p className="text-sm font-semibold text-slate-900 dark:text-white">
                     {selectedFeedback.submittedAt ? new Date(selectedFeedback.submittedAt).toLocaleString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    }) : 'N/A'}
-                  </p>
-                </div>
-                <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
-                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-2">Delivered At</label>
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                    {selectedFeedback.deliveredAt ? new Date(selectedFeedback.deliveredAt).toLocaleString('en-US', {
                       year: 'numeric',
                       month: 'long',
                       day: 'numeric',

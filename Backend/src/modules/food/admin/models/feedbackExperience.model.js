@@ -10,8 +10,8 @@ const feedbackExperienceSchema = new mongoose.Schema(
         userModel: {
             type: String,
             required: true,
-            enum: ['User', 'FoodRestaurant', 'FoodDeliveryPartner'],
-            default: 'User'
+            enum: ['FoodUser', 'FoodRestaurant', 'FoodDeliveryPartner'],
+            default: 'FoodUser'
         },
         restaurantId: { 
             type: mongoose.Schema.Types.ObjectId, 

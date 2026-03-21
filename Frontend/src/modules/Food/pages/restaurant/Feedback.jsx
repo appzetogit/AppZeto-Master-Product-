@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
-import { Bell, HelpCircle, Menu, Search, SlidersHorizontal, Calendar, Reply, ChevronLeft, Send, X, Loader2, ChevronRight, Star } from "lucide-react"
+import { Bell, HelpCircle, Menu, Search, SlidersHorizontal, Calendar, ChevronLeft, X, Loader2, ChevronRight, Star } from "lucide-react"
 import { DateRangeCalendar } from "@food/components/ui/date-range-calendar"
 import BottomNavOrders from "@food/components/restaurant/BottomNavOrders"
 import { restaurantAPI } from "@food/api"
@@ -75,9 +75,6 @@ export default function Feedback() {
   
   const feedbackTabs = ["complaints", "reviews"]
   const [reviews, setReviews] = useState([])
-  const [selectedReview, setSelectedReview] = useState(null)
-  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false)
-  const [replyText, setReplyText] = useState("")
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [selectedFilterCategory, setSelectedFilterCategory] = useState("duration")
   const [filterValues, setFilterValues] = useState({
@@ -246,7 +243,7 @@ export default function Feedback() {
             const year = orderDate.getFullYear()
             const formattedDate = `${day} ${month}, ${year}`
 
-            const userName = order.userId?.name || 'Customer'
+            const userName = order.userId?.name || order.customerName || 'Customer'
             const userImage = order.userId?.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=random`
             const outlet = order.restaurantName || (restaurantData?.name) || 'Restaurant'
 
@@ -265,7 +262,6 @@ export default function Feedback() {
               rating: rating,
               date: formattedDate,
               reviewText: reviewText,
-              reply: order.review?.reply || order.feedback?.reply || null,
               orderData: order
             }
           })
@@ -305,19 +301,6 @@ export default function Feedback() {
     setDisplayedReviews(filtered)
   }, [reviews, filterValues])
 
-  const handleReviewClick = (review) => {
-    setSelectedReview(review)
-    setReplyText(review.reply || "")
-    setIsReviewModalOpen(true)
-  }
-
-  const handleSendReply = async () => {
-    if (!selectedReview || !replyText.trim()) return
-    setReviews(prev => prev.map(review => review.id === selectedReview.id ? { ...review, reply: replyText.trim() } : review))
-    setIsReviewModalOpen(false)
-  }
-
-  const handleCloseModal = () => { setIsReviewModalOpen(false); setSelectedReview(null); setReplyText("") }
   const handleFilterReset = () => { setFilterValues({ duration: null, sortBy: "newest", reviewType: [] }); setIsFilterApply() }
   const handleFilterApply = () => { setIsFilterLoading(true); setIsFilterOpen(false); setTimeout(() => setIsFilterLoading(false), 200) }
 
@@ -499,7 +482,7 @@ export default function Feedback() {
 
             <div className="space-y-4 pb-20">
               {displayedReviews.map((review) => (
-                <div key={review.id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm space-y-3" onClick={() => handleReviewClick(review)}>
+                <div key={review.id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm space-y-3">
                   <div className="flex items-center justify-between text-[10px] text-gray-400 font-bold uppercase">
                     <span>Order #{review.orderNumber}</span>
                     <span>{review.date}</span>
@@ -514,40 +497,12 @@ export default function Feedback() {
                   <div className="bg-gray-50 rounded-xl p-3">
                     <p className="text-sm text-gray-800 font-medium italic">"{review.reviewText}"</p>
                   </div>
-                  {review.reply && (
-                    <div className="bg-blue-50 rounded-xl p-3 border border-blue-100 ml-4">
-                      <p className="text-[9px] font-black text-blue-600 uppercase mb-1">Your reply</p>
-                      <p className="text-sm text-blue-900 font-medium">{review.reply}</p>
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
           </div>
         )}
       </div>
-      
-      {/* Modals omitted for brevity - should be restored from backup if needed */}
-      <AnimatePresence>
-        {isReviewModalOpen && selectedReview && (
-          <div className="fixed inset-0 z-[100] flex items-end">
-             <motion.div initial={{opacity:0}} animate={{opacity:1}} className="fixed inset-0 bg-black/40" onClick={handleCloseModal} />
-             <motion.div initial={{y:"100%"}} animate={{y:0}} className="relative w-full bg-white rounded-t-3xl p-6 pb-10 shadow-2xl">
-                <h3 className="text-lg font-bold mb-4">Reply to Review</h3>
-                <textarea 
-                  className="w-full h-32 bg-gray-50 rounded-2xl p-4 text-sm focus:outline-none border border-gray-200 mb-4"
-                  placeholder="Type your reply..."
-                  value={replyText}
-                  onChange={(e) => setReplyText(e.target.value)}
-                />
-                <button onClick={handleSendReply} className="w-full bg-black text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2">
-                  <Send className="w-5 h-5" /> Send Reply
-                </button>
-             </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
       <BottomNavOrders />
     </div>
   )

@@ -2222,7 +2222,7 @@ export default function Home() {
         <div
           ref={heroShellRef}
           data-home-hero-shell="true"
-          className="relative w-full overflow-hidden aspect-[1.7/1] rounded-2xl shadow-sm group cursor-pointer bg-white"
+          className="relative w-full overflow-hidden aspect-[1.85/1] rounded-2xl shadow-sm group cursor-pointer bg-white"
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
@@ -2259,7 +2259,7 @@ export default function Home() {
                 <img
                   src={image}
                   alt={`Hero Banner ${index + 1}`}
-                  className="h-full w-full object-cover object-center"
+                  className="h-full w-full object-cover"
                   loading={index === currentBannerIndex ? "eager" : "lazy"}
                   fetchPriority={index === currentBannerIndex ? "high" : "low"}
                   draggable={false}
@@ -2683,11 +2683,11 @@ export default function Home() {
               className="content-auto pt-1 sm:pt-2"
               initial={false}
               animate={{ opacity: 1, y: 0 }}>
-              <h2 className="text-xs sm:text-sm lg:text-base font-semibold text-gray-400 dark:text-gray-500 tracking-widest uppercase mb-2 sm:mb-3 px-1">
+              <h2 className="text-xs sm:text-sm lg:text-base font-semibold text-gray-400 dark:text-gray-500 tracking-widest uppercase mb-2 sm:mb-3 px-4">
                 Recommended For You
               </h2>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 px-4">
                 {recommendedForYouRestaurants.map((restaurant, index) => {
                   const restaurantSlug =
                     restaurant.slug ||
@@ -2709,15 +2709,15 @@ export default function Home() {
                             className="w-full h-full object-cover"
                             loading="lazy"
                           />
-                          <div className={`absolute bottom-2 left-2 px-2 py-0.5 rounded-lg ${Number(restaurant.rating) > 0 ? "bg-black/80 backdrop-blur-md text-white font-black" : "bg-gray-200/90 text-gray-600 font-bold"} text-[10px] shadow-lg border border-white/10`}>
+                          <div className={`absolute bottom-2 left-2 px-2 py-0.5 rounded-lg ${Number(restaurant.rating) > 0 ? "bg-black/80 backdrop-blur-md text-white font-medium" : "bg-gray-200/90 text-gray-600 font-medium"} text-[10px] shadow-lg border border-white/10`}>
                             {Number(restaurant.rating) > 0 ? Number(restaurant.rating).toFixed(1) : "NEW"}
                           </div>
                         </div>
                         <div className="p-2.5">
-                          <p className="text-sm font-black text-gray-900 dark:text-white truncate tracking-tight">
+                          <p className="text-sm font-semibold text-gray-900 dark:text-white truncate tracking-tight">
                             {restaurant.name}
                           </p>
-                          <p className="text-[10px] text-orange-600 font-extrabold mt-1 flex items-center gap-1 uppercase tracking-wider">
+                          <p className="text-[10px] text-orange-600 font-bold mt-1 flex items-center gap-1 uppercase tracking-wider">
                             <Flame className="w-3.5 h-3.5 fill-orange-600" />
                             Near & Fast
                           </p>
@@ -2735,11 +2735,11 @@ export default function Home() {
             className="content-auto pt-2 sm:pt-3 lg:pt-4"
             initial={false}
             animate={{ opacity: 1, y: 0 }}>
-            <h2 className="text-xs sm:text-sm lg:text-base font-semibold text-gray-400 dark:text-gray-500 tracking-widest uppercase mb-2 sm:mb-3 lg:mb-4 px-1">
+            <h2 className="text-xs sm:text-sm lg:text-base font-semibold text-gray-400 dark:text-gray-500 tracking-widest uppercase mb-2 sm:mb-3 lg:mb-4 px-4">
               {exploreMoreHeading}
             </h2>
             <div
-              className="flex gap-2 sm:gap-3 lg:gap-4 overflow-x-auto scrollbar-hide pb-2 lg:pb-3 min-h-[132px] w-full"
+              className="flex gap-4 overflow-x-auto scrollbar-hide pb-2 lg:pb-3 min-h-[132px] w-full px-4"
               style={{
                 scrollbarWidth: "none",
                 msOverflowStyle: "none",

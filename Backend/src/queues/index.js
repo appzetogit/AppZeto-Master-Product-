@@ -7,6 +7,7 @@ import {
     NOTIFICATION_QUEUE,
     ORDER_QUEUE,
     PAYMENT_QUEUE,
+    TRACKING_QUEUE,
     QUEUE_NAMES
 } from './queue.constants.js';
 
@@ -109,6 +110,7 @@ export const getOtpQueue = () => getQueue(OTP_QUEUE);
 export const getNotificationQueue = () => getQueue(NOTIFICATION_QUEUE);
 export const getOrderQueue = () => getQueue(ORDER_QUEUE);
 export const getPaymentQueue = () => getQueue(PAYMENT_QUEUE);
+export const getTrackingQueue = () => getQueue(TRACKING_QUEUE);
 
 /**
  * Get job counts per queue for admin observability. Returns [] if BullMQ disabled.

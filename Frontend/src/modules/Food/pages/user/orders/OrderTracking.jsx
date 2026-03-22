@@ -36,9 +36,11 @@ import DeliveryTrackingMap from "@food/components/user/DeliveryTrackingMap"
 import { orderAPI, restaurantAPI } from "@food/api"
 import { useCompanyName } from "@food/hooks/useCompanyName"
 import circleIcon from "@food/assets/circleicon.png"
-const debugLog = (...args) => {}
-const debugWarn = (...args) => {}
-const debugError = (...args) => {}
+import { RESTAURANT_PIN_SVG, CUSTOMER_PIN_SVG, RIDER_BIKE_SVG } from "@food/constants/mapIcons"
+
+const debugLog = (...args) => console.log('[OrderTracking]', ...args)
+const debugWarn = (...args) => console.warn('[OrderTracking]', ...args)
+const debugError = (...args) => console.error('[OrderTracking]', ...args)
 
 
 // Animated checkmark component
@@ -156,6 +158,8 @@ const DeliveryMap = ({ orderId, order, isVisible, fallbackCustomerCoords = null,
   const restaurantCoords = getRestaurantCoords();
   const customerCoords = getCustomerCoords();
 
+  debugLog('?? Parents passing coordinates to map:', { restaurantCoords, customerCoords, orderId: order?._id });
+
   // Delivery boy data
   const deliveryBoyData = order?.deliveryPartner ? {
     name: order.deliveryPartner.name || 'Delivery Partner',
@@ -206,14 +210,20 @@ const DeliveryMap = ({ orderId, order, isVisible, fallbackCustomerCoords = null,
 }
 
 // Section item component - icon container uses overflow-visible so icons are not cut
-const SectionItem = ({ icon: Icon, title, subtitle, onClick, showArrow = true, rightContent }) => (
+const SectionItem = ({ icon: Icon, iconNode, title, subtitle, onClick, showArrow = true, rightContent }) => (
   <motion.button
     onClick={onClick}
     className="w-full flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors text-left border-b border-dashed border-gray-200 last:border-0"
     whileTap={{ scale: 0.99 }}
   >
     <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 overflow-visible">
-      <Icon className="w-5 h-5 text-gray-600 flex-shrink-0" />
+      {iconNode ? (
+        <div className="w-6 h-6 flex-shrink-0 flex items-center justify-center">
+          {iconNode}
+        </div>
+      ) : (
+        <Icon className="w-5 h-5 text-gray-600 flex-shrink-0" />
+      )}
     </div>
     <div className="flex-1 min-w-0">
       <p className="font-medium text-gray-900 truncate">{title}</p>
@@ -377,35 +387,35 @@ const transformOrderForTracking = (apiOrder, previousOrder = null, explicitResta
 function mapBackendOrderStatusToUi(raw) {
   const s = String(raw || "").toLowerCase()
   if (!s) return "placed"
+  if (s === "created" || s === "confirmed") return "placed"
+  if (s === "preparing" || s === "processed") return "preparing"
+  if (s === "ready" || s === "ready_for_pickup" || s === "reached_pickup" || s === "order_confirmed") return "pickup"
+  if (s === "picked_up" || s === "out_for_delivery" || s === "en_route_to_delivery") return "delivery"
+  if (s === "reached_drop" || s === "at_drop" || s === "at_delivery") return "at_drop"
+  if (s === "delivered" || s === "completed") return "delivered"
   if (s.includes("cancelled") || s === "cancelled") return "cancelled"
-  if (s === "delivered") return "delivered"
-  if (
-    s === "picked_up" ||
-    s === "ready_for_pickup" ||
-    s === "ready" ||
-    s === "out_for_delivery"
-  ) {
-    return "pickup"
-  }
-  if (s === "preparing" || s === "confirmed") return "preparing"
-  if (s === "created") return "placed"
   return "placed"
 }
 
-/** Prefer live delivery phase when present (socket / polling include deliveryState). */
 function mapOrderToTrackingUiStatus(orderLike) {
   if (!orderLike) return "placed"
+  const statusRaw = orderLike.status || orderLike.orderStatus
   const phase = orderLike.deliveryState?.currentPhase
-  if (
-    phase === "en_route_to_delivery" ||
-    phase === "at_drop" ||
-    phase === "reached_drop"
-  ) {
-    return "pickup"
-  }
-  return mapBackendOrderStatusToUi(orderLike.status || orderLike.orderStatus)
+  const deliveryStatus = orderLike.deliveryState?.status
+
+  // Terminal states handle first
+  if (isFoodOrderCancelledStatus(statusRaw)) return "cancelled"
+  if (statusRaw === "delivered" || statusRaw === "completed") return "delivered"
+
+  // Precise phase mapping for real-time accuracy (Matches Delivery App logic)
+  if (phase === "reached_drop" || phase === "at_drop" || statusRaw === "at_drop") return "at_drop"
+  if (phase === "en_route_to_delivery" || statusRaw === "out_for_delivery") return "delivery"
+  if (phase === "at_pickup" || phase === "en_route_to_pickup" || statusRaw === "picked_up") return "pickup"
+
+  return mapBackendOrderStatusToUi(statusRaw)
 }
 
+/** Prefer live delivery phase when present (socket / polling include deliveryState). */
 function isFoodOrderCancelledStatus(statusRaw) {
   const s = String(statusRaw || "").toLowerCase()
   return s === "cancelled" || s.includes("cancelled")
@@ -1270,7 +1280,7 @@ export default function OrderTracking() {
             }
           />
           <SectionItem
-            icon={HomeIcon}
+            iconNode={<div dangerouslySetInnerHTML={{ __html: CUSTOMER_PIN_SVG }} className="w-8 h-8 scale-110" />}
             title="Delivery at Location"
             subtitle={(() => {
               // Priority 1: Use order address formattedAddress (live location address)
@@ -1327,8 +1337,8 @@ export default function OrderTracking() {
           transition={{ delay: 0.75 }}
         >
           <div className="flex items-center gap-3 p-4 border-b border-dashed border-gray-200">
-            <div className="w-12 h-12 rounded-full bg-orange-100 overflow-visible flex items-center justify-center flex-shrink-0">
-              <span className="text-2xl">??</span>
+            <div className="w-12 h-12 rounded-full bg-orange-100 overflow-visible flex items-center justify-center flex-shrink-0 p-1">
+              <div dangerouslySetInnerHTML={{ __html: RESTAURANT_PIN_SVG }} className="w-full h-full scale-125" />
             </div>
             <div className="flex-1">
               <p className="font-semibold text-gray-900">{order.restaurant}</p>

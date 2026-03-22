@@ -257,11 +257,11 @@ export const updateDeliveryAvailability = async (userId, payload) => {
     const { status, latitude, longitude } = payload || {};
     const validStatus = status === 'online' || status === 'offline' ? status : 'offline';
     partner.availabilityStatus = validStatus;
-    if (typeof latitude === 'number' && latitude >= -90 && latitude <= 90) {
-        partner.lastLat = latitude;
-    }
-    if (typeof longitude === 'number' && longitude >= -180 && longitude <= 180) {
-        partner.lastLng = longitude;
+    if (typeof latitude === 'number' && typeof longitude === 'number') {
+        partner.lastLocation = {
+            type: 'Point',
+            coordinates: [longitude, latitude]
+        };
     }
     await partner.save();
     return { availabilityStatus: partner.availabilityStatus };

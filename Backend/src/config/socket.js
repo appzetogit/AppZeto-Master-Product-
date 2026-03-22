@@ -117,7 +117,7 @@ export const initSocket = async (server) => {
         // Delivery partner emits live GPS location for an active order.
         // Broadcasts to the tracking room so users see the bike move in real time.
         const _lastLocationBroadcast = {};
-        socket.on('update-location', (data) => {
+        socket.on('update-location', async (data) => {
             if (socket.user?.role !== 'DELIVERY_PARTNER') return;
             if (!data || !data.orderId) return;
 
@@ -159,9 +159,37 @@ export const initSocket = async (server) => {
                 socket.to(roomNames.user(data.userId)).emit('location-update', payload);
             }
 
-            // Also broadcast to the restaurant room if provided
             if (data.restaurantId) {
                 socket.to(roomNames.restaurant(data.restaurantId)).emit('location-update', payload);
+            }
+
+            // ─── Scalable Persistence (BullMQ + Redis "Hot" Buffering) ───
+            try {
+                const { getTrackingQueue } = await import('../queues/index.js');
+                const { getRedisClient } = await import('../config/redis.js');
+                const trackingQueue = getTrackingQueue();
+                const redis = getRedisClient();
+
+                if (trackingQueue && redis) {
+                    const coordString = JSON.stringify({ lat, lng, timestamp: now });
+                    
+                    // 1. Immediately buffer the newest location in high-speed Redis Hash (HOT storage)
+                    await Promise.all([
+                        redis.hSet('rider:locations:hot', String(userId), coordString),
+                        redis.hSet('order:locations:hot', String(data.orderId), coordString)
+                    ]);
+
+                    // 2. Schedule a deferred MongoDB write (COLD storage)
+                    // jobId debulks updates: if a job is already waiting, BullMQ ignores the new add()
+                    // Delay (30s) ensures we don't spam MongoDB while the rider is moving fast
+                    const syncJobId = `sync:loc:${data.orderId}`;
+                    trackingQueue.add('sync-hot-locations', 
+                        { userId, orderId: data.orderId }, 
+                        { jobId: syncJobId, delay: 30000, removeOnComplete: true }
+                    ).catch(e => logger.error(`BullMQ sync schedule failed: ${e.message}`));
+                }
+            } catch (err) {
+                logger.error(`Real-time persistence layer error: ${err.message}`);
             }
 
             // ─── Firebase Realtime Database Sync (Cost Optimization) ───

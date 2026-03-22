@@ -87,8 +87,10 @@ const deliveryPartnerSchema = new mongoose.Schema(
             enum: ['online', 'offline'],
             default: 'offline'
         },
-        lastLat: { type: Number },
-        lastLng: { type: Number },
+        lastLocation: {
+            type: { type: String, enum: ['Point'] },
+            coordinates: { type: [Number] }
+        },
         referralCode: { type: String, index: true },
         referredBy: {
             type: mongoose.Schema.Types.ObjectId,
@@ -112,7 +114,8 @@ const deliveryPartnerSchema = new mongoose.Schema(
     }
 );
 
-// Indices are defined inline in the schema fields above (phone: { unique: true }, vehicleNumber: { unique: true, sparse: true })
+// Indices
+deliveryPartnerSchema.index({ lastLocation: '2dsphere' });
 
 export const FoodDeliveryPartner = mongoose.model('FoodDeliveryPartner', deliveryPartnerSchema);
 

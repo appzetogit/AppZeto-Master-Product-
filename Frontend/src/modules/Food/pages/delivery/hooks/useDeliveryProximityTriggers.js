@@ -304,8 +304,7 @@ export function useDeliveryProximityTriggers({
         deliveryPhase === "picked_up" ||
         deliveryPhase === "at_delivery" ||
         deliveryStateStatus === "order_confirmed" ||
-        deliveryStateStatus === "en_route_to_delivery" ||
-        orderStatus === "ready");
+        deliveryStateStatus === "en_route_to_delivery");
 
     const riderPos =
       riderLocation && riderLocation.length === 2

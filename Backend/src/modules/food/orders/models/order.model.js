@@ -260,6 +260,11 @@ const orderSchema = new mongoose.Schema(
         deliveryVerification: {
             type: deliveryVerificationSchema,
             default: () => ({})
+        },
+        /** Latest rider location for this specific order (GeoJSON Point) */
+        lastRiderLocation: {
+            type: { type: String, enum: ['Point'] },
+            coordinates: { type: [Number] }
         }
     },
     {
@@ -268,6 +273,8 @@ const orderSchema = new mongoose.Schema(
     }
 );
 
+orderSchema.index({ 'deliveryAddress.location': '2dsphere' });
+orderSchema.index({ lastRiderLocation: '2dsphere' });
 orderSchema.index({ userId: 1, createdAt: -1 });
 orderSchema.index({ restaurantId: 1, orderStatus: 1, createdAt: -1 });
 orderSchema.index({ 'dispatch.deliveryPartnerId': 1, orderStatus: 1 });

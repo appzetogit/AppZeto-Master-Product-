@@ -13,8 +13,8 @@ const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
-// Disable all Google Maps usage in customer app (no external Maps API calls)
-const MAPS_ENABLED = false
+// Enable Maps if API Key is available, otherwise fallback to coordinates-only mode
+const MAPS_ENABLED = !!import.meta.env.VITE_GOOGLE_MAPS_API_KEY
 
 
 // Google Maps implementation - Leaflet components removed
@@ -77,11 +77,11 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
   const [isKeywordSearching, setIsKeywordSearching] = useState(false)
   const [lockMapToAutocomplete, setLockMapToAutocomplete] = useState(true)
   const [GOOGLE_MAPS_API_KEY, setGOOGLE_MAPS_API_KEY] = useState(null)
-  // Optional: backend reverse geocode (off by default — avoids extra API calls on every map pan)
+  // Backend reverse geocode (on by default unless explicitly disabled)
   const ENABLE_LOCATION_REVERSE_GEOCODE =
-    import.meta.env.VITE_ENABLE_LOCATION_REVERSE_GEOCODE === "true"
-  // Nominatim keyword search (off by default — each keystroke batch hits OSM)
-  const ENABLE_NOMINATIM_SEARCH = import.meta.env.VITE_ENABLE_NOMINATIM_SEARCH === "true"
+    import.meta.env.VITE_ENABLE_LOCATION_REVERSE_GEOCODE !== "false"
+  // Nominatim keyword search (on by default unless explicitly disabled)
+  const ENABLE_NOMINATIM_SEARCH = import.meta.env.VITE_ENABLE_NOMINATIM_SEARCH !== "false"
   const getAddressId = (address) => address?.id || address?._id || null
 
   const addressAutocompleteSuggestions = useMemo(() => {
@@ -1609,10 +1609,38 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
             city = addressComponents.city || ""
             state = addressComponents.state || ""
             area = addressComponents.area || ""
+          } else {
+            // Fallback to direct Nominatim if backend returns nothing
+            debugLog("?? Backend reverse geocode returned no results, trying Nominatim fallback...")
+            const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${roundedLat}&lon=${roundedLng}&addressdetails=1`
+            const nomRes = await fetch(nominatimUrl, { headers: { Accept: "application/json" } })
+            const nomJson = await nomRes.json()
+            if (nomJson && nomJson.display_name) {
+              formattedAddress = nomJson.display_name
+              const a = nomJson.address || {}
+              city = a.city || a.town || a.village || ""
+              state = a.state || ""
+              area = a.suburb || a.neighbourhood || ""
+            }
           }
         } catch (backendError) {
-          debugError("? Backend reverse geocode failed:", backendError)
-          formattedAddress = coordLabel
+          debugError("? Backend reverse geocode failed, trying Nominatim fallback:", backendError)
+          try {
+            const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${roundedLat}&lon=${roundedLng}&addressdetails=1`
+            const nomRes = await fetch(nominatimUrl, { headers: { Accept: "application/json" } })
+            const nomJson = await nomRes.json()
+            if (nomJson && nomJson.display_name) {
+              formattedAddress = nomJson.display_name
+              const a = nomJson.address || {}
+              city = a.city || a.town || a.village || ""
+              state = a.state || ""
+              area = a.suburb || a.neighbourhood || ""
+            } else {
+              formattedAddress = coordLabel
+            }
+          } catch (nomError) {
+             formattedAddress = coordLabel
+          }
         }
 
         if (formattedAddress || city || state) {

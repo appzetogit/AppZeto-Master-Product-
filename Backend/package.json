@@ -10,6 +10,7 @@
     "worker:otp": "node src/queues/workers/otp.worker.js",
     "worker:notification": "node src/queues/workers/notification.worker.js",
     "worker:order": "node src/queues/workers/order.worker.js",
+    "worker:tracking": "node src/queues/workers/tracking.worker.js",
     "worker:payment": "node src/queues/workers/payment.worker.js",
     "migrate:fcm-tokens": "node scripts/migrate-fcm-tokens-to-profile-models.js",
     "migrate:order-payments": "node scripts/migrate-orders-to-transactions.js",

@@ -1,3 +1,4 @@
+// Debug: Touching file to force Vite reload at 2026-03-22
 import { useEffect, useState, useRef, useMemo, useCallback } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
@@ -75,9 +76,11 @@ import {
   extractPolylineFromDirections,
   trimPolylineFromDistanceAlongRoute,
   calculateBearing,
+  animateBearingSmoothly,
   animateMarker,
   calculateDistance
 } from "@food/utils/liveTrackingPolyline"
+import { RESTAURANT_PIN_SVG, CUSTOMER_PIN_SVG, RIDER_BIKE_SVG } from "@food/constants/mapIcons"
 import referralBonusBg from "@food/assets/referralbonuscardbg.png"
 // import dropLocationBanner from "@food/assets/droplocationbanner.png" // File not found - commented out
 import alertSound from "@food/assets/audio/alert.mp3"
@@ -369,6 +372,10 @@ const ENABLE_GOOGLE_DIRECTIONS = import.meta.env.VITE_ENABLE_GOOGLE_DIRECTIONS !
   
   // Default location - will be set from saved location or GPS, not hardcoded
   const [riderLocation, setRiderLocation] = useState(null) // Will be set from GPS or saved location
+  // Map Simulation Mode (VITE_ENABLE_MAP_SIMULATION)
+  const [isSimulating, setIsSimulating] = useState(false)
+  const simulationIndexRef = useRef(0)
+  const simulationIntervalRef = useRef(null)
   const [isRefreshingLocation, setIsRefreshingLocation] = useState(false)
   const [bankDetailsFilled, setBankDetailsFilled] = useState(false)
   const [deliveryStatus, setDeliveryStatus] = useState(null) // Store delivery partner status
@@ -1115,7 +1122,7 @@ const ENABLE_GOOGLE_DIRECTIONS = import.meta.env.VITE_ENABLE_GOOGLE_DIRECTIONS !
     return calculateRouteWithDirectionsAPIFnRef.current?.(...args) || calculateRouteWithDirectionsAPI(...args)
   }, [calculateRouteWithDirectionsAPI])
 
-  useDeliveryGeoWatch({
+  const { simulateLocationUpdate } = useDeliveryGeoWatch({
     deliveryAPI,
     mapContainerRef,
     setRiderLocation,
@@ -1144,7 +1151,54 @@ const ENABLE_GOOGLE_DIRECTIONS = import.meta.env.VITE_ENABLE_GOOGLE_DIRECTIONS !
     activeOrderId: selectedRestaurant?.orderId || selectedRestaurant?._id || selectedRestaurant?.id || null,
     userId: profile?._id || profile?.id || null,
     restaurantId: selectedRestaurant?.restaurantId || selectedRestaurant?.restaurant?._id || null,
+    simulationEnabled: isSimulating,
   })
+
+  // Simulation interval for continuous movement
+  useEffect(() => {
+    if (isSimulating) {
+      const intervalId = setInterval(() => {
+        const polyline = fullRoutePolylineRef.current;
+        if (polyline && polyline.length > 0) {
+          simulationIndexRef.current = (simulationIndexRef.current + 1) % polyline.length;
+          const point = polyline[simulationIndexRef.current];
+          if (point) {
+            const lat = typeof point.lat === 'function' ? point.lat() : point.lat;
+            const lng = typeof point.lng === 'function' ? point.lng() : point.lng;
+            simulateLocationUpdate?.(lat, lng);
+          }
+        } else {
+          // Just move north east bit by bit if no active route
+          const currentPos = lastValidLocationRef.current || [0, 0];
+          if (currentPos[0] !== 0) {
+            simulateLocationUpdate?.(currentPos[0] + 0.00008, currentPos[1] + 0.00008);
+          }
+        }
+      }, 1500);
+      simulationIntervalRef.current = intervalId;
+      return () => clearInterval(intervalId);
+    }
+  }, [isSimulating]);
+
+  // Map Simulation - Click on map to teleport rider
+  useEffect(() => {
+    if (!isSimulating || !window.deliveryMapInstance) return;
+
+    const callback = (e) => {
+      const lat = e.latLng.lat();
+      const lng = e.latLng.lng();
+      simulateLocationUpdate?.(lat, lng);
+      debugLog('? Map simulation: Jumped to', { lat, lng });
+    };
+
+    const clickListener = window.deliveryMapInstance.addListener('click', callback);
+
+    return () => {
+      if (window.google && window.google.maps) {
+        window.google.maps.event.removeListener(clickListener);
+      }
+    };
+  }, [isSimulating]);
   const deliveryOtpInputRefs = useRef([])
   const deliveryOtpSingleInputRef = useRef(null)
   const orderDeliveredButtonRef = useRef(null)
@@ -1285,13 +1339,11 @@ const ENABLE_GOOGLE_DIRECTIONS = import.meta.env.VITE_ENABLE_GOOGLE_DIRECTIONS !
   /** Helper functions moved up to avoid TDZ errors **/
 
   const getRestaurantMarkerIcon = useCallback(() => {
-    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="52" height="60" viewBox="0 0 52 60"><path fill="#FF6B35" d="M26 2c-9.94 0-18 8.06-18 18 0 13.5 18 38 18 38s18-24.5 18-38c0-9.94-8.06-18-18-18z"/><circle cx="26" cy="20" r="12" fill="#FFF7ED"/><path fill="#FF6B35" d="M20 14h2v12h-2zm10 0h2v12h-2zm-5 0h2v5h2v2h-2v5h-2v-5h-2v-2h2z"/> </svg>'
-
     return {
-      url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
-      scaledSize: new window.google.maps.Size(52, 60),
-      anchor: new window.google.maps.Point(26, 56),
-      labelOrigin: new window.google.maps.Point(26, 20)
+      url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(RESTAURANT_PIN_SVG)}`,
+      scaledSize: new window.google.maps.Size(48, 48),
+      anchor: new window.google.maps.Point(24, 48),
+      labelOrigin: new window.google.maps.Point(24, 24)
     }
   }, [])
 
@@ -5507,7 +5559,20 @@ const ENABLE_GOOGLE_DIRECTIONS = import.meta.env.VITE_ENABLE_GOOGLE_DIRECTIONS !
 
   // Map is initialized by the primary loader effect above.
   // Keep this no-op to avoid duplicate initialization flicker/glitches.
-  useEffect(() => {}, [riderLocation, showHomeSections])
+  // Effect to keep map focused on rider when they move during active tracking
+  useEffect(() => {
+    if (riderLocation && window.deliveryMapInstance && !isUserPanningRef.current) {
+      const lat = riderLocation[0];
+      const lng = riderLocation[1];
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        window.deliveryMapInstance.panTo({ lat, lng });
+        // Ensure a good street-level zoom if we're not focused yet
+        if (window.deliveryMapInstance.getZoom() < 17) {
+          window.deliveryMapInstance.setZoom(17);
+        }
+      }
+    }
+  }, [riderLocation]);
 
   // Update bike marker when going online - ensure bike appears immediately
   useEffect(() => {
@@ -6471,19 +6536,25 @@ const ENABLE_GOOGLE_DIRECTIONS = import.meta.env.VITE_ENABLE_GOOGLE_DIRECTIONS !
         debugWarn('?? Could not create custom polyline:', e);
       }
 
-      // Fit bounds to show entire route - but preserve zoom if user has zoomed in
+      // Fit bounds to show entire route - BUT ONLY ON INITIAL LOAD or if no rider location
       const bounds = directionsResponse.routes[0].bounds;
       if (bounds) {
-        const currentZoomBeforeFit = window.deliveryMapInstance.getZoom();
-        window.deliveryMapInstance.fitBounds(bounds, { padding: 100 });
-        // Preserve zoom if user had zoomed in more than fitBounds would set
-        setTimeout(() => {
-          const newZoom = window.deliveryMapInstance.getZoom();
-          if (currentZoomBeforeFit > newZoom && currentZoomBeforeFit >= 18) {
-            window.deliveryMapInstance.setZoom(currentZoomBeforeFit);
+        const hasValidRiderLocation = Array.isArray(riderLocation) && 
+                                     Number.isFinite(riderLocation[0]) && 
+                                     Number.isFinite(riderLocation[1]);
+
+        // If we already have a rider location, don't jump the whole map to route bounds
+        // UNLESS the user isn't panning and it's the first time we see the route.
+        if (!hasValidRiderLocation) {
+          window.deliveryMapInstance.fitBounds(bounds, { padding: 100 });
+        } else if (!isUserPanningRef.current) {
+          // Soft pan to rider instead of jumping to route bounds
+          window.deliveryMapInstance.panTo({ lat: riderLocation[0], lng: riderLocation[1] });
+          if (window.deliveryMapInstance.getZoom() < 17) {
+            window.deliveryMapInstance.setZoom(17);
           }
-        }, 100);
-        debugLog('? Map bounds fitted to route');
+        }
+        debugLog('? Map viewport updated (Rider-focus mode)');
       }
 
       // Ensure DirectionsRenderer is removed from map (we use custom polyline instead)
@@ -7814,190 +7885,8 @@ selectedRestaurant?.lng || null,
     debugWarn,
   })
 
-  // When out_for_delivery but customerLat/customerLng missing, fetch order details and set them
-  useEffect(() => {
-    if (!selectedRestaurant) {
-      fetchedOrderDetailsForDropRef.current = null
-      return
-    }
-    const orderStatus = selectedRestaurant?.orderStatus || selectedRestaurant?.status || ''
-    const deliveryPhase = selectedRestaurant?.deliveryPhase || selectedRestaurant?.deliveryState?.currentPhase || ''
-    const isOutForDelivery = orderStatus === 'out_for_delivery' || deliveryPhase === 'en_route_to_delivery'
-    const customerLat = toFiniteCoordinate(selectedRestaurant?.customerLat)
-    const customerLng = toFiniteCoordinate(selectedRestaurant?.customerLng)
-    const hasCustomerCoords = Number.isFinite(customerLat) && Number.isFinite(customerLng) &&
-      !(customerLat === 0 && customerLng === 0)
-    const orderId = selectedRestaurant?.orderId || selectedRestaurant?.id
-
-    if (!isOutForDelivery || hasCustomerCoords || !orderId || fetchedOrderDetailsForDropRef.current === orderId) return
-
-    fetchedOrderDetailsForDropRef.current = orderId
-    deliveryAPI.getOrderDetails(orderId)
-      .then(res => {
-        const order = res.data?.data?.order || res.data?.order
-        const coords = order?.deliveryAddress?.location?.coordinates || order?.address?.location?.coordinates
-        const lat = coords?.[1]
-        const lng = coords?.[0]
-        if (lat != null && lng != null && !(lat === 0 && lng === 0) && selectedRestaurant) {
-          setSelectedRestaurant(prev => prev ? { ...prev, customerLat: lat, customerLng: lng } : null)
-          debugLog('? Reached Drop: customer location loaded from getOrderDetails', { lat, lng })
-        }
-      })
-      .catch(err => {
-        debugWarn('?? Reached Drop: getOrderDetails failed for customer coords:', err?.response?.data?.message || err.message)
-      })
-  }, [selectedRestaurant?.orderStatus, selectedRestaurant?.deliveryPhase, selectedRestaurant?.deliveryState?.currentPhase, selectedRestaurant?.customerLat, selectedRestaurant?.customerLng, selectedRestaurant?.orderId, selectedRestaurant?.id])
-
-  // Monitor delivery boy's location for "Reached Drop" detection
-  // Show "Reached Drop" popup when delivery boy is within 500 meters of customer location
-  // Use useMemo to ensure deliveryStateStatus is always defined (prevents dependency array size changes)
-  const deliveryStateStatus = useMemo(() => {
-    return selectedRestaurant?.deliveryState?.status ?? null
-  }, [selectedRestaurant?.deliveryState?.status])
-  
-  useEffect(() => {
-    // CRITICAL: If payment page is showing, delivery is completed - do NOT show reached drop popup
-    if (showPaymentPage || showCustomerReviewPopup || showOrderDeliveredAnimation) {
-      if (showReachedDropPopup) setShowReachedDropPopup(false)
-      return
-    }
-
-    const orderStatus = selectedRestaurant?.orderStatus || selectedRestaurant?.status || newOrder?.status || ''
-    const deliveryPhase = selectedRestaurant?.deliveryState?.currentPhase || selectedRestaurant?.deliveryPhase || ''
-    const isDeliveredOrCompleted = orderStatus === 'delivered' || 
-                                   orderStatus === 'completed' || 
-                                   deliveryPhase === 'completed' ||
-                                   deliveryPhase === 'at_delivery'
-    // deliveryStateStatus is defined outside useEffect using useMemo (prevents dependency array size changes)
-    // More lenient check: allow if order ID is confirmed or order is out for delivery
-    const isOutForDelivery = !isDeliveredOrCompleted && (
-                             orderStatus === 'out_for_delivery' || 
-                             deliveryPhase === 'en_route_to_delivery' ||
-                             deliveryPhase === 'picked_up' ||
-                             deliveryPhase === 'at_delivery' ||
-                             deliveryStateStatus === 'order_confirmed' ||
-                             deliveryStateStatus === 'en_route_to_delivery' ||
-                             orderStatus === 'ready')
-
-    // Rider position: prefer riderLocation, fallback lastLocationRef
-    const riderPos = (riderLocation && riderLocation.length === 2) ? riderLocation : (lastLocationRef.current && lastLocationRef.current.length === 2 ? lastLocationRef.current : null)
-
-    const customerDestination = getCustomerDestination(selectedRestaurant)
-    const hasCustomerCoords = !!customerDestination &&
-      !(customerDestination.lat === 0 && customerDestination.lng === 0)
-
-    if (!hasCustomerCoords) {
-      // Don't spam; only log when we're otherwise ready to monitor
-      if (isOutForDelivery && !isDeliveredOrCompleted && selectedRestaurant) {
-        debugWarn('[Reached Drop] Customer location missing. Ensure order has delivery address or wait for fetch.')
-      }
-      return
-    }
-    if (!riderPos) {
-      debugLog('[Reached Drop] No rider position available')
-      return
-    }
-    
-    // Don't show if other popups are active (but allow if Order ID confirmation was just completed)
-    // NOTE: If showReachedDropPopup is already true, don't hide it - it was explicitly set after Order ID confirmation
-    if (isDeliveredOrCompleted || showNewOrderPopup || showreachedPickupPopup) {
-      return
-    }
-    
-    // If Reached Drop popup is already showing, don't interfere (it was explicitly set)
-    if (showReachedDropPopup) {
-      return
-    }
-    
-    // Only block if Order ID confirmation popup is still actively showing
-    // If it was just closed, allow Reached Drop to show
-    if (showOrderIdConfirmationPopup) {
-      return
-    }
-    
-    // CRITICAL: Must be in delivery phase (after Order ID confirmation)
-    // Also allow if order ID confirmation was just completed (picked_up phase)
-    const isInDeliveryPhase = isOutForDelivery || 
-                              deliveryPhase === 'picked_up' ||
-                              deliveryStateStatus === 'order_confirmed' ||
-                              orderStatus === 'out_for_delivery'
-    
-    if (!isInDeliveryPhase) {
-      debugLog('[Reached Drop] Order not in delivery phase:', {
-        orderStatus,
-        deliveryPhase,
-        deliveryStateStatus,
-        isOutForDelivery,
-        isInDeliveryPhase
-      })
-      return
-    }
-
-    const distanceInMeters = calculateDistanceInMeters(
-      riderPos[0],
-      riderPos[1],
-      customerDestination.lat,
-      customerDestination.lng
-    )
-
-    if (distanceInMeters <= DROP_REACHED_THRESHOLD_METERS && !showReachedDropPopup) {
-      debugLog('? Rider reached drop proximity, opening popup', {
-        distanceInMeters,
-        threshold: DROP_REACHED_THRESHOLD_METERS
-      })
-      setShowReachedDropPopup(true)
-      setShowDirectionsMap(false)
-      return
-    }
-
-    // Log distance check more frequently for debugging
-    if (distanceInMeters <= 200) {
-      debugLog(`?? Distance to customer: ${distanceInMeters.toFixed(2)} meters`, {
-        riderPos: riderPos,
-        customerLat: customerDestination.lat,
-        customerLng: customerDestination.lng,
-        orderId: selectedRestaurant?.orderId || selectedRestaurant?.id,
-        orderStatus,
-        deliveryPhase,
-        deliveryStateStatus,
-        isOutForDelivery,
-        isInDeliveryPhase,
-        showReachedDropPopup,
-        showOrderIdConfirmationPopup,
-        showreachedPickupPopup
-      })
-    }
-
-    if (distanceInMeters <= 400) {
-      debugLog(`?? Distance to customer: ${distanceInMeters.toFixed(2)} meters`, {
-        orderId: selectedRestaurant?.orderId || selectedRestaurant?.id,
-        customerLocation: customerDestination,
-        riderLocation: riderPos,
-        orderStatus,
-        deliveryPhase,
-        deliveryStateStatus
-      })
-    }
-    
-    // Live tracking polyline is already updated automatically via watchPosition callback
-    // No need to recalculate route here - it's handled in handleOrderIdConfirmTouchEnd
-  }, [
-    riderLocation?.[0] ?? null,
-    riderLocation?.[1] ?? null,
-    selectedRestaurant?.customerLat ?? null,
-    selectedRestaurant?.customerLng ?? null,
-    selectedRestaurant?.orderStatus || newOrder?.status || null,
-    selectedRestaurant?.deliveryPhase || selectedRestaurant?.deliveryState?.currentPhase || null,
-    deliveryStateStatus, // Use memoized value to ensure consistent dependency array size
-    Boolean(showNewOrderPopup), 
-    Boolean(showOrderIdConfirmationPopup), 
-    Boolean(showreachedPickupPopup), 
-    Boolean(showReachedDropPopup), 
-    Boolean(showOrderDeliveredAnimation),
-    Boolean(showCustomerReviewPopup),
-    Boolean(showPaymentPage),
-    calculateDistanceInMeters
-  ])
+  // Proximity triggers and other effects are now handled in separate hooks below
+  // such as useDeliveryProximityTriggers.
 
   // (moved) bike heading + rotated icon + marker updates now live in `useBikeMarker`
 
@@ -8444,6 +8333,29 @@ selectedRestaurant?.lng || null,
 
   // Handle chevron click to slide up swipe bar
   const handleChevronUpClick = () => {
+    // If we have an active order but popups are hidden, restore the popup instead of opening sections
+    if (newOrder || selectedRestaurant) {
+      const phase = String(newOrder?.deliveryState?.currentPhase || '').toLowerCase();
+      const status = String(newOrder?.deliveryState?.status || newOrder?.status || '').toLowerCase();
+      
+      if (status.includes('confirmed') || phase.includes('otp')) {
+        setShowOrderIdConfirmationPopup(true);
+        return;
+      }
+      if (phase.includes('pickup') || status.includes('pickup') || status === 'assigned') {
+        setShowreachedPickupPopup(true);
+        return;
+      }
+      if (phase.includes('drop') || phase.includes('delivery') || status.includes('drop')) {
+        setShowReachedDropPopup(true);
+        return;
+      }
+      // General fallback for active order
+      if (status === 'assigned' || status === 'preparing' || status === 'ready' || status === 'ready_for_pickup') setShowreachedPickupPopup(true);
+      else setShowReachedDropPopup(true);
+      return;
+    }
+
     if (!showHomeSections) {
       setShowHomeSections(true)
       setSwipeBarPosition(1)
@@ -8706,30 +8618,33 @@ selectedRestaurant?.lng || null,
       )}
 
 
-      {/* Conditional Content Based on Swipe Bar Position */}
-      {!showHomeSections ? (
-        <>
-          {/* Map View - Shows map with Hotspot or Select drop mode */}
-          <div className="relative flex-1 overflow-hidden pb-16 md:pb-0" style={{ minHeight: 0, pointerEvents: 'auto' }}>
-          {/* Google Maps Container */}
-          <div
-            ref={mapContainerRef}
-            className="w-full h-full"
-            style={{ 
-              height: '100%', 
-              width: '100%', 
-              backgroundColor: '#e5e7eb', // Light gray background while loading
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              pointerEvents: 'auto',
-              zIndex: 0,
-              filter: !isOnline ? 'grayscale(100%) brightness(0.78)' : 'none',
-              transition: 'filter 220ms ease'
-            }}
-          />
+      {/* Map View - Wrapped to prevent unmounting when switching to home sections */}
+      <div 
+        className={`${showHomeSections ? 'invisible h-0 opacity-0 overflow-hidden' : 'visible flex-1 flex flex-col relative'}`}
+        style={{ transition: 'opacity 0.2s ease-in-out' }}
+      >
+          <>
+            {/* Map View - Shows map with Hotspot or Select drop mode */}
+            <div className="relative flex-1 overflow-hidden pb-16 md:pb-0" style={{ minHeight: 0, pointerEvents: 'auto' }}>
+            {/* Google Maps Container */}
+            <div
+              ref={mapContainerRef}
+              className="w-full h-full"
+              style={{ 
+                height: '100%', 
+                width: '100%', 
+                backgroundColor: '#e5e7eb', // Light gray background while loading
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                pointerEvents: 'auto',
+                zIndex: 0,
+                filter: !isOnline ? 'grayscale(100%) brightness(0.78)' : 'none',
+                transition: 'filter 220ms ease'
+              }}
+            />
           {!isOnline && (
             <div className="absolute inset-0 z-[6] pointer-events-none bg-slate-500/20">
               <div className="absolute top-3 right-3 rounded-full bg-slate-800/80 text-white text-xs font-medium px-3 py-1">
@@ -8811,14 +8726,26 @@ selectedRestaurant?.lng || null,
                     className="w-8 h-8 border-[3px] border-blue-600 border-t-transparent rounded-full"
                   />
                 </div>
-              </motion.div>
+                            </motion.div>
             </motion.div>
           )}
 
-
-
           {/* Custom Controls - Grouped Top Right for simplicity */}
           <div className="absolute top-24 right-3 z-20 flex flex-col gap-3 items-end pointer-events-none">
+            {/* Simulation Play/Pause (Only in Dev Simulation Mode) */}
+            {import.meta.env.VITE_ENABLE_MAP_SIMULATION === 'true' && (
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setIsSimulating(!isSimulating)}
+                className={`pointer-events-auto w-12 h-12 rounded-full shadow-lg flex items-center justify-center border border-gray-100 ${
+                  isSimulating ? 'bg-orange-500 text-white' : 'bg-white text-green-600'
+                }`}
+                title={isSimulating ? "Stop Simulation" : "Start Simulation"}
+              >
+                {isSimulating ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
+              </motion.button>
+            )}
+
             {/* Directions Toggle (Simple Design) */}
             <motion.button
               whileTap={{ scale: 0.95 }}
@@ -8861,15 +8788,6 @@ selectedRestaurant?.lng || null,
               className="pointer-events-auto w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-gray-700 border border-gray-100"
             >
               <MapPin className={`w-6 h-6 ${isRefreshingLocation ? 'text-blue-600 animate-pulse' : ''}`} />
-            </motion.button>
-
-            {/* Emergency SOS Button (Simple Design) */}
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={() => setShowEmergencyPopup(true)}
-              className="pointer-events-auto w-12 h-12 bg-red-600 rounded-full shadow-lg flex items-center justify-center text-white border-2 border-red-500 animate-[pulse_2s_infinite]"
-            >
-              <Shield className="w-6 h-6" />
             </motion.button>
           </div>
 
@@ -8928,9 +8846,12 @@ selectedRestaurant?.lng || null,
               ) : null}
             </motion.div>
           )}
+            </div>
+          </>
+        </div>
 
-          {/* Bottom Swipeable Bar - Can be dragged up to show home sections */}
-          {!showHomeSections && (
+      {/* Bottom Swipeable Bar - Can be dragged up to show home sections */}
+      {!showHomeSections && (
             <motion.div
               ref={swipeBarRef}
               initial={{ y: "100%" }}
@@ -8950,11 +8871,14 @@ selectedRestaurant?.lng || null,
                 pointerEvents: 'auto'
               }}
             >
-              {/* Swipe Handle */}
+              {/* Swipe Handle - PRO Design */}
               <div
-                className="flex flex-col items-center pt-4 pb-2 cursor-grab active:cursor-grabbing"
+                className="flex flex-col items-center pt-3 pb-2 cursor-grab active:cursor-grabbing"
                 style={{ touchAction: 'none' }}
               >
+                {/* Visual Handle Pill */}
+                <div className="w-12 h-1.5 bg-gray-300 rounded-full mb-2 shadow-sm" />
+                
                 <motion.div
                   className="flex flex-col items-center gap-1"
                   animate={{
@@ -8965,17 +8889,23 @@ selectedRestaurant?.lng || null,
                 >
                   <button
                     onClick={handleChevronUpClick}
-                    className="flex items-center justify-center p-2 -m-2 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                    className="flex items-center justify-center p-3 -m-3 rounded-full hover:bg-gray-100/50 active:bg-gray-200/50 transition-colors group"
                     aria-label="Slide up"
                   >
-                    <ChevronUp className="!w-12 !h-8 scale-x-150 text-gray-400 -mt-2 font-bold" strokeWidth={3} />
+                    <ChevronUp className="!w-14 !h-10 scale-x-150 text-gray-500 group-hover:text-blue-600 font-bold transition-colors" strokeWidth={4} />
                   </button>
                 </motion.div>
               </div>
 
               {/* Content Area - Shows map info when down */}
               <div className="px-4 pb-6">
-                {mapViewMode === "hotspot" ? (
+                {newOrder || selectedRestaurant ? (
+                  <div className="flex flex-col items-center py-1">
+                    <p className="text-sm font-bold text-blue-600 animate-pulse">
+                      Order in progress • Swipe up to view details
+                    </p>
+                  </div>
+                ) : mapViewMode === "hotspot" ? (
                   <div className="flex flex-col items-center">
                     {/* <h3 className="text-lg font-bold text-gray-900 mb-2">No hotspots are available</h3>
                   <p className="text-sm text-gray-600 mb-4">Please go online to see hotspots</p> */}
@@ -8988,10 +8918,9 @@ selectedRestaurant?.lng || null,
                 )}
               </div>
             </motion.div>
-          )}
-          </div>
-        </>
-      ) : (
+      )}
+
+      {showHomeSections && (
         <>
           {/* Home Sections View - Full screen when swipe bar is dragged up */}
           <motion.div
@@ -9387,7 +9316,7 @@ selectedRestaurant?.lng || null,
                 }}
                 className="w-12 h-12 bg-white rounded-full shadow-2xl flex items-center justify-center border border-gray-100 active:scale-95 transition-transform"
               >
-                <X className="w-6 h-6 text-slate-800" />
+                <ChevronDown className="w-6 h-6 text-slate-800" />
               </button>
             </div>
             

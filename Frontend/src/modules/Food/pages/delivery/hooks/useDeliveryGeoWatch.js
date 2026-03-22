@@ -39,6 +39,7 @@ export function useDeliveryGeoWatch({
   activeOrderId = null,
   userId = null,
   restaurantId = null,
+  simulationEnabled = false,
 }) {
   // ─── Socket connection for live location emission ───
   const socketRef = useRef(null);
@@ -121,6 +122,7 @@ export function useDeliveryGeoWatch({
 
   // Initial location on mount
   useEffect(() => {
+    if (simulationEnabled) return;
     if (!navigator.geolocation) {
       debugError?.("Geolocation API not available in this browser");
       toast?.error?.("Location services not available. Please use a device with GPS.");
@@ -262,10 +264,12 @@ export function useDeliveryGeoWatch({
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
     );
-  }, []);
+    // Do NOT depend on riderLocation — it updates every GPS tick and would restart watchPosition + spam APIs.
+  }, [simulationEnabled]);
 
   // Live watchPosition (runs regardless of online; only sends to backend when online)
   useEffect(() => {
+    if (simulationEnabled) return;
     if (!navigator.geolocation) return;
 
     if (watchPositionIdRef.current !== null) {
@@ -441,6 +445,76 @@ export function useDeliveryGeoWatch({
       }
     };
     // Do NOT depend on riderLocation — it updates every GPS tick and would restart watchPosition + spam APIs.
-  }, [deliveryAPI]);
+    // Do NOT depend on riderLocation — it updates every GPS tick and would restart watchPosition + spam APIs.
+  }, [deliveryAPI, simulationEnabled]);
+
+  // ─── Simulation Helpers ───
+  /**
+   * Manually trigger a location update for simulation.
+   */
+  const simulateLocationUpdate = (lat, lng, forcedHeading = null) => {
+    if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) return;
+
+    const newLocation = [lat, lng];
+    let heading = forcedHeading;
+    
+    // Auto-calculate heading if not provided and previous point exists
+    if (heading === null && smoothedLocationRef.current) {
+      const [prevLat, prevLng] = smoothedLocationRef.current;
+      heading = calculateHeading(prevLat, prevLng, lat, lng);
+    }
+    if (heading === null) heading = 0;
+
+    // Update refs and state
+    lastValidLocationRef.current = newLocation;
+    lastLocationTimeRef.current = Date.now();
+    smoothedLocationRef.current = newLocation;
+    lastLocationRef.current = newLocation;
+    setRiderLocation(newLocation);
+    localStorage.setItem("deliveryBoyLastLocation", JSON.stringify(newLocation));
+
+    // Update Map UI immediately
+    if (window.deliveryMapInstance) {
+      if (bikeMarkerRef.current) {
+        animateMarkerSmoothly(bikeMarkerRef.current, { lat, lng }, 800, markerAnimationRef);
+      } else {
+        createOrUpdateBikeMarker(lat, lng, heading, !isUserPanningRef.current);
+      }
+      
+      const directions = directionsResponseRef.current;
+      if (directions?.routes?.length || directions?.fallbackPoints) {
+        updateLiveTrackingPolyline(directions, newLocation);
+      }
+      updateRoutePolyline();
+    }
+
+    // Sync Tracking (Socket, Firebase, Backend)
+    if (isOnlineRef.current) {
+      // 1. REST API
+      deliveryAPI.updateLocation(lat, lng, true, { heading, speed: 0, accuracy: 0 }).catch(() => {});
+      
+      const currentOrderId = activeOrderIdRef.current;
+      if (currentOrderId) {
+        let polyline = null;
+        try { polyline = extractPolylineFromDirections(directionsResponseRef.current); } catch (e) {}
+
+        // 2. Firebase tracking
+        writeOrderTracking(currentOrderId, {
+          lat, lng, boy_lat: lat, boy_lng: lng, heading, accuracy: 0, polyline
+        }).catch(() => {});
+        
+        // 3. Socket broadcast
+        emitLocationViaSocket(lat, lng, heading, 0, 0);
+        
+        // 4. Multi-party realtime sync
+        writeDeliveryLocation({
+          deliveryId: userIdRef.current,
+          lat, lng, heading, speed: 0, activeOrderId: currentOrderId, accuracy: 0, polyline
+        }).catch(() => {});
+      }
+    }
+  };
+
+  return { simulateLocationUpdate };
 }
 

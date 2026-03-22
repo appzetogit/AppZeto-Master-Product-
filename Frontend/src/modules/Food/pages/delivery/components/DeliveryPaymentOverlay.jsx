@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { CheckCircle2, Loader2, QrCode, X, XCircle } from "lucide-react";
+import { CheckCircle2, ChevronDown, Loader2, QrCode, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 export default function DeliveryPaymentOverlay({
@@ -321,7 +321,7 @@ export default function DeliveryPaymentOverlay({
                 onClick={() => onClose?.()}
                 className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors -mr-2 -mt-2"
               >
-                <X className="w-5 h-5 text-white" />
+                <ChevronDown className="w-6 h-6 text-white" />
               </button>
             </div>
 
@@ -559,7 +559,7 @@ export default function DeliveryPaymentOverlay({
                   className="h-9 w-9 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center justify-center"
                   onClick={() => setShowCollectQrModal(false)}
                 >
-                  <X className="w-5 h-5" />
+                  <ChevronDown className="w-6 h-6" />
                 </button>
               </div>
 

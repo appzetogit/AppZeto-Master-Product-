@@ -505,3 +505,49 @@ export function animateMarker(startPos, endPos, duration, onUpdate) {
   };
 }
 
+/**
+ * Animate bearing smoothly between two angles
+ * @param {number} startBearing - Starting angle
+ * @param {number} endBearing - Ending angle
+ * @param {number} duration - Animation duration in milliseconds
+ * @param {Function} onUpdate - Callback called with interpolated bearing
+ * @returns {Function} Cancel function
+ */
+export function animateBearingSmoothly(startBearing, endBearing, duration, onUpdate) {
+  // Normalize angles to avoid 0/360 flip issues
+  let start = startBearing % 360;
+  let end = endBearing % 360;
+  
+  // Find shortest path between angles
+  let diff = end - start;
+  if (diff > 180) diff -= 360;
+  if (diff < -180) diff += 360;
+  
+  let startTime = null;
+  let animationFrameId = null;
+
+  const animate = (currentTime) => {
+    if (!startTime) startTime = currentTime;
+    const elapsed = currentTime - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    
+    // Easing function for smooth rotation
+    const easedProgress = 1 - Math.pow(1 - progress, 2); // Quad Ease Out
+    
+    const currentBearing = (start + diff * easedProgress + 360) % 360;
+    onUpdate(currentBearing);
+
+    if (progress < 1) {
+      animationFrameId = requestAnimationFrame(animate);
+    }
+  };
+
+  animationFrameId = requestAnimationFrame(animate);
+
+  return () => {
+    if (animationFrameId) {
+      cancelAnimationFrame(animationFrameId);
+    }
+  };
+}
+

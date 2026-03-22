@@ -163,6 +163,13 @@ function normalizeOrderForClient(orderDoc) {
     deliveryPartnerId:
       order?.dispatch?.deliveryPartnerId || order?.deliveryPartnerId || null,
     rating: order?.ratings?.restaurant?.rating ?? order?.rating ?? null,
+    deliveryState: {
+      ...(order?.deliveryState || {}),
+      currentLocation: order?.lastRiderLocation?.coordinates?.length >= 2 ? {
+        lat: order.lastRiderLocation.coordinates[1],
+        lng: order.lastRiderLocation.coordinates[0]
+      } : (order?.deliveryState?.currentLocation || null)
+    }
   };
 }
 

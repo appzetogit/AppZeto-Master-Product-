@@ -357,7 +357,7 @@ export default function BottomPopup({
                     className="ml-auto p-2 rounded-full hover:bg-gray-100 transition-colors"
                     aria-label="Close"
                   >
-                    <X className="w-5 h-5 text-gray-600" />
+                    <ChevronDown className="w-6 h-6 text-gray-600" />
                   </button>
                 )}
               </div>

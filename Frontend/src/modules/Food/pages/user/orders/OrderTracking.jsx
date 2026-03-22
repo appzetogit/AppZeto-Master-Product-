@@ -41,6 +41,8 @@ import { RESTAURANT_PIN_SVG, CUSTOMER_PIN_SVG, RIDER_BIKE_SVG } from "@food/cons
 // Fallback definitions in case imports fail at runtime or are shadowed
 const DEFAULT_CUSTOMER_PIN = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="#10B981"><path d="M12 2C8.13 2 5 5.13 5 9c0 4.17 4.42 9.92 6.24 12.11.4.48 1.08.48 1.52 0C14.58 18.92 19 13.17 19 9c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5 14.5 7.62 14.5 9 13.38 11.5 12 11.5z"/><circle cx="12" cy="9" r="3" fill="#FFFFFF"/></svg>`;
 const SAFE_CUSTOMER_PIN = typeof CUSTOMER_PIN_SVG !== 'undefined' ? CUSTOMER_PIN_SVG : DEFAULT_CUSTOMER_PIN;
+const DEFAULT_RESTAURANT_PIN = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="#FF6B35"><path d="M12 2C8.13 2 5 5.13 5 9c0 4.17 4.42 9.92 6.24 12.11.4.48 1.08.48 1.52 0C14.58 18.92 19 13.17 19 9c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5 14.5 7.62 14.5 9 13.38 11.5 12 11.5z"/><circle cx="12" cy="9" r="3" fill="#FFFFFF"/></svg>`;
+const SAFE_RESTAURANT_PIN = typeof RESTAURANT_PIN_SVG !== 'undefined' ? RESTAURANT_PIN_SVG : DEFAULT_RESTAURANT_PIN;
 
 const debugLog = (...args) => console.log('[OrderTracking]', ...args)
 const debugWarn = (...args) => console.warn('[OrderTracking]', ...args)
@@ -425,6 +427,13 @@ function isFoodOrderCancelledStatus(statusRaw) {
   return s === "cancelled" || s.includes("cancelled")
 }
 
+function normalizeLookupId(value) {
+  if (value == null) return ""
+  const raw = String(value).trim()
+  if (!raw || raw === "undefined" || raw === "null") return ""
+  return raw
+}
+
 export default function OrderTracking() {
   const companyName = useCompanyName()
   const { orderId } = useParams()
@@ -447,10 +456,12 @@ export default function OrderTracking() {
   const [showOrderDetails, setShowOrderDetails] = useState(false)
   const [cancellationReason, setCancellationReason] = useState("")
   const [isCancelling, setIsCancelling] = useState(false)
+  const [resolvedLookupId, setResolvedLookupId] = useState("")
   const [timerNow, setTimerNow] = useState(Date.now())
   const lastRealtimeRefreshRef = useRef(0)
   const trackingOrderIdsRef = useRef(new Set())
   const terminalPollStopRef = useRef(false)
+  const lookupIdsRef = useRef([])
 
   // Delivery handover OTP received via socket event.
   // Kept separately so UI still renders even if the event arrives
@@ -515,6 +526,97 @@ export default function OrderTracking() {
     if (order?.mongoId) s.add(String(order.mongoId))
     if (order?.id) s.add(String(order.id))
   }, [orderId, order?.orderId, order?.mongoId, order?.id])
+
+  useEffect(() => {
+    const ids = [
+      resolvedLookupId,
+      orderId,
+      order?.orderId,
+      order?.mongoId,
+      order?._id,
+      order?.id,
+    ]
+      .map(normalizeLookupId)
+      .filter(Boolean)
+    lookupIdsRef.current = Array.from(new Set(ids))
+  }, [orderId, resolvedLookupId, order?.orderId, order?.mongoId, order?._id, order?.id])
+
+  const resolveOrderFromList = useCallback(
+    async (rawLookupId) => {
+      const needle = normalizeLookupId(rawLookupId)
+      if (!needle) return null
+
+      const maxPages = 3
+      const limit = 50
+
+      for (let page = 1; page <= maxPages; page += 1) {
+        const listResponse = await orderAPI.getOrders({ page, limit })
+        let orders = []
+
+        if (listResponse?.data?.success && listResponse?.data?.data?.orders) {
+          orders = listResponse.data.data.orders || []
+        } else if (listResponse?.data?.orders) {
+          orders = listResponse.data.orders || []
+        } else if (
+          Array.isArray(listResponse?.data?.data?.data)
+        ) {
+          orders = listResponse.data.data.data || []
+        } else if (Array.isArray(listResponse?.data?.data)) {
+          orders = listResponse.data.data || []
+        }
+
+        const matched = (orders || []).find((o) => {
+          const candidates = [
+            o?._id,
+            o?.id,
+            o?.orderId,
+            o?.mongoId,
+          ].map(normalizeLookupId)
+          return candidates.includes(needle)
+        })
+
+        if (matched) return matched
+
+        const totalPages =
+          Number(listResponse?.data?.data?.pagination?.pages) ||
+          Number(listResponse?.data?.data?.totalPages) ||
+          Number(listResponse?.data?.pagination?.pages) ||
+          1
+        if (page >= totalPages) break
+      }
+
+      return null
+    },
+    [],
+  )
+
+  const fetchOrderDetailsWithFallback = useCallback(
+    async (options = {}) => {
+      const lookupIds = lookupIdsRef.current
+      if (lookupIds.length === 0) {
+        const err = new Error("Order id required")
+        err.code = "MISSING_ORDER_ID"
+        throw err
+      }
+
+      let lastError = null
+      for (const id of lookupIds) {
+        try {
+          const response = await orderAPI.getOrderDetails(id, options)
+          return response
+        } catch (err) {
+          lastError = err
+          const status = err?.response?.status
+          // Try next candidate for not-found/bad-request identifier mismatch.
+          if (status === 400 || status === 404) continue
+          throw err
+        }
+      }
+
+      throw lastError || new Error("Failed to fetch order details")
+    },
+    [],
+  )
 
   // Clear OTP when order is finalized.
   useEffect(() => {
@@ -674,7 +776,22 @@ export default function OrderTracking() {
 
       requestInProgress = true;
       try {
-        const response = await orderAPI.getOrderDetails(orderId);
+        if (isInitial && lookupIdsRef.current.length <= 1) {
+          try {
+            const matchedOrder = await resolveOrderFromList(orderId)
+            if (matchedOrder) {
+              const nextLookupId =
+                normalizeLookupId(matchedOrder?._id) ||
+                normalizeLookupId(matchedOrder?.orderId) ||
+                normalizeLookupId(matchedOrder?.id)
+              if (nextLookupId) setResolvedLookupId(nextLookupId)
+            }
+          } catch {
+            // Continue with direct detail fetch if list resolution fails.
+          }
+        }
+
+        const response = await fetchOrderDetailsWithFallback();
         if (!isSubscribed) return;
 
         if (response.data?.success && response.data.data?.order) {
@@ -691,7 +808,37 @@ export default function OrderTracking() {
           setError(response.data?.message || 'Order not found');
         }
       } catch (err) {
-        debugError('Error polling order updates:', err);
+        const status = err?.response?.status
+        if (status !== 400 && status !== 404) {
+          debugError('Error polling order updates:', err);
+        }
+        if (status === 400 || status === 404) {
+          // Deep-link safety: try resolving by listing user's orders and matching IDs.
+          if (isInitial) {
+            try {
+              const matchedOrder = await resolveOrderFromList(orderId)
+              if (matchedOrder) {
+                const nextLookupId =
+                  normalizeLookupId(matchedOrder?._id) ||
+                  normalizeLookupId(matchedOrder?.orderId) ||
+                  normalizeLookupId(matchedOrder?.id)
+
+                if (nextLookupId) {
+                  setResolvedLookupId(nextLookupId)
+                }
+
+                setOrder((prev) => transformOrderForTracking(matchedOrder, prev))
+                setError(null)
+                terminalPollStopRef.current = false
+                return
+              }
+            } catch (resolveErr) {
+              debugWarn('Order resolution from list failed:', resolveErr)
+            }
+          }
+          // Prevent repeated noisy polling when current route id does not map to a real order.
+          terminalPollStopRef.current = true
+        }
         if (isInitial) {
           setError(err.response?.data?.message || 'Failed to connect to server');
         }
@@ -719,7 +866,7 @@ export default function OrderTracking() {
       isSubscribed = false;
       clearInterval(interval);
     }
-  }, [orderId]);
+  }, [orderId, fetchOrderDetailsWithFallback, resolveOrderFromList]);
 
   // Fetch order: show context immediately if present.
   // We rely on the unified polling effect above for the actual network fetch.
@@ -854,7 +1001,9 @@ export default function OrderTracking() {
 
     setIsCancelling(true);
     try {
-      const response = await orderAPI.cancelOrder(orderId, cancellationReason.trim());
+      const cancelLookupId =
+        lookupIdsRef.current[0] || normalizeLookupId(orderId)
+      const response = await orderAPI.cancelOrder(cancelLookupId, cancellationReason.trim());
       if (response.data?.success) {
         const paymentMethod = order?.payment?.method || order?.paymentMethod;
         const successMessage = response.data?.message ||
@@ -865,7 +1014,7 @@ export default function OrderTracking() {
         setShowCancelDialog(false);
         setCancellationReason("");
         // Refresh order data
-        const orderResponse = await orderAPI.getOrderDetails(orderId, { force: true });
+        const orderResponse = await fetchOrderDetailsWithFallback({ force: true });
         if (orderResponse.data?.success && orderResponse.data.data?.order) {
           const apiOrder = orderResponse.data.data.order;
           setOrder(transformOrderForTracking(apiOrder, order));
@@ -904,7 +1053,7 @@ export default function OrderTracking() {
   const handleRefresh = async () => {
     setIsRefreshing(true)
     try {
-      const response = await orderAPI.getOrderDetails(orderId, { force: true })
+      const response = await fetchOrderDetailsWithFallback({ force: true })
       if (response.data?.success && response.data.data?.order) {
         const apiOrder = response.data.data.order
 
@@ -1342,7 +1491,7 @@ export default function OrderTracking() {
         >
           <div className="flex items-center gap-3 p-4 border-b border-dashed border-gray-200">
             <div className="w-12 h-12 rounded-full bg-orange-100 overflow-visible flex items-center justify-center flex-shrink-0 p-1">
-              <div dangerouslySetInnerHTML={{ __html: RESTAURANT_PIN_SVG }} className="w-full h-full scale-125" />
+              <div dangerouslySetInnerHTML={{ __html: SAFE_RESTAURANT_PIN }} className="w-full h-full scale-125" />
             </div>
             <div className="flex-1">
               <p className="font-semibold text-gray-900">{order.restaurant}</p>

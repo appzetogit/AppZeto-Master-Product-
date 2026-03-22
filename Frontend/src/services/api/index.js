@@ -481,6 +481,10 @@ export const adminAPI = {
       { deliveryPartnerId: String(deliveryPartnerId) },
       { contextModule: "admin" },
     ),
+  deleteOrder: (orderId) =>
+    apiClient.delete(`/food/admin/orders/${String(orderId)}`, {
+      contextModule: "admin",
+    }),
   /** Dispatch settings – auto vs manual assign (global) */
   getDispatchSettings: () =>
     apiClient.get("/food/admin/settings/dispatch", { contextModule: "admin" }),

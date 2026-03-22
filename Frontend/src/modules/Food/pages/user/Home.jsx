@@ -2752,34 +2752,41 @@ export default function Home() {
                 finalExploreItems.map((item, index) => (
                   <motion.div
                     key={item.id}
-                    initial={{ opacity: 0, y: 20, scale: 0.9 }}
-                    whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    whileInView={{ opacity: 1, scale: 1 }}
                     viewport={{ once: true }}
                     transition={{
                       duration: 0.4,
-                      delay: index * 0.1,
-                      type: "spring",
-                      stiffness: 100,
+                      delay: index * 0.08,
                     }}
-                    whileHover={{ scale: 1.1, y: -5 }}
+                    whileHover={{ y: -5 }}
                     whileTap={{ scale: 0.95 }}>
                     <Link
                       to={item.href}
-                      className="flex-shrink-0 bg-white  dark:bg-[#1a1a1a]/80 dark:text-white">
-                      <div className="flex flex-col items-center gap-2.5 w-24 sm:w-28 md:w-32 group">
-                        <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-2xl bg-white dark:bg-[#1a1a1a]/80 dark:text-white flex items-center justify-center shadow-sm group-hover:shadow-lg transition-all duration-300 overflow-hidden p-2.5 group-hover:border-[#EB590E] border border-transparent">
+                      className="flex-shrink-0">
+                      <div className="flex flex-col items-center gap-3 w-24 sm:w-28 group">
+                        <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-white dark:bg-[#1a1a1a] flex items-center justify-center shadow-[0_4px_15px_-3px_rgba(0,0,0,0.08)] group-hover:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.12)] transition-all duration-500 overflow-hidden p-3 border border-gray-100 dark:border-gray-800 group-hover:border-orange-500/30">
+                          {/* Colorful Glow Background */}
+                          <div className={`absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity duration-500 bg-gradient-to-br ${index % 3 === 0 ? 'from-orange-500 to-red-500' : index % 3 === 1 ? 'from-blue-500 to-purple-500' : 'from-green-500 to-teal-500'}`} />
+                          
+                          {/* Shine Effect */}
+                          <div className="absolute inset-0 z-10 pointer-events-none overflow-hidden">
+                            <motion.div 
+                              animate={{ x: ['-200%', '200%'] }}
+                              transition={{ duration: 2.5, repeat: Infinity, repeatDelay: 4 + index * 0.5 }}
+                              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent skew-x-[-20deg] w-[150%]"
+                            />
+                          </div>
+
                           <OptimizedImage
                             src={item.image}
                             alt={item.label}
-                            className="w-full h-full dark:rounded-md"
+                            className="w-full h-full object-contain relative z-10 transition-transform duration-500 group-hover:scale-110"
                             width={112}
                             height={112}
-                            sizes="(max-width: 640px) 80px, (max-width: 768px) 96px, 112px"
-                            objectFit="contain"
-                            placeholder="blur"
                           />
                         </div>
-                        <span className="text-sm sm:text-base font-semibold text-gray-700 dark:text-gray-300 text-center leading-tight">
+                        <span className="text-[11px] font-medium text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition-colors text-center tracking-wide">
                           {item.label}
                         </span>
                       </div>

@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { ChevronDown } from "lucide-react"
+import { ChevronDown, Phone, ShieldCheck } from "lucide-react"
 import {
   Select,
   SelectContent,
@@ -13,26 +13,26 @@ import { restaurantAPI } from "@food/api"
 import { useCompanyName } from "@food/hooks/useCompanyName"
 
 const countryCodes = [
-  { code: "+1", country: "US/CA", flag: "\uD83C\uDDFA\uD83C\uDDF8" },
-  { code: "+44", country: "UK", flag: "\uD83C\uDDEC\uD83C\uDDE7" },
-  { code: "+91", country: "IN", flag: "\uD83C\uDDEE\uD83C\uDDF3" },
-  { code: "+86", country: "CN", flag: "\uD83C\uDDE8\uD83C\uDDF3" },
-  { code: "+81", country: "JP", flag: "\uD83C\uDDEF\uD83C\uDDF5" },
-  { code: "+49", country: "DE", flag: "\uD83C\uDDE9\uD83C\uDDEA" },
-  { code: "+33", country: "FR", flag: "\uD83C\uDDEB\uD83C\uDDF7" },
-  { code: "+39", country: "IT", flag: "\uD83C\uDDEE\uD83C\uDDF9" },
-  { code: "+34", country: "ES", flag: "\uD83C\uDDEA\uD83C\uDDF8" },
-  { code: "+61", country: "AU", flag: "\uD83C\uDDE6\uD83C\uDDFA" },
-  { code: "+7", country: "RU", flag: "\uD83C\uDDF7\uD83C\uDDFA" },
-  { code: "+55", country: "BR", flag: "\uD83C\uDDE7\uD83C\uDDF7" },
-  { code: "+52", country: "MX", flag: "\uD83C\uDDF2\uD83C\uDDFD" },
-  { code: "+82", country: "KR", flag: "\uD83C\uDDF0\uD83C\uDDF7" },
-  { code: "+65", country: "SG", flag: "\uD83C\uDDF8\uD83C\uDDEC" },
-  { code: "+971", country: "AE", flag: "\uD83C\uDDE6\uD83C\uDDEA" },
-  { code: "+966", country: "SA", flag: "\uD83C\uDDF8\uD83C\uDDE6" },
-  { code: "+27", country: "ZA", flag: "\uD83C\uDDFF\uD83C\uDDE6" },
-  { code: "+31", country: "NL", flag: "\uD83C\uDDF3\uD83C\uDDF1" },
-  { code: "+46", country: "SE", flag: "\uD83C\uDDF8\uD83C\uDDEA" },
+  { code: "+1", country: "US/CA", flag: "🇺🇸" },
+  { code: "+44", country: "UK", flag: "🇬🇧" },
+  { code: "+91", country: "IN", flag: "🇮🇳" },
+  { code: "+86", country: "CN", flag: "🇨🇳" },
+  { code: "+81", country: "JP", flag: "🇯🇵" },
+  { code: "+49", country: "DE", flag: "🇩🇪" },
+  { code: "+33", country: "FR", flag: "🇫🇷" },
+  { code: "+39", country: "IT", flag: "🇮🇹" },
+  { code: "+34", country: "ES", flag: "🇪🇸" },
+  { code: "+61", country: "AU", flag: "🇦🇺" },
+  { code: "+7", country: "RU", flag: "🇷🇺" },
+  { code: "+55", country: "BR", flag: "🇧🇷" },
+  { code: "+52", country: "MX", flag: "🇲🇽" },
+  { code: "+82", country: "KR", flag: "🇰🇷" },
+  { code: "+65", country: "SG", flag: "🇸🇬" },
+  { code: "+971", country: "AE", flag: "🇦🇪" },
+  { code: "+966", country: "SA", flag: "🇸🇦" },
+  { code: "+27", country: "ZA", flag: "🇿🇦" },
+  { code: "+31", country: "NL", flag: "🇳🇱" },
+  { code: "+46", country: "SE", flag: "🇸🇪" },
 ]
 
 export default function RestaurantLogin() {
@@ -118,90 +118,104 @@ export default function RestaurantLogin() {
   const isValidPhone = !validatePhone(formData.phone, formData.countryCode)
 
   return (
-    <div className="max-h-screen h-screen bg-white flex flex-col">
-      <div className="flex flex-col items-center pt-8 pb-8 px-6">
-        <h1
-          className="text-3xl italic md:text-4xl tracking-wide font-extrabold text-black"
-          style={{
-            WebkitTextStroke: "0.5px black",
-            textStroke: "0.5px black",
-          }}
-        >
-          {companyName.toLowerCase()}
-        </h1>
-        <span className="text-gray-600 font-light text-sm tracking-wide block text-center">
-          - restaurant partner -
-        </span>
+    <div className="min-h-screen bg-white flex flex-col font-sans">
+      {/* Curved Header Background */}
+      <div className="relative h-[300px] w-full bg-[#ef4f5f] overflow-hidden">
+        {/* Abstract Circles like in the image */}
+        <div className="absolute -top-10 -left-10 w-48 h-48 rounded-full bg-white/10" />
+        <div className="absolute top-20 -right-10 w-64 h-64 rounded-full bg-white/10" />
+        <div className="absolute -bottom-20 left-1/2 -translate-x-1/2 w-80 h-80 rounded-full bg-white/5" />
+        
+        {/* The dominant curve */}
+        <div className="absolute bottom-0 w-full h-[100px] bg-white rounded-t-[100px] shadow-[0_-20px_40px_rgba(0,0,0,0.05)]" />
       </div>
 
-      <div className="flex-1 flex flex-col px-6 overflow-y-auto">
-        <div className="w-full max-w-md mx-auto space-y-6 py-4">
+      <div className="flex-1 flex flex-col items-center px-8 -mt-16 z-10">
+        {/* Central Logo / Branding */}
+        <div className="w-32 h-32 bg-white rounded-full shadow-xl flex items-center justify-center border-4 border-slate-50 mb-6">
           <div className="text-center">
-            <p className="text-base text-gray-700 leading-relaxed">
-              Enter your registered phone number and we will send an OTP to continue
-            </p>
+             <div className="w-16 h-16 bg-[#ef4f5f] rounded-2xl mx-auto flex items-center justify-center transform rotate-12 shadow-lg mb-1">
+                <ShieldCheck className="w-8 h-8 text-white -rotate-12" />
+             </div>
           </div>
+        </div>
 
-          <div className="space-y-4">
-            <div className="flex gap-2 items-stretch w-full">
-              <Select value={formData.countryCode} onValueChange={handleCountryCodeChange}>
-                <SelectTrigger
-                  className="w-[100px] h-12 border border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 flex items-center shrink-0"
-                  style={{ height: "48px" }}
-                >
-                  <SelectValue>
-                    <span className="flex items-center gap-1.5">
-                      <span className="text-base">{selectedCountry.flag}</span>
-                      <span className="text-sm font-medium text-gray-900">{selectedCountry.code}</span>
-                      <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
-                    </span>
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent className="max-h-[300px] overflow-y-auto">
-                  {countryCodes.map((country) => (
-                    <SelectItem key={country.code} value={country.code}>
-                      <span className="flex items-center gap-2">
-                        <span>{country.flag}</span>
-                        <span>{country.code}</span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        <div className="text-center space-y-2 mb-10">
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight lowercase">
+            {companyName}
+          </h1>
+          <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">
+            Partner Digital Login
+          </p>
+        </div>
 
-              <div className="flex-1 flex flex-col">
+        <div className="w-full max-w-[400px] space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] ml-1">Registered Mobile Number</label>
+              
+              <div className="flex items-center gap-2 h-16 bg-slate-50 border border-slate-100 rounded-[32px] px-2 focus-within:border-[#ef4f5f]/30 focus-within:ring-4 focus-within:ring-[#ef4f5f]/5 transition-all">
+                <Select value={formData.countryCode} onValueChange={handleCountryCodeChange}>
+                  <SelectTrigger className="w-24 h-12 border-none bg-transparent shadow-none focus:ring-0">
+                    <SelectValue>
+                      <span className="font-bold text-slate-900">{formData.countryCode}</span>
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-slate-100">
+                    {countryCodes.map((c) => (
+                      <SelectItem key={c.code} value={c.code}>
+                        {c.flag} {c.code}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                <div className="w-[1px] h-6 bg-slate-200" />
+                
                 <input
                   type="tel"
-                  inputMode="numeric"
                   maxLength={10}
-                  placeholder="Enter phone number"
+                  placeholder="Mobile number"
                   value={formData.phone}
                   onChange={handlePhoneChange}
-                  className={`w-full px-4 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 text-base border rounded-lg min-w-0 bg-white ${error && formData.phone.length > 0
-                    ? "border-red-500 focus:ring-red-500 focus:border-red-500"
-                    : "border-gray-300 focus:ring-blue-500 focus:border-blue-500"
-                    }`}
-                  style={{ height: "48px" }}
+                  className="flex-1 h-full bg-transparent border-none focus:ring-0 text-lg font-bold text-slate-900 placeholder-slate-300 px-4"
                 />
-                {error && <p className="text-red-500 text-xs mt-1 ml-1">{error}</p>}
               </div>
+
+              {error && (
+                <p className="text-[#ef4f5f] text-xs font-bold italic ml-4 animate-bounce">
+                  {error}
+                </p>
+              )}
             </div>
 
             <Button
               onClick={handleSendOTP}
               disabled={!isValidPhone || isSending}
-              className={`w-full h-12 rounded-lg font-bold text-base transition-colors ${isValidPhone && !isSending
-                ? "bg-blue-600 hover:bg-blue-700 text-white"
-                : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                }`}
+              className={`w-full h-16 rounded-[32px] font-black text-lg tracking-widest uppercase transition-all duration-300 ${
+                isValidPhone && !isSending
+                  ? "bg-[#ef4f5f] hover:bg-[#d63a4a] text-white shadow-lg shadow-[#ef4f5f]/20 transform active:scale-[0.98]"
+                  : "bg-slate-100 text-slate-400 cursor-not-allowed"
+              }`}
             >
-              {isSending ? "Sending OTP..." : "Send OTP"}
+              {isSending ? "Processing..." : "Continue"}
             </Button>
+          </div>
+
+          <div className="text-center pt-8">
+            <p className="text-slate-400 text-xs font-medium">
+              By logging in, you agree to our <br />
+              <span className="text-[#ef4f5f] font-bold hover:underline cursor-pointer">Terms</span> and <span className="text-[#ef4f5f] font-bold hover:underline cursor-pointer">Privacy Policy</span>
+            </p>
           </div>
         </div>
       </div>
 
-      <div className="px-6 pb-8 pt-4" />
+      <div className="pb-8 text-center">
+          <p className="text-[10px] font-black text-slate-300 tracking-[0.2em] uppercase">
+            &copy; {new Date().getFullYear()} {companyName.toUpperCase()} PARTNER
+          </p>
+      </div>
     </div>
   )
 }

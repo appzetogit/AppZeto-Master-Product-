@@ -434,7 +434,23 @@ const DeliveryTrackingMap = ({
       .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng));
   }, []);
 
-  // Helper to rotate the bike SVG icon using a canvas
+  // Use Blob URLs for marker SVGs (more reliable than data URLs on some mobile/webview runtimes).
+  const getSvgMarkerUrl = useCallback((cacheKey, svgMarkup) => {
+    const existing = iconCacheRef.current.get(cacheKey);
+    if (existing) return existing;
+
+    let url = '';
+    try {
+      const blob = new Blob([svgMarkup], { type: 'image/svg+xml' });
+      url = URL.createObjectURL(blob);
+    } catch (error) {
+      url = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svgMarkup)}`;
+    }
+    iconCacheRef.current.set(cacheKey, url);
+    return url;
+  }, []);
+
+  // Match delivery app marker: rotate the same bikeLogo asset via canvas.
   const getRotatedRiderIcon = useCallback((heading = 0) => {
     const roundedHeading = Math.round(heading / 5) * 5;
     const cacheKey = `rider_${roundedHeading}`;
@@ -444,7 +460,7 @@ const DeliveryTrackingMap = ({
 
     return new Promise((resolve) => {
       const img = new Image();
-      const svgUrl = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(RIDER_BIKE_SVG)}`;
+      const sourceUrl = bikeLogo || getSvgMarkerUrl('rider_base_svg', RIDER_BIKE_SVG);
       
       img.onload = () => {
         try {
@@ -461,13 +477,16 @@ const DeliveryTrackingMap = ({
           iconCacheRef.current.set(cacheKey, dataUrl);
           resolve(dataUrl);
         } catch (e) {
-          resolve(svgUrl);
+          resolve(sourceUrl);
         }
       };
-      img.onerror = () => resolve(svgUrl);
-      img.src = svgUrl;
+      img.onerror = () => resolve(sourceUrl);
+      img.src = sourceUrl;
+      if (img.complete) {
+        img.onload();
+      }
     });
-  }, []);
+  }, [getSvgMarkerUrl]);
 
   const renderVisibleRoute = useCallback((rawRoute) => {
     const normalizedPoints = normalizeRoutePoints(rawRoute);
@@ -847,8 +866,8 @@ const DeliveryTrackingMap = ({
           map: mapInstance.current,
           icon: {
             url: rotatedIconUrl,
-            scaledSize: new window.google.maps.Size(52, 52),
-            anchor: new window.google.maps.Point(26, 26),
+            scaledSize: new window.google.maps.Size(60, 60),
+            anchor: new window.google.maps.Point(30, 30),
             optimized: false
           },
           zIndex: window.google.maps.Marker.MAX_ZINDEX + 3,
@@ -898,8 +917,8 @@ const DeliveryTrackingMap = ({
               // Also update icon for rotation even if using animation controller
               bikeMarkerRef.current.setIcon({
                 url: rotatedIconUrl,
-                scaledSize: new window.google.maps.Size(52, 52),
-                anchor: new window.google.maps.Point(26, 26),
+                scaledSize: new window.google.maps.Size(60, 60),
+                anchor: new window.google.maps.Point(30, 30),
                 optimized: false
               });
             } else {
@@ -908,8 +927,8 @@ const DeliveryTrackingMap = ({
               bikeMarkerRef.current.setPosition(nearestPosition);
               bikeMarkerRef.current.setIcon({
                 url: rotatedIconUrl,
-                scaledSize: new window.google.maps.Size(52, 52),
-                anchor: new window.google.maps.Point(26, 26),
+                scaledSize: new window.google.maps.Size(60, 60),
+                anchor: new window.google.maps.Point(30, 30),
                 optimized: false
               });
               bikeMarkerRef.current._rotation = heading || 0;
@@ -920,8 +939,8 @@ const DeliveryTrackingMap = ({
           bikeMarkerRef.current.setPosition(position);
           bikeMarkerRef.current.setIcon({
             url: rotatedIconUrl,
-            scaledSize: new window.google.maps.Size(52, 52),
-            anchor: new window.google.maps.Point(26, 26),
+            scaledSize: new window.google.maps.Size(60, 60),
+            anchor: new window.google.maps.Point(30, 30),
             optimized: false
           });
           bikeMarkerRef.current._rotation = heading || 0;
@@ -1461,7 +1480,7 @@ const DeliveryTrackingMap = ({
 
         // Add restaurant/pickup marker (only once)
         if (!restaurantMarkerRef.current) {
-          const restaurantPinIconUrl = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(RESTAURANT_PIN_SVG);
+          const restaurantPinIconUrl = getSvgMarkerUrl('restaurant_pin', RESTAURANT_PIN_SVG);
           restaurantMarkerRef.current = new window.google.maps.Marker({
             position: { lat: restaurantCoords.lat, lng: restaurantCoords.lng },
             map: mapInstance.current,
@@ -1480,7 +1499,7 @@ const DeliveryTrackingMap = ({
 
         // Add customer/drop marker (only once)
         if (!customerMarkerRef.current) {
-          const customerLocationIconUrl = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(CUSTOMER_PIN_SVG);
+          const customerLocationIconUrl = getSvgMarkerUrl('customer_pin', CUSTOMER_PIN_SVG);
           customerMarkerRef.current = new window.google.maps.Marker({
             position: { lat: customerCoords.lat, lng: customerCoords.lng },
             map: mapInstance.current,
@@ -1610,7 +1629,7 @@ const DeliveryTrackingMap = ({
         debugError('? Map initialization error:', error);
       }
     }
-  }, [ENABLE_GOOGLE_DIRECTIONS, routeColor, restaurantCoords, customerCoords]); // Removed dependencies that cause re-initialization
+  }, [ENABLE_GOOGLE_DIRECTIONS, getSvgMarkerUrl, routeColor, restaurantCoords, customerCoords]); // Removed dependencies that cause re-initialization
 
   // ─── INSTANT MARKER INITIALIZATION ───────────────────────
   
@@ -1619,7 +1638,7 @@ const DeliveryTrackingMap = ({
     if (!isMapLoaded || !mapInstance.current || !restaurantCoords) return;
     
     if (!restaurantMarkerRef.current) {
-      const restaurantPinIconUrl = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(RESTAURANT_PIN_SVG);
+      const restaurantPinIconUrl = getSvgMarkerUrl('restaurant_pin', RESTAURANT_PIN_SVG);
 
       restaurantMarkerRef.current = new window.google.maps.Marker({
         position: { lat: restaurantCoords.lat, lng: restaurantCoords.lng },
@@ -1635,22 +1654,22 @@ const DeliveryTrackingMap = ({
         });
         debugLog('?? Created restaurant marker at:', restaurantCoords);
       } else {
-        restaurantMarkerRef.current.setPosition(restaurantCoords);
-        debugLog('?? Updated restaurant marker position');
+      restaurantMarkerRef.current.setPosition(restaurantCoords);
+      debugLog('?? Updated restaurant marker position');
       restaurantMarkerRef.current.setIcon({
-        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(RESTAURANT_PIN_SVG),
+        url: getSvgMarkerUrl('restaurant_pin', RESTAURANT_PIN_SVG),
         scaledSize: new window.google.maps.Size(48, 48),
         anchor: new window.google.maps.Point(24, 48)
       });
     }
-  }, [isMapLoaded, restaurantCoords]);
+  }, [getSvgMarkerUrl, isMapLoaded, restaurantCoords]);
 
   // Create Customer Marker
   useEffect(() => {
     if (!isMapLoaded || !mapInstance.current || !customerCoords) return;
 
     if (!customerMarkerRef.current) {
-      const customerLocationIconUrl = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(CUSTOMER_PIN_SVG);
+      const customerLocationIconUrl = getSvgMarkerUrl('customer_pin', CUSTOMER_PIN_SVG);
 
       customerMarkerRef.current = new window.google.maps.Marker({
         position: { lat: customerCoords.lat, lng: customerCoords.lng },
@@ -1666,12 +1685,12 @@ const DeliveryTrackingMap = ({
     } else {
       customerMarkerRef.current.setPosition(customerCoords);
       customerMarkerRef.current.setIcon({
-        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(CUSTOMER_PIN_SVG),
+        url: getSvgMarkerUrl('customer_pin', CUSTOMER_PIN_SVG),
         scaledSize: new window.google.maps.Size(48, 48),
         anchor: new window.google.maps.Point(24, 48)
       });
     }
-  }, [isMapLoaded, customerCoords]);
+  }, [getSvgMarkerUrl, isMapLoaded, customerCoords]);
 
   // Create Rider/Bike Marker instantly from initial location
   useEffect(() => {

@@ -18,6 +18,7 @@ import {
   sendNotificationToOwners,
 } from "../../../../core/notifications/firebase.service.js";
 import { FoodTransaction } from '../models/foodTransaction.model.js';
+import { FoodSupportTicket } from '../../user/models/supportTicket.model.js';
 import {
     createRazorpayOrder,
     createPaymentLink,
@@ -2415,4 +2416,67 @@ export async function assignDeliveryPartnerAdmin(
         adminId
     });
     return order.toObject();
+}
+
+export async function deleteOrderAdmin(orderId, adminId) {
+  const identity = buildOrderIdentityFilter(orderId);
+  if (!identity) throw new ValidationError("Order id required");
+
+  const order = await FoodOrder.findOne(identity).lean();
+  if (!order) throw new ValidationError("Order not found");
+
+  // Keep support tickets but detach deleted order reference.
+  await Promise.all([
+    FoodSupportTicket.updateMany(
+      { orderId: order._id },
+      { $set: { orderId: null } },
+    ),
+    FoodTransaction.deleteOne({
+      $or: [{ orderId: order._id }, { orderReadableId: String(order.orderId) }],
+    }),
+    FoodOrder.deleteOne({ _id: order._id }),
+  ]);
+
+  // Remove realtime tracking node if present.
+  try {
+    const db = getFirebaseDB();
+    if (db && order?.orderId) {
+      await db.ref(`active_orders/${order.orderId}`).remove();
+    }
+  } catch (err) {
+    logger.warn(`Delete order firebase cleanup failed: ${err?.message || err}`);
+  }
+
+  // Notify connected apps so stale UI entries can disappear without refresh.
+  try {
+    const io = getIO();
+    if (io) {
+      const payload = {
+        orderMongoId: String(order._id),
+        orderId: String(order.orderId || ""),
+        deletedBy: "ADMIN",
+        adminId: adminId ? String(adminId) : null,
+      };
+
+      if (order.userId) io.to(rooms.user(order.userId)).emit("order_deleted", payload);
+      if (order.restaurantId) io.to(rooms.restaurant(order.restaurantId)).emit("order_deleted", payload);
+      if (order.dispatch?.deliveryPartnerId) {
+        io.to(rooms.delivery(order.dispatch.deliveryPartnerId)).emit("order_deleted", payload);
+      }
+    }
+  } catch (err) {
+    logger.warn(`Delete order socket emit failed: ${err?.message || err}`);
+  }
+
+  enqueueOrderEvent("order_deleted_by_admin", {
+    orderMongoId: String(order._id),
+    orderId: String(order.orderId || ""),
+    adminId: adminId ? String(adminId) : null,
+  });
+
+  return {
+    deleted: true,
+    orderId: String(order.orderId || ""),
+    orderMongoId: String(order._id),
+  };
 }

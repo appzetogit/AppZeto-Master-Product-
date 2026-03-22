@@ -3447,6 +3447,15 @@ const ENABLE_GOOGLE_DIRECTIONS = import.meta.env.VITE_ENABLE_GOOGLE_DIRECTIONS !
       debugError('? Error uploading bill image:', error)
       if (error?.message === 'BILL_UPLOAD_TIMEOUT') {
         toast.error('Bill upload timed out. Please check internet and try again.')
+      } else if (
+        error?.code === 'ERR_NETWORK' ||
+        /ECONNREFUSED|ERR_CONNECTION_REFUSED|Network Error/i.test(
+          String(error?.message || ''),
+        )
+      ) {
+        toast.error(
+          'Cannot reach upload server (backend). Please ensure backend is running and API URL is correct.',
+        )
       } else {
         toast.error('Failed to upload bill image. Please try again.')
       }
@@ -4619,11 +4628,36 @@ const ENABLE_GOOGLE_DIRECTIONS = import.meta.env.VITE_ENABLE_GOOGLE_DIRECTIONS !
   const [showHomeSections, setShowHomeSections] = useState(false) // false = map view, true = home sections
   const [swipeBarPosition, setSwipeBarPosition] = useState(0) // 0 = bottom (map), 1 = top (home)
   const [isDraggingSwipeBar, setIsDraggingSwipeBar] = useState(false)
+  const hasActiveDeliveryOrder = useMemo(() => {
+    if (!selectedRestaurant) return false
+    const orderStatus = String(selectedRestaurant?.orderStatus || selectedRestaurant?.status || '').toLowerCase()
+    const deliveryPhase = String(selectedRestaurant?.deliveryPhase || selectedRestaurant?.deliveryState?.currentPhase || '').toLowerCase()
+    return !(
+      orderStatus === 'delivered' ||
+      orderStatus.includes('cancel') ||
+      orderStatus.includes('completed') ||
+      deliveryPhase === 'delivered' ||
+      deliveryPhase === 'completed'
+    )
+  }, [
+    selectedRestaurant?.orderStatus,
+    selectedRestaurant?.status,
+    selectedRestaurant?.deliveryPhase,
+    selectedRestaurant?.deliveryState?.currentPhase
+  ])
   const swipeBarRef = useRef(null)
   const swipeBarStartY = useRef(0)
   const isSwipingBar = useRef(false)
   const homeSectionsScrollRef = useRef(null)
   const isScrollingHomeSections = useRef(false)
+
+  useEffect(() => {
+    if (hasActiveDeliveryOrder && showHomeSections) {
+      setShowHomeSections(false)
+      setSwipeBarPosition(0)
+      setIsDraggingSwipeBar(false)
+    }
+  }, [hasActiveDeliveryOrder, showHomeSections])
 
   // Emergency help popup state
   const [showEmergencyPopup, setShowEmergencyPopup] = useState(false)
@@ -6611,8 +6645,12 @@ const ENABLE_GOOGLE_DIRECTIONS = import.meta.env.VITE_ENABLE_GOOGLE_DIRECTIONS !
           const orderPayload = orderResponse.data.data;
           verifiedOrder = orderPayload?.order || orderPayload;
           
-          // Check if order is cancelled or deleted
-          if (verifiedOrder.status === 'cancelled' || verifiedOrder.status === 'delivered') {
+          // Check if order is terminal/deleted
+          if (
+            verifiedOrder.status === 'cancelled' ||
+            verifiedOrder.status === 'deleted' ||
+            verifiedOrder.status === 'delivered'
+          ) {
             debugLog(`?? Order is ${verifiedOrder.status}, removing from localStorage`);
             if (verifiedOrder.status === 'cancelled') {
               markOrderAsCancelled(verifiedOrder);
@@ -6628,7 +6666,11 @@ const ENABLE_GOOGLE_DIRECTIONS = import.meta.env.VITE_ENABLE_GOOGLE_DIRECTIONS !
         } catch (verifyError) {
           // If order doesn't exist (404) or any other error, clear localStorage
           debugLog('?? Error verifying order or order not found:', verifyError.response?.status || verifyError.message);
-          if (verifyError.response?.status === 404 || verifyError.response?.status === 403) {
+          if (
+            verifyError.response?.status === 404 ||
+            verifyError.response?.status === 403 ||
+            verifyError.response?.status === 400
+          ) {
             debugLog('?? Order not found or not assigned, removing from localStorage');
             localStorage.removeItem(DELIVERY_ACTIVE_ORDER_KEY);
             setSelectedRestaurant(null);
@@ -6719,21 +6761,81 @@ const ENABLE_GOOGLE_DIRECTIONS = import.meta.env.VITE_ENABLE_GOOGLE_DIRECTIONS !
           debugLog('? Restored selectedRestaurant from localStorage');
         }
 
-        const restoredStage = activeOrderData.uiStage
-        if (restoredStage) {
+        const resolvedRestoreStage = (() => {
+          const savedStage = String(activeOrderData.uiStage || '').toLowerCase()
+          const phase = String(
+            verifiedOrder?.deliveryState?.currentPhase ||
+            activeOrderData?.restaurantInfo?.deliveryPhase ||
+            activeOrderData?.restaurantInfo?.deliveryState?.currentPhase ||
+            '',
+          ).toLowerCase()
+          const deliveryStateStatus = String(
+            verifiedOrder?.deliveryState?.status ||
+            activeOrderData?.restaurantInfo?.deliveryState?.status ||
+            '',
+          ).toLowerCase()
+          const orderStatus = String(
+            verifiedOrder?.status ||
+            activeOrderData?.restaurantInfo?.orderStatus ||
+            activeOrderData?.restaurantInfo?.status ||
+            '',
+          ).toLowerCase()
+
+          // Prefer explicit popup stages persisted in localStorage.
+          if (
+            savedStage === 'en_route_to_pickup' ||
+            savedStage === 'reached_pickup' ||
+            savedStage === 'order_id_confirmation' ||
+            savedStage === 'reached_drop' ||
+            savedStage === 'order_delivered' ||
+            savedStage === 'review' ||
+            savedStage === 'payment'
+          ) {
+            return savedStage
+          }
+
+          // Fallback inference for refresh: reconstruct popup from live backend phase.
+          if (phase === 'at_pickup') return 'order_id_confirmation'
+          if (phase === 'reached_pickup') return 'reached_pickup'
+          if (
+            phase === 'en_route_to_pickup' ||
+            phase === 'assigned' ||
+            orderStatus === 'accepted' ||
+            orderStatus === 'ready' ||
+            orderStatus === 'preparing'
+          ) {
+            return 'en_route_to_pickup'
+          }
+          if (phase === 'at_delivery' || deliveryStateStatus === 'reached_drop') return 'reached_drop'
+
+          // If order ID already confirmed / en route to delivery, do not force pickup popup.
+          if (
+            phase === 'en_route_to_delivery' ||
+            phase === 'picked_up' ||
+            phase === 'en_route_to_drop' ||
+            orderStatus === 'out_for_delivery' ||
+            deliveryStateStatus === 'order_confirmed'
+          ) {
+            return null
+          }
+
+          return null
+        })()
+
+        if (resolvedRestoreStage) {
           setTimeout(() => {
-            if (restoredStage === 'en_route_to_pickup' || restoredStage === 'reached_pickup') {
+            if (resolvedRestoreStage === 'en_route_to_pickup' || resolvedRestoreStage === 'reached_pickup') {
               setShowreachedPickupPopup(true)
-            } else if (restoredStage === 'order_id_confirmation') {
+            } else if (resolvedRestoreStage === 'order_id_confirmation') {
               setShowOrderIdConfirmationPopup(true)
-            } else if (restoredStage === 'reached_drop') {
+            } else if (resolvedRestoreStage === 'reached_drop') {
               setShowReachedDropPopup(true)
-            } else if (restoredStage === 'order_delivered') {
+            } else if (resolvedRestoreStage === 'order_delivered') {
               setShowOrderDeliveredAnimation(true)
-            } else if (restoredStage === 'review') {
+            } else if (resolvedRestoreStage === 'review') {
               // Review flow removed; continue to payment stage
               setShowPaymentPage(true)
-            } else if (restoredStage === 'payment') {
+            } else if (resolvedRestoreStage === 'payment') {
               setShowPaymentPage(true)
             }
           }, 250)
@@ -7029,6 +7131,10 @@ const ENABLE_GOOGLE_DIRECTIONS = import.meta.env.VITE_ENABLE_GOOGLE_DIRECTIONS !
         toast.error(orderLabel ? `Order ${orderLabel} was cancelled` : 'Order was cancelled');
       }
     }
+    if (reason === 'deleted' && showToast) {
+      const orderLabel = orderData?.orderId || selectedRestaurant?.orderId || selectedRestaurant?.id || '';
+      toast.error(orderLabel ? `Order ${orderLabel} was deleted` : 'Order was deleted');
+    }
 
     debugLog('?? Clearing order data...');
     localStorage.removeItem(DELIVERY_ACTIVE_ORDER_KEY);
@@ -7117,6 +7223,15 @@ const ENABLE_GOOGLE_DIRECTIONS = import.meta.env.VITE_ENABLE_GOOGLE_DIRECTIONS !
         })
       }
     }
+    if (updateStatus === 'deleted') {
+      if (isActiveOrderUpdate) {
+        clearOrderData({
+          reason: 'deleted',
+          orderData: orderStatusUpdate,
+          showToast: true
+        })
+      }
+    }
 
     clearOrderStatusUpdate()
   }, [
@@ -7163,6 +7278,15 @@ const ENABLE_GOOGLE_DIRECTIONS = import.meta.env.VITE_ENABLE_GOOGLE_DIRECTIONS !
           });
           return;
         }
+        if (order.status === 'deleted') {
+          debugLog('?? Order is deleted, clearing data');
+          clearOrderData({
+            reason: 'deleted',
+            orderData: order,
+            showToast: true
+          });
+          return;
+        }
 
         // Check if order is delivered/completed - clear it from UI
         const isOrderDelivered = order.status === 'delivered' || 
@@ -7187,9 +7311,13 @@ const ENABLE_GOOGLE_DIRECTIONS = import.meta.env.VITE_ENABLE_GOOGLE_DIRECTIONS !
           }));
         }
       } catch (error) {
-        if (error.response?.status === 404 || error.response?.status === 403) {
+        if (
+          error.response?.status === 404 ||
+          error.response?.status === 403 ||
+          error.response?.status === 400
+        ) {
           debugLog('?? Order not found or not assigned, clearing data');
-          clearOrderData();
+          clearOrderData({ reason: 'deleted' });
         }
         // Ignore other errors (network issues, etc.)
       }
@@ -8232,7 +8360,7 @@ selectedRestaurant?.lng || null,
       }
     } else {
       // If showing map and swiped up, show home sections
-      if (finalDeltaY > threshold || swipeBarPosition > 0.05) {
+      if (!hasActiveDeliveryOrder && (finalDeltaY > threshold || swipeBarPosition > 0.05)) {
         setSwipeBarPosition(1)
         setShowHomeSections(true)
       } else {
@@ -8307,7 +8435,7 @@ selectedRestaurant?.lng || null,
       }
     } else {
       // If showing map and swiped up, show home sections
-      if (finalDeltaY > threshold || swipeBarPosition > 0.05) {
+      if (!hasActiveDeliveryOrder && (finalDeltaY > threshold || swipeBarPosition > 0.05)) {
         setSwipeBarPosition(1)
         setShowHomeSections(true)
       } else {
@@ -8332,7 +8460,7 @@ selectedRestaurant?.lng || null,
 
   // Handle chevron click to slide up swipe bar
   const handleChevronUpClick = () => {
-    if (!showHomeSections) {
+    if (!showHomeSections && !hasActiveDeliveryOrder) {
       setShowHomeSections(true)
       setSwipeBarPosition(1)
       setIsDraggingSwipeBar(false)

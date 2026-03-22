@@ -13,6 +13,21 @@ const getOrderStatus = (order) =>
 const getOrderPhase = (order) =>
   String(order?.deliveryState?.currentPhase || "").toLowerCase();
 
+const ACTIVE_PHASES = new Set([
+  "created",
+  "confirmed",
+  "preparing",
+  "accepted",
+  "ready",
+  "ready_for_pickup",
+  "reached_pickup",
+  "picked_up",
+  "out_for_delivery",
+  "en_route_to_delivery",
+  "at_pickup",
+  "at_drop",
+]);
+
 /** Orders that should show the live tracking strip (any in-flight order, not terminal). */
 const TERMINAL_STATUSES = new Set([
   "delivered",
@@ -27,9 +42,12 @@ const TERMINAL_STATUSES = new Set([
 const isActiveOrder = (order) => {
   if (!order) return false;
   const status = getOrderStatus(order);
-  if (!status || TERMINAL_STATUSES.has(status)) return false;
   const phase = getOrderPhase(order);
+  if (TERMINAL_STATUSES.has(status)) return false;
   if (phase === "completed" || phase === "delivered") return false;
+  // Some refresh payloads provide live phase but sparse status; keep tracking visible.
+  if (!status && phase) return ACTIVE_PHASES.has(phase);
+  if (!status) return false;
   return true;
 };
 
@@ -68,10 +86,6 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
   const activeOrderSnapshotRef = useRef(null);
 
   const fetchOrders = useCallback(async () => {
-    const userToken =
-      localStorage.getItem("user_accessToken") || localStorage.getItem("accessToken");
-    if (!userToken) return;
-
     try {
       const response = await orderAPI.getOrders({ limit: 10, page: 1 });
       let nextOrders = [];
@@ -208,7 +222,7 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
 
   const orderStatus = getOrderStatus(activeOrder) || "preparing";
   const orderPhase = getOrderPhase(activeOrder);
-  if (orderStatus === "delivered" || orderStatus === "completed" || timeRemaining === 0) {
+  if (orderStatus === "delivered" || orderStatus === "completed") {
     return null;
   }
 
@@ -238,7 +252,11 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
         exit={{ y: 100, opacity: 0 }}
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
         className={`fixed ${hasBottomNav ? "bottom-20" : "bottom-4"} left-4 right-4 z-[9999]`}
-        onClick={() => navigate(`/user/orders/${activeOrder.id || activeOrder._id || activeOrder.orderId}`)}
+        onClick={() =>
+          navigate(
+            `/food/user/orders/${activeOrder.id || activeOrder._id || activeOrder.orderId}`,
+          )
+        }
       >
         <div className="bg-gray-800 rounded-xl p-4 shadow-2xl border border-gray-700">
           <div className="flex items-center gap-3">
@@ -260,7 +278,9 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
                 arriving in
               </p>
               <p className="text-white text-sm font-bold leading-tight">
-                {timeRemaining !== null ? `${timeRemaining} mins` : "-- mins"}
+                {timeRemaining !== null
+                  ? `${Math.max(1, timeRemaining)} mins`
+                  : "-- mins"}
               </p>
             </div>
           </div>

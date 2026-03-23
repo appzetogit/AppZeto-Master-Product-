@@ -35,6 +35,7 @@ const RedirectToFood = () => {
 
 const MasterLandingPage = lazy(() => import('./MasterLandingPage'))
 const AdminRouter = lazy(() => import('../modules/Food/components/admin/AdminRouter'))
+const DeliveryV2 = lazy(() => import('../modules/DeliveryV2'))
 
 const AppRoutes = () => {
   return (
@@ -48,6 +49,11 @@ const AppRoutes = () => {
       {/* Food Module */}
       <Route path="/food/*" element={<FoodAppWrapper />} />
 
+      {/* Global Admin Portal - AdminRouter handles its own protection for sub-routes */}
+      <Route path="/admin/*" element={<AdminRouter />} />
+
+      {/* NEW Delivery V2 (Parallel testing) */}
+      <Route path="/delivery-v2/*" element={<DeliveryV2 />} />
       {/* Global Admin Portal - wrap lazy router in Suspense to avoid blank/crash on direct admin URLs */}
       <Route
         path="/admin/*"

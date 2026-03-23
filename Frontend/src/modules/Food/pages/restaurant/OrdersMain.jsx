@@ -2705,10 +2705,7 @@ function ResendNotificationButton({ orderId, mongoId, onSuccess }) {
         );
         // Refresh orders if onSuccess callback is provided
         if (onSuccess) {
-          // Trigger a refresh by calling onSuccess with a special flag
-          setTimeout(() => {
-            window.location.reload(); // Simple refresh for now
-          }, 1000);
+           onSuccess();
         }
       } else {
         toast.error(response.data?.message || "Failed to send notification");

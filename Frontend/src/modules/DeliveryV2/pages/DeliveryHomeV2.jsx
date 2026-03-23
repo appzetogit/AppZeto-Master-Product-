@@ -9,41 +9,87 @@ import { deliveryAPI } from '@food/api';
 import { toast } from 'sonner';
 
 // Components
-import { LiveMap } from '@/modules/DeliveryV2/components/map/LiveMap';
+import LiveMap from '@/modules/DeliveryV2/components/map/LiveMap';
 import { NewOrderModal } from '@/modules/DeliveryV2/components/modals/NewOrderModal';
 import { PickupActionModal } from '@/modules/DeliveryV2/components/modals/PickupActionModal';
 import { DeliveryVerificationModal } from '@/modules/DeliveryV2/components/modals/DeliveryVerificationModal';
 import { OrderSummaryModal } from '@/modules/DeliveryV2/components/modals/OrderSummaryModal';
-import { ActionSlider } from '@/modules/DeliveryV2/components/ui/ActionSlider';
+import ActionSlider from '@/modules/DeliveryV2/components/ui/ActionSlider';
 
 // Sub Pages
-import { PocketV2 } from '@/modules/DeliveryV2/pages/PocketV2';
-import { HistoryV2 } from '@/modules/DeliveryV2/pages/HistoryV2';
-import { ProfileV2 } from '@/modules/DeliveryV2/pages/ProfileV2';
+import PocketV2 from '@/modules/DeliveryV2/pages/PocketV2';
+import HistoryV2 from '@/modules/DeliveryV2/pages/HistoryV2';
+import ProfileV2 from '@/modules/DeliveryV2/pages/ProfileV2';
 
 // Icons
 import { 
   Bell, HelpCircle, Headset, AlertTriangle, 
   Wallet, History, User as UserIcon, LayoutGrid,
-  Plus, Minus, Navigation2, Target, Play, CheckCircle2
+  Plus, Minus, Navigation2, Target, Play, CheckCircle2, Clock
 } from 'lucide-react';
 
 import { getHaversineDistance, calculateETA, calculateHeading } from '@/modules/DeliveryV2/utils/geo';
+import { useCompanyName } from "@food/hooks/useCompanyName";
+import { useNavigate } from 'react-router-dom';
+
+/** Minimal bottom-sheet popup (Restored from legacy FeedNavbar) */
+function BottomPopup({ isOpen, onClose, title, children }) {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-[600] flex items-end" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/40" />
+      <motion.div
+        initial={{ y: "100%" }}
+        animate={{ y: 0 }}
+        exit={{ y: "100%" }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        className="relative w-full bg-white rounded-t-3xl shadow-2xl p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-black text-gray-900 uppercase tracking-tight">{title}</h2>
+          <button onClick={onClose} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">
+             <AlertTriangle className="w-4 h-4" />
+          </button>
+        </div>
+        {children}
+      </motion.div>
+    </div>
+  );
+}
 
 /**
  * DeliveryHomeV2 - Premium 1:1 Match with Original App UI.
  * Featuring logical tab switching for Feed, Pocket, History, and Profile.
  */
-export default function DeliveryHomeV2() {
+export default function DeliveryHomeV2({ tab = 'feed' }) {
+  const navigate = useNavigate();
   const { isOnline, toggleOnline, activeOrder, tripStatus, setRiderLocation, setActiveOrder, updateTripStatus, clearActiveOrder } = useDeliveryStore();
   const { isWithinRange, distanceToTarget } = useProximityCheck();
   const { acceptOrder, reachPickup, pickUpOrder, reachDrop, completeDelivery, resetTrip } = useOrderManager();
   
   const { newOrder, clearNewOrder, orderStatusUpdate, clearOrderStatusUpdate, isConnected: isSocketConnected, emitLocation } = useDeliveryNotifications();
+
   
   const [incomingOrder, setIncomingOrder] = useState(null);
-  const [currentTab, setCurrentTab] = useState('feed');
+  const [currentTab, setCurrentTab] = useState(tab);
+  
+  // Track URL changes (Prop changes) to update sub-page content
+  useEffect(() => {
+    setCurrentTab(tab);
+  }, [tab]);
+
   const [showVerification, setShowVerification] = useState(false);
+  const [showEmergencyPopup, setShowEmergencyPopup] = useState(false);
+  const [showHelpPopup, setShowHelpPopup] = useState(false);
+  const [profileImage, setProfileImage] = useState(null);
+  const [emergencyNumbers, setEmergencyNumbers] = useState({
+    medicalEmergency: "",
+    accidentHelpline: "",
+    contactPolice: "",
+    insurance: "",
+  });
+  
   const [isModalMinimized, setIsModalMinimized] = useState(false);
   const [eta, setEta] = useState(null);
   const lastLocationSentAt = useRef(0);
@@ -58,6 +104,39 @@ export default function DeliveryHomeV2() {
   const [simProgress, setSimProgress] = useState(0); // 0 to 1 between points
   const [activePolyline, setActivePolyline] = useState(null);
   const mapRef = useRef(null);
+
+  const isLoggingOut = useRef(false);
+  const handleLogout = React.useCallback(() => {
+    if (isLoggingOut.current) return;
+    isLoggingOut.current = true;
+    
+    // 1. Clear tokens and state
+    localStorage.removeItem('delivery_accessToken');
+    localStorage.removeItem('delivery_refreshToken');
+    localStorage.removeItem('delivery_authenticated');
+    localStorage.removeItem('delivery_user');
+    
+    // 2. Alert user and redirect
+    toast.error("Session Expired", { description: "Please log in again." });
+    navigate("/food/delivery/login", { replace: true });
+
+    // Optional: Full refresh after delay ONLY if we're not already on login
+    setTimeout(() => {
+       if (!window.location.pathname.includes('/login')) {
+          window.location.reload();
+       }
+    }, 1500);
+  }, [navigate]);
+
+  useEffect(() => {
+    const onAuthFailure = (e) => {
+      if (e.detail?.module === 'delivery') {
+        handleLogout();
+      }
+    };
+    window.addEventListener('authRefreshFailed', onAuthFailure);
+    return () => window.removeEventListener('authRefreshFailed', onAuthFailure);
+  }, [handleLogout]);
 
   // 0. Auto-Simulation Effect (High-Precision Smooth Glide)
   const lastSimUpdateSentAt = useRef(0);
@@ -128,6 +207,39 @@ export default function DeliveryHomeV2() {
     return () => clearInterval(interval);
   }, [isSimMode, simPath, simIndex, activeOrder, emitLocation, activePolyline, eta, tripStatus]);
 
+  const companyName = useCompanyName();
+
+  // Fetch Emergency numbers and Profile (Restored logic)
+  useEffect(() => {
+    (async () => {
+      try {
+        const [emergencyRes, profileRes] = await Promise.all([
+          deliveryAPI.getEmergencyHelp(),
+          deliveryAPI.getProfile()
+        ]);
+        if (emergencyRes?.data?.success && emergencyRes.data.data) {
+          setEmergencyNumbers(emergencyRes.data.data);
+        }
+        if (profileRes?.data?.success && profileRes.data.data?.profile) {
+          const profile = profileRes.data.data.profile;
+          setProfileImage(profile.profileImage?.url || profile.documents?.photo || null);
+        }
+      } catch (err) { console.warn('Navbar Data Fetch Error:', err); }
+    })();
+  }, []);
+
+  const emergencyOptions = [
+    { title: "Medical Emergency", subtitle: "Call an ambulance", icon: <AlertTriangle className="text-red-600" />, phone: emergencyNumbers.medicalEmergency },
+    { title: "Accident Helpline", subtitle: "Report an accident", icon: <AlertTriangle className="text-orange-600" />, phone: emergencyNumbers.accidentHelpline },
+    { title: "Contact Police", subtitle: "Nearest police support", icon: <AlertTriangle className="text-blue-600" />, phone: emergencyNumbers.contactPolice },
+    { title: "Insurance", subtitle: "Policy & claim help", icon: <AlertTriangle className="text-green-600" />, phone: emergencyNumbers.insurance },
+  ];
+
+  const helpOptions = [
+    { title: "Support tickets", subtitle: "Check status of tickets raised", icon: <Clock className="text-gray-600" />, path: "/delivery-v2/help/tickets" },
+    { title: "Show ID card", subtitle: `See your ${companyName} ID card`, icon: <UserIcon className="text-gray-600" />, path: "/delivery-v2/help/id-card" },
+  ];
+
   // Reset simulation when path, order or mode changes
   useEffect(() => {
     if (isSimMode) {
@@ -143,6 +255,18 @@ export default function DeliveryHomeV2() {
   useEffect(() => {
     setIsModalMinimized(false);
   }, [tripStatus, showVerification, incomingOrder]);
+
+  useEffect(() => {
+    const handleLogout = (e) => {
+      // If the delivery module specifically fails, we exit.
+      if (!e.detail || e.detail.module === "delivery") {
+        toast.error("Session expired. Please login again.");
+        navigate("/food/delivery/login", { replace: true });
+      }
+    };
+    window.addEventListener("authRefreshFailed", handleLogout);
+    return () => window.removeEventListener("authRefreshFailed", handleLogout);
+  }, [navigate]);
 
   // 1. Initial Sync (Force sync with server to avoid 'stuck' persistent state)
   useEffect(() => {
@@ -350,32 +474,36 @@ export default function DeliveryHomeV2() {
 
   return (
     <div className="relative h-screen w-full bg-white text-gray-900 overflow-hidden flex flex-col">
-      {/* ─── 1. TOP HEADER (Fixed - Dark Pro) ─── */}
-      <div className="absolute top-0 inset-x-0 bg-gray-950/98 backdrop-blur-xl shadow-2xl z-[200] safe-top pb-3 border-b border-white/5">
+      {/* ─── 1. TOP HEADER (Premium Dark Gray) ─── */}
+      {currentTab !== 'history' && (
+      <div className="absolute top-0 inset-x-0 bg-[#121212]/95 backdrop-blur-2xl shadow-2xl z-[200] safe-top pb-4 border-b border-white/10">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-4">
-             <div className="w-10 h-10 rounded-full border border-white/10 p-0.5 shadow-lg overflow-hidden">
-                <img src="https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png" alt="Profile" className="w-full h-full object-cover rounded-full" />
+             <div 
+               onClick={() => navigate('/delivery-v2/profile')}
+               className="w-10 h-10 rounded-full border border-white/20 p-0.5 shadow-xl overflow-hidden bg-white/5 cursor-pointer active:scale-95 transition-all"
+             >
+                <img src={profileImage || "https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png"} alt="Profile" className="w-full h-full object-cover rounded-full" />
              </div>
              <button 
                onClick={toggleOnline}
-               className={`relative w-[110px] h-10 rounded-full p-1 transition-all duration-500 flex items-center ${isOnline ? 'bg-green-500 shadow-lg shadow-green-500/20' : 'bg-white/10 border border-white/5'}`}
+               className={`relative w-[92px] h-8 rounded-full p-1 transition-all duration-500 flex items-center ${isOnline ? 'bg-green-500 shadow-lg shadow-green-500/20' : 'bg-gray-400'}`}
              >
-               <div className={`flex items-center justify-between w-full px-2 text-[10px] font-bold uppercase tracking-widest ${isOnline ? 'text-white' : 'text-gray-500'}`}>
+               <div className={`flex items-center justify-between w-full px-2 text-[8.5px] font-black uppercase tracking-widest text-white`}>
                  <span>{isOnline ? 'Online' : ''}</span>
                  <span>{!isOnline ? 'Offline' : ''}</span>
                </div>
-               <motion.div animate={{ x: isOnline ? 68 : 0 }} className="absolute left-1 w-8 h-8 bg-white rounded-full shadow-md" />
+               <motion.div animate={{ x: isOnline ? 59 : 0 }} className="absolute left-1 w-6 h-6 bg-white rounded-full shadow-sm" />
              </button>
           </div>
           <div className="flex items-center gap-3">
-             <button onClick={() => toast.info('Safety SOS Notified')} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-orange-500 border border-white/10 active:scale-95 transition-all shadow-inner"><AlertTriangle className="w-5 h-5" /></button>
-             <button onClick={() => toast.info('Support guide opening...')} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-gray-400 border border-white/10 active:scale-95 transition-all shadow-inner"><HelpCircle className="w-5 h-5" /></button>
-             <button onClick={() => toast.info('Contacting Support...')} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white border border-white/10 active:scale-95 transition-all shadow-inner"><Headset className="w-5 h-5" /></button>
+             <button onClick={() => setShowEmergencyPopup(true)} className="w-9 h-9 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 border border-red-500/20 active:scale-95 transition-all shadow-lg"><AlertTriangle className="w-4 h-4" /></button>
+             <button onClick={() => setShowHelpPopup(true)} className="w-9 h-9 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 border border-blue-500/20 active:scale-95 transition-all shadow-lg"><HelpCircle className="w-4 h-4" /></button>
+             <button onClick={() => toast.info('Ordering Support...')} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white border border-white/10 active:scale-95 transition-all shadow-lg"><Headset className="w-4 h-4" /></button>
           </div>
         </div>
 
-        {/* ─── LIVE STATUS / PROGRESS BADGE (PRO) ─── */}
+        {/* ─── LIVE STATUS / PROGRESS BADGE (MATCHED PRO) ─── */}
         <AnimatePresence>
           {currentTab === 'feed' && (
             <motion.div 
@@ -387,8 +515,7 @@ export default function DeliveryHomeV2() {
               {activeOrder ? (
                 <div className="grid grid-cols-2 gap-3 w-full">
                   {/* LEFT: DISTANCE (Vibrant Orange Card) */}
-                  <div className="bg-orange-500 rounded-2xl p-3.5 shadow-[0_10px_30px_rgba(249,115,22,0.3)] border border-orange-400/50 flex items-center justify-between group overflow-hidden relative">
-                    <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
+                  <div className="bg-[#ff8100] rounded-2xl p-3.5 shadow-xl shadow-orange-500/20 border border-orange-400/50 flex items-center justify-between overflow-hidden relative">
                     <div className="flex flex-col z-10">
                       <span className="text-[9px] text-white/70 font-black uppercase tracking-[0.15em] mb-1">Distance</span>
                       <div className="flex items-end gap-1">
@@ -398,43 +525,39 @@ export default function DeliveryHomeV2() {
                         <span className="text-[11px] text-white/80 font-bold mb-0.5">KM</span>
                       </div>
                     </div>
-                    <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center z-10 shadow-lg">
-                      <Navigation2 className="w-5 h-5 text-orange-500 rotate-45 group-hover:scale-110 transition-transform" />
+                    <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center z-10 shadow-lg">
+                      <Navigation2 className="w-4 h-4 text-[#ff8100] rotate-45" />
                     </div>
                   </div>
 
-                  {/* RIGHT: TIME (Dark Mode Pro) */}
-                  <div className="bg-gray-950 rounded-2xl p-3.5 shadow-2xl border border-white/10 flex items-center justify-between relative overflow-hidden group">
-                    <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 to-transparent pointer-events-none" />
+                  {/* RIGHT: TIME (Emerald PRO Content) */}
+                  <div className="bg-[#10B981] rounded-2xl p-3.5 shadow-xl shadow-green-500/20 border border-green-400/50 flex items-center justify-between relative overflow-hidden group">
                     <div className="flex flex-col z-10">
-                      <span className="text-[9px] text-gray-500 font-black uppercase tracking-[0.15em] mb-1">Arrival</span>
+                      <span className="text-[9px] text-white/70 font-black uppercase tracking-[0.15em] mb-1">Arrival</span>
                       <div className="flex items-end gap-1">
                         <span className="text-2xl font-black text-white leading-none tracking-tighter">
                           {eta ? String(eta) : '--'}
                         </span>
-                        <span className="text-[11px] text-green-500 font-bold mb-0.5">MIN</span>
+                        <span className="text-[11px] text-white/80 font-bold mb-0.5">MIN</span>
                       </div>
                     </div>
-                    <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center z-10">
-                      <div className="relative">
-                        <div className="w-3 h-3 rounded-full bg-green-500 animate-ping absolute inset-0 opacity-40" />
-                        <div className="w-3 h-3 rounded-full bg-green-500 shadow-[0_0_12px_rgba(34,197,94,0.8)] relative z-10" />
-                      </div>
+                    <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center z-10 shadow-lg">
+                       <Clock className="w-4 h-4 text-[#10B981]" />
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="bg-gray-50 rounded-2xl p-4 flex items-center justify-between border border-gray-100 shadow-sm transition-all hover:bg-white">
+                <div className="bg-white/5 rounded-2xl p-4 flex items-center justify-between border border-white/5 shadow-sm backdrop-blur-md">
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 bg-green-500/10 rounded-full flex items-center justify-center">
-                      <div className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-green-500 animate-ping' : 'bg-gray-400'}`} />
+                      <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`} />
                     </div>
                     <div>
-                      <h3 className="text-gray-900 font-bold text-xs uppercase tracking-wider">{isOnline ? 'Ready for new trip' : 'Go online to work'}</h3>
-                      <p className="text-gray-400 text-[10px] font-medium tracking-tight">Your current earnings will appear here</p>
+                      <h3 className="text-white font-black text-[11px] uppercase tracking-widest leading-none mb-1">{isOnline ? 'System Online' : 'System Offline'}</h3>
+                      <p className="text-gray-400 text-[10px] font-bold uppercase tracking-tight">{isOnline ? 'Waiting for order requests' : 'Go online to receive jobs'}</p>
                     </div>
                   </div>
-                  <div className="bg-gray-100 h-8 w-8 rounded-full flex items-center justify-center text-gray-400">
+                  <div className="bg-white/5 h-9 w-9 border border-white/10 rounded-xl flex items-center justify-center text-white/50 shadow-sm">
                     <LayoutGrid className="w-4 h-4" />
                   </div>
                 </div>
@@ -443,9 +566,10 @@ export default function DeliveryHomeV2() {
           )}
         </AnimatePresence>
       </div>
+      )}
 
       {/* ─── 2. MAIN CONTENT ─── */}
-      <div className="flex-1 relative overflow-y-auto pt-[120px] no-scrollbar">
+      <div className={`flex-1 relative overflow-y-auto ${currentTab === 'history' ? 'pt-0' : 'pt-[120px]'} no-scrollbar`}>
          {currentTab === 'feed' ? (
            <div className="absolute inset-0 top-[-120px]">
              <LiveMap 
@@ -617,6 +741,50 @@ export default function DeliveryHomeV2() {
         </AnimatePresence>
       )}
 
+      {/* ─── MODALS RESTORED FROM OLD UI ─── */}
+      <BottomPopup isOpen={showEmergencyPopup} title="Emergency Help" onClose={() => setShowEmergencyPopup(false)}>
+         <div className="grid gap-4 py-2">
+           {emergencyOptions.map((opt, i) => (
+             <button 
+               key={i} 
+               onClick={() => {
+                 const num = opt.phone?.replace(/\D/g, '');
+                 if (num) window.location.href = `tel:${num}`;
+                 else toast.error('Number not configured');
+               }}
+               className="flex items-center gap-5 p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 active:scale-95 transition-all text-left"
+             >
+               <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm text-xl">{opt.icon}</div>
+               <div>
+                 <h4 className="font-bold text-gray-900">{opt.title}</h4>
+                 <p className="text-xs text-gray-500 font-medium">{opt.subtitle}</p>
+               </div>
+             </button>
+           ))}
+         </div>
+      </BottomPopup>
+
+      <BottomPopup isOpen={showHelpPopup} title="How can we help?" onClose={() => setShowHelpPopup(false)}>
+         <div className="grid gap-4 py-2">
+           {helpOptions.map((opt, i) => (
+             <button 
+               key={i} 
+               onClick={() => {
+                 setShowHelpPopup(false);
+                 navigate(opt.path);
+               }}
+               className="flex items-center gap-5 p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 active:scale-95 transition-all text-left"
+             >
+               <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm text-gray-700">{opt.icon}</div>
+               <div>
+                 <h4 className="font-bold text-gray-900">{opt.title}</h4>
+                 <p className="text-xs text-gray-500 font-medium">{opt.subtitle}</p>
+               </div>
+             </button>
+           ))}
+         </div>
+      </BottomPopup>
+
       {/* Floating Minimize/Restore Toggle - Above navbar */}
       {isModalMinimized && (activeOrder || incomingOrder || showVerification) && (
         <motion.div 
@@ -641,16 +809,16 @@ export default function DeliveryHomeV2() {
 
       {/* ─── 3. BOTTOM NAV (Fixed - Compact Pro) ─── */}
       <div className="bg-white border-t border-gray-100 px-8 py-3 pb-6 flex justify-between items-center z-[200] shadow-[0_-5px_20px_rgba(0,0,0,0.05)]">
-         <button onClick={() => setCurrentTab('feed')} className={`flex flex-col items-center gap-1 transition-all ${currentTab === 'feed' ? 'text-gray-950 scale-110' : 'text-gray-400 opacity-70'}`}>
+         <button onClick={() => navigate('/delivery-v2/feed')} className={`flex flex-col items-center gap-1 transition-all ${currentTab === 'feed' ? 'text-gray-950 scale-110' : 'text-gray-400 opacity-70'}`}>
             <LayoutGrid className="w-6 h-6" /><span className="text-[11px] font-medium font-sans">Feed</span>
          </button>
-         <button onClick={() => setCurrentTab('pocket')} className={`flex flex-col items-center gap-1 transition-all ${currentTab === 'pocket' ? 'text-gray-950 scale-110' : 'text-gray-400 opacity-70'}`}>
+         <button onClick={() => navigate('/delivery-v2/pocket')} className={`flex flex-col items-center gap-1 transition-all ${currentTab === 'pocket' ? 'text-gray-950 scale-110' : 'text-gray-400 opacity-70'}`}>
             <Wallet className="w-6 h-6" /><span className="text-[11px] font-medium font-sans">Pocket</span>
          </button>
-         <button onClick={() => setCurrentTab('history')} className={`flex flex-col items-center gap-1 transition-all ${currentTab === 'history' ? 'text-gray-950 scale-110' : 'text-gray-400 opacity-70'}`}>
-            <History className="w-6 h-6" /><span className="text-[11px] font-medium font-sans">History</span>
+         <button onClick={() => navigate('/delivery-v2/history')} className={`flex flex-col items-center gap-1 transition-all ${currentTab === 'history' ? 'text-gray-950 scale-110' : 'text-gray-400 opacity-70'}`}>
+            <History className="w-6 h-6" /><span className="text-[11px] font-medium font-sans">Trip History</span>
          </button>
-         <button onClick={() => setCurrentTab('profile')} className={`flex flex-col items-center gap-1 transition-all ${currentTab === 'profile' ? 'text-gray-950 scale-110' : 'text-gray-400 opacity-70'}`}>
+         <button onClick={() => navigate('/delivery-v2/profile')} className={`flex flex-col items-center gap-1 transition-all ${currentTab === 'profile' ? 'text-gray-950 scale-110' : 'text-gray-400 opacity-70'}`}>
             <UserIcon className="w-6 h-6" /><span className="text-[11px] font-medium font-sans">Profile</span>
          </button>
       </div>

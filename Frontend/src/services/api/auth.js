@@ -178,18 +178,31 @@ function hasAccessToken(module) {
   }
 }
 
+// module -> { at, backoffUntil }
+const meBackoff = new Map();
+const BACKOFF_MS = 10000; // 10s wait on 429
+
 function getMeOnce(module) {
   const now = Date.now();
+  
+  // 1. Check Backoff (e.g. from previous 429)
+  const backoff = meBackoff.get(module);
+  if (backoff && now < backoff) {
+    return Promise.reject(new Error("Rate limited. Retrying too soon."));
+  }
+
+  // 2. Check Cache
   const cached = meCache.get(module);
   if (cached && now - cached.at < ME_CACHE_MS) {
     return Promise.resolve(cached.res);
   }
 
-  // If not logged in, don't hammer backend with /me calls.
+  // 3. Check Auth Status
   if (!hasAccessToken(module)) {
     return Promise.reject(new Error("Not authenticated"));
   }
 
+  // 4. Return In-Flight Promise
   const existing = meInFlight.get(module);
   if (existing) return existing;
 
@@ -198,6 +211,12 @@ function getMeOnce(module) {
     .then((res) => {
       meCache.set(module, { at: Date.now(), res });
       return res;
+    })
+    .catch((err) => {
+      if (err?.response?.status === 429) {
+        meBackoff.set(module, Date.now() + BACKOFF_MS);
+      }
+      throw err;
     })
     .finally(() => {
       meInFlight.delete(module);

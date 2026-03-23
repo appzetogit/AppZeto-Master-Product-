@@ -1,3 +1,3 @@
-import DeliveryHomeV2 from './pages/DeliveryHomeV2';
+import DeliveryV2Router from './DeliveryV2Router';
 
-export default DeliveryHomeV2;
+export default DeliveryV2Router;

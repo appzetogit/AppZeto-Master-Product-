@@ -1,124 +1,243 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { 
-  ChevronRight, Bike, Share2, Ticket, 
-  Bell, LogOut, Headset, Briefcase
-} from 'lucide-react';
-import { deliveryAPI } from '@food/api';
+import { useEffect, useRef, useState } from "react"
+import { useNavigate, useLocation } from "react-router-dom"
+import {
+  User,
+  ArrowRight,
+  Bike,
+  Ticket,
+  Bell,
+  ChevronRight,
+  Share2,
+  LogOut,
+  X,
+  Loader2,
+  Briefcase
+} from "lucide-react"
+import { deliveryAPI } from "@food/api"
+import { toast } from "sonner"
+import { clearModuleAuth } from "@food/utils/auth"
 
 /**
- * ProfileV2 - 1:1 Match with the user's provided screenshot.
- * Features Name/ID Header, Trips History Card, Share & Earn, and Sectioned Options.
+ * ProfileV2 - 1:1 EXACT Restoration of the Legacy Profile Hub.
+ * Matches ProfilePage.jsx exactly.
  */
 export const ProfileV2 = () => {
-  const [profile, setProfile] = useState({
-    name: 'Vishal patel',
-    id: 'DP-F86DCB62',
-    loading: true
-  });
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [profile, setProfile] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [referralReward, setReferralReward] = useState(0)
+  const [showAlertSoundPopup, setShowAlertSoundPopup] = useState(false)
+  const [selectedAlertSound, setSelectedAlertSound] = useState(() => {
+    return localStorage.getItem('delivery_alert_sound') || 'zomato_tone'
+  })
 
+  // Fetch profile data
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const response = await deliveryAPI.getProfile();
-        if (response?.data?.success && response.data.data?.profile) {
-          const p = response.data.data.profile;
-          setProfile({
-            name: p.fullName || p.name || 'Vishal patel',
-            id: p.deliveryBoyId || p.id || 'DP-' + (p.id?.slice(-4) || '86DCB62'),
-            loading: false
-          });
+        setLoading(true)
+        const response = await deliveryAPI.getProfile()
+        if (response?.data?.success && response?.data?.data?.profile) {
+          setProfile(response.data.data.profile)
         }
-      } catch (err) {
-        setProfile(prev => ({ ...prev, loading: false }));
+      } catch (error) {
+        toast.error("Failed to load profile data")
+      } finally {
+        setLoading(false)
       }
-    };
-    fetchProfile();
-  }, []);
+    }
+    fetchProfile()
+  }, [])
 
-  const logout = () => {
-    localStorage.clear();
-    window.location.href = '/delivery/login';
-  };
+  useEffect(() => {
+    deliveryAPI.getReferralStats().then((res) => {
+      const reward = res?.data?.data?.stats?.rewardAmount
+      setReferralReward(Number(reward) || 0)
+    }).catch(() => {})
+  }, [])
 
-  if (profile.loading) return <div className="p-8 text-center text-gray-400">Loading Profile...</div>;
+  const refId = profile?._id || profile?.id || profile?.referralCode || ""
+  const referralLink = refId ? `${window.location.origin}/food/delivery/signup?ref=${encodeURIComponent(String(refId))}` : ""
 
-  const ListItem = ({ icon: Icon, label, color = "text-gray-900", isRed = false, onClick }) => (
-    <button 
-      onClick={onClick}
-      className="w-full bg-white px-4 py-4 flex items-center justify-between group active:bg-gray-50 transition-colors border-b border-gray-50 last:border-b-0"
-    >
-      <div className="flex items-center gap-4">
-        <Icon className={`w-5 h-5 ${isRed ? 'text-red-500' : 'text-gray-900 opacity-70'}`} />
-        <span className={`text-base font-medium ${isRed ? 'text-red-500' : 'text-gray-900'}`}>{label}</span>
+  const handleShareReferral = async () => {
+    if (!referralLink) return
+    const rewardText = referralReward > 0 ? `₹${referralReward}` : "rewards"
+    const shareText = `Join as a delivery partner and earn ${rewardText}.`
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Delivery referral", text: shareText, url: referralLink })
+      } else {
+        const fallbackUrl = `https://wa.me/?text=${encodeURIComponent(`${shareText} ${referralLink}`)}`
+        window.open(fallbackUrl, "_blank", "noopener,noreferrer")
+      }
+    } catch (e) {}
+  }
+
+  const handleLogout = async () => {
+    try {
+      await deliveryAPI.logout()
+    } catch (error) {}
+    clearModuleAuth("delivery")
+    localStorage.removeItem("app:isOnline")
+    toast.success("Logged out successfully")
+    navigate("/food/delivery/login", { replace: true })
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center font-poppins">
+        <div className="flex items-center gap-2 text-gray-700">
+          <Loader2 className="w-5 h-5 animate-spin" />
+          <span className="text-sm font-medium">Loading profile...</span>
+        </div>
       </div>
-      <ChevronRight className="w-4 h-4 text-gray-300 group-active:text-gray-500" />
-    </button>
-  );
+    )
+  }
 
   return (
-    <div className="min-h-screen bg-gray-100/60 pb-32">
-      {/* 1. Header (Name & ID) */}
-      <div className="bg-white px-6 py-8 flex items-center justify-between border-b border-gray-100">
-        <div>
-           <div className="flex items-center gap-2 mb-1 cursor-pointer group active:opacity-60">
-             <h1 className="text-2xl font-bold text-gray-950">{profile.name}</h1>
-             <ChevronRight className="w-6 h-6 text-gray-400" />
-           </div>
-           <p className="text-xs text-gray-400 font-bold tracking-widest uppercase">{profile.id}</p>
-        </div>
-        <div className="relative">
-           <div className="w-16 h-16 rounded-full border-2 border-gray-100 p-0.5 shadow-sm overflow-hidden">
-              <img src="https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png" alt="Avatar" className="w-full h-full object-cover rounded-full" />
-           </div>
-           <div className="absolute -top-1 -right-1 bg-white rounded-full p-1 shadow-md border border-gray-50">
-              <Headset className="w-4 h-4 text-gray-900" />
-           </div>
-           <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-1 shadow-md border border-gray-50">
-              <Briefcase className="w-4 h-4 text-gray-900" />
-           </div>
-        </div>
-      </div>
-
-      <div className="p-4 space-y-6">
-        {/* 2. Trips History Card */}
-        <motion.button 
-          whileTap={{ scale: 0.98 }}
-          className="w-full bg-white rounded-2xl py-10 shadow-sm border border-gray-50 flex flex-col items-center justify-center gap-3 transition-shadow hover:shadow-md"
+    <div className="min-h-screen bg-gray-100 text-gray-900 font-poppins pb-24">
+      {/* Profile Header Block */}
+      <div className="bg-white p-4 w-full shadow-sm">
+        <div 
+          onClick={() => navigate("/delivery-v2/profile/details")}
+          className="flex items-start justify-between cursor-pointer"
         >
-          <Bike className="w-8 h-8 text-gray-900 opacity-80" />
-          <span className="text-sm font-bold text-gray-950">Trips history</span>
-        </motion.button>
-
-        {/* 3. Share & Earn Card */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-50 flex items-center justify-between gap-4">
-           <div className="flex-1">
-              <h3 className="text-gray-950 font-bold text-lg mb-1">Share & Earn ₹200</h3>
-              <p className="text-gray-400 text-xs font-semibold leading-relaxed">Invite a friend to join as a delivery part...</p>
-           </div>
-           <button className="bg-gray-950 text-white px-6 py-3 rounded-2xl flex items-center gap-2 hover:bg-gray-800 transition-colors shadow-lg active:scale-95">
-              <Share2 className="w-5 h-5" />
-              <span className="text-sm font-bold uppercase tracking-widest">Share</span>
-           </button>
-        </div>
-
-        {/* 4. Support Section */}
-        <div>
-           <h4 className="px-2 mb-3 text-sm font-bold text-gray-950 uppercase tracking-widest">Support</h4>
-           <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-50">
-              <ListItem icon={Ticket} label="Support tickets" />
-           </div>
-        </div>
-
-        {/* 5. Partner options Section */}
-        <div>
-           <h4 className="px-2 mb-3 text-sm font-bold text-gray-950 uppercase tracking-widest">Partner options</h4>
-           <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-50">
-              <ListItem icon={Bell} label="Order alert sound" />
-              <ListItem icon={LogOut} label="Log out" isRed onClick={logout} />
-           </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-2">
+              <h2 className="text-2xl md:text-3xl font-bold">{profile?.name || ""}</h2>
+              <ChevronRight className="w-5 h-5 text-gray-400" />
+            </div>
+            <p className="text-gray-600 text-sm md:text-base mb-3 font-medium">{profile?.deliveryId || ""}</p>
+          </div>
+          <div className="relative shrink-0 ml-4">
+            {profile?.profileImage?.url ? (
+              <img src={profile.profileImage.url} alt="Profile" className="w-20 h-20 md:w-24 md:h-24 rounded-full object-cover border-2 border-gray-200" />
+            ) : (
+              <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-gray-100 flex items-center justify-center border-2 border-gray-200">
+                <User className="w-10 h-10 md:w-12 md:h-12 text-gray-400" />
+              </div>
+            )}
+            <div className="absolute bottom-0 right-0 bg-white rounded-full p-2 shadow-md border-2 border-white">
+              <Briefcase className="w-4 h-4 text-gray-600" />
+            </div>
+          </div>
         </div>
       </div>
+
+      <div className="px-4 py-6">
+        {/* Navigation Buttons */}
+        <div className="grid grid-cols-1 gap-3 mb-6">
+          <button
+            onClick={() => navigate("/delivery-v2/history")}
+            className="bg-white rounded-xl p-4 flex flex-col items-center gap-2 border border-transparent active:bg-gray-50 transition-colors"
+          >
+            <div className="rounded-full bg-gray-50 p-3">
+              <Bike className="w-6 h-6 text-gray-700" />
+            </div>
+            <span className="text-sm font-bold text-gray-900">Trips history</span>
+          </button>
+        </div>
+
+        {/* Sections */}
+        <div className="space-y-4">
+          {/* Share & Earn */}
+          <div className="bg-white rounded-xl p-4 flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <h3 className="text-base font-bold text-gray-900 mb-1">
+                Share & Earn{referralReward > 0 ? ` ₹${referralReward}` : ""}
+              </h3>
+              <p className="text-gray-500 text-xs font-medium">Invite friends to join the delivery partner fleet.</p>
+            </div>
+            <button
+              onClick={handleShareReferral}
+              className="shrink-0 bg-black text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest shadow-md"
+            >
+              Share
+            </button>
+          </div>
+
+          {/* Support Section */}
+          <div>
+            <h3 className="text-gray-400 text-[10px] font-black uppercase tracking-[0.2em] mb-3 px-1">Support</h3>
+            <div 
+              onClick={() => navigate("/delivery-v2/help/tickets")}
+              className="bg-white rounded-xl p-4 flex items-center justify-between cursor-pointer active:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <Ticket className="w-5 h-5 text-gray-700" />
+                <span className="text-sm font-bold text-gray-900">Support tickets</span>
+              </div>
+              <ArrowRight className="w-5 h-5 text-gray-300" />
+            </div>
+          </div>
+
+          {/* Partner options Section */}
+          <div>
+            <h3 className="text-gray-400 text-[10px] font-black uppercase tracking-[0.2em] mb-3 px-1">Partner options</h3>
+            <div 
+              onClick={() => setShowAlertSoundPopup(true)}
+              className="bg-white rounded-xl p-4 flex items-center justify-between cursor-pointer active:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <Bell className="w-5 h-5 text-gray-700" />
+                <span className="text-sm font-bold text-gray-900">Order alert sound</span>
+              </div>
+              <ArrowRight className="w-5 h-5 text-gray-300" />
+            </div>
+          </div>
+
+          {/* Logout Section */}
+          <div className="pt-4">
+            <div 
+              onClick={handleLogout}
+              className="bg-white rounded-xl p-4 flex items-center justify-between cursor-pointer border border-red-50 hover:bg-red-50/30 active:bg-red-50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <LogOut className="w-5 h-5 text-red-600" />
+                <span className="text-sm font-bold text-red-600">Log out</span>
+              </div>
+              <ArrowRight className="w-5 h-5 text-red-100" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Order Alert Sound Popup */}
+      {showAlertSoundPopup && (
+        <div className="fixed inset-0 bg-black/60 z-[1000] flex items-end justify-center">
+          <div className="bg-white w-full max-w-md rounded-t-[2rem] shadow-2xl animate-in slide-in-from-bottom duration-300 pb-8">
+            <div className="flex items-center justify-between p-6 border-b border-gray-50">
+              <h3 className="text-lg font-black text-gray-900 uppercase tracking-tight">Order alert sound</h3>
+              <button onClick={() => setShowAlertSoundPopup(false)} className="p-2 bg-gray-50 rounded-full text-gray-400"><X className="w-6 h-6" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              {['original', 'zomato_tone'].map((sound) => (
+                <label key={sound} className="flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-2xl cursor-pointer transition-colors group">
+                  <span className="text-sm font-bold text-gray-900 capitalize">{sound.replace('_', ' ')}</span>
+                  <input
+                    type="radio"
+                    name="alertSound"
+                    value={sound}
+                    checked={selectedAlertSound === sound}
+                    onChange={(e) => {
+                      setSelectedAlertSound(e.target.value)
+                      localStorage.setItem('delivery_alert_sound', e.target.value)
+                    }}
+                    className="w-5 h-5 accent-black"
+                  />
+                </label>
+              ))}
+              <button 
+                onClick={() => setShowAlertSoundPopup(false)}
+                className="w-full h-14 bg-black text-white rounded-xl font-bold uppercase tracking-widest shadow-xl mt-4"
+              >Ok</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
-  );
-};
+  )
+}
+
+export default ProfileV2;

@@ -114,3 +114,5 @@ export const ActionSlider = ({
     </div>
   );
 };
+
+export default ActionSlider;

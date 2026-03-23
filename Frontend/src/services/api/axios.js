@@ -121,9 +121,12 @@ function onRefreshed(newToken, module) {
 
 function onRefreshFailed(module) {
   clearModuleAuth(module);
+  // Fail any queued requests that were waiting for this refresh
+  refreshSubscribers.forEach((cb) => cb(null, module));
   refreshSubscribers = [];
+  
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new Event("authRefreshFailed"));
+    window.dispatchEvent(new CustomEvent("authRefreshFailed", { detail: { module } }));
   }
 }
 
@@ -151,6 +154,9 @@ apiClient.interceptors.response.use(
   (response) => response,
   async (err) => {
     const original = err?.config;
+    if (err?.response?.status === 429) {
+      return Promise.reject(err);
+    }
     if (err?.response?.status !== 401 || !original || original._retry) {
       return Promise.reject(err);
     }
@@ -180,7 +186,7 @@ apiClient.interceptors.response.use(
     try {
       // Use relative URL so this works both with an explicit baseURL and with a dev proxy.
       // Use plain axios to avoid interceptor recursion.
-      const refreshUrl = baseURL ? `${baseURL}/food/auth/refresh-token` : "/food/auth/refresh-token";
+      const refreshUrl = baseURL ? `${baseURL}/food/auth/refresh-token` : "/api/v1/food/auth/refresh-token";
       const { data } = await axios.post(refreshUrl, { refreshToken }, { timeout: 10000 });
       const newAccessToken = data?.data?.accessToken || data?.accessToken;
       if (newAccessToken) {

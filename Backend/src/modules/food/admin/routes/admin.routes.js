@@ -178,6 +178,7 @@ router.patch('/dining/restaurants/:restaurantId', diningAdminController.updateDi
 router.get('/orders', orderController.listOrdersAdminController);
 router.get('/orders/:orderId', orderController.getOrderByIdAdminController);
 router.patch('/orders/:orderId/assign-delivery', orderController.assignDeliveryPartnerController);
+router.delete('/orders/:orderId', orderController.deleteOrderAdminController);
 router.get('/settings/dispatch', orderController.getDispatchSettingsController);
 router.patch('/settings/dispatch', orderController.updateDispatchSettingsController);
 

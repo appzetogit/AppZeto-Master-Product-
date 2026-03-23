@@ -72,8 +72,8 @@ const startServer = async () => {
         }
 
         // 6. Start the HTTP server
-        server = httpServer.listen(config.port, () => {
-            logger.info(`Server running in ${config.nodeEnv} mode on port ${config.port}`);
+        server = httpServer.listen(config.port, config.host, () => {
+            logger.info(`Server running in ${config.nodeEnv} mode on ${config.host}:${config.port}`);
             console.log(`🌐 [URL] http://localhost:${config.port}`);
         });
 
@@ -102,9 +102,18 @@ const startServer = async () => {
 
         // Handle unhandled promise rejections
         process.on('unhandledRejection', (err) => {
-            logger.error(`Unhandled Rejection: ${err.message}`);
-            if (server) server.close(() => process.exit(1));
-            else process.exit(1);
+            logger.error(`Unhandled Rejection: ${err?.message || err}`);
+            if (config.nodeEnv === 'production') {
+                if (server) server.close(() => process.exit(1));
+                else process.exit(1);
+            }
+        });
+
+        process.on('uncaughtException', (err) => {
+            logger.error(`Uncaught Exception: ${err?.message || err}`);
+            if (config.nodeEnv === 'production') {
+                process.exit(1);
+            }
         });
 
     } catch (error) {
@@ -114,3 +123,4 @@ const startServer = async () => {
 };
 
 startServer();
+

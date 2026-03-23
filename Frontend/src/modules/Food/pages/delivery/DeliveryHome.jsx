@@ -49,6 +49,11 @@ import DeliveryBookGigsPopup from "./components/DeliveryBookGigsPopup"
 import DeliveryHelpOptionsPopup from "./components/DeliveryHelpOptionsPopup"
 import DeliveryEmergencyPopup from "./components/DeliveryEmergencyPopup"
 import DeliveryVerifyingOtpOverlay from "./components/DeliveryVerifyingOtpOverlay"
+import DeliveryCashLimitBanner from "./components/DeliveryCashLimitBanner"
+import DeliveryPromoCarousel from "./components/DeliveryPromoCarousel"
+import DeliverySwipeUpBar from "./components/DeliverySwipeUpBar"
+import DeliveryHomeSectionsPanel from "./components/DeliveryHomeSectionsPanel"
+import DeliveryDirectionsOverlay from "./components/DeliveryDirectionsOverlay"
 import { useGigStore } from "@food/store/gigStore"
 import { useProgressStore } from "@food/store/progressStore"
 import { formatTimeDisplay, calculateTotalHours } from "@food/utils/gigUtils"
@@ -3447,6 +3452,15 @@ const ENABLE_GOOGLE_DIRECTIONS = import.meta.env.VITE_ENABLE_GOOGLE_DIRECTIONS !
       debugError('? Error uploading bill image:', error)
       if (error?.message === 'BILL_UPLOAD_TIMEOUT') {
         toast.error('Bill upload timed out. Please check internet and try again.')
+      } else if (
+        error?.code === 'ERR_NETWORK' ||
+        /ECONNREFUSED|ERR_CONNECTION_REFUSED|Network Error/i.test(
+          String(error?.message || ''),
+        )
+      ) {
+        toast.error(
+          'Cannot reach upload server (backend). Please ensure backend is running and API URL is correct.',
+        )
       } else {
         toast.error('Failed to upload bill image. Please try again.')
       }
@@ -4619,11 +4633,36 @@ const ENABLE_GOOGLE_DIRECTIONS = import.meta.env.VITE_ENABLE_GOOGLE_DIRECTIONS !
   const [showHomeSections, setShowHomeSections] = useState(false) // false = map view, true = home sections
   const [swipeBarPosition, setSwipeBarPosition] = useState(0) // 0 = bottom (map), 1 = top (home)
   const [isDraggingSwipeBar, setIsDraggingSwipeBar] = useState(false)
+  const hasActiveDeliveryOrder = useMemo(() => {
+    if (!selectedRestaurant) return false
+    const orderStatus = String(selectedRestaurant?.orderStatus || selectedRestaurant?.status || '').toLowerCase()
+    const deliveryPhase = String(selectedRestaurant?.deliveryPhase || selectedRestaurant?.deliveryState?.currentPhase || '').toLowerCase()
+    return !(
+      orderStatus === 'delivered' ||
+      orderStatus.includes('cancel') ||
+      orderStatus.includes('completed') ||
+      deliveryPhase === 'delivered' ||
+      deliveryPhase === 'completed'
+    )
+  }, [
+    selectedRestaurant?.orderStatus,
+    selectedRestaurant?.status,
+    selectedRestaurant?.deliveryPhase,
+    selectedRestaurant?.deliveryState?.currentPhase
+  ])
   const swipeBarRef = useRef(null)
   const swipeBarStartY = useRef(0)
   const isSwipingBar = useRef(false)
   const homeSectionsScrollRef = useRef(null)
   const isScrollingHomeSections = useRef(false)
+
+  useEffect(() => {
+    if (hasActiveDeliveryOrder && showHomeSections) {
+      setShowHomeSections(false)
+      setSwipeBarPosition(0)
+      setIsDraggingSwipeBar(false)
+    }
+  }, [hasActiveDeliveryOrder, showHomeSections])
 
   // Emergency help popup state
   const [showEmergencyPopup, setShowEmergencyPopup] = useState(false)
@@ -6611,8 +6650,12 @@ const ENABLE_GOOGLE_DIRECTIONS = import.meta.env.VITE_ENABLE_GOOGLE_DIRECTIONS !
           const orderPayload = orderResponse.data.data;
           verifiedOrder = orderPayload?.order || orderPayload;
           
-          // Check if order is cancelled or deleted
-          if (verifiedOrder.status === 'cancelled' || verifiedOrder.status === 'delivered') {
+          // Check if order is terminal/deleted
+          if (
+            verifiedOrder.status === 'cancelled' ||
+            verifiedOrder.status === 'deleted' ||
+            verifiedOrder.status === 'delivered'
+          ) {
             debugLog(`?? Order is ${verifiedOrder.status}, removing from localStorage`);
             if (verifiedOrder.status === 'cancelled') {
               markOrderAsCancelled(verifiedOrder);
@@ -6628,7 +6671,11 @@ const ENABLE_GOOGLE_DIRECTIONS = import.meta.env.VITE_ENABLE_GOOGLE_DIRECTIONS !
         } catch (verifyError) {
           // If order doesn't exist (404) or any other error, clear localStorage
           debugLog('?? Error verifying order or order not found:', verifyError.response?.status || verifyError.message);
-          if (verifyError.response?.status === 404 || verifyError.response?.status === 403) {
+          if (
+            verifyError.response?.status === 404 ||
+            verifyError.response?.status === 403 ||
+            verifyError.response?.status === 400
+          ) {
             debugLog('?? Order not found or not assigned, removing from localStorage');
             localStorage.removeItem(DELIVERY_ACTIVE_ORDER_KEY);
             setSelectedRestaurant(null);
@@ -6719,21 +6766,81 @@ const ENABLE_GOOGLE_DIRECTIONS = import.meta.env.VITE_ENABLE_GOOGLE_DIRECTIONS !
           debugLog('? Restored selectedRestaurant from localStorage');
         }
 
-        const restoredStage = activeOrderData.uiStage
-        if (restoredStage) {
+        const resolvedRestoreStage = (() => {
+          const savedStage = String(activeOrderData.uiStage || '').toLowerCase()
+          const phase = String(
+            verifiedOrder?.deliveryState?.currentPhase ||
+            activeOrderData?.restaurantInfo?.deliveryPhase ||
+            activeOrderData?.restaurantInfo?.deliveryState?.currentPhase ||
+            '',
+          ).toLowerCase()
+          const deliveryStateStatus = String(
+            verifiedOrder?.deliveryState?.status ||
+            activeOrderData?.restaurantInfo?.deliveryState?.status ||
+            '',
+          ).toLowerCase()
+          const orderStatus = String(
+            verifiedOrder?.status ||
+            activeOrderData?.restaurantInfo?.orderStatus ||
+            activeOrderData?.restaurantInfo?.status ||
+            '',
+          ).toLowerCase()
+
+          // Prefer explicit popup stages persisted in localStorage.
+          if (
+            savedStage === 'en_route_to_pickup' ||
+            savedStage === 'reached_pickup' ||
+            savedStage === 'order_id_confirmation' ||
+            savedStage === 'reached_drop' ||
+            savedStage === 'order_delivered' ||
+            savedStage === 'review' ||
+            savedStage === 'payment'
+          ) {
+            return savedStage
+          }
+
+          // Fallback inference for refresh: reconstruct popup from live backend phase.
+          if (phase === 'at_pickup') return 'order_id_confirmation'
+          if (phase === 'reached_pickup') return 'reached_pickup'
+          if (
+            phase === 'en_route_to_pickup' ||
+            phase === 'assigned' ||
+            orderStatus === 'accepted' ||
+            orderStatus === 'ready' ||
+            orderStatus === 'preparing'
+          ) {
+            return 'en_route_to_pickup'
+          }
+          if (phase === 'at_delivery' || deliveryStateStatus === 'reached_drop') return 'reached_drop'
+
+          // If order ID already confirmed / en route to delivery, do not force pickup popup.
+          if (
+            phase === 'en_route_to_delivery' ||
+            phase === 'picked_up' ||
+            phase === 'en_route_to_drop' ||
+            orderStatus === 'out_for_delivery' ||
+            deliveryStateStatus === 'order_confirmed'
+          ) {
+            return null
+          }
+
+          return null
+        })()
+
+        if (resolvedRestoreStage) {
           setTimeout(() => {
-            if (restoredStage === 'en_route_to_pickup' || restoredStage === 'reached_pickup') {
+            if (resolvedRestoreStage === 'en_route_to_pickup' || resolvedRestoreStage === 'reached_pickup') {
               setShowreachedPickupPopup(true)
-            } else if (restoredStage === 'order_id_confirmation') {
+            } else if (resolvedRestoreStage === 'order_id_confirmation') {
               setShowOrderIdConfirmationPopup(true)
-            } else if (restoredStage === 'reached_drop') {
+            } else if (resolvedRestoreStage === 'reached_drop') {
               setShowReachedDropPopup(true)
-            } else if (restoredStage === 'order_delivered') {
+            } else if (resolvedRestoreStage === 'order_delivered') {
               setShowOrderDeliveredAnimation(true)
-            } else if (restoredStage === 'review') {
+            } else if (resolvedRestoreStage === 'review') {
               // Review flow removed; continue to payment stage
               setShowPaymentPage(true)
-            } else if (restoredStage === 'payment') {
+            } else if (resolvedRestoreStage === 'payment') {
               setShowPaymentPage(true)
             }
           }, 250)
@@ -7029,6 +7136,10 @@ const ENABLE_GOOGLE_DIRECTIONS = import.meta.env.VITE_ENABLE_GOOGLE_DIRECTIONS !
         toast.error(orderLabel ? `Order ${orderLabel} was cancelled` : 'Order was cancelled');
       }
     }
+    if (reason === 'deleted' && showToast) {
+      const orderLabel = orderData?.orderId || selectedRestaurant?.orderId || selectedRestaurant?.id || '';
+      toast.error(orderLabel ? `Order ${orderLabel} was deleted` : 'Order was deleted');
+    }
 
     debugLog('?? Clearing order data...');
     localStorage.removeItem(DELIVERY_ACTIVE_ORDER_KEY);
@@ -7117,6 +7228,15 @@ const ENABLE_GOOGLE_DIRECTIONS = import.meta.env.VITE_ENABLE_GOOGLE_DIRECTIONS !
         })
       }
     }
+    if (updateStatus === 'deleted') {
+      if (isActiveOrderUpdate) {
+        clearOrderData({
+          reason: 'deleted',
+          orderData: orderStatusUpdate,
+          showToast: true
+        })
+      }
+    }
 
     clearOrderStatusUpdate()
   }, [
@@ -7163,6 +7283,15 @@ const ENABLE_GOOGLE_DIRECTIONS = import.meta.env.VITE_ENABLE_GOOGLE_DIRECTIONS !
           });
           return;
         }
+        if (order.status === 'deleted') {
+          debugLog('?? Order is deleted, clearing data');
+          clearOrderData({
+            reason: 'deleted',
+            orderData: order,
+            showToast: true
+          });
+          return;
+        }
 
         // Check if order is delivered/completed - clear it from UI
         const isOrderDelivered = order.status === 'delivered' || 
@@ -7187,9 +7316,13 @@ const ENABLE_GOOGLE_DIRECTIONS = import.meta.env.VITE_ENABLE_GOOGLE_DIRECTIONS !
           }));
         }
       } catch (error) {
-        if (error.response?.status === 404 || error.response?.status === 403) {
+        if (
+          error.response?.status === 404 ||
+          error.response?.status === 403 ||
+          error.response?.status === 400
+        ) {
           debugLog('?? Order not found or not assigned, clearing data');
-          clearOrderData();
+          clearOrderData({ reason: 'deleted' });
         }
         // Ignore other errors (network issues, etc.)
       }
@@ -8232,7 +8365,7 @@ selectedRestaurant?.lng || null,
       }
     } else {
       // If showing map and swiped up, show home sections
-      if (finalDeltaY > threshold || swipeBarPosition > 0.05) {
+      if (!hasActiveDeliveryOrder && (finalDeltaY > threshold || swipeBarPosition > 0.05)) {
         setSwipeBarPosition(1)
         setShowHomeSections(true)
       } else {
@@ -8307,7 +8440,7 @@ selectedRestaurant?.lng || null,
       }
     } else {
       // If showing map and swiped up, show home sections
-      if (finalDeltaY > threshold || swipeBarPosition > 0.05) {
+      if (!hasActiveDeliveryOrder && (finalDeltaY > threshold || swipeBarPosition > 0.05)) {
         setSwipeBarPosition(1)
         setShowHomeSections(true)
       } else {
@@ -8332,7 +8465,7 @@ selectedRestaurant?.lng || null,
 
   // Handle chevron click to slide up swipe bar
   const handleChevronUpClick = () => {
-    if (!showHomeSections) {
+    if (!showHomeSections && !hasActiveDeliveryOrder) {
       setShowHomeSections(true)
       setSwipeBarPosition(1)
       setIsDraggingSwipeBar(false)
@@ -8493,105 +8626,19 @@ selectedRestaurant?.lng || null,
         onHelpClick={() => setShowHelpPopup(true)}
       />
 
-      {isCashLimitBlocked && (
-        <div className="mx-3 mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-medium text-red-700">
-              Deposit cash to continue
-            </p>
-            <button
-              type="button"
-              onClick={() => navigate("/delivery/pocket")}
-              className="rounded-md bg-red-600 px-3 py-1 text-xs font-semibold text-white hover:bg-red-700"
-            >
-              Deposit now
-            </button>
-          </div>
-        </div>
-      )}
+      <DeliveryCashLimitBanner
+        isVisible={isCashLimitBlocked}
+        onDepositClick={() => navigate("/delivery/pocket")}
+      />
 
-      {/* Carousel - Only show if there are slides */}
-      {carouselSlides.length > 0 && (
-      <div
-        ref={carouselRef}
-        className="relative overflow-hidden bg-gray-700 cursor-grab active:cursor-grabbing select-none flex-shrink-0"
-        style={{ touchAction: 'pan-y' }}
+      <DeliveryPromoCarousel
+        slides={carouselSlides}
+        carouselRef={carouselRef}
+        currentSlide={currentCarouselSlide}
         onMouseDown={handleCarouselMouseDown}
-      >
-        <div className="flex transition-transform duration-500 ease-in-out" style={{ transform: `translateX(-${currentCarouselSlide * 100}%)` }}>
-          {carouselSlides.map((slide) => (
-            <div key={slide.id} className="min-w-full">
-              <div className={`${slide.bgColor} px-4 py-3 flex items-center gap-3 min-h-[80px]`}>
-                {/* Icon */}
-                <div className="flex-shrink-0">
-                  {slide.icon === "bag" ? (
-                    <div className="relative">
-                      {/* Delivery Bag Icon - Reduced size */}
-                      <div className="w-12 h-12 bg-black rounded-lg flex items-center justify-center shadow-lg relative">
-                        {/* Bag shape */}
-                        <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                          <path d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                        </svg>
-                      </div>
-                      {/* Shadow */}
-                      <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-10 h-1.5 bg-black/30 rounded-full blur-sm"></div>
-                    </div>
-                  ) : (
-                    <div className="relative w-10 h-10">
-                      {/* Bank/Rupee Icon - Reduced size */}
-                      <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center relative">
-                        {/* Rupee symbol */}
-                        <svg className="w-12 h-12 text-white absolute" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.34v-1.67c1.52-.29 2.72-1.16 2.73-2.77-.01-2.2-1.9-2.96-3.66-3.42z" />
-                        </svg>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Text Content */}
-                <div className="flex-1">
-                  <h3 className={`${slide.bgColor === "bg-gray-700" ? "text-white" : "text-black"} text-sm font-semibold mb-0.5`}>
-                    {slide.title}
-                  </h3>
-                  <p className={`${slide.bgColor === "bg-gray-700" ? "text-white/90" : "text-black/80"} text-xs`}>
-                    {slide.subtitle}
-                  </p>
-                </div>
-
-                {/* Button */}
-                <button 
-                  onClick={() => {
-                    if (slide.actionPath) {
-                      navigate(slide.actionPath)
-                    }
-                  }}
-                  className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-colors ${slide.bgColor === "bg-gray-700"
-                    ? "bg-gray-600 text-white hover:bg-gray-500"
-                    : "bg-yellow-300 text-black hover:bg-yellow-200"
-                  }`}>
-                  {slide.buttonText}
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Carousel Indicators */}
-        <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
-          {carouselSlides.map((_, index) => (
-            <button
-              key={index}
-              onClick={() => setCurrentCarouselSlide(index)}
-              className={`h-1.5 rounded-full transition-all duration-300 ${index === currentCarouselSlide
-                  ? (currentCarouselSlide === 0 ? "w-6 bg-white" : "w-6 bg-black")
-                  : (index === 0 ? "w-1.5 bg-white/50" : "w-1.5 bg-black/30")
-                }`}
-            />
-          ))}
-        </div>
-      </div>
-      )}
+        onSlideSelect={setCurrentCarouselSlide}
+        onSlideAction={navigate}
+      />
 
 
       {/* Map View - Wrapped to prevent unmounting when switching to home sections */}

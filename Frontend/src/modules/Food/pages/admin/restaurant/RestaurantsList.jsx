@@ -660,17 +660,17 @@ export default function RestaurantsList() {
     }
 
     return {
-      name: restaurant.name || "",
+      name: restaurant.restaurantName || restaurant.name || "",
       pureVegRestaurant:
         typeof restaurant.pureVegRestaurant === "boolean"
           ? restaurant.pureVegRestaurant
           : false,
       ownerName: restaurant.ownerName || "",
       ownerEmail: restaurant.ownerEmail || "",
-      ownerPhone: restaurant.ownerPhone || "",
-      primaryContactNumber: restaurant.primaryContactNumber || "",
-      email: restaurant.email || "",
-      cuisinesText: Array.isArray(restaurant.cuisines) ? restaurant.cuisines.join(", ") : "",
+      ownerPhone: restaurant.ownerPhone || restaurant.phone || "",
+      primaryContactNumber: restaurant.primaryContactNumber || restaurant.ownerPhone || "",
+      email: restaurant.email || restaurant.ownerEmail || "",
+      cuisinesText: Array.isArray(restaurant.cuisines) ? restaurant.cuisines.join(", ") : (restaurant.cuisines || ""),
       estimatedDeliveryTime: restaurant.estimatedDeliveryTime || "",
       offer: restaurant.offer || "",
       openingTime: restaurant.openingTime || restaurant.deliveryTimings?.openingTime || "",
@@ -778,7 +778,7 @@ export default function RestaurantsList() {
     setProfileImageFile(null)
     setProfileImagePreview("")
     setIsEditingLocation(false)
-    setMapError("")
+    setLocationEditError("")
     setSelectedRestaurant(null)
     setRestaurantDetails(null)
   }

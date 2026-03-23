@@ -331,6 +331,17 @@ export async function assignDeliveryPartnerController(req, res, next) {
     }
 }
 
+export async function deleteOrderAdminController(req, res, next) {
+    try {
+        const adminId = req.user?.userId;
+        const orderId = req.params.orderId;
+        const result = await orderService.deleteOrderAdmin(orderId, adminId);
+        return sendResponse(res, 200, 'Order deleted successfully', result);
+    } catch (err) {
+        next(err);
+    }
+}
+
 export async function resendDeliveryNotificationRestaurantController(req, res, next) {
     try {
         const restaurantId = req.user?.userId;

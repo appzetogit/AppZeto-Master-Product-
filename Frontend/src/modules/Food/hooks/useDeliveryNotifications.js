@@ -631,6 +631,14 @@ export const useDeliveryNotifications = () => {
       });
     });
 
+    socketRef.current.on('order_deleted', (statusData) => {
+      debugLog('?? Delivery order deleted event received via socket:', statusData);
+      setOrderStatusUpdate({
+        ...(statusData || {}),
+        status: 'deleted'
+      });
+    });
+
     socketRef.current.on('order_reassigned_elsewhere', (data) => {
       debugLog('?? Order reassigned to another partner:', data);
       if (data.orderId === activeOrderRef.current?._id || data.orderId === activeOrderRef.current?.orderId) {

@@ -54,6 +54,15 @@ const AppRoutes = () => {
 
       {/* NEW Delivery V2 (Parallel testing) */}
       <Route path="/delivery-v2/*" element={<DeliveryV2 />} />
+      {/* Global Admin Portal - wrap lazy router in Suspense to avoid blank/crash on direct admin URLs */}
+      <Route
+        path="/admin/*"
+        element={
+          <Suspense fallback={<PageLoader />}>
+            <AdminRouter />
+          </Suspense>
+        }
+      />
       
       {/* Dynamic intercept redirects for bare paths (accessed programmatically) */}
       <Route path="/user/*" element={<RedirectToFood />} />

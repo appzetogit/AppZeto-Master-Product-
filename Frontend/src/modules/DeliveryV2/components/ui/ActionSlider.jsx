@@ -1,15 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, useAnimation } from 'framer-motion';
+import { motion, useAnimation, AnimatePresence } from 'framer-motion';
 import { ChevronRight } from 'lucide-react';
 
 /**
  * ActionSlider - Professional "Swipe to Confirm" UI Component.
- * Unified logic for Accept, Pickup, Reached, and Complete actions.
- * 
- * @param {string} label - Text to show on the slider track.
- * @param {Function} onConfirm - Callback when swiped successfully.
- * @param {boolean} disabled - Whether the slider is active.
- * @param {string} color - Hex or Tailwind class for track color.
  */
 export const ActionSlider = ({ 
   label = "Slide to Confirm", 
@@ -34,25 +28,24 @@ export const ActionSlider = ({
   const handleDrag = (event, info) => {
     if (disabled || isSuccess) return;
     
-    const containerWidth = containerRef.current.offsetWidth;
-    const handleWidth = 64; // w-16
-    const totalPath = containerWidth - handleWidth - 8; // p-1 = 4px each side
+    const containerWidth = containerRef.current?.offsetWidth || 300;
+    const handleWidth = 56; // w-14
+    const totalPath = containerWidth - handleWidth - 12; // p-1.5 = 6px each side
     
-    const currentProgress = Math.min(1, Math.max(0, info.point.x - containerRef.current.getBoundingClientRect().left) / totalPath);
+    const currentProgress = Math.min(1, Math.max(0, (info.point.x - containerRef.current.getBoundingClientRect().left) / totalPath));
     setProgress(currentProgress);
   };
 
   const handleDragEnd = async (event, info) => {
     if (disabled || isSuccess) return;
 
-    if (progress > 0.85) {
+    if (progress > 0.8 || info.offset.x > 150) {
       setIsSuccess(true);
       setProgress(1);
       if (onConfirm) {
         try {
           await onConfirm();
         } catch (error) {
-          // Reset slider if action fails
           setIsSuccess(false);
           setProgress(0);
           controls.start({ x: 0 });
@@ -71,7 +64,7 @@ export const ActionSlider = ({
         disabled ? 'bg-gray-100' : 'bg-gray-950 shadow-lg shadow-black/10'
       }`}
     >
-      {/* Background Track (White text) */}
+      {/* Background Track */}
       <div className={`absolute inset-0 flex items-center justify-center font-bold text-xs uppercase tracking-[0.2em] transition-opacity duration-300 ${
         isSuccess ? 'opacity-0' : 'opacity-40 text-white'
       }`}>
@@ -93,9 +86,10 @@ export const ActionSlider = ({
       <AnimatePresence>
         {isSuccess && (
           <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="absolute inset-0 flex items-center justify-center text-white font-bold text-sm uppercase tracking-widest"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-x-0 inset-y-0 flex items-center justify-center text-white font-bold text-sm uppercase tracking-widest z-30"
           >
             {successLabel}
           </motion.div>
@@ -105,23 +99,18 @@ export const ActionSlider = ({
       {/* The Handle */}
       <motion.div
         drag={disabled || isSuccess ? false : "x"}
-        dragConstraints={{ left: 0, right: containerRef.current ? containerRef.current.offsetWidth - 64 - 12 : 300 }}
-        dragElastic={0}
+        dragConstraints={{ left: 0, right: containerRef.current?.offsetWidth ? containerRef.current.offsetWidth - 68 : 250 }}
+        dragElastic={0.1}
         onDrag={handleDrag}
         onDragEnd={handleDragEnd}
         animate={controls}
         className={`relative w-14 h-14 rounded-full flex items-center justify-center z-20 cursor-grab active:cursor-grabbing shadow-xl transition-colors ${
           disabled ? 'bg-gray-200 text-gray-400' : 
-          isSuccess ? 'bg-white text-green-600 scale-90' : 'bg-white text-gray-950'
+          isSuccess ? 'bg-white text-green-600' : 'bg-white text-gray-950'
         }`}
       >
-        <ChevronRight className={`w-8 h-8 transition-transform duration-300 ${isSuccess ? 'scale-125 rotate-360' : ''}`} />
+        <ChevronRight className={`w-8 h-8 transition-transform duration-300 ${isSuccess ? 'scale-110' : ''}`} />
       </motion.div>
     </div>
   );
-};
-
-// Simple dependency for the Success state
-const AnimatePresence = ({ children }) => {
-  return <>{children}</>;
 };

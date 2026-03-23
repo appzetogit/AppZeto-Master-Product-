@@ -17,6 +17,8 @@ export const PickupActionModal = ({
   order, 
   status, 
   isWithinRange, 
+  distanceToTarget,
+  eta,
   onReachedPickup, 
   onPickedUp 
 }) => {
@@ -63,16 +65,18 @@ export const PickupActionModal = ({
   const restaurantPhone = order.restaurantPhone || order.restaurant_phone || order.restaurantId?.phone || '';
   const items = order.items || [];
 
+  const restaurantLogo = order.restaurantImage || order.restaurant?.logo || order.restaurant?.profileImage || 'https://cdn-icons-png.flaticon.com/512/3170/3170733.png';
+
   return (
-    <div className="fixed inset-x-0 bottom-0 z-[110] p-0 sm:p-4 h-full flex items-end">
+    <div className="absolute inset-x-0 bottom-0 z-[110] p-0 sm:p-4 h-full flex items-end">
       {/* Background Dim */}
-      <motion.div 
-        initial={{ opacity: 0 }} 
-        animate={{ opacity: 1 }} 
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm -z-10" 
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="absolute inset-0 bg-black/40 -z-10"
       />
 
-      <motion.div 
+      <motion.div
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         className="w-full bg-white rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.3)] p-6 pb-12"
@@ -82,21 +86,26 @@ export const PickupActionModal = ({
         {/* Restaurant Header */}
         <div className="flex items-start justify-between mb-8 pb-4 border-b border-gray-50">
           <div className="flex gap-4">
-            <div className="w-14 h-14 bg-green-500 rounded-2xl flex items-center justify-center shadow-lg shadow-green-500/20">
-              <ChefHat className="w-8 h-8 text-white" />
+            <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-lg shadow-black/5 overflow-hidden border border-gray-100">
+              <img src={restaurantLogo} alt="Logo" className="w-full h-full object-cover" />
             </div>
             <div>
               <h3 className="text-gray-950 text-xl font-bold">{restaurantName}</h3>
-              <p className="text-gray-500 text-xs flex items-center gap-1 mt-1">
-                <MapPin className="w-3.5 h-3.5 text-gray-400" />
-                {restaurantAddress}
+              <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 mt-1.5">
+                {isAtPickup ? (
+                  <span className="text-green-600">Reached Location √</span>
+                ) : (
+                  <span className="text-orange-500">
+                    {(distanceToTarget / 1000).toFixed(1)} km • {eta || '--'} min to Store
+                  </span>
+                )}
               </p>
             </div>
           </div>
-          
+
           <div className="flex gap-2">
             {restaurantPhone && (
-              <button 
+              <button
                 onClick={() => window.location.href = `tel:${restaurantPhone}`}
                 className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600 border border-green-100"
               >

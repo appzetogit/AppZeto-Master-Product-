@@ -13,7 +13,7 @@ const Backdrop = ({ onClose }) => (
     initial={{ opacity: 0 }} 
     animate={{ opacity: 1 }} 
     exit={{ opacity: 0 }}
-    className="absolute inset-0 bg-black/40 backdrop-blur-sm -z-10 pointer-events-auto" 
+    className="absolute inset-0 bg-black/40 -z-10 pointer-events-auto" 
     onClick={onClose}
   />
 );
@@ -23,6 +23,13 @@ const OtpModal = ({ order, onVerified, onClose }) => {
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const [isOtpVerified, setIsOtpVerified] = useState(false);
   const inputRefs = [useRef(), useRef(), useRef(), useRef()];
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      inputRefs[0].current?.focus();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
 
   const orderId = order.orderId || order._id || 'ORD';
 
@@ -57,7 +64,7 @@ const OtpModal = ({ order, onVerified, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-[120] p-0 sm:p-4 h-full flex items-end justify-center pointer-events-none">
+    <div className="absolute inset-x-0 bottom-0 z-[120] p-0 sm:p-4 h-full flex items-end justify-center pointer-events-none">
       <Backdrop onClose={onClose} />
       <motion.div 
         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
@@ -88,7 +95,7 @@ const OtpModal = ({ order, onVerified, onClose }) => {
               onChange={(e) => handleOtpChange(i, e.target.value)}
               onKeyDown={(e) => handleKeyDown(i, e)}
               className={`w-14 h-18 bg-gray-50 border-2 rounded-2xl text-center text-3xl font-bold transition-all ${
-                isOtpVerified ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-100 focus:border-green-600 text-gray-700'
+                isOtpVerified ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 focus:border-green-600 text-gray-700'
               }`}
             />
           ))}
@@ -164,7 +171,7 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
 
   return (
     <>
-      <div className="fixed inset-x-0 bottom-0 z-[120] p-0 sm:p-4 h-full flex items-end justify-center pointer-events-none">
+      <div className="absolute inset-x-0 bottom-0 z-[120] p-0 sm:p-4 h-full flex items-end justify-center pointer-events-none">
         <Backdrop onClose={onClose} />
         <motion.div 
           initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
@@ -223,7 +230,7 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
         {showQrModal && (
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 pointer-events-auto"
+            className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-6 pointer-events-auto"
             onClick={() => setShowQrModal(false)}
           >
             <motion.div 

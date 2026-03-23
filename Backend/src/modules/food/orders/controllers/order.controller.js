@@ -237,7 +237,7 @@ export async function completeDeliveryController(req, res, next) {
     try {
         const deliveryPartnerId = req.user?.userId;
         const orderId = req.params.orderId;
-        const order = await orderService.completeDelivery(orderId, deliveryPartnerId);
+        const order = await orderService.completeDelivery(orderId, deliveryPartnerId, req.body || {});
         return sendResponse(res, 200, 'Delivery completed', { order });
     } catch (err) {
         next(err);

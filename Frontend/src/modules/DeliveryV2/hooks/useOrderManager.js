@@ -11,9 +11,6 @@ export const useOrderManager = () => {
     activeOrder, tripStatus, updateTripStatus, clearActiveOrder, setActiveOrder, riderLocation 
   } = useDeliveryStore();
 
-  /**
-   * Accept a new order request via Socket/API
-   */
   const acceptOrder = async (order) => {
     const orderId = order?.orderId || order?._id || order?.id;
     if (!orderId) {
@@ -25,18 +22,48 @@ export const useOrderManager = () => {
       const response = await deliveryAPI.acceptOrder(orderId);
       
       if (response?.data?.success) {
-        setActiveOrder({
-          ...order,
-          orderId: orderId,
-          restaurantLocation: order.restaurantLocation || { 
-            lat: order.restaurant_lat || order.latitude, 
-            lng: order.restaurant_lng || order.longitude 
-          },
-          customerLocation: order.customerLocation || {
-            lat: order.customer_lat,
-            lng: order.customer_lng
+        const fullOrder = response.data.data?.order || order;
+        
+        // Robustly determine locations from multiple possible formats (Populated API vs Socket)
+        const getLoc = (ref, keysLat, keysLng) => {
+          if (!ref) return null;
+          // Handle nested populated objects
+          if (ref.location) {
+            // Handle GeoJSON format: location: { type: 'Point', coordinates: [lng, lat] }
+            if (Array.isArray(ref.location.coordinates) && ref.location.coordinates.length >= 2) {
+              return {
+                lat: ref.location.coordinates[1], // Latitude is second in GeoJSON [lng, lat]
+                lng: ref.location.coordinates[0]  // Longitude is first
+              };
+            }
+            // Handle standard object format: location: { latitude: 12.3, longitude: 45.6 }
+            return {
+              lat: ref.location.latitude || ref.location.lat,
+              lng: ref.location.longitude || ref.location.lng
+            };
           }
+          // Handle flat objects or direct lat/lng keys
+          for (const k of keysLat) { if (ref[k] != null) return { lat: ref[k], lng: ref[keysLng[keysLat.indexOf(k)]] }; }
+          return null;
+        };
+
+        console.log('[OrderManager] Raw Full Order Data:', fullOrder);
+
+        const resLoc = getLoc(fullOrder.restaurantId, ['latitude', 'lat'], ['longitude', 'lng']) || 
+                       getLoc(fullOrder, ['restaurant_lat', 'restaurantLat', 'latitude'], ['restaurant_lng', 'restaurantLng', 'longitude']);
+                       
+        const cusLoc = getLoc(fullOrder.deliveryAddress, ['latitude', 'lat'], ['longitude', 'lng']) || 
+                       getLoc(fullOrder, ['customer_lat', 'customerLat', 'latitude'], ['customer_lng', 'customerLng', 'longitude']);
+
+        console.log('[OrderManager] Locations Mapped Result:', { resLoc, cusLoc });
+
+        setActiveOrder({
+          ...fullOrder,
+          orderId: orderId,
+          restaurantLocation: resLoc,
+          customerLocation: cusLoc
         });
+
         updateTripStatus('PICKING_UP');
         toast.success('Order Accepted! Opening Map...');
       } else {
@@ -124,21 +151,31 @@ export const useOrderManager = () => {
       const verifyRes = await deliveryAPI.verifyDropOtp(orderId, otp);
       
       if (verifyRes?.data?.success) {
-        // 2. Mark as complete
-        const completeRes = await deliveryAPI.completeDelivery(orderId, { rating: 5 });
+        let finalOrder = verifyRes.data?.data?.order || activeOrder;
         
-        if (completeRes?.data?.success) {
-          updateTripStatus('COMPLETED');
-          toast.success('Delivery Success!');
-        } else {
-          throw new Error('Complete delivery failed');
+        try {
+          // 2. Mark as complete
+          const completeRes = await deliveryAPI.completeDelivery(orderId, { otp, rating: 5 });
+          if (completeRes.data?.success && completeRes.data?.data?.order) {
+            finalOrder = completeRes.data.data.order;
+          }
+        } catch (completeErr) {
+          console.warn('Complete call failed, but OTP was verified.', completeErr);
+          // If already completed, we proceed to show the summary with whatever we have
         }
+        
+        // Update local order state so Summary Modal shows 'delivered' status
+        if (finalOrder) setActiveOrder(finalOrder);
+        
+        updateTripStatus('COMPLETED');
+        toast.success('Delivery Success!');
       } else {
         toast.error('Invalid OTP. Please check with customer.');
         throw new Error('Invalid OTP');
       }
     } catch (error) {
-      toast.error('Verification failed');
+      console.error('Completion Error:', error);
+      toast.error(error?.response?.data?.message || 'Verification failed');
       throw error;
     }
   };

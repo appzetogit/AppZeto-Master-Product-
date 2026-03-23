@@ -5,7 +5,8 @@ import {
   DirectionsService, 
   DirectionsRenderer,
   Polygon,
-  useJsApiLoader
+  useJsApiLoader,
+  OverlayView
 } from '@react-google-maps/api';
 import { useDeliveryStore } from '@/modules/DeliveryV2/store/useDeliveryStore';
 import { zoneAPI } from '@food/api';
@@ -39,7 +40,7 @@ const mapOptions = {
 };
 const LIBRARIES = ['places', 'geometry'];
 
-export const LiveMap = () => {
+export const LiveMap = ({ onMapClick, onMapLoad, onPathReceived, zoom = 12 }) => {
   const { riderLocation, activeOrder, tripStatus } = useDeliveryStore();
   
   const { isLoaded, loadError } = useJsApiLoader({
@@ -48,8 +49,64 @@ export const LiveMap = () => {
   });
 
   const [directions, setDirections] = useState(null);
-  const [map, setMap] = useState(null);
+  const [map, setMapInternal] = useState(null);
   const [zones, setZones] = useState([]);
+  const [lastDirectionsAt, setLastDirectionsAt] = useState(0);
+
+  const handleMapLoad = (mapInstance) => {
+    setMapInternal(mapInstance);
+    if (onMapLoad) onMapLoad(mapInstance);
+  };
+
+  // Force an instant update whenever the trip status or target changes (e.g., just accepted or just picked up)
+  useEffect(() => {
+    console.log('[LiveMap] Trip Status Change:', tripStatus, 'For Order:', activeOrder?.orderId || activeOrder?._id);
+    setLastDirectionsAt(0);
+    setDirections(null);
+  }, [tripStatus, activeOrder?._id]);
+
+  // Handle Dynamic Zoom
+  useEffect(() => {
+    if (map) map.setZoom(zoom);
+  }, [zoom, map]);
+
+  // Throttled Directions update to respect API limits and maintain performance
+  const shouldUpdateRoute = useMemo(() => {
+    const now = Date.now();
+    if (!directions) return true; // Always update if we have no line
+    
+    // In Simulation Mode or when moving smoothly, don't re-fetch from API constantly
+    // Only refresh every 15 seconds in background if desired, but 0 makes it rock stable
+    if (now - lastDirectionsAt >= 15000) return true; 
+    return false;
+  }, [lastDirectionsAt, directions]); // Removed riderLocation to stabilize viewport
+
+  // Re-sync path whenever directions change or callback is updated
+  useEffect(() => {
+    if (directions && onPathReceived) {
+      const path = directions.routes[0]?.overview_path;
+      if (path) {
+        const simplePath = path.map(p => ({
+          lat: typeof p.lat === 'function' ? p.lat() : (p.lat || p.latitude),
+          lng: typeof p.lng === 'function' ? p.lng() : (p.lng || p.longitude)
+        }));
+        console.log('[LiveMap] Syncing Path to Parent:', simplePath.length, 'points');
+        onPathReceived(simplePath);
+      }
+    }
+  }, [directions, onPathReceived]);
+
+  const directionsCallback = useCallback((result, status) => {
+    console.log('[LiveMap] Directions API Callback:', status, result ? 'Data Received √' : 'No Data');
+    if (status === 'OK' && result) {
+      setDirections(result);
+      setLastDirectionsAt(Date.now());
+    } else if (status === 'OVER_QUERY_LIMIT') {
+      console.warn('[LiveMap] Google Maps API Quota Reached. Slowing down...');
+    } else {
+      console.error('[LiveMap] Directions request failed:', status);
+    }
+  }, []);
 
   useEffect(() => {
     const fetchZones = async () => {
@@ -96,11 +153,6 @@ export const LiveMap = () => {
     return null;
   }, [activeOrder, tripStatus]);
 
-  const directionsCallback = useCallback((res) => {
-    if (res !== null && res.status === 'OK') {
-      setDirections(res);
-    }
-  }, []);
 
   const parsedRiderLocation = useMemo(() => {
     if (!riderLocation) return null;
@@ -111,6 +163,17 @@ export const LiveMap = () => {
     }
     return null;
   }, [riderLocation]);
+
+  // Branded Marker Icons
+  const restaurantMarkerUrl = useMemo(() => {
+    if (!activeOrder) return 'https://cdn-icons-png.flaticon.com/512/3170/3170733.png';
+    return activeOrder.restaurantImage || activeOrder.restaurant?.logo || activeOrder.restaurant?.profileImage || 'https://cdn-icons-png.flaticon.com/512/3170/3170733.png';
+  }, [activeOrder]);
+
+  const customerMarkerUrl = useMemo(() => {
+    if (!activeOrder) return 'https://cdn-icons-png.flaticon.com/512/1275/1275302.png';
+    return activeOrder.customerImage || activeOrder.user?.logo || activeOrder.user?.profileImage || 'https://cdn-icons-png.flaticon.com/512/1275/1275302.png';
+  }, [activeOrder]);
 
   const mapCenter = parsedRiderLocation || { lat: 23.2599, lng: 77.4126 };
 
@@ -134,13 +197,14 @@ export const LiveMap = () => {
   return (
     <div className="absolute inset-0 z-0">
       <GoogleMap
-        onLoad={setMap}
+        onLoad={handleMapLoad}
         mapContainerStyle={mapContainerStyle}
         center={mapCenter}
         zoom={14}
+        onClick={(e) => onMapClick?.(e.latLng.lat(), e.latLng.lng())}
         options={mapOptions}
       >
-        {parsedRiderLocation && targetLocation && (
+        {parsedRiderLocation && targetLocation && shouldUpdateRoute && (
           <DirectionsService
             options={{
               origin: parsedRiderLocation,
@@ -156,39 +220,48 @@ export const LiveMap = () => {
             directions={directions}
             options={{
               suppressMarkers: true,
+              preserveViewport: true, // IMPORTANT: Prevents map from 'fluctuating' when route updates
               polylineOptions: {
                 strokeColor: '#22c55e',
                 strokeOpacity: 0.8,
                 strokeWeight: 6,
+                strokePosition: 2 // ABOVE_ROAD
               }
             }}
           />
         )}
 
         {parsedRiderLocation && (
-          <Marker
+          <OverlayView
             position={parsedRiderLocation}
-            icon={{
-              path: window.google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-              scale: 6,
-              fillColor: "#000000",
-              fillOpacity: 1,
-              strokeWeight: 2,
-              strokeColor: "#ffffff",
-              rotation: parsedRiderLocation.heading || 0,
-            }}
-          />
+            mapPaneName={OverlayView.MARKER_LAYER}
+          >
+            <div 
+              style={{
+                transform: `translate(-50%, -50%) rotate(${parsedRiderLocation.heading || 0}deg)`,
+                transition: 'transform 0.5s linear',
+              }}
+              className="relative w-[72px] h-[72px]"
+            >
+              <img 
+                src="/MapRider.png" 
+                alt="Rider" 
+                className="w-full h-full object-contain"
+              />
+            </div>
+          </OverlayView>
         )}
 
+        {/* Dynamic Branded Destination Marker */}
         {targetLocation && (
           <Marker
             position={targetLocation}
             icon={{
               url: (tripStatus === 'PICKING_UP' || tripStatus === 'REACHED_PICKUP') 
-                ? 'https://cdn-icons-png.flaticon.com/512/3170/3170733.png'
-                : 'https://cdn-icons-png.flaticon.com/512/1275/1275302.png',
-              scaledSize: new window.google.maps.Size(40, 40),
-              anchor: new window.google.maps.Point(20, 20),
+                ? restaurantMarkerUrl
+                : customerMarkerUrl,
+              scaledSize: new window.google.maps.Size(44, 44),
+              anchor: new window.google.maps.Point(22, 22),
             }}
           />
         )}

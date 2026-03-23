@@ -85,7 +85,7 @@ const AnimatedCheckmark = ({ delay = 0 }) => (
 )
 
 // Real Delivery Map Component with User Live Location
-const DeliveryMap = ({ orderId, order, isVisible, fallbackCustomerCoords = null, userLiveCoords = null, userLocationAccuracy = null }) => {
+const DeliveryMap = ({ orderId, order, isVisible, fallbackCustomerCoords = null, userLiveCoords = null, userLocationAccuracy = null, onEtaUpdate = null }) => {
   const toPointFromGeoJSON = (coords) => {
     if (!Array.isArray(coords) || coords.length < 2) return null;
     const lng = Number(coords[0]);
@@ -175,8 +175,8 @@ const DeliveryMap = ({ orderId, order, isVisible, fallbackCustomerCoords = null,
   if (!isVisible || !orderId || !order || !restaurantCoords || !customerCoords) {
     return (
       <motion.div
-        className="relative min-h-[280px] bg-gradient-to-b from-gray-100 to-gray-200"
-        style={{ height: '280px' }}
+        className="relative min-h-[450px] bg-gradient-to-b from-gray-100 to-gray-200"
+        style={{ height: '450px' }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
@@ -195,8 +195,8 @@ const DeliveryMap = ({ orderId, order, isVisible, fallbackCustomerCoords = null,
 
   return (
     <motion.div
-      className="relative w-full min-h-[280px] overflow-visible"
-      style={{ height: '280px' }}
+      className="relative w-full min-h-[450px] overflow-visible"
+      style={{ height: '450px' }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
@@ -210,6 +210,7 @@ const DeliveryMap = ({ orderId, order, isVisible, fallbackCustomerCoords = null,
         userLocationAccuracy={userLocationAccuracy}
         deliveryBoyData={deliveryBoyData}
         order={order}
+        onEtaUpdate={onEtaUpdate}
       />
     </motion.div>
   );
@@ -1141,17 +1142,17 @@ export default function OrderTracking() {
     },
     preparing: {
       title: "Preparing your order",
-      subtitle: `Arriving in ${estimatedTime} mins`,
+      subtitle: typeof estimatedTime === 'number' ? `Arriving in ${estimatedTime} mins` : `Arriving in ${estimatedTime}`,
       color: "bg-[#EB590E]"
     },
     pickup: {
       title: "Order picked up",
-      subtitle: `Arriving in ${estimatedTime} mins`,
+      subtitle: typeof estimatedTime === 'number' ? `Arriving in ${estimatedTime} mins` : `Arriving in ${estimatedTime}`,
       color: "bg-[#EB590E]"
     },
     on_way: {
       title: "Order picked up",
-      subtitle: `Arriving in ${estimatedTime} mins`,
+      subtitle: typeof estimatedTime === 'number' ? `Arriving in ${estimatedTime} mins` : `Arriving in ${estimatedTime}`,
       color: "bg-[#EB590E]"
     },
     delivered: {
@@ -1294,6 +1295,7 @@ export default function OrderTracking() {
           fallbackCustomerCoords={fallbackCustomerCoords}
           userLiveCoords={userLiveCoords}
           userLocationAccuracy={userLiveLocation?.accuracy ?? null}
+          onEtaUpdate={(newEta) => setEstimatedTime(newEta)}
         />
       )}
 

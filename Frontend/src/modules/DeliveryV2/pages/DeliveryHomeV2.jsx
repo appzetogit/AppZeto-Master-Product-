@@ -4,6 +4,7 @@ import { useDeliveryStore } from '@/modules/DeliveryV2/store/useDeliveryStore';
 import { useProximityCheck } from '@/modules/DeliveryV2/hooks/useProximityCheck';
 import { useOrderManager } from '@/modules/DeliveryV2/hooks/useOrderManager';
 import { useDeliveryNotifications } from '@food/hooks/useDeliveryNotifications';
+import { writeOrderTracking } from '@food/realtimeTracking';
 import { deliveryAPI } from '@food/api';
 import { toast } from 'sonner';
 
@@ -38,7 +39,7 @@ export default function DeliveryHomeV2() {
   const { isWithinRange, distanceToTarget } = useProximityCheck();
   const { acceptOrder, reachPickup, pickUpOrder, reachDrop, completeDelivery, resetTrip } = useOrderManager();
   
-  const { newOrder, clearNewOrder, orderStatusUpdate, clearOrderStatusUpdate, isConnected: isSocketConnected } = useDeliveryNotifications();
+  const { newOrder, clearNewOrder, orderStatusUpdate, clearOrderStatusUpdate, isConnected: isSocketConnected, emitLocation } = useDeliveryNotifications();
   
   const [incomingOrder, setIncomingOrder] = useState(null);
   const [currentTab, setCurrentTab] = useState('feed');
@@ -55,9 +56,11 @@ export default function DeliveryHomeV2() {
   const [simPath, setSimPath] = useState([]);
   const [simIndex, setSimIndex] = useState(0);
   const [simProgress, setSimProgress] = useState(0); // 0 to 1 between points
+  const [activePolyline, setActivePolyline] = useState(null);
   const mapRef = useRef(null);
 
   // 0. Auto-Simulation Effect (High-Precision Smooth Glide)
+  const lastSimUpdateSentAt = useRef(0);
   useEffect(() => {
     let interval;
     if (isSimMode && simPath.length > 1 && simIndex < simPath.length - 1) {
@@ -86,13 +89,44 @@ export default function DeliveryHomeV2() {
             if (mapRef.current) {
               mapRef.current.panTo({ lat, lng });
             }
+
+            // Sync with backend every 2.5 seconds during simulation so customer sees it
+            const now = Date.now();
+            if (now - lastSimUpdateSentAt.current >= 2000) { // Reduced to 2s to match backend throttle
+              lastSimUpdateSentAt.current = now;
+              const payload = { 
+                lat, 
+                lng, 
+                heading, 
+                orderId: activeOrder?.orderId || activeOrder?._id,
+                status: 'on_the_way',
+                polyline: activePolyline // Include polyline in every stream update for resilience
+              };
+              // A. HTTP Backup
+              deliveryAPI.updateLocation(lat, lng, true, { heading }).catch(() => {});
+              
+              // B. SOCKET LIVE (SILKY SMOOTH)
+              if (payload.orderId) emitLocation(payload);
+
+              // C. FIREBASE REALTIME DB (Persistent Route for Customer Map)
+              if (payload.orderId) {
+                writeOrderTracking(payload.orderId, { 
+                  lat, 
+                  lng, 
+                  heading, 
+                  polyline: activePolyline,
+                  status: tripStatus,
+                  eta: eta // Publish live ETA to Firebase
+                }).catch(() => {});
+              }
+            }
           }
           return nextProgress;
         });
       }, 50); // 20 FPS movement
     }
     return () => clearInterval(interval);
-  }, [isSimMode, simPath, simIndex]);
+  }, [isSimMode, simPath, simIndex, activeOrder, emitLocation, activePolyline, eta, tripStatus]);
 
   // Reset simulation when path, order or mode changes
   useEffect(() => {
@@ -169,6 +203,20 @@ export default function DeliveryHomeV2() {
     };
     syncWithServer();
   }, []); // Only on mount to stabilize state
+  
+  // 1.5 Professional Unified ETA Calculation Hook
+  useEffect(() => {
+    // If we have distance, calculate ETA. Fallback to 8m/s (28km/h) avg if GPS speed is unknown.
+    if (distanceToTarget != null && distanceToTarget !== Infinity) {
+      const avgSpeed = rollingSpeedRef.current.length > 0 
+        ? rollingSpeedRef.current.reduce((a, b) => a + b, 0) / rollingSpeedRef.current.length 
+        : 8;
+      
+      setEta(calculateETA(distanceToTarget, avgSpeed));
+    } else {
+      setEta(null);
+    }
+  }, [distanceToTarget]);
 
   // 2. Online/Offline Status Sync (Low Frequency)
   useEffect(() => {
@@ -200,10 +248,7 @@ export default function DeliveryHomeV2() {
         ? rollingSpeedRef.current.reduce((a, b) => a + b, 0) / rollingSpeedRef.current.length 
         : speed || 0;
 
-      // Update ETA
-      if (distanceToTarget) {
-        setEta(calculateETA(distanceToTarget, avgSpeed));
-      }
+      // ETA update is now handled by a separate globally-synchronized effect
 
       // Phase 11: Geo-fencing Auto-arrival (within 100m)
       if (distanceToTarget && distanceToTarget <= 100 && !lastAutoArrivalRef.current[tripStatus]) {
@@ -232,11 +277,38 @@ export default function DeliveryHomeV2() {
         lastLocationSentAt.current = now;
         lastCoordRef.current = { lat, lng };
         
+        const payload = { 
+          lat, 
+          lng, 
+          heading: heading || 0,
+          speed: speed || 0,
+          accuracy: pos.coords.accuracy,
+          orderId: activeOrder?.orderId || activeOrder?._id,
+          status: 'on_the_way',
+          polyline: activePolyline
+        };
+
+        // A. HTTP Backup
         deliveryAPI.updateLocation(lat, lng, true, { 
           heading: heading || 0,
           speed: speed || 0,
           accuracy: pos.coords.accuracy 
         }).catch(() => {});
+
+        // B. SOCKET LIVE (SILKY SMOOTH)
+        if (payload.orderId) emitLocation(payload);
+
+        // C. FIREBASE REALTIME DB (Persistent)
+        if (payload.orderId) {
+          writeOrderTracking(payload.orderId, {
+            lat,
+            lng,
+            heading: heading || 0,
+            polyline: activePolyline,
+            status: tripStatus,
+            eta: eta // Publish live ETA to Firebase for customer
+          }).catch(() => {});
+        }
       }
     }, () => toast.error('GPS Needed!'), { 
       enableHighAccuracy: true,
@@ -278,18 +350,18 @@ export default function DeliveryHomeV2() {
 
   return (
     <div className="relative h-screen w-full bg-white text-gray-900 overflow-hidden flex flex-col">
-      {/* ─── 1. TOP HEADER (Fixed) ─── */}
-      <div className="absolute top-0 inset-x-0 bg-white/95 backdrop-blur-md shadow-sm z-[200] safe-top pb-3">
+      {/* ─── 1. TOP HEADER (Fixed - Dark Pro) ─── */}
+      <div className="absolute top-0 inset-x-0 bg-gray-950/98 backdrop-blur-xl shadow-2xl z-[200] safe-top pb-3 border-b border-white/5">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-4">
-             <div className="w-10 h-10 rounded-full border border-gray-100 p-0.5 shadow-sm overflow-hidden">
+             <div className="w-10 h-10 rounded-full border border-white/10 p-0.5 shadow-lg overflow-hidden">
                 <img src="https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png" alt="Profile" className="w-full h-full object-cover rounded-full" />
              </div>
              <button 
                onClick={toggleOnline}
-               className={`relative w-[110px] h-10 rounded-full p-1 transition-all duration-500 flex items-center ${isOnline ? 'bg-green-500 shadow-lg shadow-green-500/20' : 'bg-gray-200'}`}
+               className={`relative w-[110px] h-10 rounded-full p-1 transition-all duration-500 flex items-center ${isOnline ? 'bg-green-500 shadow-lg shadow-green-500/20' : 'bg-white/10 border border-white/5'}`}
              >
-               <div className={`flex items-center justify-between w-full px-2 text-[10px] font-bold uppercase tracking-widest ${isOnline ? 'text-white' : 'text-gray-400'}`}>
+               <div className={`flex items-center justify-between w-full px-2 text-[10px] font-bold uppercase tracking-widest ${isOnline ? 'text-white' : 'text-gray-500'}`}>
                  <span>{isOnline ? 'Online' : ''}</span>
                  <span>{!isOnline ? 'Offline' : ''}</span>
                </div>
@@ -297,37 +369,97 @@ export default function DeliveryHomeV2() {
              </button>
           </div>
           <div className="flex items-center gap-3">
-             <button onClick={() => toast.info('Safety SOS Notified')} className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-orange-500 border border-gray-100 active:scale-95 transition-all"><AlertTriangle className="w-5 h-5" /></button>
-             <button onClick={() => toast.info('Support guide opening...')} className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-500 border border-gray-100 active:scale-95 transition-all"><HelpCircle className="w-5 h-5" /></button>
-             <button onClick={() => toast.info('Contacting Support...')} className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-950 border border-gray-100 active:scale-95 transition-all"><Headset className="w-5 h-5" /></button>
+             <button onClick={() => toast.info('Safety SOS Notified')} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-orange-500 border border-white/10 active:scale-95 transition-all shadow-inner"><AlertTriangle className="w-5 h-5" /></button>
+             <button onClick={() => toast.info('Support guide opening...')} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-gray-400 border border-white/10 active:scale-95 transition-all shadow-inner"><HelpCircle className="w-5 h-5" /></button>
+             <button onClick={() => toast.info('Contacting Support...')} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white border border-white/10 active:scale-95 transition-all shadow-inner"><Headset className="w-5 h-5" /></button>
           </div>
         </div>
 
-        {/* ORANGE BANNER (Only on Feed) */}
-        {currentTab === 'feed' && (
-          <div className="px-4">
-             <div className="bg-orange-500 rounded-2xl p-4 flex items-center justify-between shadow-lg shadow-orange-500/20 relative overflow-hidden">
-                <div className="flex items-center gap-4 z-10">
-                   <div className="w-12 h-12 bg-black rounded-xl flex items-center justify-center shadow-lg"><Wallet className="w-6 h-6 text-white" /></div>
-                   <div>
-                      <h3 className="text-white font-bold text-sm uppercase">Trip summary</h3>
-                      <p className="text-white/80 text-[10px] font-medium">Review your earnings</p>
-                   </div>
+        {/* ─── LIVE STATUS / PROGRESS BADGE (PRO) ─── */}
+        <AnimatePresence>
+          {currentTab === 'feed' && (
+            <motion.div 
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="px-4 mt-2"
+            >
+              {activeOrder ? (
+                <div className="grid grid-cols-2 gap-3 w-full">
+                  {/* LEFT: DISTANCE (Vibrant Orange Card) */}
+                  <div className="bg-orange-500 rounded-2xl p-3.5 shadow-[0_10px_30px_rgba(249,115,22,0.3)] border border-orange-400/50 flex items-center justify-between group overflow-hidden relative">
+                    <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
+                    <div className="flex flex-col z-10">
+                      <span className="text-[9px] text-white/70 font-black uppercase tracking-[0.15em] mb-1">Distance</span>
+                      <div className="flex items-end gap-1">
+                        <span className="text-2xl font-black text-white leading-none tracking-tighter">
+                          {distanceToTarget && distanceToTarget !== Infinity ? (distanceToTarget / 1000).toFixed(1) : '--'}
+                        </span>
+                        <span className="text-[11px] text-white/80 font-bold mb-0.5">KM</span>
+                      </div>
+                    </div>
+                    <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center z-10 shadow-lg">
+                      <Navigation2 className="w-5 h-5 text-orange-500 rotate-45 group-hover:scale-110 transition-transform" />
+                    </div>
+                  </div>
+
+                  {/* RIGHT: TIME (Dark Mode Pro) */}
+                  <div className="bg-gray-950 rounded-2xl p-3.5 shadow-2xl border border-white/10 flex items-center justify-between relative overflow-hidden group">
+                    <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 to-transparent pointer-events-none" />
+                    <div className="flex flex-col z-10">
+                      <span className="text-[9px] text-gray-500 font-black uppercase tracking-[0.15em] mb-1">Arrival</span>
+                      <div className="flex items-end gap-1">
+                        <span className="text-2xl font-black text-white leading-none tracking-tighter">
+                          {eta ? String(eta) : '--'}
+                        </span>
+                        <span className="text-[11px] text-green-500 font-bold mb-0.5">MIN</span>
+                      </div>
+                    </div>
+                    <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center z-10">
+                      <div className="relative">
+                        <div className="w-3 h-3 rounded-full bg-green-500 animate-ping absolute inset-0 opacity-40" />
+                        <div className="w-3 h-3 rounded-full bg-green-500 shadow-[0_0_12px_rgba(34,197,94,0.8)] relative z-10" />
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <button onClick={() => setCurrentTab('pocket')} className="bg-yellow-400 text-gray-950 px-5 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg active:scale-95 transition-all">View</button>
-             </div>
-          </div>
-        )}
+              ) : (
+                <div className="bg-gray-50 rounded-2xl p-4 flex items-center justify-between border border-gray-100 shadow-sm transition-all hover:bg-white">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-green-500/10 rounded-full flex items-center justify-center">
+                      <div className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-green-500 animate-ping' : 'bg-gray-400'}`} />
+                    </div>
+                    <div>
+                      <h3 className="text-gray-900 font-bold text-xs uppercase tracking-wider">{isOnline ? 'Ready for new trip' : 'Go online to work'}</h3>
+                      <p className="text-gray-400 text-[10px] font-medium tracking-tight">Your current earnings will appear here</p>
+                    </div>
+                  </div>
+                  <div className="bg-gray-100 h-8 w-8 rounded-full flex items-center justify-center text-gray-400">
+                    <LayoutGrid className="w-4 h-4" />
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* ─── 2. MAIN CONTENT ─── */}
-      <div className="flex-1 relative overflow-y-auto pt-[160px] no-scrollbar">
+      <div className="flex-1 relative overflow-y-auto pt-[120px] no-scrollbar">
          {currentTab === 'feed' ? (
-           <div className="absolute inset-0 top-[-160px]">
+           <div className="absolute inset-0 top-[-120px]">
              <LiveMap 
                onMapLoad={(m) => mapRef.current = m}
                onMapClick={handleMapClick}
                onPathReceived={setSimPath}
+               onPolylineReceived={(poly) => {
+                 setActivePolyline(poly);
+                 // If we have an order, push the INITIAL polyline to Firebase immediately for the customer
+                 const orderId = activeOrder?.orderId || activeOrder?._id;
+                 if (orderId && poly) {
+                   writeOrderTracking(orderId, { polyline: poly, status: tripStatus, eta: eta }).catch(() => {});
+                 }
+               }}
                zoom={zoom}
              />
              
@@ -507,19 +639,19 @@ export default function DeliveryHomeV2() {
         </motion.div>
       )}
 
-      {/* ─── 3. BOTTOM NAV (Fixed) ─── */}
-      <div className="bg-white border-t border-gray-100 px-6 py-4 pb-8 flex justify-between items-center z-[200] shadow-[0_-5px_20px_rgba(0,0,0,0.05)]">
-         <button onClick={() => setCurrentTab('feed')} className={`flex flex-col items-center gap-1.5 transition-all font-bold ${currentTab === 'feed' ? 'text-gray-950' : 'text-gray-400'}`}>
-            <LayoutGrid className="w-7 h-7" /><span className="text-[10px] uppercase tracking-widest">Feed</span>
+      {/* ─── 3. BOTTOM NAV (Fixed - Compact Pro) ─── */}
+      <div className="bg-white border-t border-gray-100 px-8 py-3 pb-6 flex justify-between items-center z-[200] shadow-[0_-5px_20px_rgba(0,0,0,0.05)]">
+         <button onClick={() => setCurrentTab('feed')} className={`flex flex-col items-center gap-1 transition-all ${currentTab === 'feed' ? 'text-gray-950 scale-110' : 'text-gray-400 opacity-70'}`}>
+            <LayoutGrid className="w-6 h-6" /><span className="text-[11px] font-medium font-sans">Feed</span>
          </button>
-         <button onClick={() => setCurrentTab('pocket')} className={`flex flex-col items-center gap-1.5 transition-all font-bold ${currentTab === 'pocket' ? 'text-gray-950' : 'text-gray-400'}`}>
-            <Wallet className="w-7 h-7" /><span className="text-[10px] uppercase tracking-widest">Pocket</span>
+         <button onClick={() => setCurrentTab('pocket')} className={`flex flex-col items-center gap-1 transition-all ${currentTab === 'pocket' ? 'text-gray-950 scale-110' : 'text-gray-400 opacity-70'}`}>
+            <Wallet className="w-6 h-6" /><span className="text-[11px] font-medium font-sans">Pocket</span>
          </button>
-         <button onClick={() => setCurrentTab('history')} className={`flex flex-col items-center gap-1.5 transition-all font-bold ${currentTab === 'history' ? 'text-gray-950' : 'text-gray-400'}`}>
-            <History className="w-7 h-7" /><span className="text-[10px] uppercase tracking-widest">History</span>
+         <button onClick={() => setCurrentTab('history')} className={`flex flex-col items-center gap-1 transition-all ${currentTab === 'history' ? 'text-gray-950 scale-110' : 'text-gray-400 opacity-70'}`}>
+            <History className="w-6 h-6" /><span className="text-[11px] font-medium font-sans">History</span>
          </button>
-         <button onClick={() => setCurrentTab('profile')} className={`flex flex-col items-center gap-1.5 transition-all font-bold ${currentTab === 'profile' ? 'text-gray-950' : 'text-gray-400'}`}>
-            <UserIcon className="w-7 h-7" /><span className="text-[10px] uppercase tracking-widest">Profile</span>
+         <button onClick={() => setCurrentTab('profile')} className={`flex flex-col items-center gap-1 transition-all ${currentTab === 'profile' ? 'text-gray-950 scale-110' : 'text-gray-400 opacity-70'}`}>
+            <UserIcon className="w-6 h-6" /><span className="text-[11px] font-medium font-sans">Profile</span>
          </button>
       </div>
     </div>

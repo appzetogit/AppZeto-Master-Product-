@@ -703,6 +703,15 @@ export const useDeliveryNotifications = () => {
     setOrderStatusUpdate(null);
   };
 
+  const emitLocation = useCallback((data) => {
+    if (socketRef.current && socketRef.current.connected) {
+      // debugLog('? Emitting location via socket:', data);
+      socketRef.current.emit('update-location', data);
+      return true;
+    }
+    return false;
+  }, []);
+
   return {
     newOrder,
     clearNewOrder,
@@ -711,7 +720,8 @@ export const useDeliveryNotifications = () => {
     orderStatusUpdate,
     clearOrderStatusUpdate,
     isConnected,
-    playNotificationSound
+    playNotificationSound,
+    emitLocation
   };
 };
 

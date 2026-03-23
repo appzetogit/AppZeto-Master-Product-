@@ -18,14 +18,14 @@ export const useProximityCheck = () => {
   const targetLocation = useMemo(() => {
     if (!activeOrder) return null;
     
-    // If heading to pickup, target is restaurant
-    if (tripStatus === 'PICKING_UP') {
-      return activeOrder.restaurantLocation;
+    // If heading to pickup or arrived at pickup, target is restaurant
+    if (['PICKING_UP', 'REACHED_PICKUP'].includes(tripStatus)) {
+      return activeOrder.restaurantLocation || activeOrder.restaurant_location;
     }
     
-    // If heading to drop, target is customer
-    if (tripStatus === 'PICKED_UP') {
-      return activeOrder.customerLocation;
+    // If heading to drop or arrived at drop, target is customer
+    if (['PICKED_UP', 'REACHED_DROP'].includes(tripStatus)) {
+      return activeOrder.customerLocation || activeOrder.customer_location;
     }
     
     return null;

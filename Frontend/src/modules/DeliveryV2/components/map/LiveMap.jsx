@@ -40,7 +40,7 @@ const mapOptions = {
 };
 const LIBRARIES = ['places', 'geometry'];
 
-export const LiveMap = ({ onMapClick, onMapLoad, onPathReceived, zoom = 12 }) => {
+export const LiveMap = ({ onMapClick, onMapLoad, onPathReceived, onPolylineReceived, zoom = 12 }) => {
   const { riderLocation, activeOrder, tripStatus } = useDeliveryStore();
   
   const { isLoaded, loadError } = useJsApiLoader({
@@ -65,21 +65,83 @@ export const LiveMap = ({ onMapClick, onMapLoad, onPathReceived, zoom = 12 }) =>
     setDirections(null);
   }, [tripStatus, activeOrder?._id]);
 
+  // Dynamic Location Parsing (Must be defined BEFORE Throttling logic)
+  const targetLocation = useMemo(() => {
+    if (!activeOrder) return null;
+
+    let rawLoc = null;
+    if (tripStatus === 'PICKING_UP' || tripStatus === 'REACHED_PICKUP') {
+      rawLoc = activeOrder.restaurantLocation;
+    } else if (tripStatus === 'PICKED_UP' || tripStatus === 'REACHED_DROP') {
+      rawLoc = activeOrder.customerLocation;
+    }
+
+    if (!rawLoc) return null;
+
+    // Safely parse so Google Maps strict validation doesn't crash on null/string
+    const lat = parseFloat(rawLoc.lat || rawLoc.latitude);
+    const lng = parseFloat(rawLoc.lng || rawLoc.longitude);
+
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      return { lat, lng };
+    }
+    
+    return null;
+  }, [activeOrder, tripStatus]);
+
+  const parsedRiderLocation = useMemo(() => {
+    if (!riderLocation) return null;
+    const lat = parseFloat(riderLocation.lat || riderLocation.latitude);
+    const lng = parseFloat(riderLocation.lng || riderLocation.longitude);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      return { lat, lng, heading: parseFloat(riderLocation.heading || 0) };
+    }
+    return null;
+  }, [riderLocation]);
+
   // Handle Dynamic Zoom
   useEffect(() => {
     if (map) map.setZoom(zoom);
   }, [zoom, map]);
 
-  // Throttled Directions update to respect API limits and maintain performance
+  // Pro Intelligent Throttling: Dynamically adjust API ping frequency based on rider proximity
   const shouldUpdateRoute = useMemo(() => {
     const now = Date.now();
-    if (!directions) return true; // Always update if we have no line
+    if (!directions) return true; // Always fetch if no line exists
+
+    // Default: 20s (Mid-range)
+    let throttleMs = 20000;
+
+    if (parsedRiderLocation && targetLocation && window.google) {
+      try {
+        const p1 = new window.google.maps.LatLng(parsedRiderLocation.lat, parsedRiderLocation.lng);
+        const p2 = new window.google.maps.LatLng(targetLocation.lat, targetLocation.lng);
+        const dist = window.google.maps.geometry.spherical.computeDistanceBetween(p1, p2);
+
+        if (dist > 2000) {
+          // FAR (> 2km): Update every 60s to save huge cost/battery
+          throttleMs = 60000;
+        } else if (dist > 500) {
+          // MID (500m - 2km): Update every 20s
+          throttleMs = 20000;
+        } else {
+          // NEAR (< 500m): High-precision update every 5s for the "Final Glide"
+          throttleMs = 5000;
+        }
+      } catch (e) {
+        console.warn('[LiveMap] Proximity calculation failed, using default throttle:', e);
+      }
+    }
+
+    const elapsed = now - lastDirectionsAt;
+    const isDue = elapsed >= throttleMs;
     
-    // In Simulation Mode or when moving smoothly, don't re-fetch from API constantly
-    // Only refresh every 15 seconds in background if desired, but 0 makes it rock stable
-    if (now - lastDirectionsAt >= 15000) return true; 
-    return false;
-  }, [lastDirectionsAt, directions]); // Removed riderLocation to stabilize viewport
+    if (isDue) {
+      console.log(`[LiveMap] Pro Sync Triggered | Dist-Throttle: ${throttleMs / 1000}s | Due √`);
+    }
+    
+    return isDue;
+  }, [lastDirectionsAt, directions, parsedRiderLocation, targetLocation]);
 
   // Re-sync path whenever directions change or callback is updated
   useEffect(() => {
@@ -101,6 +163,12 @@ export const LiveMap = ({ onMapClick, onMapLoad, onPathReceived, zoom = 12 }) =>
     if (status === 'OK' && result) {
       setDirections(result);
       setLastDirectionsAt(Date.now());
+      
+      // Emit encoded polyline for Firebase synchronization to lower API usage
+      const encodedPolyline = result.routes[0]?.overview_polyline;
+      if (encodedPolyline && onPolylineReceived) {
+        onPolylineReceived(encodedPolyline);
+      }
     } else if (status === 'OVER_QUERY_LIMIT') {
       console.warn('[LiveMap] Google Maps API Quota Reached. Slowing down...');
     } else {
@@ -130,39 +198,6 @@ export const LiveMap = ({ onMapClick, onMapLoad, onPathReceived, zoom = 12 }) =>
     fetchZones();
   }, []);
 
-  const targetLocation = useMemo(() => {
-    if (!activeOrder) return null;
-
-    let rawLoc = null;
-    if (tripStatus === 'PICKING_UP' || tripStatus === 'REACHED_PICKUP') {
-      rawLoc = activeOrder.restaurantLocation;
-    } else if (tripStatus === 'PICKED_UP' || tripStatus === 'REACHED_DROP') {
-      rawLoc = activeOrder.customerLocation;
-    }
-
-    if (!rawLoc) return null;
-
-    // Safely parse so Google Maps strict validation doesn't crash on null/string
-    const lat = parseFloat(rawLoc.lat || rawLoc.latitude);
-    const lng = parseFloat(rawLoc.lng || rawLoc.longitude);
-
-    if (Number.isFinite(lat) && Number.isFinite(lng)) {
-      return { lat, lng };
-    }
-    
-    return null;
-  }, [activeOrder, tripStatus]);
-
-
-  const parsedRiderLocation = useMemo(() => {
-    if (!riderLocation) return null;
-    const lat = parseFloat(riderLocation.lat || riderLocation.latitude);
-    const lng = parseFloat(riderLocation.lng || riderLocation.longitude);
-    if (Number.isFinite(lat) && Number.isFinite(lng)) {
-      return { lat, lng, heading: parseFloat(riderLocation.heading || 0) };
-    }
-    return null;
-  }, [riderLocation]);
 
   // Branded Marker Icons
   const restaurantMarkerUrl = useMemo(() => {

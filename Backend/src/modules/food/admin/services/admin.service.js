@@ -506,6 +506,7 @@ function formatTimeAgo(date) {
     return Math.floor(seconds) + ' seconds ago';
 }
 
+
 export async function getTransactionReport(query = {}) {
     const { fromDate, toDate, zone, restaurant, search } = query;
     const match = {};

@@ -118,7 +118,18 @@ export default function DiningList() {
     }
 
     const renderStars = (rating) => {
-        return "?".repeat(Math.floor(rating)) + "?".repeat(5 - Math.floor(rating))
+        const fullStars = Math.floor(rating || 0);
+        return (
+            <div className="flex items-center gap-0.5">
+                {[...Array(5)].map((_, i) => (
+                    <Star 
+                        key={i} 
+                        className={`w-3.5 h-3.5 ${i < fullStars ? 'fill-yellow-400 text-yellow-400' : 'text-slate-300'}`} 
+                    />
+                ))}
+                <span className="ml-1 text-slate-600">({rating || 0})</span>
+            </div>
+        )
     }
 
     const handleDiningToggle = async (restaurant) => {

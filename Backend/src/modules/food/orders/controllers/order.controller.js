@@ -256,6 +256,16 @@ export async function updateOrderStatusDeliveryController(req, res, next) {
     }
 }
 
+export async function getCurrentTripDeliveryController(req, res, next) {
+    try {
+        const deliveryPartnerId = req.user?.userId;
+        const order = await orderService.getCurrentTripDelivery(deliveryPartnerId);
+        return sendResponse(res, 200, 'Current trip retrieved', { activeOrder: order });
+    } catch (err) {
+        next(err);
+    }
+}
+
 export async function createCollectQrController(req, res, next) {
     try {
         const deliveryPartnerId = req.user?.userId;

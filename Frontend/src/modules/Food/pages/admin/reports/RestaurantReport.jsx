@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from "react"
-import { Search, Download, ChevronDown, Filter, Briefcase, RefreshCw, Settings, ArrowUpDown, FileText, FileSpreadsheet, Code, Loader2 } from "lucide-react"
+﻿import { useState, useMemo, useEffect } from "react"
+import { Search, Download, ChevronDown, Filter, Briefcase, RefreshCw, Settings, ArrowUpDown, FileText, FileSpreadsheet, Code, Loader2, Star } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@food/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@food/components/ui/dialog"
 import { exportReportsToCSV, exportReportsToExcel, exportReportsToPDF, exportReportsToJSON } from "@food/components/admin/reports/reportsExportUtils"
@@ -122,11 +122,11 @@ export default function RestaurantReport() {
 
   const renderStars = (rating, reviews) => {
     if (rating === 0) {
-      return "?0"
+      return "★0"
     }
     const fullStars = Math.floor(rating)
     const hasHalfStar = rating % 1 !== 0
-    return "?".repeat(fullStars) + (hasHalfStar ? "�" : "") + "?".repeat(5 - Math.ceil(rating)) + ` (${reviews})`
+    return "★".repeat(fullStars) + (hasHalfStar ? "½" : "") + "☆".repeat(5 - Math.ceil(rating)) + ` (${reviews})`
   }
 
   if (loading) {

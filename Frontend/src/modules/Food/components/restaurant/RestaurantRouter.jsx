@@ -54,17 +54,6 @@ const RestaurantSupport = lazy(() => import("@food/pages/restaurant/RestaurantSu
 const FssaiDetails = lazy(() => import("@food/pages/restaurant/FssaiDetails"))
 const FssaiUpdate = lazy(() => import("@food/pages/restaurant/FssaiUpdate"))
 const Hyperpure = lazy(() => import("@food/pages/restaurant/Hyperpure"))
-const HubGrowth = lazy(() => import("@food/pages/restaurant/HubGrowth"))
-const CreateOffers = lazy(() => import("@food/pages/restaurant/CreateOffers"))
-const ChooseDiscountType = lazy(() => import("@food/pages/restaurant/ChooseDiscountType"))
-const ChooseMenuDiscountType = lazy(() => import("@food/pages/restaurant/ChooseMenuDiscountType"))
-const CreatePercentageDiscount = lazy(() => import("@food/pages/restaurant/CreatePercentageDiscount"))
-const CreateFreebies = lazy(() => import("@food/pages/restaurant/CreateFreebies"))
-const FreebiesTiming = lazy(() => import("@food/pages/restaurant/FreebiesTiming"))
-const CreatePercentageMenuDiscount = lazy(() => import("@food/pages/restaurant/CreatePercentageMenuDiscount"))
-const CreateFlatPriceMenuDiscount = lazy(() => import("@food/pages/restaurant/CreateFlatPriceMenuDiscount"))
-const CreateBOGOMenuDiscount = lazy(() => import("@food/pages/restaurant/CreateBOGOMenuDiscount"))
-const MenuDiscountTiming = lazy(() => import("@food/pages/restaurant/MenuDiscountTiming"))
 const HubMenu = lazy(() => import("@food/pages/restaurant/HubMenu"))
 const ItemDetailsPage = lazy(() => import("@food/pages/restaurant/ItemDetailsPage"))
 const HubFinance = lazy(() => import("@food/pages/restaurant/HubFinance"))
@@ -72,7 +61,7 @@ const FinanceDetailsPage = lazy(() => import("@food/pages/restaurant/FinanceDeta
 const WithdrawalHistoryPage = lazy(() => import("@food/pages/restaurant/WithdrawalHistoryPage"))
 const PhoneNumbersPage = lazy(() => import("@food/pages/restaurant/PhoneNumbersPage"))
 const DownloadReport = lazy(() => import("@food/pages/restaurant/DownloadReport"))
-const ToHub = lazy(() => import("@food/pages/restaurant/ToHub"))
+
 const ManageOutlets = lazy(() => import("@food/pages/restaurant/ManageOutlets"))
 const UpdateBankDetails = lazy(() => import("@food/pages/restaurant/UpdateBankDetails"))
 const ZoneSetup = lazy(() => import("@food/pages/restaurant/ZoneSetup"))
@@ -148,19 +137,6 @@ export default function RestaurantRouter() {
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><FssaiDetails /></ProtectedRoute>} path="fssai" />
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><FssaiUpdate /></ProtectedRoute>} path="fssai/update" />
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><Hyperpure /></ProtectedRoute>} path="hyperpure" />
-        <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><HubGrowth /></ProtectedRoute>} path="hub-growth" />
-        <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><CreateOffers /></ProtectedRoute>} path="hub-growth/create-offers" />
-        <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><ChooseMenuDiscountType /></ProtectedRoute>} path="hub-growth/create-offers/delight-customers" />
-        <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><CreateFreebies /></ProtectedRoute>} path="hub-growth/create-offers/delight-customers/freebies" />
-        <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><FreebiesTiming /></ProtectedRoute>} path="hub-growth/create-offers/delight-customers/freebies/timings" />
-        <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><CreatePercentageMenuDiscount /></ProtectedRoute>} path="hub-growth/create-offers/delight-customers/percentage" />
-        <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><MenuDiscountTiming /></ProtectedRoute>} path="hub-growth/create-offers/delight-customers/percentage/timings" />
-        <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><CreateFlatPriceMenuDiscount /></ProtectedRoute>} path="hub-growth/create-offers/delight-customers/flat-price" />
-        <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><MenuDiscountTiming /></ProtectedRoute>} path="hub-growth/create-offers/delight-customers/flat-price/timings" />
-        <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><CreateBOGOMenuDiscount /></ProtectedRoute>} path="hub-growth/create-offers/delight-customers/bogo" />
-        <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><MenuDiscountTiming /></ProtectedRoute>} path="hub-growth/create-offers/delight-customers/bogo/timings" />
-        <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><CreatePercentageDiscount /></ProtectedRoute>} path="hub-growth/create-offers/:goalId/:discountType/create" />
-        <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><ChooseDiscountType /></ProtectedRoute>} path="hub-growth/create-offers/:goalId" />
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><HubMenu /></ProtectedRoute>} path="hub-menu" />
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><ItemDetailsPage /></ProtectedRoute>} path="hub-menu/item/:id" />
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><HubFinance /></ProtectedRoute>} path="hub-finance" />
@@ -168,7 +144,6 @@ export default function RestaurantRouter() {
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><FinanceDetailsPage /></ProtectedRoute>} path="finance-details" />
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><PhoneNumbersPage /></ProtectedRoute>} path="phone" />
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><DownloadReport /></ProtectedRoute>} path="download-report" />
-        <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><ToHub /></ProtectedRoute>} path="to-hub" />
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><ManageOutlets /></ProtectedRoute>} path="manage-outlets" />
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><UpdateBankDetails /></ProtectedRoute>} path="update-bank-details" />
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><DiningReservations /></ProtectedRoute>} path="reservations" />

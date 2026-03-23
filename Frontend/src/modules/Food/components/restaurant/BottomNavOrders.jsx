@@ -21,8 +21,6 @@ const getOrdersTabs = (basePath = "/restaurant") => [
 ]
 
 const getHubTabs = (basePath = "/restaurant") => [
-  { id: "hub", label: "Hub", icon: Building2, route: `${basePath}/to-hub` },
-  { id: "growth", label: "Growth", icon: TrendingUp, route: `${basePath}/hub-growth` },
   { id: "menu", label: "Menu", icon: Utensils, route: `${basePath}/hub-menu` },
   { id: "finance", label: "Finance", icon: Wallet, route: `${basePath}/hub-finance` },
 ]
@@ -54,8 +52,8 @@ export default function BottomNavOrders() {
   }
 
   const isHubMode = useMemo(() => {
-    return pathname.startsWith(`${basePath}/hub`) || pathname.startsWith(`${basePath}/to-hub`)
-  }, [pathname, basePath])
+    return pathname.includes("/hub-")
+  }, [pathname])
 
   const tabs = useMemo(() => {
     return isHubMode ? hubTabs : ordersTabs
@@ -63,7 +61,7 @@ export default function BottomNavOrders() {
 
   const activeTab = useMemo(() => {
     const match = findActiveTab(tabs, pathname)
-    return match?.id || (isHubMode ? "hub" : "orders")
+    return match?.id || (isHubMode ? "menu" : "orders")
   }, [tabs, pathname, isHubMode])
 
   const handleTabClick = (tab) => {
@@ -73,7 +71,7 @@ export default function BottomNavOrders() {
   }
 
   const handleToggleMode = () => {
-    const targetRoute = isHubMode ? basePath : `${basePath}/to-hub`
+    const targetRoute = isHubMode ? basePath : `${basePath}/hub-menu`
     navigate(targetRoute)
   }
 
@@ -148,7 +146,7 @@ export default function BottomNavOrders() {
             className="flex min-w-[78px] flex-col items-center justify-center gap-1 rounded-[22px] bg-black px-3 py-3 text-white shadow-[0_12px_28px_rgba(0,0,0,0.28)] active:scale-95"
           >
             <ArrowRightLeft className="h-4 w-4" />
-            <span className="text-[11px]">To Hub</span>
+            <span className="text-[11px]">Hub</span>
           </button>
         )}
       </div>

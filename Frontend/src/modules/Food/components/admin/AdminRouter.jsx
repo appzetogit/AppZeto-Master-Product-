@@ -71,8 +71,6 @@ const EarningAddon = lazy(() => import("@food/pages/admin/delivery-partners/Earn
 const EarningAddonHistory = lazy(() => import("@food/pages/admin/delivery-partners/EarningAddonHistory"));
 const DeliveryEarnings = lazy(() => import("@food/pages/admin/delivery-partners/DeliveryEarnings"));
 // Disbursement Management
-const RestaurantDisbursement = lazy(() => import("@food/pages/admin/RestaurantDisbursement"));
-const DeliverymanDisbursement = lazy(() => import("@food/pages/admin/DeliverymanDisbursement"));
 // Report Management
 const TransactionReport = lazy(() => import("@food/pages/admin/reports/TransactionReport"));
 const ExpenseReport = lazy(() => import("@food/pages/admin/reports/ExpenseReport"));
@@ -235,8 +233,6 @@ export default function AdminRouter() {
             <Route path="delivery-partners/earning-addon-history" element={<EarningAddonHistory />} />
             <Route path="delivery-partners/earnings" element={<DeliveryEarnings />} />
 
-            <Route path="restaurant-disbursement" element={<RestaurantDisbursement />} />
-            <Route path="deliveryman-disbursement" element={<DeliverymanDisbursement />} />
 
             {/* REPORTS & SETTINGS */}
             <Route path="transaction-report" element={<TransactionReport />} />

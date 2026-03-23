@@ -317,7 +317,18 @@ export default function RestaurantsList() {
   }
 
   const renderStars = (rating) => {
-    return "?".repeat(rating) + "?".repeat(5 - rating)
+    const fullStars = Math.floor(rating || 0);
+    return (
+      <div className="flex items-center gap-0.5">
+        {[...Array(5)].map((_, i) => (
+          <Star 
+            key={i} 
+            className={`w-3.5 h-3.5 ${i < fullStars ? 'fill-yellow-400 text-yellow-400' : 'text-slate-300'}`} 
+          />
+        ))}
+        <span className="ml-1 text-slate-600">({rating || 0})</span>
+      </div>
+    )
   }
 
   const getLocationFromRestaurant = (restaurant) => {

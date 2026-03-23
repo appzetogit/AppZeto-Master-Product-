@@ -5,7 +5,9 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: 'Poppins', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  --font-poppins: 'Poppins', sans-serif;
+  --font-outfit: 'Outfit', sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
@@ -77,6 +79,8 @@
   
   --color-page-bg: #ffffff;
   --color-primary-orange: #dc2626;
+  --font-poppins: var(--font-poppins);
+  --font-outfit: var(--font-outfit);
 }
 
 .dark {

@@ -8997,58 +8997,68 @@ selectedRestaurant?.lng || null,
               WebkitOverflowScrolling: 'touch' // Smooth scrolling on iOS
             }}
           >
-            {/* Referral Bonus Banner */}
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              onClick={() => navigate("/delivery/refer-and-earn")}
-              className="w-full rounded-xl p-6 shadow-lg relative overflow-hidden min-h-[70px] cursor-pointer"
-              style={{
-                backgroundImage: `url(${referralBonusBg})`,
-                backgroundSize: '100% 100%',
-                backgroundPosition: 'center',
-                backgroundRepeat: 'no-repeat'
-              }}
-            >
-              <div className="relative z-10">
-                <div className="text-white text-3xl font-bold mb-1">₹6,000                 <span className="text-white/90 text-base font-medium mb-1">referral bonus</span>
-                 </div>
-                <div className="text-white/80 text-sm">Refer your friends now</div>
-              </div>
-            </motion.div>
-
-            {/* Unlock Offer Card */}
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.1 }}
-              className="w-full rounded-xl p-6 shadow-lg bg-black text-white"
-            >
-              <div className="flex items-center text-center justify-center gap-2 mb-2">
-                <div className="text-4xl font-bold text-center">₹100</div>
-                <Lock className="w-5 h-5 text-white" />
-              </div>
-              <p className="text-white/90 text-center text-sm mb-4">Complete 1 order to unlock ₹100</p>
-              <div className="flex items-center text-center justify-center gap-2 text-white/70 text-xs mb-4">
-                <Clock className="w-4 h-4" />
-                <span className="text-center">Valid till 10 December 2025</span>
-              </div>
-              <button
-                onClick={() => {
-                  if (isOnline) {
-                    goOffline()
-                  } else {
-                    // Always show the popup when offline (same as navbar behavior)
-                    setShowBookGigsPopup(true)
-                  }
-                }}
-                className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors"
+            {/* Active Order Card - Shown at top of dashboard during tasks */}
+            {(selectedRestaurant || newOrder) && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="w-full bg-blue-600 text-white rounded-xl p-5 shadow-lg mb-6 relative overflow-hidden"
               >
-                <span>Go online</span>
-                <ArrowRight className="w-5 h-5" />
-              </button>
-            </motion.div>
+                {/* Background Decor */}
+                <div className="absolute -right-4 -top-4 w-24 h-24 bg-white/10 rounded-full blur-2xl" />
+                <div className="absolute -left-4 -bottom-4 w-16 h-16 bg-blue-400/20 rounded-full blur-xl" />
+                
+                <div className="relative z-10">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="bg-blue-500/50 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border border-blue-400/30">
+                          Active Job
+                        </span>
+                        <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                      </div>
+                      <h3 className="text-xl font-bold leading-tight">
+                        {selectedRestaurant?.restaurantName || selectedRestaurant?.name || "Processing Order..."}
+                      </h3>
+                    </div>
+                    <div className="bg-white/20 p-2.5 rounded-xl backdrop-blur-sm border border-white/10">
+                      <Navigation2 className="w-6 h-6" />
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col gap-3 pt-4 border-t border-blue-400/40">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-blue-500/50 flex items-center justify-center">
+                           <MapPin className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-blue-200 uppercase font-medium">Goal</p>
+                          <p className="text-sm font-semibold truncate max-w-[150px]">
+                            {mapBackendOrderStatusToUi(selectedRestaurant?.orderStatus || selectedRestaurant?.status) === 'pickup' ? 'Restaurant' : 'Customer'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] text-blue-200 uppercase font-medium">Status</p>
+                        <p className="text-sm font-bold text-yellow-300">
+                          {selectedRestaurant?.deliveryPhase === 'en_route_to_pickup' ? 'En Route' :
+                           selectedRestaurant?.deliveryPhase === 'at_pickup' || selectedRestaurant?.deliveryPhase === 'reached_pickup' ? 'Arrived' :
+                           selectedRestaurant?.deliveryPhase === 'picked_up' || selectedRestaurant?.deliveryPhase === 'en_route_to_delivery' ? 'Delivering' :
+                           'Active'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Referral Bonus and Unlock Offer cards removed as per user request to clean up overlay */}
+            {/* 
+            <motion.div ... Referral Bonus ... />
+            <motion.div ... Unlock Offer ... />
+            */}
 
             
             {/* Earnings Guarantee Card */}

@@ -5,7 +5,6 @@ export const emptyBasicCampaigns = [];
 export const emptyCashbacks = [];
 export const emptyCollectCashTransactions = [];
 export const emptyConversations = [];
-export const emptyDeliverymanDisbursements = [];
 export const emptyDeliveryManPayments = [];
 export const emptyExpenseReports = [];
 export const emptyFoodCampaigns = [];
@@ -15,7 +14,6 @@ export const emptyIncentivesHistory = [];
 export const emptyLoyaltyPointTransactions = [];
 export const emptyNotifications = [];
 export const emptyOrders = [];
-export const emptyRestaurantDisbursements = [];
 export const emptyRestaurantVATReports = [];
 export const emptySubscribedEmails = [];
 export const emptySubscriptionOrders = [];
@@ -24,8 +22,6 @@ export const emptyTaxReports = [];
 export const emptyWalletBonuses = [];
 export const emptyWithdrawMethods = [];
 export const emptyCampaignOrderReports = [];
-export const emptyDisbursementReportRestaurants = [];
-export const emptyDisbursementReportDeliverymen = [];
 
 export const emptyCampaignOrderStats = {
   totalOrders: 0,
@@ -37,11 +33,6 @@ export const emptyCampaignOrderStats = {
   canceledOrders: 0,
 };
 
-export const emptyDisbursementStats = {
-  pending: 0,
-  completed: 0,
-  canceled: 0,
-};
 
 export const emptyRestaurantVATStats = {
   totalOrders: 0,

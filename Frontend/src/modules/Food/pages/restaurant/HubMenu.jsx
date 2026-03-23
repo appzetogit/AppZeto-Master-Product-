@@ -1252,7 +1252,7 @@ export default function HubMenu() {
                         {addon.description && (
                           <p className="text-sm text-gray-600 mb-2">{addon.description}</p>
                         )}
-                        <p className="text-base font-bold text-gray-900">?{addon.price}</p>
+                        <p className="text-base font-bold text-gray-900">₹{addon.price}</p>
                         {isRejectedApproval(addon.approvalStatus) && addon.rejectionReason && (
                           <p className="text-xs text-red-600 mt-1">Reason: {addon.rejectionReason}</p>
                         )}
@@ -1414,7 +1414,7 @@ export default function HubMenu() {
                                 </span>
                               )}
                             </div>
-                            <p className="text-sm font-medium text-gray-700 mb-3">?{item.price}</p>
+                            <p className="text-sm font-medium text-gray-700 mb-3">₹{item.price}</p>
                             {isRejectedApproval(item.approvalStatus) && item.rejectionReason && (
                               <p className="text-xs text-red-600 -mt-2 mb-3">Reason: {item.rejectionReason}</p>
                             )}
@@ -2174,7 +2174,7 @@ export default function HubMenu() {
                                       {item.name}
                                     </h4>
                                   </div>
-                                  <p className="text-sm font-medium text-gray-700">?{item.price}</p>
+                                  <p className="text-sm font-medium text-gray-700">₹{item.price}</p>
                                   {isRejectedApproval(item.approvalStatus) && item.rejectionReason && (
                                     <p className="text-xs text-red-600 mt-1">Reason: {item.rejectionReason}</p>
                                   )}
@@ -2288,7 +2288,7 @@ export default function HubMenu() {
                 {/* Price Field */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Price (?) <span className="text-red-500">*</span>
+                    Price (₹) <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"

@@ -160,14 +160,6 @@ export const adminSidebarMenu = [
   },
   {
     type: "section",
-    label: "DISBURSEMENT MANAGEMENT",
-    items: [
-      { type: "link", label: "Restaurant Disbursement", path: "/admin/food/restaurant-disbursement", icon: "Wallet" },
-      { type: "link", label: "Deliveryman Disbursement", path: "/admin/food/deliveryman-disbursement", icon: "Wallet" },
-    ],
-  },
-  {
-    type: "section",
     label: "HELP & SUPPORT",
     items: [
       { type: "link", label: "User Feedback", path: "/admin/food/contact-messages", icon: "Mail" },

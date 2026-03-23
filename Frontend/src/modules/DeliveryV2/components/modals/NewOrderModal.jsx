@@ -1,0 +1,121 @@
+import React, { useEffect, useState, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { User, MapPin, FastForward, Clock, Phone, ChefHat } from 'lucide-react';
+import { ActionSlider } from '@/modules/DeliveryV2/components/ui/ActionSlider';
+
+/**
+ * NewOrderModal - Ported to Original 1:1 Theme with Slider Accept.
+ * Matches the Zomato/Swiggy style Green Header + White Card.
+ */
+export const NewOrderModal = ({ order, onAccept, onReject }) => {
+  const [timeLeft, setTimeLeft] = useState(30);
+
+  useEffect(() => {
+    if (timeLeft <= 0) {
+      onReject();
+      return;
+    }
+    const timer = setInterval(() => setTimeLeft((t) => t - 1), 1000);
+    return () => clearInterval(timer);
+  }, [timeLeft, onReject]);
+
+  if (!order) return null;
+
+  const earnings = order.earnings || order.riderEarning || (order.orderAmount ? order.orderAmount * 0.1 : 0);
+  const restaurantName = order.restaurantName || order.restaurant_name || 'Restaurant';
+  const restaurantAddress = order.restaurantAddress || order.restaurant_address || order.restaurantLocation?.address || 'Address not available';
+  const customerAddress = order.customerAddress || order.customer_address || order.deliveryAddress?.formattedAddress || order.deliveryAddress?.addressLine1 || 'Calculating destination...';
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-md flex items-end justify-center p-0"
+    >
+      <motion.div 
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        className="w-full max-w-lg bg-white rounded-t-[3rem] overflow-hidden shadow-[0_-20px_60px_rgba(0,0,0,0.5)] flex flex-col pt-2"
+      >
+        {/* Handle */}
+        <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-2" />
+
+        {/* Header Ribbon (Old Green Style) */}
+        <div className="bg-green-500 p-8 flex justify-between items-center text-white border-b border-green-600/20">
+          <div>
+            <p className="text-white/80 text-[10px] font-bold uppercase tracking-widest mb-1">Incoming Request</p>
+            <h2 className="text-4xl font-bold tracking-tighter">₹{Number(earnings || 0).toFixed(2)}</h2>
+          </div>
+          <div className="bg-white/20 border border-white/30 rounded-3xl px-6 py-3 text-white font-bold text-2xl shadow-inner tabular-nums">
+            {timeLeft}s
+          </div>
+        </div>
+
+        {/* Info Body */}
+        <div className="p-8 pb-12 space-y-10">
+          <div className="flex gap-6">
+            <div className="flex flex-col items-center gap-1.5 mt-2 py-1">
+              <div className="w-5 h-5 rounded-full bg-green-500 border-4 border-green-50 shadow-lg shadow-green-500/20" />
+              <div className="w-0.5 h-16 bg-dashed border-l-2 border-gray-100" />
+              <div className="w-5 h-5 rounded-full bg-blue-500 border-4 border-blue-50 shadow-lg shadow-blue-500/20" />
+            </div>
+            <div className="flex-1 space-y-10">
+              <div>
+                <div className="flex items-center gap-2 mb-2 font-bold text-[10px] uppercase tracking-widest text-green-600">
+                  <ChefHat className="w-4 h-4" />
+                  <span>Restaurant Pickup</span>
+                </div>
+                <p className="text-gray-950 font-bold text-xl leading-tight">{restaurantName}</p>
+                <p className="text-gray-500 text-sm font-medium leading-relaxed">{restaurantAddress}</p>
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-2 font-bold text-[10px] uppercase tracking-widest text-blue-600">
+                  <MapPin className="w-4 h-4" />
+                  <span>Customer Drop</span>
+                </div>
+                <p className="text-gray-950 font-bold text-xl leading-tight">Customer Location</p>
+                <p className="text-gray-500 text-sm font-medium line-clamp-2">{customerAddress}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+             <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-3">
+               <Clock className="w-5 h-5 text-orange-500" />
+               <div className="flex flex-col">
+                  <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Time</span>
+                  <span className="text-sm font-bold text-gray-900">25 MINS</span>
+               </div>
+             </div>
+             <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-3">
+               <MapPin className="w-5 h-5 text-gray-400" />
+               <div className="flex flex-col">
+                  <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Distance</span>
+                  <span className="text-sm font-bold text-gray-900">{order.pickupDistanceKm ? `${Number(order.pickupDistanceKm).toFixed(1)} km` : order.distance ? `${(order.distance/1000).toFixed(1)} km` : 'Calculating...'}</span>
+               </div>
+             </div>
+          </div>
+
+          {/* Action Area */}
+          <div className="space-y-6">
+            <ActionSlider 
+              label="Slide to Accept" 
+              onConfirm={() => onAccept(order)} 
+              color="bg-green-600"
+              successLabel="Order Accepted ✓"
+            />
+
+            <button 
+              onClick={onReject}
+              className="w-full text-gray-400 font-bold text-[10px] uppercase tracking-widest hover:text-red-500 transition-colors py-2 active:scale-95"
+            >
+              Pass this task
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};

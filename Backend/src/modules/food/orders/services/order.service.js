@@ -269,6 +269,12 @@ function buildDeliverySocketPayload(orderDoc, restaurantDoc = null) {
       order?.restaurantId?.toString?.() ||
       order?.restaurantId,
     restaurantName: restaurant?.restaurantName || order?.restaurantName,
+    restaurantAddress:
+      restaurantLocation?.address ||
+      restaurantLocation?.formattedAddress ||
+      restaurant?.addressLine1 ||
+      "",
+    restaurantPhone: restaurant?.phone || "",
     restaurantLocation: {
       latitude: restaurantLocation?.latitude,
       longitude: restaurantLocation?.longitude,
@@ -277,18 +283,18 @@ function buildDeliverySocketPayload(orderDoc, restaurantDoc = null) {
         restaurantLocation?.formattedAddress ||
         restaurant?.addressLine1 ||
         "",
-      formattedAddress:
-        restaurantLocation?.formattedAddress ||
-        restaurantLocation?.address ||
-        "",
       area: restaurantLocation?.area || restaurant?.area || "",
       city: restaurantLocation?.city || restaurant?.city || "",
       state: restaurantLocation?.state || restaurant?.state || "",
     },
     deliveryAddress: order?.deliveryAddress,
+    customerAddress: order?.deliveryAddress?.formattedAddress || order?.deliveryAddress?.addressLine1 || "",
     customerName: order?.userId?.name || order?.customerName || "",
     customerPhone: order?.userId?.phone || order?.deliveryAddress?.phone || "",
+    userName: order?.userId?.name || order?.customerName || "",
+    userPhone: order?.userId?.phone || order?.deliveryAddress?.phone || "",
     riderEarning: order?.riderEarning || 0,
+    earnings: order?.riderEarning || order?.pricing?.deliveryFee || 0,
     deliveryFee: order?.pricing?.deliveryFee || 0,
     deliveryFleet: order?.deliveryFleet,
     dispatch: order?.dispatch,
@@ -1487,6 +1493,26 @@ export async function resendDeliveryNotificationRestaurant(orderId, restaurantId
     return { success: true };
 }
 
+export async function getCurrentTripDelivery(deliveryPartnerId) {
+  if (!deliveryPartnerId) throw new ValidationError("Delivery partner ID required");
+  const partnerId = new mongoose.Types.ObjectId(deliveryPartnerId);
+  
+  // Find the single active order assigned to or accepted by this rider
+  const order = await FoodOrder.findOne({
+    "dispatch.deliveryPartnerId": partnerId,
+    orderStatus: {
+      $in: ["confirmed", "preparing", "ready_for_pickup", "picked_up", "reached_pickup", "reached_drop"]
+    }
+  })
+    .populate({ path: "restaurantId", select: "restaurantName name phone location addressLine1 area city state profileImage" })
+    .populate({ path: "userId", select: "name phone" })
+    .sort({ updatedAt: -1 })
+    .lean();
+
+  if (!order) return null;
+  return sanitizeOrderForExternal(order);
+}
+
 // ----- Delivery: available, accept, reject, status -----
 export async function listOrdersAvailableDelivery(deliveryPartnerId, query) {
   const { page, limit, skip } = buildPaginationOptions(query);
@@ -2107,7 +2133,8 @@ export async function createCollectQr(
   deliveryPartnerId,
   customerInfo = {},
 ) {
-  const order = await FoodOrder.findById(orderId)
+  const query = mongoose.Types.ObjectId.isValid(orderId) ? { _id: orderId } : { orderId };
+  const order = await FoodOrder.findOne(query)
     .populate("userId", "name email phone")
     .lean();
   if (!order) throw new ValidationError("Order not found");
@@ -2136,7 +2163,7 @@ export async function createCollectQr(
     customerPhone: customerInfo.phone || user.phone,
   });
 
-  await FoodOrder.findByIdAndUpdate(orderId, {
+  await FoodOrder.findByIdAndUpdate(order._id, {
     $set: {
       "payment.method": "razorpay_qr",
       "payment.status": "pending_qr",
@@ -2150,9 +2177,9 @@ export async function createCollectQr(
     },
   });
 
-    const updated = await FoodOrder.findById(orderId).select('orderId restaurantId userId riderEarning payment pricing').lean();
+    const updated = await FoodOrder.findById(order._id).select('orderId restaurantId userId riderEarning payment pricing').lean();
     if (updated) {
-        await foodTransactionService.updateTransactionStatus(orderId, 'cod_collect_qr_created', {
+        await foodTransactionService.updateTransactionStatus(order._id, 'cod_collect_qr_created', {
             recordedByRole: 'DELIVERY_PARTNER',
             recordedById: deliveryPartnerId,
             note: 'COD collection QR created'

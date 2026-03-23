@@ -1,0 +1,301 @@
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  ShieldCheck, DollarSign, CheckCircle2, 
+  QrCode, Loader2, Info, X
+} from 'lucide-react';
+import { deliveryAPI } from '@food/api';
+import { toast } from 'sonner';
+import { ActionSlider } from '@/modules/DeliveryV2/components/ui/ActionSlider';
+
+const Backdrop = ({ onClose }) => (
+  <motion.div 
+    initial={{ opacity: 0 }} 
+    animate={{ opacity: 1 }} 
+    exit={{ opacity: 0 }}
+    className="absolute inset-0 bg-black/40 backdrop-blur-sm -z-10 pointer-events-auto" 
+    onClick={onClose}
+  />
+);
+
+const OtpModal = ({ order, onVerified, onClose }) => {
+  const [otp, setOtp] = useState(['', '', '', '']);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [isOtpVerified, setIsOtpVerified] = useState(false);
+  const inputRefs = [useRef(), useRef(), useRef(), useRef()];
+
+  const orderId = order.orderId || order._id || 'ORD';
+
+  const handleOtpChange = (index, value) => {
+    if (value && !/^\d+$/.test(value)) return;
+    const newOtp = [...otp];
+    newOtp[index] = value.substring(value.length - 1);
+    setOtp(newOtp);
+    if (value && index < 3) inputRefs[index + 1].current?.focus();
+  };
+
+  const handleKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !otp[index] && index > 0) inputRefs[index - 1].current?.focus();
+  };
+
+  const verifyOtp = async () => {
+    const otpString = otp.join('');
+    if (otpString.length < 4) return;
+    setIsVerifyingOtp(true);
+    try {
+      const res = await deliveryAPI.verifyDropOtp(orderId, otpString);
+      if (res?.data?.success) {
+        setIsOtpVerified(true);
+        toast.success("OTP Verified Successfully");
+        setTimeout(() => onVerified(otpString), 600);
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Invalid OTP entered");
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-[120] p-0 sm:p-4 h-full flex items-end justify-center pointer-events-none">
+      <Backdrop onClose={onClose} />
+      <motion.div 
+        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+        className="w-full bg-white rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.3)] p-6 pb-12 pointer-events-auto max-w-lg"
+      >
+        <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6" />
+        <div className="flex justify-between items-center mb-6">
+           <div className="flex items-center gap-3">
+             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isOtpVerified ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
+               <ShieldCheck className="w-7 h-7" />
+             </div>
+             <div>
+               <h2 className="text-xl font-bold text-gray-900">Handover Code</h2>
+               <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Step 1 of Verification</p>
+             </div>
+           </div>
+           <button onClick={onClose} className="p-2 bg-gray-50 rounded-full text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
+        </div>
+
+        <div className="flex justify-center gap-3 mb-8">
+          {otp.map((digit, i) => (
+            <input
+              key={i}
+              ref={inputRefs[i]}
+              type="number"
+              disabled={isOtpVerified}
+              value={digit}
+              onChange={(e) => handleOtpChange(i, e.target.value)}
+              onKeyDown={(e) => handleKeyDown(i, e)}
+              className={`w-14 h-18 bg-gray-50 border-2 rounded-2xl text-center text-3xl font-bold transition-all ${
+                isOtpVerified ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-100 focus:border-green-600 text-gray-700'
+              }`}
+            />
+          ))}
+        </div>
+
+        <ActionSlider 
+          key="action-otp"
+          label={isVerifyingOtp ? "Verifying..." : "Slide to Verify OTP"} 
+          successLabel="Verified!"
+          disabled={otp.some(d => !d) || isVerifyingOtp || isOtpVerified}
+          onConfirm={verifyOtp}
+          color="bg-gray-900"
+        />
+      </motion.div>
+    </div>
+  );
+};
+
+const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [collectQrLink, setCollectQrLink] = useState(null);
+  const [isGeneratingQr, setIsGeneratingQr] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState('idle');
+  const pollingRef = useRef(null);
+
+  const orderId = order.orderId || order._id || 'ORD';
+  const amountToCollect = order.pricing?.total || order.amountToCollect || 0;
+
+  const checkPaymentSync = useCallback(async () => {
+    try {
+      const res = await deliveryAPI.getPaymentStatus(orderId);
+      const data = res?.data?.data || res?.data || {};
+      const status = String(data?.payment?.status || "").toLowerCase();
+      if (['paid', 'captured', 'authorized'].includes(status)) {
+        setPaymentStatus('paid');
+        if (pollingRef.current) clearInterval(pollingRef.current);
+        toast.success("Payment Received Successfully!");
+        setShowQrModal(false);
+      }
+    } catch (e) {}
+  }, [orderId]);
+
+  useEffect(() => {
+    if (paymentStatus === 'pending') {
+      pollingRef.current = setInterval(checkPaymentSync, 4000);
+    }
+    return () => clearInterval(pollingRef.current);
+  }, [paymentStatus, checkPaymentSync]);
+
+  const generateQr = async () => {
+    setIsGeneratingQr(true);
+    try {
+      const res = await deliveryAPI.createCollectQr(orderId, {
+        name: order.userName || 'Customer',
+        phone: order.userPhone || ''
+      });
+      const link = res?.data?.data?.shortUrl || res?.data?.shortUrl || null;
+      if (link) {
+        setCollectQrLink(link);
+        setPaymentStatus('pending');
+        setShowQrModal(true);
+      } else {
+        toast.error("Could not generate QR code");
+      }
+    } catch (e) {
+      toast.error("QR Generation failed");
+    } finally {
+      setIsGeneratingQr(false);
+    }
+  };
+
+  const isPaid = paymentStatus === 'paid';
+
+  return (
+    <>
+      <div className="fixed inset-x-0 bottom-0 z-[120] p-0 sm:p-4 h-full flex items-end justify-center pointer-events-none">
+        <Backdrop onClose={onClose} />
+        <motion.div 
+          initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+          className="w-full bg-white rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.3)] p-6 pb-12 pointer-events-auto max-w-lg"
+        >
+          <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6" />
+          <div className="flex justify-between items-center mb-6">
+             <div className="flex items-center gap-3">
+               <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isPaid ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
+                 <DollarSign className="w-7 h-7" />
+               </div>
+               <div>
+                 <h2 className="text-xl font-bold text-gray-900">Collect Payment</h2>
+                 <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Step 2 of Verification</p>
+               </div>
+             </div>
+             <button onClick={onClose} className="p-2 bg-gray-50 rounded-full text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
+          </div>
+
+          <div className="bg-amber-50 rounded-3xl p-6 border border-amber-100 mb-8">
+             <div className="flex justify-between items-center mb-6">
+               <div>
+                 <p className="text-amber-700 text-[10px] font-bold uppercase tracking-widest mb-1">Cash to Collect</p>
+                 <p className="text-amber-950 text-4xl font-bold">₹{amountToCollect.toFixed(2)}</p>
+               </div>
+               {isPaid && <div className="bg-green-500 text-white px-4 py-2 rounded-full text-[10px] font-bold">PAID ✓</div>}
+             </div>
+
+             {!isPaid && (
+               <div className="space-y-4">
+                 <button 
+                   onClick={generateQr}
+                   disabled={isGeneratingQr}
+                   className="w-full py-4 bg-white border-2 border-amber-200 text-amber-800 rounded-2xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2"
+                 >
+                   {isGeneratingQr ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-5 h-5" />}
+                   Show Payment QR
+                 </button>
+               </div>
+             )}
+          </div>
+
+          {/* If the driver collects physical cash, they can directly slide this, bypassing QR */}
+          <ActionSlider 
+            key="action-payment"
+            label="Slide to Complete Order" 
+            successLabel="Delivered! ✓"
+            disabled={!isPaid && paymentStatus === 'pending'} // Disable only if we are specifically waiting for QR to sync
+            onConfirm={() => onComplete(otpString)}
+            color="bg-green-600"
+          />
+        </motion.div>
+      </div>
+
+      <AnimatePresence>
+        {showQrModal && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 pointer-events-auto"
+            onClick={() => setShowQrModal(false)}
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }}
+              className="bg-white w-full max-w-sm rounded-3xl p-8 flex flex-col items-center text-center shadow-2xl"
+              onClick={e => e.stopPropagation()}
+            >
+              <h3 className="text-gray-950 font-bold text-xl mb-2">Scan to Pay</h3>
+              <p className="text-gray-500 text-sm mb-8 font-medium">Order Total: ₹{amountToCollect.toFixed(2)}</p>
+              
+              <div className="relative p-6 bg-gray-50 rounded-3xl border-2 border-gray-100 mb-8">
+                 <img 
+                   src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(collectQrLink)}`} 
+                   alt="Razorpay QR"
+                   className="w-56 h-56"
+                 />
+                 <div className="absolute top-2 right-2 flex gap-1 items-center bg-green-500 text-white px-2 py-1 rounded-full text-[8px] font-bold">
+                    <Loader2 className="w-2.5 h-2.5 animate-spin" /> SYNCING
+                 </div>
+              </div>
+
+              <button 
+                onClick={() => setShowQrModal(false)}
+                className="w-full py-4 bg-gray-100 text-gray-500 rounded-2xl font-bold text-xs uppercase tracking-widest"
+              >
+                Close QR
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
+};
+
+export const DeliveryVerificationModal = ({ order, onComplete, onClose }) => {
+  const [step, setStep] = useState('otp'); // 'otp' | 'payment'
+  const [verifiedOtp, setVerifiedOtp] = useState('');
+
+  if (!order) return null;
+
+  const paymentMethod = (order.paymentMethod || order.payment?.method || 'cod').toLowerCase();
+  const isCod = ['cash', 'cod', 'cash_on_delivery', 'razorpay_qr'].includes(paymentMethod);
+
+  const handleOtpVerified = (otpValue) => {
+    setVerifiedOtp(otpValue);
+    if (isCod) {
+      setStep('payment');
+    } else {
+      onComplete(otpValue);
+    }
+  };
+
+  return (
+    <AnimatePresence mode="wait">
+      {step === 'otp' && (
+        <OtpModal 
+          key="otp-modal" 
+          order={order} 
+          onVerified={handleOtpVerified} 
+          onClose={onClose || (() => {})} 
+        />
+      )}
+      {step === 'payment' && (
+        <PaymentModal 
+          key="payment-modal" 
+          order={order} 
+          otpString={verifiedOtp} 
+          onComplete={onComplete} 
+          onClose={onClose || (() => {})} 
+        />
+      )}
+    </AnimatePresence>
+  );
+};

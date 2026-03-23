@@ -35,6 +35,7 @@ const RedirectToFood = () => {
 
 const MasterLandingPage = lazy(() => import('./MasterLandingPage'))
 const AdminRouter = lazy(() => import('../modules/Food/components/admin/AdminRouter'))
+const DeliveryV2 = lazy(() => import('../modules/DeliveryV2'))
 
 const AppRoutes = () => {
   return (
@@ -50,6 +51,9 @@ const AppRoutes = () => {
 
       {/* Global Admin Portal - AdminRouter handles its own protection for sub-routes */}
       <Route path="/admin/*" element={<AdminRouter />} />
+
+      {/* NEW Delivery V2 (Parallel testing) */}
+      <Route path="/delivery-v2/*" element={<DeliveryV2 />} />
       
       {/* Dynamic intercept redirects for bare paths (accessed programmatically) */}
       <Route path="/user/*" element={<RedirectToFood />} />

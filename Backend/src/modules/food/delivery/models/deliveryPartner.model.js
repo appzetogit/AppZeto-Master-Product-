@@ -91,6 +91,8 @@ const deliveryPartnerSchema = new mongoose.Schema(
             type: { type: String, enum: ['Point'] },
             coordinates: { type: [Number] }
         },
+        lastLat: { type: Number },
+        lastLng: { type: Number },
         referralCode: { type: String, index: true },
         referredBy: {
             type: mongoose.Schema.Types.ObjectId,

@@ -262,6 +262,8 @@ export const updateDeliveryAvailability = async (userId, payload) => {
             type: 'Point',
             coordinates: [longitude, latitude]
         };
+        partner.lastLat = latitude;
+        partner.lastLng = longitude;
     }
     await partner.save();
     return { availabilityStatus: partner.availabilityStatus };

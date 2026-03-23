@@ -16,7 +16,7 @@ export default function HubFinance() {
     const tabParam = searchParams.get("tab")
     return tabParam === "invoices" ? "invoices" : "payouts"
   })
-  const [selectedDateRange, setSelectedDateRange] = useState("14 Nov - 14 Dec'25")
+  const [selectedDateRange, setSelectedDateRange] = useState("Last 30 days")
   const [showDownloadMenu, setShowDownloadMenu] = useState(false)
   const [showDateRangePicker, setShowDateRangePicker] = useState(false)
   const downloadMenuRef = useRef(null)
@@ -38,10 +38,9 @@ export default function HubFinance() {
         setLoading(true)
         const response = await restaurantAPI.getFinance()
         if (response.data?.success && response.data?.data) {
-          setFinanceData(response.data.data)
-          debugLog('? Finance data fetched:', response.data.data)
-          debugLog('?? Current cycle orders:', response.data.data?.currentCycle?.orders)
-          debugLog('?? Current cycle totalOrders:', response.data.data?.currentCycle?.totalOrders)
+          const data = response.data.data
+          setFinanceData(data)
+          debugLog('? Finance data fetched:', data)
         }
       } catch (error) {
         // Suppress 401 errors as they're handled by axios interceptor (token refresh/redirect)
@@ -140,13 +139,37 @@ export default function HubFinance() {
   }, [invoiceOrders])
 
   const handleViewDetails = () => {
-    navigate("/restaurant/finance-details")
+    navigate("/restaurant/finance-details", { state: { financeData, restaurantData } })
   }
 
   // Parse date range string to extract start and end dates
   const parseDateRange = (dateRangeStr) => {
-    // Format: "14 Nov - 14 Dec'25"
     try {
+      if (!dateRangeStr || typeof dateRangeStr !== 'string') return null;
+
+      // Handle relative ranges
+      const today = new Date();
+      if (dateRangeStr === "Last 7 days") {
+        const start = new Date();
+        start.setDate(today.getDate() - 7);
+        return { startDate: start.toISOString(), endDate: today.toISOString() };
+      }
+      if (dateRangeStr === "Last 30 days" || dateRangeStr === "Last 1 month") {
+        const start = new Date();
+        start.setDate(today.getDate() - 30);
+        return { startDate: start.toISOString(), endDate: today.toISOString() };
+      }
+      if (dateRangeStr === "This week") {
+        const start = new Date();
+        const day = today.getDay();
+        start.setDate(today.getDate() - day);
+        return { startDate: start.toISOString(), endDate: today.toISOString() };
+      }
+      if (dateRangeStr === "This month") {
+        const start = new Date(today.getFullYear(), today.getMonth(), 1);
+        return { startDate: start.toISOString(), endDate: today.toISOString() };
+      }
+
       const parts = dateRangeStr.split(' - ')
       if (parts.length !== 2) return null
       
@@ -170,22 +193,17 @@ export default function HubFinance() {
       const endMonth = monthMap[endParts[1]]
       const year = endParts.length > 2 ? parseInt('20' + endParts[2]) : currentYear
       
-      // Validate month values
       if (startMonth === undefined || endMonth === undefined || isNaN(startDay) || isNaN(endDay)) {
-        debugError('Invalid date components:', { startMonth, endMonth, startDay, endDay, dateRangeStr })
         return null
       }
       
-      const startDate = new Date(year, startMonth, startDay)
-      const endDate = new Date(year, endMonth, endDay)
-      
-      // Validate dates
-      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-        debugError('Invalid date values:', { startDate, endDate, dateRangeStr })
-        return null
+      const start = new Date(year, startMonth, startDay)
+      const end = new Date(year, endMonth, endDay)
+
+      return {
+        startDate: start.toISOString(),
+        endDate: end.toISOString()
       }
-      
-      return { startDate, endDate }
     } catch (error) {
       debugError('Error parsing date range:', error)
       return null
@@ -256,28 +274,34 @@ export default function HubFinance() {
     const restaurantId = financeData?.restaurant?.restaurantId || "N/A"
     const currentCycle = financeData?.currentCycle || {}
     
-    // Get all orders (current cycle + past cycles)
-    const allOrders = []
+    // Get all orders (current cycle + past cycles) - DEDUPLICATED
+    const allOrdersMap = new Map()
     
-    // Add current cycle orders
-    if (financeData?.currentCycle?.orders && financeData.currentCycle.orders.length > 0) {
+    // Add current cycle orders first
+    if (financeData?.currentCycle?.orders && Array.isArray(financeData.currentCycle.orders)) {
       financeData.currentCycle.orders.forEach(order => {
-        allOrders.push({
-          ...order,
-          cycle: 'Current Cycle'
-        })
+        if (order.orderId) {
+          allOrdersMap.set(order.orderId, {
+            ...order,
+            cycle: 'Current Cycle'
+          })
+        }
       })
     }
     
-    // Add past cycles orders
-    if (pastCyclesData?.orders && pastCyclesData.orders.length > 0) {
+    // Add past cycles orders (ignoring duplicates already in current map)
+    if (pastCyclesData?.orders && Array.isArray(pastCyclesData.orders)) {
       pastCyclesData.orders.forEach(order => {
-        allOrders.push({
-          ...order,
-          cycle: 'Past Cycle'
-        })
+        if (order.orderId && !allOrdersMap.has(order.orderId)) {
+          allOrdersMap.set(order.orderId, {
+            ...order,
+            cycle: 'Past Cycle'
+          })
+        }
       })
     }
+    
+    const allOrders = Array.from(allOrdersMap.values())
     
     return {
       restaurantName,
@@ -307,95 +331,97 @@ export default function HubFinance() {
         <meta charset="UTF-8">
         <style>
           body { 
-            font-family: Arial, sans-serif; 
-            margin: 20px; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            margin: 0; 
+            padding: 40px;
             color: #333;
+            background-color: #fff;
+            width: 794px; /* A4 width at 96dpi */
+            box-sizing: border-box;
           }
           .header {
             text-align: center;
             margin-bottom: 30px;
-            border-bottom: 2px solid #000;
+            border-bottom: 2px solid #333;
             padding-bottom: 20px;
           }
           .header h1 {
             margin: 0;
-            font-size: 24px;
+            font-size: 28px;
             color: #000;
+            text-transform: uppercase;
+            letter-spacing: 1px;
           }
           .header p {
             margin: 5px 0;
-            font-size: 12px;
-            color: #666;
+            font-size: 14px;
+            color: #444;
           }
           .section {
-            margin-bottom: 25px;
+            margin-bottom: 30px;
+            clear: both;
           }
           .section-title {
-            font-size: 18px;
+            font-size: 20px;
             font-weight: bold;
             margin-bottom: 15px;
             color: #000;
+            border-left: 4px solid #000;
+            padding-left: 10px;
           }
           .info-row {
             display: flex;
             justify-content: space-between;
-            padding: 10px 0;
-            border-bottom: 1px dashed #ccc;
-          }
-          .info-label {
-            font-weight: 600;
-            color: #333;
-          }
-          .info-value {
-            color: #000;
-            font-weight: 600;
+            padding: 12px 0;
+            border-bottom: 1px dashed #ddd;
           }
           .current-cycle {
-            background-color: #f9f9f9;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
+            background-color: #fcfcfc;
+            padding: 25px;
+            border: 1px solid #eee;
+            border-radius: 12px;
+            margin-bottom: 25px;
           }
           .payout-amount {
-            font-size: 32px;
-            font-weight: bold;
+            font-size: 36px;
+            font-weight: 800;
             color: #000;
             margin: 10px 0;
           }
           .orders-table {
             width: 100%;
             border-collapse: collapse;
+            table-layout: fixed;
             margin-top: 20px;
+            border: 1px solid #000;
           }
           .orders-table th {
-            background-color: #f5f5f5;
-            padding: 10px;
+            background-color: #f2f2f2;
+            padding: 12px 8px;
             text-align: left;
-            border: 1px solid #ddd;
+            border: 1px solid #000;
             font-weight: bold;
             font-size: 11px;
+            text-transform: uppercase;
           }
           .orders-table td {
-            padding: 8px;
-            border: 1px solid #ddd;
+            padding: 10px 8px;
+            border: 1px solid #000;
             font-size: 11px;
-          }
-          .orders-table tr:nth-child(even) {
-            background-color: #f9f9f9;
+            word-wrap: break-word;
+            vertical-align: top;
           }
           .footer {
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 1px solid #ccc;
+            margin-top: 50px;
+            padding-top: 25px;
+            border-top: 1px solid #000;
             text-align: center;
-            font-size: 11px;
-            color: #666;
+            font-size: 12px;
+            color: #555;
           }
           @media print {
-            body { margin: 0; }
+            body { padding: 20px; width: auto; }
             .current-cycle { page-break-inside: avoid; }
-            .orders-table { page-break-inside: auto; }
-            .orders-table tr { page-break-inside: avoid; }
           }
         </style>
       </head>
@@ -434,13 +460,13 @@ export default function HubFinance() {
             <table class="orders-table">
               <thead>
                 <tr>
-                  <th>Cycle</th>
-                  <th>Order ID</th>
-                  <th>Order Date</th>
-                  <th>Food Items</th>
-                  <th>Item Qty</th>
-                  <th>Order Amount</th>
-                  <th>Restaurant Earning/Profit</th>
+                  <th style="width: 14%;">Cycle</th>
+                  <th style="width: 15%;">Order ID</th>
+                  <th style="width: 12%;">Date</th>
+                  <th style="width: 28%;">Items</th>
+                  <th style="width: 8%;">Qty</th>
+                  <th style="width: 11%;">Amount</th>
+                  <th style="width: 12%;">Earning</th>
                 </tr>
               </thead>
               <tbody>
@@ -917,7 +943,7 @@ export default function HubFinance() {
                 ) : (
                   <>
                     {/* Show past cycles orders if available */}
-                    {pastCyclesData && pastCyclesData.orders && pastCyclesData.orders.length > 0 && (
+                    {pastCyclesData && pastCyclesData.orders && pastCyclesData.orders.length > 0 ? (
                       <div className="bg-white rounded-lg p-4 space-y-3">
                         {pastCyclesData.orders.map((order, index) => (
                           <div key={order.orderId || index} className="border-b border-gray-200 pb-3 last:border-b-0 last:pb-0">
@@ -942,9 +968,14 @@ export default function HubFinance() {
                           </div>
                         ))}
                       </div>
-                    )}
-                    {/* Show current cycle orders if past cycles data is not available or has no orders */}
-                    {(!pastCyclesData || !pastCyclesData.orders || pastCyclesData.orders.length === 0) && !loadingPastCycles && financeData?.currentCycle?.orders && financeData.currentCycle.orders.length > 0 && (
+                    ) : (pastCyclesData && pastCyclesData.orders && pastCyclesData.orders.length === 0) ? (
+                      <div className="bg-white rounded-lg p-8 text-center border border-dashed border-gray-300">
+                        <p className="text-sm text-gray-500 italic">No orders found for this selected range.</p>
+                      </div>
+                    ) : null}
+
+                    {/* Show current cycle orders if past cycles data is not requested or not being viewed */}
+                    {(!pastCyclesData || !pastCyclesData.orders) && !loadingPastCycles && financeData?.currentCycle?.orders && financeData.currentCycle.orders.length > 0 && (
                       <div className="bg-white rounded-lg p-4 space-y-3">
                         {financeData.currentCycle.orders.map((order, index) => (
                           <div key={order.orderId || index} className="border-b border-gray-200 pb-3 last:border-b-0 last:pb-0">
@@ -968,6 +999,15 @@ export default function HubFinance() {
                             </div>
                           </div>
                         ))}
+                      </div>
+                    )}
+                    
+                    {(!pastCyclesData || (!pastCyclesData.orders || pastCyclesData.orders.length === 0)) && 
+                     (!financeData?.currentCycle?.orders || financeData.currentCycle.orders.length === 0) && 
+                     !loadingPastCycles && !loading && (
+                      <div className="bg-white rounded-lg p-12 text-center border border-gray-200">
+                        <p className="text-gray-400 mb-2">No transaction history available</p>
+                        <p className="text-xs text-gray-500">Your earnings and order payouts will appear here.</p>
                       </div>
                     )}
                   </>

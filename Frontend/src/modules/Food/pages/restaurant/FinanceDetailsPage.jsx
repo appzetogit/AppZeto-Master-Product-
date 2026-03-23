@@ -6,7 +6,8 @@ import { ArrowLeft, ChevronDown, ChevronUp, Download, Mail, X, Info } from "luci
 export default function FinanceDetailsPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const financeData = location.state?.financeData || {}
+  const financeData = location.state?.financeData || null
+  const restaurantData = location.state?.restaurantData || null
   
   const [activeTab, setActiveTab] = useState("summary")
   const [isTransitioning, setIsTransitioning] = useState(false)
@@ -69,43 +70,47 @@ export default function FinanceDetailsPage() {
     }, 2000)
   }
 
-  // Settlement data with sub-items
-  const settlementData = {
-    totalOrders: financeData?.totalOrders || 127,
-    netOrderValue: financeData?.netOrderValue || {
-      itemSubtotal: 15000.00,
-      totalGSTCollected: 2700.00,
-      restaurantDiscountPromos: 500.00,
-      restaurantDiscountOthers: 300.00,
-      total: 18500.00
-    },
-    additions: financeData?.additions || {
-      tds194H: 200.00,
-      tds194C: 250.00,
-      total: 450.00
-    },
-    orderLevelDeductions: financeData?.orderLevelDeductions || {
-      total: 1200.00
-    },
-    taxDeductions: financeData?.taxDeductions || {
-      gstOnServiceFees: 500.00,
-      tds194O: 200.00,
-      gstPaidByZomato: 150.00,
-      total: 850.00
-    },
-    investmentsInGrowth: financeData?.investmentsInGrowth || {
-      onlineOrderingAds: 350.00,
-      total: 350.00
-    },
-  }
+  // Settlement data with real values from financeData
+  const settlementData = useMemo(() => {
+    const cycle = financeData?.currentCycle || {};
+    const summary = financeData?.invoiceSummary || {};
+    
+    return {
+      totalOrders: cycle.totalOrders || 0,
+      netOrderValue: {
+        itemSubtotal: summary.subtotal || 0,
+        totalGSTCollected: summary.taxes || 0,
+        restaurantDiscountPromos: 0,
+        restaurantDiscountOthers: 0,
+        total: summary.subtotal || 0
+      },
+      additions: {
+        tds194H: 0,
+        tds194C: 0,
+        total: 0
+      },
+      orderLevelDeductions: {
+        total: 0
+      },
+      taxDeductions: {
+        gstOnServiceFees: 0,
+        tds194O: 0,
+        gstPaidByZomato: 0,
+        total: summary.taxes || 0
+      },
+      investmentsInGrowth: {
+        onlineOrderingAds: 0,
+        total: 0
+      },
+      estimatedPayout: cycle.estimatedPayout || 0,
+      start: cycle.start?.day || "15",
+      end: cycle.end?.day || "21",
+      month: cycle.start?.month || "Dec",
+      year: cycle.start?.year || "25"
+    }
+  }, [financeData])
 
-  // Calculate estimated payout: A + B - C - D - E
-  const estimatedPayout = 
-    (settlementData.netOrderValue?.total || 0) +
-    (settlementData.additions?.total || 0) -
-    (settlementData.orderLevelDeductions?.total || 0) -
-    (settlementData.taxDeductions?.total || 0) -
-    (settlementData.investmentsInGrowth?.total || 0)
+  const estimatedPayout = settlementData.estimatedPayout;
 
   const toggleSection = (section) => {
     setExpandedSections(prev => ({
@@ -127,10 +132,10 @@ export default function FinanceDetailsPage() {
           </button>
           <div className="flex-1 min-w-0">
             <h1 className="text-lg font-bold text-gray-900 truncate">
-              Kadhai Chammach Restaurant
+              {restaurantData?.name || "Your Restaurant"}
             </h1>
             <p className="text-xs text-gray-600 mt-0.5">
-              ID: 20959122 • By Pass Road (South), Indore
+              ID: {restaurantData?.restaurantId || "N/A"} • {restaurantData?.address || "Location"}
             </p>
           </div>
         </div>
@@ -212,16 +217,16 @@ export default function FinanceDetailsPage() {
                 <div className="bg-white rounded-lg p-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-xs text-gray-600 mb-1">Est. Payout</p>
+                      <p className="text-xs text-gray-600 mb-1">Active Earnings</p>
                       <p className="text-2xl font-bold text-gray-900 mb-1">
                         ₹{estimatedPayout.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       </p>
-                      <p className="text-xs text-gray-600">from 15 - 18 Dec'25</p>
+                      <p className="text-xs text-gray-600">from {settlementData.start} - {settlementData.end} {settlementData.month}'{settlementData.year}</p>
                       <p className="text-xs text-gray-600 mt-1">Payout date: -</p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-600 mb-1">Payout for</p>
-                      <p className="text-sm font-semibold text-gray-900">15 - 21 Dec'25</p>
+                      <p className="text-sm font-semibold text-gray-900">{settlementData.start} - {settlementData.end} {settlementData.month}'{settlementData.year}</p>
                     </div>
                   </div>
                 </div>

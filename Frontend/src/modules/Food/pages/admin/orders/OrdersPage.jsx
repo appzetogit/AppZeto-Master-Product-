@@ -330,8 +330,14 @@ export default function OrdersPage({ statusKey = "all" }) {
 
       const response = await adminAPI.getOrders(params)
 
-      if (response.data?.success && response.data?.data?.orders) {
-        const nextOrders = response.data.data.orders
+      const rawOrders =
+        response?.data?.data?.orders ??
+        response?.data?.orders ??
+        response?.data?.data?.docs ??
+        response?.data?.data
+      const nextOrders = Array.isArray(rawOrders) ? rawOrders : []
+
+      if (response.data?.success) {
         const nextOrderIds = new Set(
           nextOrders
             .map((order) => order.id || order._id || order.orderId)
@@ -704,8 +710,15 @@ export default function OrdersPage({ statusKey = "all" }) {
   }
 
   const normalizedOrders = useMemo(() => {
-    return orders.map((order) => {
-      const createdAt = order.createdAt ? new Date(order.createdAt) : null
+    const safeOrders = Array.isArray(orders) ? orders : []
+
+    return safeOrders.filter(Boolean).map((order) => {
+      const createdAtRaw = order.createdAt || order.created_at || order.orderDate || null
+      const createdAtCandidate = createdAtRaw ? new Date(createdAtRaw) : null
+      const createdAt =
+        createdAtCandidate && !Number.isNaN(createdAtCandidate.getTime())
+          ? createdAtCandidate
+          : null
       const date = createdAt
         ? createdAt.toLocaleDateString("en-GB", {
             day: "2-digit",

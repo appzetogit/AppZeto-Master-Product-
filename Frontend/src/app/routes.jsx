@@ -48,8 +48,15 @@ const AppRoutes = () => {
       {/* Food Module */}
       <Route path="/food/*" element={<FoodAppWrapper />} />
 
-      {/* Global Admin Portal - AdminRouter handles its own protection for sub-routes */}
-      <Route path="/admin/*" element={<AdminRouter />} />
+      {/* Global Admin Portal - wrap lazy router in Suspense to avoid blank/crash on direct admin URLs */}
+      <Route
+        path="/admin/*"
+        element={
+          <Suspense fallback={<PageLoader />}>
+            <AdminRouter />
+          </Suspense>
+        }
+      />
       
       {/* Dynamic intercept redirects for bare paths (accessed programmatically) */}
       <Route path="/user/*" element={<RedirectToFood />} />

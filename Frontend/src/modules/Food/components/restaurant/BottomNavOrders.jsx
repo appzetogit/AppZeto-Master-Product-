@@ -21,7 +21,6 @@ const getOrdersTabs = (basePath = "/restaurant") => [
 ]
 
 const getHubTabs = (basePath = "/restaurant") => [
-  { id: "growth", label: "Growth", icon: TrendingUp, route: `${basePath}/hub-growth` },
   { id: "menu", label: "Menu", icon: Utensils, route: `${basePath}/hub-menu` },
   { id: "finance", label: "Finance", icon: Wallet, route: `${basePath}/hub-finance` },
 ]
@@ -62,7 +61,7 @@ export default function BottomNavOrders() {
 
   const activeTab = useMemo(() => {
     const match = findActiveTab(tabs, pathname)
-    return match?.id || (isHubMode ? "growth" : "orders")
+    return match?.id || (isHubMode ? "menu" : "orders")
   }, [tabs, pathname, isHubMode])
 
   const handleTabClick = (tab) => {
@@ -72,7 +71,7 @@ export default function BottomNavOrders() {
   }
 
   const handleToggleMode = () => {
-    const targetRoute = isHubMode ? basePath : `${basePath}/hub-growth`
+    const targetRoute = isHubMode ? basePath : `${basePath}/hub-menu`
     navigate(targetRoute)
   }
 

@@ -15,13 +15,14 @@ const debugError = (...args) => {}
 
 
 const TABS = [
+  { key: "All", label: "All" },
   { key: "Pending", label: "Pending" },
   { key: "Approved", label: "Approved" },
   { key: "Rejected", label: "Rejected" },
 ]
 
 export default function DeliveryWithdrawal() {
-  const [activeTab, setActiveTab] = useState("Pending")
+  const [activeTab, setActiveTab] = useState("All")
   const [searchQuery, setSearchQuery] = useState("")
   const [requests, setRequests] = useState([])
   const [loading, setLoading] = useState(true)
@@ -38,7 +39,7 @@ export default function DeliveryWithdrawal() {
   const fetchRequests = async () => {
     try {
       setLoading(true)
-      const response = await adminAPI.getDeliveryWithdrawalRequests({
+      const response = await adminAPI.getDeliveryWithdrawals({
         status: activeTab,
         page: 1,
         limit: 200,
@@ -94,11 +95,12 @@ export default function DeliveryWithdrawal() {
     if (!confirm("Are you sure you want to approve this withdrawal request?")) return
     try {
       setProcessingAction(id)
-      const response = await adminAPI.approveDeliveryWithdrawal(id)
+      const response = await adminAPI.updateDeliveryWithdrawalStatus(id, { status: "Approved" })
       if (response?.data?.success) {
         toast.success("Withdrawal request approved successfully")
         fetchRequests()
-      } else {
+      }
+ else {
         toast.error(response?.data?.message || "Failed to approve")
       }
     } catch (error) {
@@ -113,14 +115,18 @@ export default function DeliveryWithdrawal() {
   const handleReject = async (id) => {
     try {
       setProcessingAction(id)
-      const response = await adminAPI.rejectDeliveryWithdrawal(id, rejectionReason)
+      const response = await adminAPI.updateDeliveryWithdrawalStatus(id, {
+        status: "Rejected",
+        rejectionReason: rejectionReason,
+      })
       if (response?.data?.success) {
         toast.success("Withdrawal request rejected successfully")
         setShowRejectModal(false)
         setRejectionReason("")
         setSelectedRequest(null)
         fetchRequests()
-      } else {
+      }
+ else {
         toast.error(response?.data?.message || "Failed to reject")
       }
     } catch (error) {
@@ -206,7 +212,7 @@ export default function DeliveryWithdrawal() {
           {loading ? (
             <div className="py-20 text-center">
               <Loader2 className="w-8 h-8 animate-spin text-emerald-600 mx-auto mb-4" />
-              <p className="text-slate-600">Loading withdrawal requests…</p>
+              <p className="text-slate-600">Loading withdrawal requestsâ€¦</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -382,7 +388,7 @@ export default function DeliveryWithdrawal() {
                 <textarea
                   value={rejectionReason}
                   onChange={(e) => setRejectionReason(e.target.value)}
-                  placeholder="Enter reason for rejection…"
+                  placeholder="Enter reason for rejectionâ€¦"
                   rows={4}
                   className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
                 />
@@ -404,7 +410,7 @@ export default function DeliveryWithdrawal() {
                 disabled={processingAction === selectedRequest?.id}
                 className="px-4 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {processingAction === selectedRequest?.id ? "Rejecting…" : "Reject"}
+                {processingAction === selectedRequest?.id ? "Rejectingâ€¦" : "Reject"}
               </button>
             </DialogFooter>
           </DialogContent>

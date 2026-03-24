@@ -25,7 +25,7 @@ export default function DeliveryBoyWallet() {
     const p = overrides.page || page
     try {
       setLoading(true)
-      const res = await adminAPI.getDeliveryBoyWallets({
+      const res = await adminAPI.getDeliveryWallets({
         search: searchQuery.trim() || undefined,
         page: p,
         limit,
@@ -96,7 +96,7 @@ export default function DeliveryBoyWallet() {
           {loading ? (
             <div className="py-20 text-center">
               <Loader2 className="w-8 h-8 animate-spin text-emerald-600 mx-auto mb-4" />
-              <p className="text-slate-600">Loading wallets…</p>
+              <p className="text-slate-600">Loading walletsâ€¦</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -130,8 +130,8 @@ export default function DeliveryBoyWallet() {
                     wallets.map((w, i) => (
                       <tr key={w.walletId || w.deliveryId} className="hover:bg-slate-50 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{(page - 1) * limit + i + 1}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{w.name || "—"}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{w.deliveryIdString || "—"}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{w.name || "â€”"}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{w.deliveryIdString || "â€”"}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{formatCurrency(w.remainingCashLimit)}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{formatCurrency(w.pocketBalance)}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{formatCurrency(w.cashCollected)}</td>
@@ -150,7 +150,7 @@ export default function DeliveryBoyWallet() {
           {pages > 1 && (
             <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-200">
               <p className="text-sm text-slate-600">
-                Page {page} of {pages} · {total} total
+                Page {page} of {pages} Â· {total} total
               </p>
               <div className="flex gap-2">
                 <button

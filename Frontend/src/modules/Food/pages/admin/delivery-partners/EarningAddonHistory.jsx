@@ -233,44 +233,20 @@ export default function EarningAddonHistory() {
       setIsCheckingCompletions(true)
       debugLog('?? Checking completions for all delivery partners...')
       
-      // Get all delivery partners
-      const partnersResponse = await adminAPI.getDeliveryPartners({ limit: 1000 })
-      const partners = partnersResponse.data?.data?.deliveryPartners || []
+      const res = await adminAPI.checkEarningAddonCompletions("all", true)
       
-      debugLog(`?? Found ${partners.length} delivery partners to check`)
-      
-      let totalCompletions = 0
-      let checkedCount = 0
-      
-      // Check each delivery partner
-      for (const partner of partners) {
-        try {
-          const response = await adminAPI.checkEarningAddonCompletions(partner._id, true)
-          if (response.data.success) {
-            const completions = response.data.data.completionsFound || 0
-            if (completions > 0) {
-              totalCompletions += completions
-              debugLog(`? Found ${completions} completions for ${partner.name}`)
-            }
-          }
-          checkedCount++
-        } catch (error) {
-          debugError(`Error checking ${partner.name}:`, error)
+      if (res.data.success) {
+        const found = res.data.data.completionsFound || 0
+        if (found > 0) {
+          toast.success(`Check complete! Found ${found} new eligible completions.`)
+          await fetchHistory()
+        } else {
+          toast.info("Check complete. No new eligible completions found.")
         }
       }
-      
-      debugLog(`? Checked ${checkedCount} delivery partners, found ${totalCompletions} new completions`)
-      
-      if (totalCompletions > 0) {
-        toast.success(`Found ${totalCompletions} new completion(s)! Refreshing history...`)
-        // Refresh history
-        await fetchHistory()
-      } else {
-        toast.info("No new completions found. All delivery partners are up to date.")
-      }
     } catch (error) {
-      debugError("Error checking completions:", error)
-      toast.error("Failed to check completions: " + (error.response?.data?.message || error.message))
+      debugError("Error checking all completions:", error)
+      toast.error("Failed to check completions")
     } finally {
       setIsCheckingCompletions(false)
     }

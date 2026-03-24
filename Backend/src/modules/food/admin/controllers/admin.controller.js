@@ -1042,18 +1042,6 @@ export async function getDeliveryJoinRequests(req, res, next) {
     }
 }
 
-export async function getDeliveryWallets(req, res, next) {
-    try {
-        const data = adminService.getDeliveryWalletsStub();
-        res.status(200).json({
-            success: true,
-            message: 'Wallets fetched successfully',
-            data
-        });
-    } catch (error) {
-        next(error);
-    }
-}
 
 // ----- Support tickets -----
 export async function getSupportTicketStats(req, res, next) {
@@ -1360,6 +1348,33 @@ export async function updateDeliveryWithdrawalStatus(req, res, next) {
         const { id } = req.params;
         const data = await adminService.updateDeliveryWithdrawalStatus(id, req.body || {});
         res.status(200).json({ success: true, message: 'Delivery withdrawal status updated successfully', data });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function getDeliveryWallets(req, res, next) {
+    try {
+        const data = await adminService.getDeliveryWallets(req.query || {});
+        res.status(200).json({ success: true, message: 'Delivery wallets fetched successfully', data });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function getCashLimitSettlements(req, res, next) {
+    try {
+        const data = await adminService.getCashLimitSettlements(req.query || {});
+        res.status(200).json({ success: true, message: 'Cash limit settlements fetched successfully', data });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function getSidebarBadges(req, res, next) {
+    try {
+        const counts = await adminService.getSidebarBadges();
+        res.status(200).json({ success: true, counts });
     } catch (error) {
         next(error);
     }

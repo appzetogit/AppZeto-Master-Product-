@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { Save, Loader2, DollarSign, Plus, Trash2, Edit } from "lucide-react"
+import { Save, Loader2, DollarSign, Plus, Trash2, Edit, Check, X } from "lucide-react"
 import { Button } from "@food/components/ui/button"
 import { adminAPI } from "@food/api"
 import { toast } from "sonner"
@@ -97,7 +97,7 @@ export default function FeeSettings() {
 
   // Add new delivery fee range
   const handleAddRange = () => {
-    if (!newRange.min || !newRange.max || !newRange.fee) {
+    if (newRange.min === '' || newRange.max === '' || newRange.fee === '') {
       toast.error('Please fill all fields (Min, Max, Fee)')
       return
     }
@@ -152,7 +152,7 @@ export default function FeeSettings() {
 
   // Save edited range
   const handleSaveEditRange = () => {
-    if (!newRange.min || !newRange.max || !newRange.fee) {
+    if (newRange.min === '' || newRange.max === '' || newRange.fee === '') {
       toast.error('Please fill all fields')
       return
     }
@@ -279,110 +279,161 @@ export default function FeeSettings() {
                         {feeSettings.deliveryFeeRanges
                           .map((range, originalIndex) => ({ range, originalIndex }))
                           .sort((a, b) => a.range.min - b.range.min)
-                          .map(({ range, originalIndex }) => (
-                            <tr key={originalIndex} className="hover:bg-slate-50">
-                              <td className="px-4 py-3 text-sm text-slate-900 border-b border-slate-100">{"\u20B9"}{range.min}</td>
-                              <td className="px-4 py-3 text-sm text-slate-900 border-b border-slate-100">{"\u20B9"}{range.max}</td>
-                              <td className="px-4 py-3 text-sm font-medium text-green-600 border-b border-slate-100">{"\u20B9"}{range.fee}</td>
-                              <td className="px-4 py-3 text-center border-b border-slate-100">
-                                <div className="flex items-center justify-center gap-2">
-                                  <button
-                                    onClick={() => handleEditRange(originalIndex)}
-                                    className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                    title="Edit"
-                                  >
-                                    <Edit className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteRange(originalIndex)}
-                                    className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                    title="Delete"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
+                          .map(({ range, originalIndex }) => {
+                            const isEditing = editingRangeIndex === originalIndex;
+                            return (
+                              <tr key={originalIndex} className={`${isEditing ? 'bg-blue-50' : 'hover:bg-slate-50'} transition-colors`}>
+                                <td className="px-4 py-3 text-sm text-slate-900 border-b border-slate-100">
+                                  {isEditing ? (
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-slate-400">₹</span>
+                                      <input
+                                        type="number"
+                                        value={newRange.min}
+                                        onChange={(e) => setNewRange({ ...newRange, min: e.target.value })}
+                                        className="w-24 px-2 py-1 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                                      />
+                                    </div>
+                                  ) : (
+                                    <>₹{range.min}</>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-sm text-slate-900 border-b border-slate-100">
+                                  {isEditing ? (
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-slate-400">₹</span>
+                                      <input
+                                        type="number"
+                                        value={newRange.max}
+                                        onChange={(e) => setNewRange({ ...newRange, max: e.target.value })}
+                                        className="w-24 px-2 py-1 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                                      />
+                                    </div>
+                                  ) : (
+                                    <>₹{range.max}</>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-sm font-medium text-green-600 border-b border-slate-100">
+                                  {isEditing ? (
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-slate-400">₹</span>
+                                      <input
+                                        type="number"
+                                        value={newRange.fee}
+                                        onChange={(e) => setNewRange({ ...newRange, fee: e.target.value })}
+                                        className="w-24 px-2 py-1 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-green-600 font-medium"
+                                      />
+                                    </div>
+                                  ) : (
+                                    <>₹{range.fee}</>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-center border-b border-slate-100">
+                                  <div className="flex items-center justify-center gap-2">
+                                    {isEditing ? (
+                                      <>
+                                        <button
+                                          onClick={handleSaveEditRange}
+                                          className="p-1.5 text-green-600 hover:bg-green-100 rounded transition-colors"
+                                          title="Save"
+                                        >
+                                          <Check className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                          onClick={handleCancelEdit}
+                                          className="p-1.5 text-red-600 hover:bg-red-100 rounded transition-colors"
+                                          title="Cancel"
+                                        >
+                                          <X className="w-4 h-4" />
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <button
+                                          onClick={() => handleEditRange(originalIndex)}
+                                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                          title="Edit"
+                                        >
+                                          <Edit className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                          onClick={() => handleDeleteRange(originalIndex)}
+                                          className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                          title="Delete"
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
                       </tbody>
                     </table>
                   </div>
                 )}
 
-                {/* Add/Edit Range Form */}
-                <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                  <h4 className="text-sm font-semibold text-slate-700 mb-3">
-                    {editingRangeIndex !== null ? 'Edit Range' : 'Add New Range'}
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">Min Value (₹)</label>
-                      <input
-                        type="number"
-                        value={newRange.min}
-                        onChange={(e) => setNewRange({ ...newRange, min: e.target.value })}
-                        min="0"
-                        step="1"
-                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
-                        placeholder="0"
-                      />
+                {/* Add New Range Form - Only show when NOT editing */}
+                {editingRangeIndex === null && (
+                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Plus className="w-4 h-4 text-green-600" />
+                      <h4 className="text-sm font-semibold text-slate-700">Add New Range</h4>
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">Max Value (₹)</label>
-                      <input
-                        type="number"
-                        value={newRange.max}
-                        onChange={(e) => setNewRange({ ...newRange, max: e.target.value })}
-                        min="0"
-                        step="1"
-                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
-                        placeholder="150"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">Delivery Fee (₹)</label>
-                      <input
-                        type="number"
-                        value={newRange.fee}
-                        onChange={(e) => setNewRange({ ...newRange, fee: e.target.value })}
-                        min="0"
-                        step="1"
-                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
-                        placeholder="25"
-                      />
-                    </div>
-                    <div className="flex items-end gap-2">
-                      {editingRangeIndex !== null ? (
-                        <>
-                          <Button
-                            onClick={handleSaveEditRange}
-                            className="bg-green-600 hover:bg-green-700 text-white text-sm flex-1"
-                          >
-                            Save
-                          </Button>
-                          <Button
-                            onClick={handleCancelEdit}
-                            variant="outline"
-                            className="text-sm"
-                          >
-                            Cancel
-                          </Button>
-                        </>
-                      ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Min Value (₹)</label>
+                        <input
+                          type="number"
+                          value={newRange.min}
+                          onChange={(e) => setNewRange({ ...newRange, min: e.target.value })}
+                          min="0"
+                          step="1"
+                          className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all"
+                          placeholder="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Max Value (₹)</label>
+                        <input
+                          type="number"
+                          value={newRange.max}
+                          onChange={(e) => setNewRange({ ...newRange, max: e.target.value })}
+                          min="0"
+                          step="1"
+                          className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all"
+                          placeholder="1000"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Delivery Fee (₹)</label>
+                        <input
+                          type="number"
+                          value={newRange.fee}
+                          onChange={(e) => setNewRange({ ...newRange, fee: e.target.value })}
+                          min="0"
+                          step="1"
+                          className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all"
+                          placeholder="50"
+                        />
+                      </div>
+                      <div className="flex items-end">
                         <Button
                           onClick={handleAddRange}
-                          className="bg-green-600 hover:bg-green-700 text-white text-sm flex-1 flex items-center justify-center gap-2"
+                          className="bg-green-600 hover:bg-green-700 text-white text-sm w-full flex items-center justify-center gap-2"
                         >
                           <Plus className="w-4 h-4" />
                           Add Range
                         </Button>
-                      )}
+                      </div>
                     </div>
+                    <p className="text-xs text-slate-500 mt-2 italic">
+                      Example: Orders between ₹0 and ₹1000 will have ₹50 delivery fee.
+                    </p>
                   </div>
-                  <p className="text-xs text-slate-500 mt-2">
-                    Example: If order value is {"\u20B9"}50-{"\u20B9"}150, delivery fee will be {"\u20B9"}25
-                  </p>
-                </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-slate-200 pt-6 mt-6">
@@ -398,7 +449,7 @@ export default function FeeSettings() {
                     onChange={(e) => setFeeSettings({ ...feeSettings, deliveryFee: e.target.value })}
                     min="0"
                     step="1"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all"
                     placeholder="Leave empty to disable fallback"
                   />
                   <p className="text-xs text-slate-500">
@@ -417,7 +468,7 @@ export default function FeeSettings() {
                     onChange={(e) => setFeeSettings({ ...feeSettings, freeDeliveryThreshold: e.target.value })}
                     min="0"
                     step="1"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all"
                     placeholder="149"
                   />
                   <p className="text-xs text-slate-500">
@@ -436,7 +487,7 @@ export default function FeeSettings() {
                     onChange={(e) => setFeeSettings({ ...feeSettings, platformFee: e.target.value })}
                     min="0"
                     step="1"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all"
                     placeholder="5"
                   />
                   <p className="text-xs text-slate-500">
@@ -456,7 +507,7 @@ export default function FeeSettings() {
                     min="0"
                     max="100"
                     step="0.1"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all"
                     placeholder="5"
                   />
                   <p className="text-xs text-slate-500">
@@ -471,5 +522,3 @@ export default function FeeSettings() {
     </div>
   )
 }
-
-

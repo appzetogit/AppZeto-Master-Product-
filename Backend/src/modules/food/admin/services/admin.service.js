@@ -29,6 +29,8 @@ import { FoodOrder } from '../../orders/models/order.model.js';
 import { FoodTransaction } from '../../orders/models/foodTransaction.model.js';
 import { FoodRestaurantWithdrawal } from '../../restaurant/models/foodRestaurantWithdrawal.model.js';
 import { FoodDeliveryWithdrawal } from '../../delivery/models/foodDeliveryWithdrawal.model.js';
+import { FoodDeliveryWallet } from '../../delivery/models/deliveryWallet.model.js';
+import { FoodDeliveryCashDeposit } from '../../delivery/models/foodDeliveryCashDeposit.model.js';
 
 const parseBooleanLike = (value, fieldName) => {
     if (typeof value === 'boolean') return value;
@@ -3477,10 +3479,36 @@ export async function creditEarningAddonHistory(historyId, notes) {
     const doc = await FoodEarningAddonHistory.findById(historyId).populate('offerId');
     if (!doc) return null;
     if (doc.status !== 'pending') return doc.toObject();
+
+    const amountToCredit = Number(doc.earningAmount || 0);
+
+    // 1. Update history status
     doc.status = 'credited';
     doc.creditedAt = new Date();
     doc.creditedNotes = typeof notes === 'string' ? notes.trim() : '';
     await doc.save();
+
+    // 2. Credit the wallet
+    if (amountToCredit > 0) {
+        await FoodDeliveryWallet.findOneAndUpdate(
+            { deliveryPartnerId: doc.deliveryPartnerId },
+            { $inc: { balance: amountToCredit, totalEarnings: amountToCredit } },
+            { upsert: true }
+        );
+
+        // 3. Create a transaction for ledger
+        try {
+            await DeliveryBonusTransaction.create({
+                deliveryPartnerId: doc.deliveryPartnerId,
+                transactionId: `ADDON-${String(doc._id).slice(-8).toUpperCase()}-${Date.now().toString().slice(-4)}`,
+                amount: amountToCredit,
+                reference: `Earning Addon: ${doc.offerId?.title || 'Offer Reward'}`
+            });
+        } catch (txnError) {
+            console.error('Failed to create bonus transaction:', txnError);
+            // Non-blocking but should be logged.
+        }
+    }
 
     try {
         const { notifyOwnerSafely } = await import('../../../core/notifications/firebase.service.js');
@@ -3536,13 +3564,70 @@ export async function cancelEarningAddonHistory(historyId, reason) {
     return doc.toObject();
 }
 
-/**
- * Completion checker (stub).
- * Current codebase does not include an orders collection to compute real completions.
- * We keep this endpoint so the UI can call it without errors, and it remains fast.
- */
-export async function checkEarningAddonCompletions(_deliveryPartnerId, _force = false) {
-    return { completionsFound: 0 };
+export async function checkEarningAddonCompletions(deliveryPartnerId, _force = false) {
+    const now = new Date();
+    
+    // Only search for active offers that are currently running.
+    const activeOffers = await FoodEarningAddon.find({
+        status: 'active',
+        startDate: { $lte: now },
+        endDate: { $gte: now }
+    }).lean();
+
+    if (activeOffers.length === 0) return { completionsFound: 0 };
+
+    let partnerIds = [];
+    if (deliveryPartnerId === 'all') {
+        const partners = await FoodDeliveryPartner.find({ status: 'approved' }).select('_id').lean();
+        partnerIds = partners.map(p => p._id);
+    } else if (deliveryPartnerId && mongoose.Types.ObjectId.isValid(deliveryPartnerId)) {
+        partnerIds = [deliveryPartnerId];
+    }
+
+    if (partnerIds.length === 0) return { completionsFound: 0 };
+
+    let globalCompletions = 0;
+
+    for (const pId of partnerIds) {
+        for (const offer of activeOffers) {
+            // Find existing history so we don't grant it twice for the same offer.
+            const existing = await FoodEarningAddonHistory.findOne({
+                deliveryPartnerId: pId,
+                offerId: offer._id,
+                status: { $in: ['pending', 'credited'] }
+            }).lean();
+
+            if (existing) continue;
+
+            // Count orders delivered by this partner during the offer period.
+            const orderCount = await FoodOrder.countDocuments({
+                'dispatch.deliveryPartnerId': pId,
+                orderStatus: 'delivered',
+                createdAt: { $gte: offer.startDate, $lte: offer.endDate }
+            });
+
+            if (orderCount >= (offer.requiredOrders || 1)) {
+                // Requirement met!
+                await FoodEarningAddonHistory.create({
+                    offerId: offer._id,
+                    deliveryPartnerId: pId,
+                    ordersCompleted: orderCount,
+                    ordersRequired: offer.requiredOrders,
+                    earningAmount: offer.earningAmount,
+                    totalEarning: offer.earningAmount,
+                    status: 'pending',
+                    completedAt: now
+                });
+                
+                // Update current redemptions in addon
+                await FoodEarningAddon.findByIdAndUpdate(offer._id, { $inc: { currentRedemptions: 1 } });
+                
+                globalCompletions++;
+            }
+        }
+    }
+
+    return { completionsFound: globalCompletions };
 }
 
 export async function getDeliveryPartnerById(id) {
@@ -3963,5 +4048,182 @@ export async function updateDeliveryWithdrawalStatus(id, { status, adminNote, re
     ).populate('deliveryPartnerId', 'name phone profilePartnerId').lean();
 
     if (!updated) throw new ValidationError('Withdrawal request not found');
+
+    // If approved, deduct from wallet balance
+    if (status.toLowerCase() === 'approved' || status.toLowerCase() === 'processed') {
+        const amount = Number(updated.amount || 0);
+        if (amount > 0) {
+            await FoodDeliveryWallet.findOneAndUpdate(
+                { deliveryPartnerId: updated.deliveryPartnerId?._id || updated.deliveryPartnerId },
+                { 
+                    $inc: { 
+                        balance: -amount,
+                        totalSettled: amount 
+                    } 
+                }
+            );
+        }
+    }
+
     return updated;
+}
+
+/**
+ * Fetch delivery partner wallets with financial summary
+ */
+export async function getDeliveryWallets(query = {}) {
+    const limit = parseInt(query.limit, 10) || 20;
+    const page = parseInt(query.page, 10) || 1;
+    const skip = (page - 1) * limit;
+
+    const filter = { status: 'approved' };
+    if (query.search) {
+        filter.$or = [
+            { name: new RegExp(query.search, 'i') },
+            { phone: new RegExp(query.search, 'i') }
+        ];
+    }
+
+    const [partners, total] = await Promise.all([
+        FoodDeliveryPartner.find(filter)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean(),
+        FoodDeliveryPartner.countDocuments(filter)
+    ]);
+
+    const cashLimitSettings = await FoodDeliveryCashLimit.findOne({ isActive: true }).lean();
+    const globalLimit = Number(cashLimitSettings?.deliveryCashLimit || 0);
+
+    const wallets = await Promise.all(partners.map(async (p) => {
+        const wallet = await FoodDeliveryWallet.findOne({ deliveryPartnerId: p._id }).lean();
+        
+        return {
+            walletId: wallet?._id,
+            deliveryId: p._id,
+            name: p.name,
+            deliveryIdString: p.phone, // Placeholder or sequential ID if available
+            pocketBalance: Number(wallet?.balance || 0),
+            remainingCashLimit: Math.max(0, globalLimit - Number(wallet?.cashInHand || 0)),
+            cashCollected: Number(wallet?.cashInHand || 0),
+            totalEarning: Number(wallet?.totalEarnings || 0),
+            bonus: Number(wallet?.totalBonus || 0),
+            totalWithdrawn: Number(wallet?.totalSettled || 0)
+        };
+    }));
+
+    return { 
+        wallets, 
+        pagination: { 
+            total, 
+            page, 
+            limit, 
+            pages: Math.ceil(total / limit) || 1 
+        } 
+    };
+}
+
+/**
+ * Fetch cash limit settlement (deposit) transactions
+ */
+export async function getCashLimitSettlements(query = {}) {
+    const limit = parseInt(query.limit, 10) || 20;
+    const page = parseInt(query.page, 10) || 1;
+    const skip = (page - 1) * limit;
+
+    const filter = {};
+    if (query.search) {
+        // Search by razorpay ID or find partner IDs to search by partner
+        if (query.search.startsWith('pay_')) {
+            filter.razorpayPaymentId = query.search;
+        }
+    }
+
+    const [deposits, total] = await Promise.all([
+        FoodDeliveryCashDeposit.find(filter)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .populate('deliveryPartnerId', 'name phone')
+            .lean(),
+        FoodDeliveryCashDeposit.countDocuments(filter)
+    ]);
+
+    const transactions = deposits.map((d) => ({
+        id: d._id,
+        createdAt: d.createdAt,
+        deliveryId: d.deliveryPartnerId?._id,
+        deliveryName: d.deliveryPartnerId?.name || 'N/A',
+        deliveryIdString: d.deliveryPartnerId?.phone || 'N/A',
+        amount: Number(d.amount || 0),
+        status: d.status,
+        razorpayPaymentId: d.razorpayPaymentId || '-'
+    }));
+
+    return { 
+        transactions, 
+        pagination: { 
+            total, 
+            page, 
+            limit, 
+            pages: Math.ceil(total / limit) || 1 
+        } 
+    };
+}
+
+export async function getSidebarBadges() {
+    try {
+        const [
+            pendingRestaurants,
+            pendingDeliveryPartners,
+            pendingFoods,
+            pendingAddons,
+            pendingOrders,
+            pendingOfflinePayments,
+            pendingRestaurantWithdrawals,
+            pendingDeliveryWithdrawals,
+            openUserSupportTickets,
+            openDeliverySupportTickets,
+            pendingEarningAddons,
+            pendingSafetyReports,
+            pendingEmergencyHelp,
+            pendingRestaurantComplaints
+        ] = await Promise.all([
+            FoodRestaurant.countDocuments({ status: 'pending' }),
+            FoodDeliveryPartner.countDocuments({ status: 'pending' }),
+            FoodItem.countDocuments({ status: 'pending' }),
+            FoodAddon.countDocuments({ status: 'pending' }),
+            FoodOrder.countDocuments({ orderStatus: 'pending' }),
+            FoodOrder.countDocuments({ paymentMethod: 'offline_payment', orderStatus: 'pending' }),
+            FoodRestaurantWithdrawal.countDocuments({ status: 'pending' }),
+            FoodDeliveryWithdrawal.countDocuments({ status: 'pending' }),
+            FoodSupportTicket.countDocuments({ status: 'open', userId: { $exists: true }, restaurantId: { $exists: false } }),
+            DeliverySupportTicket.countDocuments({ status: 'open' }),
+            FoodEarningAddonHistory.countDocuments({ status: 'pending' }),
+            FoodSafetyEmergencyReport.countDocuments({ status: 'pending' }),
+            FoodDeliveryEmergencyHelp.countDocuments({ status: 'pending' }),
+            FoodSupportTicket.countDocuments({ status: 'open', restaurantId: { $exists: true } })
+        ]);
+
+        return {
+            restaurants: pendingRestaurants,
+            deliveryPartners: pendingDeliveryPartners,
+            foods: pendingFoods + pendingAddons,
+            foodApprovals: pendingFoods,
+            orders: pendingOrders,
+            offlinePayments: pendingOfflinePayments,
+            restaurantWithdrawals: pendingRestaurantWithdrawals,
+            deliveryWithdrawals: pendingDeliveryWithdrawals,
+            userSupportTickets: openUserSupportTickets,
+            deliverySupportTickets: openDeliverySupportTickets,
+            earningAddons: pendingEarningAddons,
+            safetyReports: pendingSafetyReports,
+            emergencyHelp: pendingEmergencyHelp,
+            restaurantComplaints: pendingRestaurantComplaints
+        };
+    } catch (error) {
+        console.error('Error fetching sidebar badges:', error);
+        return {};
+    }
 }

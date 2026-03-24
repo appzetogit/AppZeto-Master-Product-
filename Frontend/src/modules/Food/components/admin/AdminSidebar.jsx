@@ -105,6 +105,43 @@ const iconMap = {
 export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange }) {
   const location = useLocation()
   const [searchQuery, setSearchQuery] = useState("")
+  const [badges, setBadges] = useState({})
+
+  useEffect(() => {
+    const fetchBadges = async () => {
+      try {
+        const res = await adminAPI.getSidebarBadges()
+        if (res?.data?.success) {
+          setBadges(res.data.counts || {})
+        }
+      } catch (error) {
+        debugError("Error fetching sidebar badges:", error)
+      }
+    }
+    fetchBadges()
+    const timer = setInterval(fetchBadges, 60000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const getBadgeCount = (label = "", path = "") => {
+    const l = label.toLowerCase()
+    const p = path?.toLowerCase() || ""
+
+    if (l.includes("food approval")) return badges.foodApprovals
+    if (l === "foods") return badges.foods
+    if (l === "restaurants" || l.includes("new joining request")) return badges.restaurants
+    if (l.includes("restaurant complaints")) return badges.restaurantComplaints
+    if (p.includes("orders/pending")) return badges.orders
+    if (p.includes("offline-payments")) return badges.offlinePayments
+    if (l.includes("support tickets")) return l.includes("delivery") ? badges.deliverySupportTickets : badges.userSupportTickets
+    if (l.includes("withdrawal")) return l.includes("delivery") ? badges.deliveryWithdrawals : badges.restaurantWithdrawals
+    if (l.includes("emergency help")) return badges.emergencyHelp
+    if (l.includes("earning addon history")) return badges.earningAddons
+    if (l.includes("safety emergency reports")) return badges.safetyReports
+    if (l === "deliveryman" && !p.includes("join-request")) return badges.deliveryPartners // expandable parent
+    if (l.includes("join-request")) return badges.deliveryPartners
+    return 0
+  }
   const [logoUrl, setLogoUrl] = useState(() => getCachedSettings()?.logo?.url || null)
   const [companyName, setCompanyName] = useState(() => getCachedSettings()?.companyName || null)
 
@@ -384,7 +421,19 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
             isActive(item.path) ? "text-white scale-110" : "text-neutral-300"
           )} />
           {!isCollapsed && (
-            <span className={cn("text-left whitespace-nowrap", isInSection ? "font-semibold" : "font-medium")}>{item.label}</span>
+            <div className="flex-1 flex items-center justify-between overflow-hidden">
+              <span className={cn("text-left truncate", isInSection ? "font-semibold" : "font-medium")}>
+                {item.label}
+              </span>
+              {getBadgeCount(item.label, item.path) > 0 && (
+                <span className="shrink-0 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-1 min-w-[18px] text-center">
+                  {getBadgeCount(item.label, item.path) > 99 ? "99+" : getBadgeCount(item.label, item.path)}
+                </span>
+              )}
+            </div>
+          )}
+          {isCollapsed && getBadgeCount(item.label, item.path) > 0 && (
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-600 rounded-full border-2 border-neutral-950" />
           )}
         </Link>
       )
@@ -406,7 +455,12 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
               )}
               title={item.label}
             >
-              <Icon className="w-4 h-4 shrink-0 text-neutral-300 transition-transform duration-300" />
+              <div className="relative">
+                <Icon className="w-4 h-4 shrink-0 text-neutral-300 transition-transform duration-300" />
+                {getBadgeCount(item.label, item.path) > 0 && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-600 rounded-full border-2 border-neutral-950" />
+                )}
+              </div>
             </button>
           </div>
         )
@@ -421,11 +475,16 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
               "text-white hover:bg-white/5"
             )}
           >
-            <div className="flex items-center gap-2.5 text-left">
+            <div className="flex items-center gap-2.5 text-left flex-1 min-w-0">
               <Icon className="w-4 h-4 shrink-0 text-neutral-300 transition-transform duration-300" />
-              <span className="font-medium text-left">{item.label}</span>
+              <span className="font-medium text-left truncate">{item.label}</span>
+              {getBadgeCount(item.label, item.path) > 0 && (
+                <span className="shrink-0 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-1 min-w-[18px] text-center">
+                  {getBadgeCount(item.label, item.path) > 99 ? "99+" : getBadgeCount(item.label, item.path)}
+                </span>
+              )}
             </div>
-            <div className="transition-transform duration-300" style={{ transform: isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)' }}>
+            <div className="transition-transform duration-300 shrink-0" style={{ transform: isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)' }}>
               <ChevronDown className="w-4 h-4 shrink-0 text-neutral-300" />
             </div>
           </button>
@@ -454,7 +513,12 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
                       "w-1.5 h-1.5 rounded-full shrink-0 transition-all duration-300",
                       isActive(subItem.path, allSubPaths) ? "bg-white scale-125" : "bg-neutral-400"
                     )}></span>
-                    <span className="text-left">{subItem.label}</span>
+                    <span className="text-left flex-1 truncate">{subItem.label}</span>
+                    {getBadgeCount(subItem.label, subItem.path) > 0 && (
+                      <span className="shrink-0 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-1 min-w-[18px] text-center">
+                        {getBadgeCount(subItem.label, subItem.path) > 99 ? "99+" : getBadgeCount(subItem.label, subItem.path)}
+                      </span>
+                    )}
                   </Link>
                 )
               })}

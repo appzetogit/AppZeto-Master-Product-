@@ -16,9 +16,13 @@ const deliveryWalletSchema = new mongoose.Schema(
         balance: { type: Number, default: 0 },
         /** Amount locked for pending settlements */
         lockedAmount: { type: Number, default: 0, min: 0 },
-        /** Lifetime earnings from deliveries */
+        /** Cash collected from COD orders but not yet deposited to company */
+        cashInHand: { type: Number, default: 0, min: 0 },
+        /** Lifetime earnings from deliveries (excluding bonus) */
         totalEarnings: { type: Number, default: 0, min: 0 },
-        /** Total amount already settled/paid out */
+        /** Total bonus amount received from admin/offers */
+        totalBonus: { type: Number, default: 0, min: 0 },
+        /** Total amount already settled/paid out to delivery boy */
         totalSettled: { type: Number, default: 0, min: 0 },
         /** Total number of completed deliveries */
         totalDeliveries: { type: Number, default: 0, min: 0 }

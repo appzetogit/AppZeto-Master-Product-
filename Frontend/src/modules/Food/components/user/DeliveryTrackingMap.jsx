@@ -194,57 +194,35 @@ const DeliveryTrackingMap = ({
         zoom={15}
         onLoad={setMap}
         options={{
-          disableDefaultUI: true,
+          disableDefaultUI: false,
+          zoomControl: true,
+          mapTypeControl: false,
+          scaleControl: true,
+          streetViewControl: false,
+          rotateControl: false,
+          fullscreenControl: false,
+          gestureHandling: 'greedy',
           styles: [
             { featureType: 'poi', stylers: [{ visibility: 'off' }] },
             { featureType: 'transit', stylers: [{ visibility: 'off' }] }
           ]
         }}
       >
-        {/* RENDER CLOUD POLYLINE (Zero API Usage) */}
-        {cloudPolyline && (
-          <Polyline
-            path={window.google.maps.geometry.encoding.decodePath(cloudPolyline)}
-            options={{
-              strokeColor: isOrderPickedUp ? '#3b82f6' : '#22c55e',
-              strokeWeight: 6,
-              strokeOpacity: 0.8,
-              zIndex: 10
-            }}
-          />
-        )}
-
-        {/* CLOUD BASELINE (Faded full journey) */}
-        {cloudPolyline && (
-          <Polyline
-            path={window.google.maps.geometry.encoding.decodePath(cloudPolyline)}
-            options={{
-              strokeColor: '#cbd5e1',
-              strokeOpacity: 0.4,
-              strokeWeight: 4,
-              zIndex: 5,
-              icons: [{
-                icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, scale: 2 },
-                offset: '0',
-                repeat: '12px'
-              }]
-            }}
-          />
-        )}
-
-        {/* FALLBACK DIRECTIONS (Only if cloud data missing) */}
-        {!cloudPolyline && !baselineDirections && restaurantCoords && customerCoords && (
+        {/* 1. PERSISTENT BASELINE (Full journey: Restaurant -> Customer) */}
+        {!baselineDirections && restaurantCoords && customerCoords && (
            <DirectionsService
              options={{
                origin: restaurantCoords,
                destination: customerCoords,
                travelMode: 'DRIVING'
              }}
-             callback={(r, s) => { if (s === 'OK') setBaselineDirections(r); }}
+             callback={(r, s) => { 
+                if (s === 'OK' && r) setBaselineDirections(r); 
+             }}
            />
         )}
 
-        {!cloudPolyline && baselineDirections && (
+        {baselineDirections && (
           <DirectionsRenderer
             directions={baselineDirections}
             options={{
@@ -254,8 +232,28 @@ const DeliveryTrackingMap = ({
                 strokeColor: '#cbd5e1', 
                 strokeOpacity: 0.6,
                 strokeWeight: 4,
-                zIndex: 1
+                zIndex: 1,
+                icons: [{
+                  icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, scale: 2 },
+                  offset: '0',
+                  repeat: '12px'
+                }]
               }
+            }}
+          />
+        )}
+
+        {/* 2. LIVE RIDER LEG (From Rider's App: Current Rider Pos -> Target) */}
+        {cloudPolyline && window.google?.maps?.geometry?.encoding && (
+          <Polyline
+            path={window.google.maps.geometry.encoding.decodePath(
+              typeof cloudPolyline === 'string' ? cloudPolyline : (cloudPolyline.points || '')
+            )}
+            options={{
+              strokeColor: isOrderPickedUp ? '#3b82f6' : '#22c55e',
+              strokeWeight: 6,
+              strokeOpacity: 1,
+              zIndex: 10
             }}
           />
         )}

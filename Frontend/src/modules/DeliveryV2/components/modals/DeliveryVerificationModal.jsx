@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ShieldCheck, DollarSign, CheckCircle2, 
-  QrCode, Loader2, Info, X
+  QrCode, Loader2, Info, X, RefreshCw
 } from 'lucide-react';
 import { deliveryAPI } from '@food/api';
 import { toast } from 'sonner';
@@ -25,11 +25,15 @@ const OtpModal = ({ order, onVerified, onClose }) => {
   const inputRefs = [useRef(), useRef(), useRef(), useRef()];
 
   useEffect(() => {
+    const savedCode = order?.deliveryVerification?.dropOtp?.code;
+    if (savedCode && String(savedCode).length === 4) {
+      setOtp(String(savedCode).split(''));
+    }
     const timer = setTimeout(() => {
       inputRefs[0].current?.focus();
     }, 500);
     return () => clearTimeout(timer);
-  }, []);
+  }, [order?.deliveryVerification?.dropOtp?.code]);
 
   const orderId = order.orderId || order._id || 'ORD';
 
@@ -62,6 +66,8 @@ const OtpModal = ({ order, onVerified, onClose }) => {
       setIsVerifyingOtp(false);
     }
   };
+
+  const isAlreadyVerified = order?.deliveryVerification?.dropOtp?.verified;
 
   return (
     <div className="absolute inset-x-0 bottom-0 z-[120] p-0 sm:p-4 h-full flex items-end justify-center pointer-events-none">
@@ -103,9 +109,9 @@ const OtpModal = ({ order, onVerified, onClose }) => {
 
         <ActionSlider 
           key="action-otp"
-          label={isVerifyingOtp ? "Verifying..." : "Slide to Verify OTP"} 
+          label={isVerifyingOtp ? "Verifying..." : isAlreadyVerified ? "Code already verified ✓" : "Slide to Verify OTP"} 
           successLabel="Verified!"
-          disabled={otp.some(d => !d) || isVerifyingOtp || isOtpVerified}
+          disabled={otp.some(d => !d) || isVerifyingOtp || isOtpVerified || isAlreadyVerified}
           onConfirm={verifyOtp}
           color="bg-gray-900"
         />
@@ -118,7 +124,9 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
   const [showQrModal, setShowQrModal] = useState(false);
   const [collectQrLink, setCollectQrLink] = useState(null);
   const [isGeneratingQr, setIsGeneratingQr] = useState(false);
-  const [paymentStatus, setPaymentStatus] = useState('idle');
+  const isInitialPaid = ['paid', 'captured', 'authorized'].includes(String(order.payment?.status || "").toLowerCase());
+  const [paymentStatus, setPaymentStatus] = useState(isInitialPaid ? 'paid' : 'idle');
+  const [isSyncing, setIsSyncing] = useState(false);
   const pollingRef = useRef(null);
 
   const orderId = order.orderId || order._id || 'ORD';
@@ -138,12 +146,18 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
     } catch (e) {}
   }, [orderId]);
 
+  const handleManualCheck = async () => {
+    setIsSyncing(true);
+    await checkPaymentSync();
+    setTimeout(() => setIsSyncing(false), 800);
+  };
+
   useEffect(() => {
-    if (paymentStatus === 'pending') {
-      pollingRef.current = setInterval(checkPaymentSync, 4000);
+    if (paymentStatus === 'pending' || (amountToCollect > 0 && paymentStatus !== 'paid')) {
+      pollingRef.current = setInterval(checkPaymentSync, 5000);
     }
     return () => clearInterval(pollingRef.current);
-  }, [paymentStatus, checkPaymentSync]);
+  }, [paymentStatus, amountToCollect, checkPaymentSync]);
 
   const generateQr = async () => {
     setIsGeneratingQr(true);
@@ -247,9 +261,14 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
                    alt="Razorpay QR"
                    className="w-56 h-56"
                  />
-                 <div className="absolute top-2 right-2 flex gap-1 items-center bg-green-500 text-white px-2 py-1 rounded-full text-[8px] font-bold">
-                    <Loader2 className="w-2.5 h-2.5 animate-spin" /> SYNCING
-                 </div>
+                 <button 
+                    onClick={handleManualCheck}
+                    disabled={isSyncing}
+                    className="absolute top-2 right-2 flex gap-1.5 items-center bg-green-500 text-white px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all"
+                 >
+                    {isSyncing ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />} 
+                    Check Status
+                 </button>
               </div>
 
               <button 
@@ -283,6 +302,14 @@ export const DeliveryVerificationModal = ({ order, onComplete, onClose }) => {
       onComplete(otpValue);
     }
   };
+
+  useEffect(() => {
+    if (order?.deliveryVerification?.dropOtp?.verified && step === 'otp') {
+      console.log('[VerificationModal] OTP already verified, moving to payment.');
+      setStep(isCod ? 'payment' : 'otp');
+      if (!isCod) onComplete(order.deliveryVerification.dropOtp.code || '');
+    }
+  }, [order?.deliveryVerification?.dropOtp?.verified, isCod]);
 
   return (
     <AnimatePresence mode="wait">

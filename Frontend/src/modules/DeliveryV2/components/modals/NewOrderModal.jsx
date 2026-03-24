@@ -1,13 +1,16 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, MapPin, FastForward, Clock, Phone, ChefHat } from 'lucide-react';
 import { ActionSlider } from '@/modules/DeliveryV2/components/ui/ActionSlider';
+import { useDeliveryStore } from '@/modules/DeliveryV2/store/useDeliveryStore';
+import { getHaversineDistance, calculateETA } from '@/modules/DeliveryV2/utils/geo';
 
 /**
  * NewOrderModal - Ported to Original 1:1 Theme with Slider Accept.
  * Matches the Zomato/Swiggy style Green Header + White Card.
  */
 export const NewOrderModal = ({ order, onAccept, onReject }) => {
+  const { riderLocation } = useDeliveryStore();
   const [timeLeft, setTimeLeft] = useState(30);
 
   useEffect(() => {
@@ -19,11 +22,42 @@ export const NewOrderModal = ({ order, onAccept, onReject }) => {
     return () => clearInterval(timer);
   }, [timeLeft, onReject]);
 
+  const { distanceKm, etaMins } = useMemo(() => {
+    if (!order) return { distanceKm: null, etaMins: null };
+
+    // A. Use provided data if available
+    if (order.pickupDistanceKm) return { 
+      distanceKm: Number(order.pickupDistanceKm).toFixed(1), 
+      etaMins: order.estimatedTime || order.duration || 15 
+    };
+
+    // B. Calculate from locations
+    const resLat = parseFloat(order.restaurant_lat || order.restaurantLat || order.latitude || (order.restaurantId?.location?.latitude));
+    const resLng = parseFloat(order.restaurant_lng || order.restaurantLng || order.longitude || (order.restaurantId?.location?.longitude));
+
+    if (riderLocation && !isNaN(resLat) && !isNaN(resLng)) {
+      const distM = getHaversineDistance(
+        riderLocation.lat, riderLocation.lng,
+        resLat, resLng
+      );
+      const km = distM / 1000;
+      // Assume 25km/h avg for initial estimate (roughly 416m/min)
+      const mins = Math.ceil(distM / 416) + (order.prepTime || 5);
+      
+      return { 
+        distanceKm: km.toFixed(1), 
+        etaMins: mins 
+      };
+    }
+
+    return { distanceKm: '??', etaMins: order.prepTime || 15 };
+  }, [order, riderLocation]);
+
   if (!order) return null;
 
   const earnings = order.earnings || order.riderEarning || (order.orderAmount ? order.orderAmount * 0.1 : 0);
-  const restaurantName = order.restaurantName || order.restaurant_name || 'Restaurant';
-  const restaurantAddress = order.restaurantAddress || order.restaurant_address || order.restaurantLocation?.address || 'Address not available';
+  const restaurantName = order.restaurantName || order.restaurant_name || (order.restaurantId?.name) || 'Restaurant';
+  const restaurantAddress = order.restaurantAddress || order.restaurant_address || (order.restaurantId?.location?.address) || 'Address not available';
   const customerAddress = order.customerAddress || order.customer_address || order.deliveryAddress?.formattedAddress || order.deliveryAddress?.addressLine1 || 'Calculating destination...';
 
   return (
@@ -86,14 +120,14 @@ export const NewOrderModal = ({ order, onAccept, onReject }) => {
                <Clock className="w-5 h-5 text-orange-500" />
                <div className="flex flex-col">
                   <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Time</span>
-                  <span className="text-sm font-bold text-gray-900">25 MINS</span>
+                  <span className="text-sm font-bold text-gray-900">{etaMins} MINS</span>
                </div>
              </div>
              <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-3">
                <MapPin className="w-5 h-5 text-gray-400" />
                <div className="flex flex-col">
                   <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Distance</span>
-                  <span className="text-sm font-bold text-gray-900">{order.pickupDistanceKm ? `${Number(order.pickupDistanceKm).toFixed(1)} km` : order.distance ? `${(order.distance/1000).toFixed(1)} km` : 'Calculating...'}</span>
+                  <span className="text-sm font-bold text-gray-900">{distanceKm} KM</span>
                </div>
              </div>
           </div>

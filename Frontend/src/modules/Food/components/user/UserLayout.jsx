@@ -143,6 +143,8 @@ export default function UserLayout() {
     path.startsWith("/user/profile") ||
     path === "" // Handle empty string case for root relative to /food
 
+  const isUnder250 = path === "/under-250" || path === "/user/under-250"
+
   return (
     <div className="min-h-screen bg-[#f5f5f5] dark:bg-[#0a0a0a] transition-colors duration-200">
       <CartProvider>
@@ -153,7 +155,7 @@ export default function UserLayout() {
                 {/* <Navbar /> */}
                 {/* Desktop Navbar - Hidden on mobile, visible on medium+ screens */}
                 <div className="hidden md:block">
-                  {showBottomNav && <DesktopNavbar />}
+                  {showBottomNav && <DesktopNavbar showLogo={!isUnder250} />}
                 </div>
                 <LocationPrompt />
                 <main className={showBottomNav ? "md:pt-40" : ""}>

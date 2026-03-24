@@ -1,11 +1,55 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, ChevronDown, Search } from 'lucide-react';
+import { MapPin, ChevronDown, Search, Mic, Bell, CheckCircle2, Tag, Gift, AlertCircle, Clock } from 'lucide-react';
+import { 
+  Popover, 
+  PopoverContent, 
+  PopoverTrigger 
+} from "@food/components/ui/popover";
+import { Badge } from "@food/components/ui/badge";
 import { Avatar, AvatarFallback } from "@food/components/ui/avatar";
 import foodIcon from "@food/assets/category-icons/food.png";
 import quickIcon from "@food/assets/category-icons/quick.png";
 import taxiIcon from "@food/assets/category-icons/taxi.png";
 import hotelIcon from "@food/assets/category-icons/hotel.png";
+
+// Mock notification data (synced with Notifications page style)
+const mockNotifications = [
+  {
+    id: 1,
+    type: "order",
+    title: "Order Confirmed",
+    message: "Your order #12345 has been confirmed",
+    time: "2m ago",
+    read: false,
+    icon: CheckCircle2,
+    iconColor: "text-orange-500",
+    bgColor: "bg-orange-50"
+  },
+  {
+    id: 2,
+    type: "offer",
+    title: "Special Offer",
+    message: "Get 50% off on your next order",
+    time: "1h ago",
+    read: false,
+    icon: Tag,
+    iconColor: "text-orange-500",
+    bgColor: "bg-red-50"
+  },
+  {
+    id: 3,
+    type: "promotion",
+    title: "New Restaurant Added",
+    message: "Check out Italian delights near you",
+    time: "3h ago",
+    read: true,
+    icon: Gift,
+    iconColor: "text-blue-500",
+    bgColor: "bg-blue-50"
+  }
+];
 
 export default function HomeHeader({ 
   activeTab,
@@ -24,6 +68,8 @@ export default function HomeHeader({
     { id: "hotel", name: "Hotel", icon: hotelIcon, bgColor: "bg-white" },
   ];
 
+  const unreadCount = mockNotifications.filter(n => !n.read).length;
+
   return (
     <div className="relative bg-gradient-to-b from-[#f36371] to-[#ef4f5f] pt-5 pb-5 px-4 space-y-5 shadow-xl overflow-hidden">
       {/* Abstract Background Design */}
@@ -41,7 +87,7 @@ export default function HomeHeader({
       <div className="absolute top-0 left-1/4 w-32 h-32 bg-white/20 blur-[60px] rounded-full pointer-events-none" />
       <div className="absolute bottom-0 right-1/4 w-40 h-40 bg-yellow-400/10 blur-[80px] rounded-full pointer-events-none" />
 
-      {/* Location & Profile Row - Clean Pixel Match Design */}
+      {/* Location & Notification Row - Clean Pixel Match Design */}
       <div className="relative z-10 flex items-center justify-between">
         <div 
           className="flex items-center gap-1 cursor-pointer group"
@@ -60,6 +106,59 @@ export default function HomeHeader({
             </span>
           </div>
         </div>
+        <Popover>
+          <PopoverTrigger asChild>
+            <div className="h-11 w-11 relative flex items-center justify-center rounded-full bg-white/10 backdrop-blur-md border border-white/20 shadow-lg cursor-pointer active:scale-95 transition-all">
+              <Bell className="h-6 w-6 text-white" />
+              {unreadCount > 0 && (
+                <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-yellow-400 rounded-full border-2 border-[#ef4f5f] animate-pulse" />
+              )}
+            </div>
+          </PopoverTrigger>
+          <PopoverContent className="w-80 p-0 overflow-hidden border-none shadow-2xl rounded-2xl mt-2" align="end">
+            <div className="bg-white dark:bg-gray-900">
+              <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/50">
+                <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  Notifications
+                  {unreadCount > 0 && (
+                    <Badge variant="secondary" className="bg-orange-100 text-orange-600 border-none text-[10px] h-4">
+                      {unreadCount} New
+                    </Badge>
+                  )}
+                </h3>
+                <Link to="/food/user/notifications" className="text-xs font-bold text-orange-600 hover:text-orange-700">
+                  View All
+                </Link>
+              </div>
+              <div className="max-h-96 overflow-y-auto">
+                {mockNotifications.map((notif) => (
+                  <div 
+                    key={notif.id}
+                    className={`p-4 flex items-start gap-3 border-b border-gray-50 dark:border-gray-800 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer ${!notif.read ? 'bg-orange-50/20' : ''}`}
+                  >
+                    <div className={`mt-1 p-2 rounded-full ${notif.bgColor} ${notif.iconColor}`}>
+                      <notif.icon className="h-4 w-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2 mb-0.5">
+                        <span className="text-sm font-bold text-gray-900 dark:text-white truncate">{notif.title}</span>
+                        <span className="text-[10px] text-gray-400 whitespace-nowrap">{notif.time}</span>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed">
+                        {notif.message}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="p-3 bg-gray-50/50 dark:bg-gray-800/50 text-center">
+                <Link to="/food/user/notifications" className="text-xs font-bold text-gray-400 hover:text-gray-600">
+                  Manage Settings
+                </Link>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
 
       {/* Main Category Grid (4 Items) - Compact & Centered */}

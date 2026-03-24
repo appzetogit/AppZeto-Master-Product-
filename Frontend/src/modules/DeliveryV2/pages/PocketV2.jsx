@@ -50,26 +50,28 @@ export const PocketV2 = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [profileRes, earningsRes] = await Promise.all([
+        const [profileRes, earningsRes, walletRes] = await Promise.all([
           deliveryAPI.getProfile(),
-          deliveryAPI.getEarnings({ period: 'week' })
+          deliveryAPI.getEarnings({ period: 'week' }),
+          deliveryAPI.getWallet()
         ]);
 
         const profile = profileRes?.data?.data?.profile || {};
         const summary = earningsRes?.data?.data?.summary || {};
+        const wallet = walletRes?.data?.data?.wallet || {};
         
         const bankDetails = profile?.documents?.bankDetails;
         const isFilled = !!(bankDetails?.accountNumber);
 
         setWalletState({
-          totalBalance: profile.walletBalance || 0,
-          cashInHand: profile.cashInHand || 0,
-          availableCashLimit: profile.availableCashLimit || 0,
-          totalCashLimit: profile.totalCashLimit || 0,
+          totalBalance: Number(wallet.pocketBalance) || 0,
+          cashInHand: Number(wallet.cashInHand) || 0,
+          availableCashLimit: Number(wallet.availableCashLimit) || 0,
+          totalCashLimit: Number(wallet.totalCashLimit) || 0,
           weeklyEarnings: Number(summary.totalEarnings) || 0,
           weeklyOrders: Number(summary.totalOrders) || 0,
-          payoutAmount: profile.lastPayoutAmount || 0,
-          payoutPeriod: 'Current Week',
+          payoutAmount: Number(wallet.lastPayout?.amount || wallet.totalWithdrawn || 0),
+          payoutPeriod: wallet.lastPayout ? new Date(wallet.lastPayout.date).toLocaleDateString() : 'No recent payout',
           bankDetailsFilled: isFilled
         });
 

@@ -17,7 +17,7 @@ const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
 
-export default function DesktopNavbar() {
+export default function DesktopNavbar({ showLogo = true }) {
     const location = useLocation()
     const navigate = useNavigate()
     const { location: userLocation, loading: locationLoading } = useLocationHook()
@@ -156,22 +156,24 @@ export default function DesktopNavbar() {
                         {/* Left: Logo & Location */}
                         <div className="flex items-center gap-4 lg:gap-6 flex-shrink-0">
                             {/* Logo */}
-                            <Link to="/food/user" className="flex items-center justify-center flex-shrink-0">
-                                {logoUrl || companyName ? (
-                                    <img
-                                        src={logoUrl || quickSpicyLogo}
-                                        alt={companyName || "Company Logo"}
-                                        className="h-10 w-auto md:h-14 lg:h-16 object-contain"
-                                        onError={(e) => {
-                                            if (e.target.src !== quickSpicyLogo) {
-                                                e.target.src = quickSpicyLogo
-                                            }
-                                        }}
-                                    />
-                                ) : (
-                                    <img src={quickSpicyLogo} alt={companyName || "Logo"} className="h-10 w-auto md:h-14 lg:h-16 object-contain" />
-                                )}
-                            </Link>
+                            {showLogo && (
+                                <Link to="/food/user" className="flex items-center justify-center flex-shrink-0">
+                                    {logoUrl || companyName ? (
+                                        <img
+                                            src={logoUrl || quickSpicyLogo}
+                                            alt={companyName || "Company Logo"}
+                                            className="h-10 w-auto md:h-14 lg:h-16 object-contain"
+                                            onError={(e) => {
+                                                if (e.target.src !== quickSpicyLogo) {
+                                                    e.target.src = quickSpicyLogo
+                                                }
+                                            }}
+                                        />
+                                    ) : (
+                                        <img src={quickSpicyLogo} alt={companyName || "Logo"} className="h-10 w-auto md:h-14 lg:h-16 object-contain" />
+                                    )}
+                                </Link>
+                            )}
 
                             {/* Location Selector */}
                             <Button

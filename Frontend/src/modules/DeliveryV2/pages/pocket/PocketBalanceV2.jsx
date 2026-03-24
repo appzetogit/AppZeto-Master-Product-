@@ -34,23 +34,27 @@ export const PocketBalanceV2 = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const profileRes = await deliveryAPI.getProfile();
-        const earningsRes = await deliveryAPI.getEarnings({ period: 'week' });
+        const [profileRes, earningsRes, walletRes] = await Promise.all([
+          deliveryAPI.getProfile(),
+          deliveryAPI.getEarnings({ period: 'week' }),
+          deliveryAPI.getWallet()
+        ]);
         
         const profile = profileRes?.data?.data?.profile || {};
         const summary = earningsRes?.data?.data?.summary || {};
+        const wallet = walletRes?.data?.data?.wallet || {};
         
-        // Simplified Logic like the original
-        const pocketBalance = profile.walletBalance || 0;
-        const withdrawalLimit = profile.minimumWithdrawalLimit || 100;
-        const withdrawableAmount = pocketBalance > 0 ? pocketBalance : 0;
+        // Use wallet data from backend instead of non-existent profile.walletBalance
+        const pocketBalance = Number(wallet.pocketBalance) || 0;
+        const withdrawalLimit = Number(wallet.deliveryWithdrawalLimit) || 100;
+        const withdrawableAmount = pocketBalance; // Backend pocketBalance is already the withdrawable amount
 
         setWalletState({
            pocketBalance: pocketBalance,
            weeklyEarnings: Number(summary.totalEarnings) || 0,
-           totalBonus: profile.totalBonus || 0, // Mocked if not in API
-           totalWithdrawn: profile.totalWithdrawn || 0,
-           cashCollected: profile.cashInHand || 0,
+           totalBonus: Number(wallet.totalBonus) || 0,
+           totalWithdrawn: Number(wallet.totalWithdrawn) || 0,
+           cashCollected: Number(wallet.cashInHand) || 0,
            deductions: 0, // Mocked
            withdrawalLimit,
            withdrawableAmount,

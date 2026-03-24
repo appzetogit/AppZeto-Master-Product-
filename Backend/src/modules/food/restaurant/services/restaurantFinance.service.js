@@ -114,20 +114,40 @@ export async function getRestaurantFinance(restaurantId, query = {}) {
         0
     );
 
-    // Deduct pending/approved withdrawals from estimated payout for display
+    // Calculate global estimated payout (all unsettled transactions)
+    const allUnsettledTransactions = await FoodTransaction.find({
+        restaurantId: rid,
+        status: { $in: ['captured', 'authorized'] },
+        'settlement.isRestaurantSettled': { $ne: true }
+    }).select('amounts.restaurantShare').lean();
+
+    const globalEstimatedPayout = allUnsettledTransactions.reduce(
+        (sum, tx) => sum + (Number(tx.amounts?.restaurantShare) || 0),
+        0
+    );
+
+    // Block only pending withdrawals from available balance.
+    // Approved/rejected requests are processed records and should not keep locking payout.
     const pendingWithdrawalsAgg = await FoodRestaurantWithdrawal.aggregate([
-        { $match: { restaurantId: rid, status: { $in: ['pending', 'approved'] } } },
+        {
+            $match: {
+                restaurantId: rid,
+                $expr: {
+                    $eq: [{ $toLower: { $trim: { input: '$status' } } }, 'pending']
+                }
+            }
+        },
         { $group: { _id: null, total: { $sum: '$amount' } } }
     ]);
-    const totalWithdrawn = pendingWithdrawalsAgg?.[0]?.total || 0;
-    const availableBalance = Math.max(0, currentCycleEstimatedPayout - totalWithdrawn);
+    const totalPendingWithdrawals = Number(pendingWithdrawalsAgg?.[0]?.total || 0);
+    const availableBalance = Math.max(0, globalEstimatedPayout - totalPendingWithdrawals);
 
     const currentCycle = {
         start: { ...nowWindow.startMeta },
         end: { ...nowWindow.endMeta },
-        totalEarnings: currentCycleEstimatedPayout,
-        totalWithdrawn,
-        estimatedPayout: availableBalance, // This is what UI shows as "Estimated Payout"
+        totalEarnings: currentCycleEstimatedPayout, // We still show current cycle earnings label
+        totalWithdrawn: totalPendingWithdrawals,
+        estimatedPayout: availableBalance, // This is what UI shows as "Estimated Payout" (Available Balance)
         totalOrders: currentCycleOrders.length,
         payoutDate: null,
         orders: currentCycleOrders

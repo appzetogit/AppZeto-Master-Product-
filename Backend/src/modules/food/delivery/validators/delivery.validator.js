@@ -66,7 +66,9 @@ const bankDetailsSchema = z.object({
     accountHolderName: z.string().min(1, 'Account holder name is required').optional().or(z.literal('')),
     accountNumber: z.string().min(1, 'Account number is required').optional().or(z.literal('')),
     ifscCode: z.string().min(1, 'IFSC code is required').optional().or(z.literal('')),
-    bankName: z.string().min(1, 'Bank name is required').optional().or(z.literal(''))
+    bankName: z.string().min(1, 'Bank name is required').optional().or(z.literal('')),
+    upiId: z.string().optional().or(z.literal('')),
+    upiQrCode: z.string().optional().or(z.literal(''))
 });
 
 const bankDetailsUpdateSchema = z.object({
@@ -77,7 +79,23 @@ const bankDetailsUpdateSchema = z.object({
 }).optional();
 
 export const validateDeliveryBankDetailsDto = (body) => {
-    const result = bankDetailsUpdateSchema.safeParse(body);
+    // If we have flat keys from FormData (multer), reconstruct the nested object for Zod
+    const processed = { ...body };
+    if (!processed.documents) processed.documents = {};
+    if (!processed.documents.bankDetails) {
+        processed.documents.bankDetails = {
+            accountHolderName: body['documents[bankDetails][accountHolderName]'],
+            accountNumber: body['documents[bankDetails][accountNumber]'],
+            ifscCode: body['documents[bankDetails][ifscCode]'],
+            bankName: body['documents[bankDetails][bankName]'],
+            upiId: body['documents[bankDetails][upiId]']
+        };
+    }
+    if (!processed.documents.pan && body['documents[pan][number]']) {
+        processed.documents.pan = { number: body['documents[pan][number]'] };
+    }
+
+    const result = bankDetailsUpdateSchema.safeParse(processed);
     if (!result.success) {
         throw new ValidationError(result.error.errors[0].message);
     }

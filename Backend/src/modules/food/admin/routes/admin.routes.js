@@ -129,7 +129,14 @@ router.patch('/delivery-cash-limit', adminController.updateDeliveryCashLimit);
 router.get('/delivery-emergency-help', adminController.getEmergencyHelp);
 router.put('/delivery-emergency-help', adminController.createOrUpdateEmergencyHelp);
 
-// ----- Delivery -----
+// ----- Withdrawals (admin) -----
+router.get('/withdrawals', adminController.getWithdrawals);
+router.patch('/withdrawals/:id', adminController.updateWithdrawalStatus);
+router.get('/delivery/withdrawals', adminController.getDeliveryWithdrawals);
+router.patch('/delivery/withdrawals/:id', adminController.updateDeliveryWithdrawalStatus);
+router.get('/delivery/cash-limit-settlements', adminController.getCashLimitSettlements);
+
+// ----- Delivery partners & general -----
 router.get('/delivery/join-requests', adminController.getDeliveryJoinRequests);
 router.get('/delivery/wallets', adminController.getDeliveryWallets);
 router.get('/delivery/bonus-transactions', adminController.getDeliveryPartnerBonusTransactions);
@@ -186,12 +193,6 @@ router.patch('/settings/dispatch', orderController.updateDispatchSettingsControl
 router.get('/pages-social-media/:key', getAdminPageController);
 router.put('/pages-social-media/:key', upsertAdminPageController);
 
-// ----- Withdrawals (admin) -----
-router.get('/withdrawals', adminController.getWithdrawals);
-router.patch('/withdrawals/:id', adminController.updateWithdrawalStatus);
-router.get('/delivery/withdrawals', adminController.getDeliveryWithdrawals);
-router.patch('/delivery/withdrawals/:id', adminController.updateDeliveryWithdrawalStatus);
-router.get('/delivery/cash-limit-settlements', adminController.getCashLimitSettlements);
 router.get('/sidebar-badges', adminController.getSidebarBadges);
 
 export default router;

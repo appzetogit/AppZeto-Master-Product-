@@ -50,13 +50,15 @@ export const updateDeliveryPartnerBankDetailsController = async (req, res, next)
     try {
         const userId = req.user?.userId;
         const validated = validateDeliveryBankDetailsDto(req.body);
-        const partner = await updateDeliveryPartnerBankDetails(userId, validated);
+        const partner = await updateDeliveryPartnerBankDetails(userId, validated, req.files);
         const data = {
             bankDetails: {
                 accountHolderName: partner.bankAccountHolderName,
                 accountNumber: partner.bankAccountNumber,
                 ifscCode: partner.bankIfscCode,
-                bankName: partner.bankName
+                bankName: partner.bankName,
+                upiId: partner.upiId,
+                upiQrCode: partner.upiQrCode
             },
             panNumber: partner.panNumber
         };

@@ -13,6 +13,7 @@ export default function PageNavbar({
   textColor = "white",
   zIndex = 20,
   showProfile = false,
+  showLogo = true,
   onNavClick
 }) {
   const { location, loading, requestLocation } = useLocation()
@@ -988,30 +989,32 @@ export default function PageNavbar({
       <div className="flex items-center justify-between max-w-7xl mx-auto">
 
         {/* Left: Company Logo */}
-        <Link to="/food/user" className="flex-shrink-0 mr-3 sm:mr-4">
-          {logoUrl ? (
-            <img
-              src={logoUrl}
-              alt={companyName || "Company Logo"}
-              className="h-10 w-auto sm:h-12 md:h-14 object-contain scale-[1.8] sm:scale-[2] origin-left"
-              crossOrigin="anonymous"
-              onError={(e) => {
-                // Fallback to name if image fails
-                e.target.style.display = 'none'
-              }}
-            />
-          ) : companyName ? (
-            <span className={`text-lg font-bold text-${textColor}`}>
-              {companyName}
-            </span>
-          ) : (
-            <img
-              src={quickSpicyLogo}
-              alt="Logo"
-              className="h-10 w-auto sm:h-12 md:h-14 object-contain scale-[1.8] sm:scale-[2] origin-left"
-            />
-          )}
-        </Link>
+        {showLogo && (
+          <Link to="/food/user" className="flex-shrink-0 mr-3 sm:mr-4">
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt={companyName || "Company Logo"}
+                className="h-10 w-auto sm:h-12 md:h-14 object-contain scale-[1.8] sm:scale-[2] origin-left"
+                crossOrigin="anonymous"
+                onError={(e) => {
+                  // Fallback to name if image fails
+                  e.target.style.display = 'none'
+                }}
+              />
+            ) : companyName ? (
+              <span className={`text-lg font-bold text-${textColor}`}>
+                {companyName}
+              </span>
+            ) : (
+              <img
+                src={quickSpicyLogo}
+                alt="Logo"
+                className="h-10 w-auto sm:h-12 md:h-14 object-contain scale-[1.8] sm:scale-[2] origin-left"
+              />
+            )}
+          </Link>
+        )}
 
         {/* Center: Location Selector (Centered) */}
         <div className="flex-1 flex items-center justify-center min-w-0 absolute left-1/2 -translate-x-1/2">

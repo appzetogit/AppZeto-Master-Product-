@@ -73,7 +73,7 @@ export const PocketBalanceV2 = () => {
      
      if (!bank?.accountNumber) {
         toast.error("Please add bank details first");
-        navigate("/delivery/profile/details");
+        navigate("/food/delivery/profile/details");
         return;
      }
 

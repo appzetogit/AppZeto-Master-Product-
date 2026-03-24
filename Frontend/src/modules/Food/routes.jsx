@@ -21,15 +21,7 @@ const AdminSignup = lazy(() => import("@food/pages/admin/auth/AdminSignup"))
 const AdminForgotPassword = lazy(() => import("@food/pages/admin/auth/AdminForgotPassword"))
 
 // Delivery Module
-const DeliveryRouter = lazy(() => import("@food/components/delivery/DeliveryRouter"))
-const DeliverySignIn = lazy(() => import("@food/pages/delivery/auth/SignIn"))
-const DeliverySignup = lazy(() => import("@food/pages/delivery/auth/Signup"))
-const DeliveryOTP = lazy(() => import("@food/pages/delivery/auth/OTP"))
-const DeliverySignupStep1 = lazy(() => import("@food/pages/delivery/auth/SignupStep1"))
-const DeliverySignupStep2 = lazy(() => import("@food/pages/delivery/auth/SignupStep2"))
-const DeliveryWelcome = lazy(() => import("@food/pages/delivery/auth/Welcome"))
-const DeliveryTerms = lazy(() => import("@food/pages/delivery/TermsAndConditions"))
-const DeliveryPrivacy = lazy(() => import("@food/pages/delivery/PrivacyPolicy"))
+const DeliveryRouter = lazy(() => import("../DeliveryV2"))
 
 function UserPathRedirect() {
   const location = useLocation()

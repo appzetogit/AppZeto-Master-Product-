@@ -12,7 +12,7 @@ import {
   Receipt
 } from "lucide-react";
 import { formatCurrency } from "@food/utils/currency";
-import WeekSelector from "@food/components/delivery/WeekSelector";
+import WeekSelector from "@delivery/components/WeekSelector";
 import { deliveryAPI } from "@food/api";
 import { motion, AnimatePresence } from "framer-motion";
 

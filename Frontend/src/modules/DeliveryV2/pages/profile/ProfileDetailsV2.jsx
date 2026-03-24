@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { ArrowLeft, Plus, Edit2, Eye, X, Loader2, User, Camera } from "lucide-react"
-import BottomPopup from "@food/components/delivery/BottomPopup"
+import BottomPopup from "@delivery/components/BottomPopup"
 import { toast } from "sonner"
 import { deliveryAPI } from "@food/api"
 

@@ -5,7 +5,7 @@ import {
   Loader2,
   Clock
 } from 'lucide-react';
-import WeekSelector from '@food/components/delivery/WeekSelector';
+import WeekSelector from '@delivery/components/WeekSelector';
 import { deliveryAPI } from '@food/api';
 import { formatCurrency } from '@food/utils/currency';
 import { toast } from 'sonner';

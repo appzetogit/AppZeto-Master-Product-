@@ -236,8 +236,8 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   ];
 
   const helpOptions = [
-    { title: "Support tickets", subtitle: "Check status of tickets raised", icon: <Clock className="text-gray-600" />, path: "/delivery-v2/help/tickets" },
-    { title: "Show ID card", subtitle: `See your ${companyName} ID card`, icon: <UserIcon className="text-gray-600" />, path: "/delivery-v2/help/id-card" },
+    { title: "Support tickets", subtitle: "Check status of tickets raised", icon: <Clock className="text-gray-600" />, path: "/food/delivery/help/tickets" },
+    { title: "Show ID card", subtitle: `See your ${companyName} ID card`, icon: <UserIcon className="text-gray-600" />, path: "/food/delivery/id-card" },
   ];
 
   // Reset simulation when path, order or mode changes
@@ -480,8 +480,8 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-4">
              <div 
-               onClick={() => navigate('/delivery-v2/profile')}
-               className="w-10 h-10 rounded-full border border-white/20 p-0.5 shadow-xl overflow-hidden bg-white/5 cursor-pointer active:scale-95 transition-all"
+                onClick={() => navigate('/food/delivery/profile')}
+                className="w-10 h-10 rounded-full border border-white/20 p-0.5 shadow-xl overflow-hidden bg-white/5 cursor-pointer active:scale-95 transition-all"
              >
                 <img src={profileImage || "https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png"} alt="Profile" className="w-full h-full object-cover rounded-full" />
              </div>
@@ -809,16 +809,16 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
 
       {/* ─── 3. BOTTOM NAV (Fixed - Compact Pro) ─── */}
       <div className="bg-white border-t border-gray-100 px-8 py-3 pb-6 flex justify-between items-center z-[200] shadow-[0_-5px_20px_rgba(0,0,0,0.05)]">
-         <button onClick={() => navigate('/delivery-v2/feed')} className={`flex flex-col items-center gap-1 transition-all ${currentTab === 'feed' ? 'text-gray-950 scale-110' : 'text-gray-400 opacity-70'}`}>
+         <button onClick={() => navigate('/food/delivery/feed')} className={`flex flex-col items-center gap-1 transition-all ${currentTab === 'feed' ? 'text-gray-950 scale-110' : 'text-gray-400 opacity-70'}`}>
             <LayoutGrid className="w-6 h-6" /><span className="text-[11px] font-medium font-sans">Feed</span>
          </button>
-         <button onClick={() => navigate('/delivery-v2/pocket')} className={`flex flex-col items-center gap-1 transition-all ${currentTab === 'pocket' ? 'text-gray-950 scale-110' : 'text-gray-400 opacity-70'}`}>
+         <button onClick={() => navigate('/food/delivery/pocket')} className={`flex flex-col items-center gap-1 transition-all ${currentTab === 'pocket' ? 'text-gray-950 scale-110' : 'text-gray-400 opacity-70'}`}>
             <Wallet className="w-6 h-6" /><span className="text-[11px] font-medium font-sans">Pocket</span>
          </button>
-         <button onClick={() => navigate('/delivery-v2/history')} className={`flex flex-col items-center gap-1 transition-all ${currentTab === 'history' ? 'text-gray-950 scale-110' : 'text-gray-400 opacity-70'}`}>
+         <button onClick={() => navigate('/food/delivery/history')} className={`flex flex-col items-center gap-1 transition-all ${currentTab === 'history' ? 'text-gray-950 scale-110' : 'text-gray-400 opacity-70'}`}>
             <History className="w-6 h-6" /><span className="text-[11px] font-medium font-sans">Trip History</span>
          </button>
-         <button onClick={() => navigate('/delivery-v2/profile')} className={`flex flex-col items-center gap-1 transition-all ${currentTab === 'profile' ? 'text-gray-950 scale-110' : 'text-gray-400 opacity-70'}`}>
+         <button onClick={() => navigate('/food/delivery/profile')} className={`flex flex-col items-center gap-1 transition-all ${currentTab === 'profile' ? 'text-gray-950 scale-110' : 'text-gray-400 opacity-70'}`}>
             <UserIcon className="w-6 h-6" /><span className="text-[11px] font-medium font-sans">Profile</span>
          </button>
       </div>

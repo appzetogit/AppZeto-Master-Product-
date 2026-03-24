@@ -7,7 +7,7 @@ import {
   IndianRupee,
   Loader2
 } from 'lucide-react';
-import WeekSelector from '@food/components/delivery/WeekSelector';
+import WeekSelector from '@delivery/components/WeekSelector';
 import { deliveryAPI } from '@food/api';
 import { toast } from 'sonner';
 

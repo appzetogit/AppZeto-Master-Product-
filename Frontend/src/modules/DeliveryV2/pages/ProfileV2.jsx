@@ -100,7 +100,7 @@ export const ProfileV2 = () => {
       {/* Profile Header Block */}
       <div className="bg-white p-4 w-full shadow-sm">
         <div 
-          onClick={() => navigate("/delivery-v2/profile/details")}
+          onClick={() => navigate("/food/delivery/profile/details")}
           className="flex items-start justify-between cursor-pointer"
         >
           <div className="flex-1">
@@ -129,7 +129,7 @@ export const ProfileV2 = () => {
         {/* Navigation Buttons */}
         <div className="grid grid-cols-1 gap-3 mb-6">
           <button
-            onClick={() => navigate("/delivery-v2/history")}
+            onClick={() => navigate("/food/delivery/history")}
             className="bg-white rounded-xl p-4 flex flex-col items-center gap-2 border border-transparent active:bg-gray-50 transition-colors"
           >
             <div className="rounded-full bg-gray-50 p-3">
@@ -161,7 +161,7 @@ export const ProfileV2 = () => {
           <div>
             <h3 className="text-gray-400 text-[10px] font-black uppercase tracking-[0.2em] mb-3 px-1">Support</h3>
             <div 
-              onClick={() => navigate("/delivery-v2/help/tickets")}
+              onClick={() => navigate("/food/delivery/help/tickets")}
               className="bg-white rounded-xl p-4 flex items-center justify-between cursor-pointer active:bg-gray-50 transition-colors"
             >
               <div className="flex items-center gap-3">

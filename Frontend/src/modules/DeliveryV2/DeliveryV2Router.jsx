@@ -1,5 +1,17 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import ProtectedRoute from './components/ProtectedRoute';
+import Loader from "@food/components/Loader";
+
+// Auth Pages (Lazy loaded)
+const Welcome = lazy(() => import("./pages/auth/Welcome"))
+const SignIn = lazy(() => import("./pages/auth/SignIn"))
+const OTP = lazy(() => import("./pages/auth/OTP"))
+const Signup = lazy(() => import("./pages/auth/Signup"))
+const SignupStep1 = lazy(() => import("./pages/auth/SignupStep1"))
+const SignupStep2 = lazy(() => import("./pages/auth/SignupStep2"))
+
+// V2 Pages
 import DeliveryHomeV2 from './pages/DeliveryHomeV2';
 import { PayoutV2 } from './pages/pocket/PayoutV2';
 import { PocketStatementV2 } from './pages/pocket/PocketStatementV2';
@@ -16,40 +28,54 @@ import ShowIdCardV2 from './pages/help/ShowIdCardV2';
 import { PocketDetailsV2 } from './pages/pocket/PocketDetailsV2';
 import { ProfileDetailsV2 } from './pages/profile/ProfileDetailsV2';
 import { HistoryV2 } from './pages/HistoryV2';
+import TermsAndConditionsV2 from './pages/TermsAndConditionsV2';
+import PrivacyPolicyV2 from './pages/PrivacyPolicyV2';
 
 
 
 const DeliveryV2Router = () => {
   return (
-    <Routes>
-      {/* Main Multi-Tab Core (Feed, Pocket, History, Profile) */}
-      <Route path="/" element={<DeliveryHomeV2 tab="feed" />} />
-      <Route path="/feed" element={<DeliveryHomeV2 tab="feed" />} />
-      <Route path="/pocket" element={<DeliveryHomeV2 tab="pocket" />} />
-      <Route path="/history" element={<DeliveryHomeV2 tab="history" />} />
-      <Route path="/profile" element={<DeliveryHomeV2 tab="profile" />} />
-      <Route path="/profile/details" element={<ProfileDetailsV2 />} />
-      <Route path="/profile/bank" element={<ProfileBankV2 />} />
-      <Route path="/profile/documents" element={<ProfileDocsV2 />} />
-      
-      {/* Support Systems */}
-      <Route path="/help/tickets" element={<SupportTicketsV2 />} />
-      <Route path="/help/tickets/create" element={<CreateSupportTicketV2 />} />
-      <Route path="/help/tickets/:ticketId" element={<ViewSupportTicketV2 />} />
-      <Route path="/help/id-card" element={<ShowIdCardV2 />} />
-      
-      {/* Financial Deep-Pages */}
-      <Route path="/pocket/payout" element={<PayoutV2 />} />
-      <Route path="/pocket/statement" element={<PocketStatementV2 />} />
-      <Route path="/pocket/deductions" element={<DeductionStatementV2 />} />
-      <Route path="/pocket/limit-settlement" element={<LimitSettlementV2 />} />
-      <Route path="/pocket/balance" element={<PocketBalanceV2 />} />
-      <Route path="/pocket/cash-limit" element={<CashLimitInfoV2 />} />
-      <Route path="/pocket/details" element={<PocketDetailsV2 />} />
+    <Suspense fallback={<Loader />}>
+      <Routes>
+        {/* Auth routes */}
+        <Route path="welcome" element={<Welcome />} />
+        <Route path="login" element={<SignIn />} />
+        <Route path="otp" element={<OTP />} />
+        <Route path="signup" element={<Signup />} />
+        <Route path="signup/details" element={<SignupStep1 />} />
+        <Route path="signup/documents" element={<SignupStep2 />} />
 
-      {/* Fallback */}
-      <Route path="*" element={<Navigate to="/delivery-v2" replace />} />
-    </Routes>
+        {/* Protected Core Routes */}
+        <Route path="/" element={<ProtectedRoute><DeliveryHomeV2 tab="feed" /></ProtectedRoute>} />
+        <Route path="/feed" element={<ProtectedRoute><DeliveryHomeV2 tab="feed" /></ProtectedRoute>} />
+        <Route path="/pocket" element={<ProtectedRoute><DeliveryHomeV2 tab="pocket" /></ProtectedRoute>} />
+        <Route path="/history" element={<ProtectedRoute><HistoryV2 /></ProtectedRoute>} />
+        <Route path="/profile" element={<ProtectedRoute><DeliveryHomeV2 tab="profile" /></ProtectedRoute>} />
+        <Route path="/profile/details" element={<ProtectedRoute><ProfileDetailsV2 /></ProtectedRoute>} />
+        <Route path="/profile/bank" element={<ProtectedRoute><ProfileBankV2 /></ProtectedRoute>} />
+        <Route path="/profile/documents" element={<ProtectedRoute><ProfileDocsV2 /></ProtectedRoute>} />
+        
+        {/* Support Systems */}
+        <Route path="/help/tickets" element={<ProtectedRoute><SupportTicketsV2 /></ProtectedRoute>} />
+        <Route path="/help/tickets/create" element={<ProtectedRoute><CreateSupportTicketV2 /></ProtectedRoute>} />
+        <Route path="/help/tickets/:ticketId" element={<ProtectedRoute><ViewSupportTicketV2 /></ProtectedRoute>} />
+        <Route path="/help/id-card" element={<ProtectedRoute><ShowIdCardV2 /></ProtectedRoute>} />
+        <Route path="/profile/terms" element={<ProtectedRoute><TermsAndConditionsV2 /></ProtectedRoute>} />
+        <Route path="/profile/privacy" element={<ProtectedRoute><PrivacyPolicyV2 /></ProtectedRoute>} />
+        
+        {/* Financial Deep-Pages */}
+        <Route path="/pocket/payout" element={<ProtectedRoute><PayoutV2 /></ProtectedRoute>} />
+        <Route path="/pocket/statement" element={<ProtectedRoute><PocketStatementV2 /></ProtectedRoute>} />
+        <Route path="/pocket/deductions" element={<ProtectedRoute><DeductionStatementV2 /></ProtectedRoute>} />
+        <Route path="/pocket/limit-settlement" element={<ProtectedRoute><LimitSettlementV2 /></ProtectedRoute>} />
+        <Route path="/pocket/balance" element={<ProtectedRoute><PocketBalanceV2 /></ProtectedRoute>} />
+        <Route path="/pocket/cash-limit" element={<ProtectedRoute><CashLimitInfoV2 /></ProtectedRoute>} />
+        <Route path="/pocket/details" element={<ProtectedRoute><PocketDetailsV2 /></ProtectedRoute>} />
+
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/food/delivery" replace />} />
+      </Routes>
+    </Suspense>
   );
 };
 

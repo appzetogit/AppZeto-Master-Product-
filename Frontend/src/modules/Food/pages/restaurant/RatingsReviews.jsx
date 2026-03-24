@@ -10,7 +10,7 @@ import {
   ThumbsUp,
   ThumbsDown,
 } from "lucide-react"
-import BottomPopup from "@food/components/delivery/BottomPopup"
+import BottomPopup from "@delivery/components/BottomPopup"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}

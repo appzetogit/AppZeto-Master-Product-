@@ -304,6 +304,53 @@ function buildDeliverySocketPayload(orderDoc, restaurantDoc = null) {
   };
 }
 
+function canExposeOrderToRestaurant(orderLike) {
+  const method = String(orderLike?.payment?.method || "").toLowerCase();
+  const status = String(orderLike?.payment?.status || "").toLowerCase();
+
+  // Online payment orders should only appear for restaurants after successful payment.
+  if (method === "razorpay") return status === "paid";
+  return true;
+}
+
+async function notifyRestaurantNewOrder(orderDoc) {
+  try {
+    if (!orderDoc || !canExposeOrderToRestaurant(orderDoc)) return;
+
+    const io = getIO();
+    if (io) {
+      const payload = {
+        ...orderDoc.toObject(),
+        orderMongoId: orderDoc._id?.toString?.() || undefined,
+      };
+      io.to(rooms.restaurant(orderDoc.restaurantId)).emit("new_order", payload);
+      io.to(rooms.restaurant(orderDoc.restaurantId)).emit(
+        "play_notification_sound",
+        {
+          orderId: payload.orderId,
+          orderMongoId: payload.orderMongoId,
+        },
+      );
+    }
+
+    await notifyOwnersSafely(
+      [{ ownerType: "RESTAURANT", ownerId: orderDoc.restaurantId }],
+      {
+        title: "New order received",
+        body: `Order ${orderDoc.orderId} is waiting for review.`,
+        data: {
+          type: "new_order",
+          orderId: orderDoc.orderId,
+          orderMongoId: orderDoc._id?.toString?.() || "",
+          link: `/restaurant/orders/${orderDoc._id?.toString?.() || ""}`,
+        },
+      },
+    );
+  } catch {
+    // Do not block order/payment flow if notification fails.
+  }
+}
+
 async function listNearbyOnlineDeliveryPartners(
   restaurantId,
   { maxKm = 15, limit = 25 } = {},
@@ -732,51 +779,32 @@ export async function createOrder(userId, dto) {
     // Audit can still happen here or via FinanceService events
   }
 
-  // Real-time: notify restaurant instantly (Zomato-style).
+  // Realtime + push notifications.
   try {
-    const io = getIO();
-    if (io) {
-      const payload = {
-        ...order.toObject(),
-        orderMongoId: order._id?.toString?.() || undefined,
-      };
-      io.to(rooms.restaurant(dto.restaurantId)).emit("new_order", payload);
-      io.to(rooms.restaurant(dto.restaurantId)).emit(
-        "play_notification_sound",
-        {
-          orderId: payload.orderId,
-          orderMongoId: payload.orderMongoId,
-        },
-      );
-    }
-
-    // Notify Customer
+    // Notify customer. For online payments, order is created but awaits payment confirmation.
+    const isAwaitingOnlinePayment =
+      String(order.payment?.method || "").toLowerCase() === "razorpay" &&
+      String(order.payment?.status || "").toLowerCase() !== "paid";
     await notifyOwnersSafely([{ ownerType: "USER", ownerId: userId }], {
-      title: "Order Confirmed! 🍔",
-      body: `Your order #${orderId} from ${restaurant.restaurantName || "the restaurant"} has been placed successfully.`,
+      title: isAwaitingOnlinePayment
+        ? "Complete Payment to Confirm Order"
+        : "Order Confirmed! 🍔",
+      body: isAwaitingOnlinePayment
+        ? `Order #${orderId} is created. Please complete payment to send it to ${restaurant.restaurantName || "the restaurant"}.`
+        : `Your order #${orderId} from ${restaurant.restaurantName || "the restaurant"} has been placed successfully.`,
       image: "https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png",
       data: {
-        type: "order_created",
+        type: isAwaitingOnlinePayment
+          ? "order_created_pending_payment"
+          : "order_created",
         orderId: String(orderId),
         orderMongoId: order._id?.toString?.() || "",
         link: `/food/user/orders/${order._id?.toString?.() || ""}`,
       },
     });
 
-    // Notify Restaurant
-    await notifyOwnersSafely(
-      [{ ownerType: "RESTAURANT", ownerId: dto.restaurantId }],
-      {
-        title: "New order received",
-        body: `Order ${order.orderId} is waiting for review.`,
-        data: {
-          type: "new_order",
-          orderId: order.orderId,
-          orderMongoId: order._id?.toString?.() || "",
-          link: `/restaurant/orders/${order._id?.toString?.() || ""}`,
-        },
-      },
-    );
+    // Restaurant gets new-order request only when payment flow is eligible.
+    await notifyRestaurantNewOrder(order);
   } catch {
     // Don't block order placement on socket failures.
   }
@@ -816,8 +844,11 @@ export async function createOrder(userId, dto) {
 
 // ----- Verify payment -----
 export async function verifyPayment(userId, dto) {
+  const identity = buildOrderIdentityFilter(dto.orderId);
+  if (!identity) throw new ValidationError("Order id required");
+
   const order = await FoodOrder.findOne({
-    _id: new mongoose.Types.ObjectId(dto.orderId),
+    ...identity,
     userId: new mongoose.Types.ObjectId(userId),
   });
   if (!order) throw new NotFoundError("Order not found");
@@ -850,6 +881,9 @@ export async function verifyPayment(userId, dto) {
     recordedByRole: "USER",
     recordedById: new mongoose.Types.ObjectId(userId)
   });
+
+  // After online payment is verified, now notify restaurant about the new order.
+  await notifyRestaurantNewOrder(order);
 
   // Notify Customer about payment success
   await notifyOwnersSafely([{ ownerType: "USER", ownerId: userId }], {
@@ -1213,7 +1247,13 @@ export async function submitOrderRatings(orderId, userId, dto) {
 // ----- Restaurant -----
 export async function listOrdersRestaurant(restaurantId, query) {
   const { page, limit, skip } = buildPaginationOptions(query);
-  const filter = { restaurantId: new mongoose.Types.ObjectId(restaurantId) };
+  const filter = {
+    restaurantId: new mongoose.Types.ObjectId(restaurantId),
+    $or: [
+      { "payment.method": { $ne: "razorpay" } },
+      { "payment.status": "paid" },
+    ],
+  };
   const [docs, total] = await Promise.all([
     FoodOrder.find(filter)
       .populate("userId", "name phone email profileImage")
@@ -2523,4 +2563,5 @@ export async function deleteOrderAdmin(orderId, adminId) {
     orderMongoId: String(order._id),
   };
 }
+
 

@@ -87,6 +87,12 @@ const toRestaurantProfile = (doc) => {
         ownerEmail: doc.ownerEmail || '',
         ownerPhone: doc.ownerPhone || '',
         primaryContactNumber: doc.primaryContactNumber || '',
+        accountNumber: doc.accountNumber || '',
+        ifscCode: doc.ifscCode || '',
+        accountHolderName: doc.accountHolderName || '',
+        accountType: doc.accountType || '',
+        upiId: doc.upiId || '',
+        upiQrImage: doc.upiQrImage ? { url: doc.upiQrImage } : null,
         pureVegRestaurant: Boolean(doc.pureVegRestaurant),
         profileImage: doc.profileImage ? { url: doc.profileImage } : null,
         menuImages,
@@ -301,6 +307,12 @@ export const getCurrentRestaurantProfile = async (restaurantId) => {
                 'ownerEmail',
                 'ownerPhone',
                 'primaryContactNumber',
+                'accountNumber',
+                'ifscCode',
+                'accountHolderName',
+                'accountType',
+                'upiId',
+                'upiQrImage',
                 'pureVegRestaurant',
                 'profileImage',
                 'menuImages',
@@ -343,6 +355,12 @@ export const updateRestaurantAcceptingOrders = async (restaurantId, isAcceptingO
                 'ownerEmail',
                 'ownerPhone',
                 'primaryContactNumber',
+                'accountNumber',
+                'ifscCode',
+                'accountHolderName',
+                'accountType',
+                'upiId',
+                'upiQrImage',
                 'pureVegRestaurant',
                 'profileImage',
                 'menuImages',
@@ -425,6 +443,27 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
         } else {
             throw new ValidationError('pureVegRestaurant must be a boolean');
         }
+    }
+
+    // Bank + UPI fields (Explore -> Update Bank Details page)
+    if (body.accountHolderName !== undefined) {
+        update.accountHolderName = String(body.accountHolderName || '').trim();
+    }
+    if (body.accountNumber !== undefined) {
+        update.accountNumber = String(body.accountNumber || '').replace(/\s|-/g, '').trim();
+    }
+    if (body.ifscCode !== undefined) {
+        update.ifscCode = String(body.ifscCode || '').trim().toUpperCase();
+    }
+    if (body.accountType !== undefined) {
+        update.accountType = String(body.accountType || '').trim();
+    }
+    if (body.upiId !== undefined) {
+        update.upiId = String(body.upiId || '').trim();
+    }
+    if (body.upiQrImage !== undefined || body.upiQrCode !== undefined) {
+        const qrImage = body.upiQrImage !== undefined ? body.upiQrImage : body.upiQrCode;
+        update.upiQrImage = String(qrImage || '').trim();
     }
 
     if (body.name !== undefined || body.restaurantName !== undefined) {
@@ -531,6 +570,8 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
                     'ifscCode',
                     'accountHolderName',
                     'accountType',
+                    'upiId',
+                    'upiQrImage',
                     'estimatedDeliveryTime',
                     'featuredDish',
                     'featuredPrice',

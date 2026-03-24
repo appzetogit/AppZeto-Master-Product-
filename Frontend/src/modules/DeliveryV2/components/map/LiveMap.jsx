@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { 
   GoogleMap, 
   Marker, 
@@ -210,16 +210,54 @@ export const LiveMap = ({ onMapClick, onMapLoad, onPathReceived, onPolylineRecei
     return activeOrder.customerImage || activeOrder.user?.logo || activeOrder.user?.profileImage || 'https://cdn-icons-png.flaticon.com/512/1275/1275302.png';
   }, [activeOrder]);
 
-  const mapCenter = parsedRiderLocation || { lat: 23.2599, lng: 77.4126 };
+  // Stable Midpoint calculation to keep BOTH rider and destination framed
+  const mapCenter = useMemo(() => {
+    if (!parsedRiderLocation) return { lat: 23.2599, lng: 77.4126 };
+    if (!targetLocation) return parsedRiderLocation;
 
+    return {
+      lat: (parsedRiderLocation.lat + targetLocation.lat) / 2,
+      lng: (parsedRiderLocation.lng + targetLocation.lng) / 2
+    };
+  }, [parsedRiderLocation?.lat, parsedRiderLocation?.lng, targetLocation?.lat, targetLocation?.lng]);
+
+  const lastBoundsSyncRef = useRef(null); 
   useEffect(() => {
     if (map && parsedRiderLocation && targetLocation && isLoaded) {
-      const bounds = new window.google.maps.LatLngBounds();
-      bounds.extend(parsedRiderLocation);
-      bounds.extend(targetLocation);
-      map.fitBounds(bounds, { top: 120, bottom: 320, left: 60, right: 60 });
+      const now = Date.now();
+      const syncKey = `${activeOrder?._id}-${tripStatus}`;
+      const isDue = (now - (lastBoundsSyncRef.current?.time || 0)) > 20000;
+      const keyChanged = lastBoundsSyncRef.current?.key !== syncKey;
+
+      if (isDue || keyChanged) {
+        lastBoundsSyncRef.current = { time: now, key: syncKey };
+        const bounds = new window.google.maps.LatLngBounds();
+        bounds.extend(parsedRiderLocation);
+        bounds.extend(targetLocation);
+        map.fitBounds(bounds, { top: 120, bottom: 280, left: 60, right: 60 });
+      }
     }
-  }, [map, parsedRiderLocation, targetLocation, isLoaded]);
+  }, [map, parsedRiderLocation, targetLocation, isLoaded, activeOrder?._id, tripStatus]);
+
+  const directionsServiceOptions = useMemo(() => {
+    if (!parsedRiderLocation || !targetLocation) return null;
+    return {
+      origin: parsedRiderLocation,
+      destination: targetLocation,
+      travelMode: 'DRIVING',
+    };
+  }, [parsedRiderLocation?.lat, parsedRiderLocation?.lng, targetLocation?.lat, targetLocation?.lng]);
+
+  const directionsRendererOptions = useMemo(() => ({
+    suppressMarkers: true,
+    preserveViewport: true,
+    polylineOptions: {
+      strokeColor: '#22c55e',
+      strokeOpacity: 0.8,
+      strokeWeight: 6,
+      strokePosition: 2 // ABOVE_ROAD
+    }
+  }), []);
 
   if (loadError) return <div className="absolute inset-0 flex items-center justify-center bg-gray-50 text-red-500 font-bold">Map Load Error</div>;
   if (!isLoaded) return <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
@@ -239,13 +277,9 @@ export const LiveMap = ({ onMapClick, onMapLoad, onPathReceived, onPolylineRecei
         onClick={(e) => onMapClick?.(e.latLng.lat(), e.latLng.lng())}
         options={mapOptions}
       >
-        {parsedRiderLocation && targetLocation && shouldUpdateRoute && (
+        {directionsServiceOptions && shouldUpdateRoute && (
           <DirectionsService
-            options={{
-              origin: parsedRiderLocation,
-              destination: targetLocation,
-              travelMode: 'DRIVING',
-            }}
+            options={directionsServiceOptions}
             callback={directionsCallback}
           />
         )}
@@ -253,16 +287,7 @@ export const LiveMap = ({ onMapClick, onMapLoad, onPathReceived, onPolylineRecei
         {directions && (
           <DirectionsRenderer
             directions={directions}
-            options={{
-              suppressMarkers: true,
-              preserveViewport: true, // IMPORTANT: Prevents map from 'fluctuating' when route updates
-              polylineOptions: {
-                strokeColor: '#22c55e',
-                strokeOpacity: 0.8,
-                strokeWeight: 6,
-                strokePosition: 2 // ABOVE_ROAD
-              }
-            }}
+            options={directionsRendererOptions}
           />
         )}
 

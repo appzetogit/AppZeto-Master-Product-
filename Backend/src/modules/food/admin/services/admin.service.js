@@ -3950,7 +3950,7 @@ export async function getWithdrawals(query = {}) {
 
     const [withdrawals, total] = await Promise.all([
         FoodRestaurantWithdrawal.find(filter)
-            .populate('restaurantId', 'restaurantName profileImage ownerName phone')
+            .populate('restaurantId', 'restaurantName profileImage ownerName phone ownerPhone accountHolderName accountNumber ifscCode accountType upiId upiQrImage')
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit)
@@ -3964,6 +3964,14 @@ export async function getWithdrawals(query = {}) {
         id: w._id,
         restaurantName: w.restaurantId?.restaurantName || 'N/A',
         restaurantIdString: w.restaurantId ? `REST${w.restaurantId._id.toString().slice(-6).padStart(6, '0')}` : 'N/A',
+        restaurantBankDetails: {
+            accountHolderName: w.restaurantId?.accountHolderName || '',
+            accountNumber: w.restaurantId?.accountNumber || '',
+            ifscCode: w.restaurantId?.ifscCode || '',
+            accountType: w.restaurantId?.accountType || '',
+            upiId: w.restaurantId?.upiId || '',
+            upiQrImage: w.restaurantId?.upiQrImage || ''
+        },
         status: w.status.charAt(0).toUpperCase() + w.status.slice(1)
     }));
 

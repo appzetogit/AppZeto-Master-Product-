@@ -1524,8 +1524,12 @@ export default function Cart() {
             })
 
             // Verify payment with backend
+            const verifyOrderId = order?._id || order?.id || order?.orderMongoId
+            if (!verifyOrderId) {
+              throw new Error("Unable to verify payment: missing order id from create-order response")
+            }
             const verifyResponse = await orderAPI.verifyPayment({
-              orderId: order.id,
+              orderId: verifyOrderId,
               razorpayOrderId: response.razorpay_order_id,
               razorpayPaymentId: response.razorpay_payment_id,
               razorpaySignature: response.razorpay_signature
@@ -1549,7 +1553,12 @@ export default function Cart() {
             }
           } catch (error) {
             debugError("? Payment verification error:", error)
-            const errorMessage = error?.response?.data?.message || error?.message || "Payment verification failed. Please contact support."
+            const errorMessage =
+              error?.response?.data?.message ||
+              error?.response?.data?.error?.message ||
+              error?.response?.data?.errors?.[0]?.message ||
+              error?.message ||
+              "Payment verification failed. Please contact support."
             alert(errorMessage)
             setIsPlacingOrder(false)
           }

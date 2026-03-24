@@ -163,6 +163,14 @@ const restaurantSchema = new mongoose.Schema(
     accountType: {
       type: String,
     },
+    upiId: {
+      type: String,
+      trim: true,
+    },
+    upiQrImage: {
+      type: String,
+      trim: true,
+    },
     menuImages: {
       type: [String],
       default: [],

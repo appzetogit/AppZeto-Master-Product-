@@ -2,7 +2,7 @@ import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import Lenis from "lenis"
 import { ArrowLeft, ChevronDown } from "lucide-react"
-import BottomPopup from "@food/components/delivery/BottomPopup"
+import BottomPopup from "@delivery/components/BottomPopup"
 import { restaurantAPI } from "@food/api"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}

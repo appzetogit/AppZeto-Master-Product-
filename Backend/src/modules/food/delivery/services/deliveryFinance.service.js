@@ -140,11 +140,21 @@ export const requestDeliveryWithdrawal = async (deliveryPartnerId, payload) => {
         throw new ValidationError('Insufficient balance for this withdrawal');
     }
 
+    const partner = await FoodDeliveryPartner.findById(deliveryPartnerId).lean();
+    if (!partner) throw new ValidationError('Delivery partner not found');
+
     const withdrawal = await FoodDeliveryWithdrawal.create({
         deliveryPartnerId,
         amount,
         paymentMethod,
-        bankDetails,
+        bankDetails: bankDetails || {
+            accountNumber: partner.bankAccountNumber,
+            ifscCode: partner.bankIfscCode,
+            bankName: partner.bankName,
+            accountHolderName: partner.bankAccountHolderName
+        },
+        upiId: partner.upiId,
+        upiQrCode: partner.upiQrCode,
         status: 'pending'
     });
 

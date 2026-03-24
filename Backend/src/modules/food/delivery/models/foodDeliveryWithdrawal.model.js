@@ -28,6 +28,8 @@ const foodDeliveryWithdrawalSchema = new mongoose.Schema({
         bankName: String,
         accountHolderName: String
     },
+    upiId: String,
+    upiQrCode: String,
     adminNote: String,
     rejectionReason: String,
     transactionId: String, // Final bank transaction reference from admin

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react"
-import { Search, Wallet, Eye, CheckCircle, XCircle, Loader2, Package } from "lucide-react"
+import { Search, Wallet, Eye, CheckCircle, XCircle, Loader2, Package, QrCode } from "lucide-react"
 import { adminAPI } from "@food/api"
 import { toast } from "sonner"
 import {
@@ -325,6 +325,46 @@ export default function DeliveryWithdrawal() {
                   <label className="text-xs font-semibold text-slate-500 uppercase">Phone</label>
                   <p className="text-sm font-medium text-slate-900 mt-1">{selectedRequest.deliveryPhone || "N/A"}</p>
                 </div>
+                {selectedRequest.upiId && (
+                  <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-100 mb-2">
+                    <div className="flex items-center gap-2 mb-1">
+                      <QrCode className="w-4 h-4 text-emerald-600" />
+                      <label className="text-xs font-bold text-emerald-800 uppercase">UPI Information</label>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-slate-900">{selectedRequest.upiId}</p>
+                      {selectedRequest.upiQrCode && (
+                        <button 
+                          onClick={() => window.open(selectedRequest.upiQrCode, '_blank')}
+                          className="text-[10px] bg-emerald-600 text-white px-2 py-1 rounded hover:bg-emerald-700 transition-colors flex items-center gap-1"
+                        >
+                          <Eye className="w-3 h-3" />
+                          View QR
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-500 uppercase">Bank Name</label>
+                    <p className="text-sm font-medium text-slate-900 mt-1">{selectedRequest.bankDetails?.bankName || "N/A"}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-500 uppercase">Account Number</label>
+                    <p className="text-sm font-medium text-slate-900 mt-1">{selectedRequest.bankDetails?.accountNumber || "N/A"}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-500 uppercase">IFSC Code</label>
+                    <p className="text-sm font-medium text-slate-900 mt-1 uppercase text-emerald-600">{selectedRequest.bankDetails?.ifscCode || "N/A"}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-500 uppercase">Holder Name</label>
+                    <p className="text-sm font-medium text-slate-900 mt-1">{selectedRequest.bankDetails?.accountHolderName || "N/A"}</p>
+                  </div>
+                </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-500 uppercase">Request time</label>
                   <p className="text-sm font-medium text-slate-900 mt-1">{formatDate(selectedRequest.requestedAt || selectedRequest.createdAt)}</p>
@@ -353,12 +393,6 @@ export default function DeliveryWithdrawal() {
                   <div>
                     <label className="text-xs font-semibold text-slate-500 uppercase">Rejection reason</label>
                     <p className="text-sm font-medium text-slate-900 mt-1">{selectedRequest.rejectionReason}</p>
-                  </div>
-                )}
-                {selectedRequest.upiId && (
-                  <div>
-                    <label className="text-xs font-semibold text-slate-500 uppercase">UPI ID</label>
-                    <p className="text-sm font-medium text-slate-900 mt-1">{selectedRequest.upiId}</p>
                   </div>
                 )}
               </div>

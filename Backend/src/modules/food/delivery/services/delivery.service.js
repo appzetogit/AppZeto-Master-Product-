@@ -182,22 +182,48 @@ export const updateDeliveryPartnerProfilePhotoBase64 = async (userId, payload) =
     return partner.toObject();
 };
 
-export const updateDeliveryPartnerBankDetails = async (userId, payload) => {
+export const updateDeliveryPartnerBankDetails = async (userId, payload, files) => {
     const partner = await FoodDeliveryPartner.findById(userId);
     if (!partner) {
         throw new ValidationError('Delivery partner not found');
     }
-    const docs = payload?.documents;
-    if (docs?.bankDetails) {
-        const b = docs.bankDetails;
+
+    // Handle both nested JSON and flat FormData from multer
+    let bankDetails = payload?.documents?.bankDetails;
+    let panDetails = payload?.documents?.pan;
+
+    // Multer flattens FormData keys like 'documents[bankDetails][accountNumber]'
+    if (!bankDetails && payload) {
+        const b = {};
+        if (payload['documents[bankDetails][accountHolderName]'] !== undefined) b.accountHolderName = payload['documents[bankDetails][accountHolderName]'];
+        if (payload['documents[bankDetails][accountNumber]'] !== undefined) b.accountNumber = payload['documents[bankDetails][accountNumber]'];
+        if (payload['documents[bankDetails][ifscCode]'] !== undefined) b.ifscCode = payload['documents[bankDetails][ifscCode]'];
+        if (payload['documents[bankDetails][bankName]'] !== undefined) b.bankName = payload['documents[bankDetails][bankName]'];
+        if (payload['documents[bankDetails][upiId]'] !== undefined) b.upiId = payload['documents[bankDetails][upiId]'];
+        if (Object.keys(b).length > 0) bankDetails = b;
+    }
+
+    if (!panDetails && payload?.['documents[pan][number]'] !== undefined) {
+        panDetails = { number: payload['documents[pan][number]'] };
+    }
+
+    if (bankDetails) {
+        const b = bankDetails;
         if (b.accountHolderName !== undefined) partner.bankAccountHolderName = b.accountHolderName ? String(b.accountHolderName).trim() : '';
         if (b.accountNumber !== undefined) partner.bankAccountNumber = b.accountNumber ? String(b.accountNumber).trim() : '';
         if (b.ifscCode !== undefined) partner.bankIfscCode = b.ifscCode ? String(b.ifscCode).trim().toUpperCase() : '';
         if (b.bankName !== undefined) partner.bankName = b.bankName ? String(b.bankName).trim() : '';
+        if (b.upiId !== undefined) partner.upiId = b.upiId ? String(b.upiId).trim() : '';
     }
-    if (docs?.pan?.number !== undefined) {
-        partner.panNumber = docs.pan.number ? String(docs.pan.number).trim().toUpperCase() : '';
+
+    if (panDetails?.number !== undefined) {
+        partner.panNumber = panDetails.number ? String(panDetails.number).trim().toUpperCase() : '';
     }
+
+    if (files?.upiQrCode?.[0]) {
+        partner.upiQrCode = await uploadImageBuffer(files.upiQrCode[0].buffer, 'food/delivery/upi');
+    }
+
     await partner.save();
     return partner.toObject();
 };

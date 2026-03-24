@@ -82,6 +82,8 @@ const deliveryPartnerSchema = new mongoose.Schema(
         bankAccountNumber: { type: String },
         bankIfscCode: { type: String },
         bankName: { type: String },
+        upiId: { type: String },
+        upiQrCode: { type: String },
         availabilityStatus: {
             type: String,
             enum: ['online', 'offline'],

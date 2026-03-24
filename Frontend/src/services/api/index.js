@@ -1569,6 +1569,15 @@ export const deliveryAPI = {
     apiClient.patch("/food/delivery/profile/bank-details", payload ?? {}, {
       contextModule: "delivery",
     }),
+  /** PATCH /food/delivery/profile/bank-details - multipart updates for bank details + UPI QR (FormData required). */
+  updateBankDetailsMultipart: (formData) => {
+    if (!formData || !(formData instanceof FormData)) {
+      return Promise.reject(new Error("FormData is required"));
+    }
+    return apiClient.patch("/food/delivery/profile/bank-details", formData, {
+      contextModule: "delivery",
+    });
+  },
   saveFcmToken: (token, platform = "web") => {
     if (!token) return Promise.reject(new Error("FCM token is required"));
     const path =

@@ -109,11 +109,13 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
   const { orders: contextOrders } = useOrders();
   const [timeRemaining, setTimeRemaining] = useState(null);
   const [apiOrders, setApiOrders] = useState([]);
+  const [hasFetchedApi, setHasFetchedApi] = useState(false);
   const [activeOrderOverride, setActiveOrderOverride] = useState(null);
   const lastRefreshRef = useRef(0);
   const lastApiFingerprintRef = useRef("");
   const activeOrderKeyRef = useRef("");
   const activeOrderSnapshotRef = useRef(null);
+  const [invalidOrderIds, setInvalidOrderIds] = useState(new Set());
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -147,6 +149,8 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
         lastApiFingerprintRef.current = "";
         setApiOrders([]);
       }
+    } finally {
+      setHasFetchedApi(true);
     }
   }, []);
 
@@ -157,6 +161,10 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
   }, [fetchOrders]);
 
   const uniqueOrders = useMemo(() => {
+    const isMongoObjectId = (value) => /^[a-f0-9]{24}$/i.test(String(value || ""));
+    const serverKeys = new Set(
+      (apiOrders || []).map((o) => String(getOrderKey(o) || "")).filter(Boolean),
+    );
     const seen = new Set();
 
     return [...apiOrders, ...contextOrders].filter((order) => {
@@ -164,10 +172,22 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
       if (!key || seen.has(key)) {
         return false;
       }
+      if (invalidOrderIds.has(key)) {
+        return false;
+      }
+      // After first API sync, ignore stale local Mongo-like ids that are absent server-side.
+      // This prevents repeated verification calls for already-deleted orders.
+      if (
+        hasFetchedApi &&
+        isMongoObjectId(key) &&
+        !serverKeys.has(String(key))
+      ) {
+        return false;
+      }
       seen.add(key);
       return true;
     });
-  }, [contextOrders, apiOrders]);
+  }, [contextOrders, apiOrders, invalidOrderIds, hasFetchedApi]);
 
   const activeOrder = useMemo(() => {
     const candidate = uniqueOrders.find((order) => isActiveOrder(order)) || null;
@@ -211,8 +231,14 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
         const response = await orderAPI.getOrderDetails(incomingKey);
         const fresh = response?.data?.data?.order || response?.data?.order || response?.data?.data || null;
         if (fresh) setActiveOrderOverride(fresh);
-      } catch {
-        // ignore
+      } catch (error) {
+        if (error?.response?.status === 404 || error?.response?.status === 400) {
+          setInvalidOrderIds((prev) => {
+            const next = new Set(prev);
+            next.add(incomingKey);
+            return next;
+          });
+        }
       }
     };
 
@@ -245,6 +271,32 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
 
     return () => clearInterval(interval);
   }, [activeOrder]);
+
+  // Proactive verification for active orders not found in recent API list
+  useEffect(() => {
+    const key = getOrderKey(activeOrder);
+    if (!key || invalidOrderIds.has(key)) return;
+
+    // If order is present in the recent server-provided list, we consider it valid without extra check
+    const isRecentlyConfirmed = apiOrders.some((o) => getOrderKey(o) === key);
+    if (isRecentlyConfirmed) return;
+
+    const verifyOrderExists = async () => {
+      try {
+        await orderAPI.getOrderDetails(key);
+      } catch (error) {
+        if (error?.response?.status === 404 || error?.response?.status === 400) {
+          setInvalidOrderIds((prev) => {
+            const next = new Set(prev);
+            next.add(key);
+            return next;
+          });
+        }
+      }
+    };
+
+    verifyOrderExists();
+  }, [activeOrder, apiOrders, invalidOrderIds]);
 
   const [dismissedKey, setDismissedKey] = useState(null);
 

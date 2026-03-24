@@ -8,7 +8,7 @@ export default function PromoRow({ handleVegModeChange, navigate, isVegMode, tog
   const promoCardsData = [
     { id: 'offers', title: "Min.", value: "40%off", subtitle: "", icon: discountPromoIcon, bgColor: "bg-[#fff0f0] border-[#ffe4e4]" },
     { id: 'pure-veg', title: "Pure", value: "Veg", subtitle: "", icon: vegPromoIcon, bgColor: "bg-[#f0fff4] border-[#d7f9e4]" },
-    { id: 'under-149', title: "Under", value: "₹149", subtitle: "", icon: pricePromoIcon, bgColor: "bg-[#fffcf0] border-[#fff5cc]" },
+    { id: 'under-250', title: "Under", value: "₹250", subtitle: "", icon: pricePromoIcon, bgColor: "bg-[#fffcf0] border-[#fff5cc]" },
     { id: 'combos', title: "Best", value: "Combos", subtitle: "", icon: comboPromoIcon, bgColor: "bg-[#f0f9ff] border-[#e0f2fe]" },
   ];
 
@@ -18,10 +18,11 @@ export default function PromoRow({ handleVegModeChange, navigate, isVegMode, tog
         <div 
           key={idx}
           ref={promo.id === 'pure-veg' ? toggleRef : null}
-          className={`${promo.bgColor} rounded-[28px] p-3.5 flex flex-col items-center justify-between h-[150px] shadow-md border group active:scale-95 transition-all duration-300 ${promo.id === 'pure-veg' && isVegMode ? 'ring-2 ring-green-500 bg-green-50' : ''}`}
+          className={`${promo.bgColor} rounded-[28px] p-3.5 flex flex-col items-center justify-between h-[150px] shadow-md border group active:scale-95 transition-all duration-300 cursor-pointer ${promo.id === 'pure-veg' && isVegMode ? 'ring-2 ring-green-500 bg-green-50' : ''}`}
           onClick={() => {
             if (promo.id === 'pure-veg') handleVegModeChange(!isVegMode);
             else if (promo.id === 'offers') navigate('/food/user/offers');
+            else if (promo.id === 'under-250') navigate('/food/user/under-250');
           }}
         >
           <div className="flex flex-col items-center space-y-0.5">

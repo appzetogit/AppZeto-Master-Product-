@@ -11,7 +11,8 @@ const uploadFields = upload.fields([
     { name: 'profilePhoto', maxCount: 1 },
     { name: 'aadharPhoto', maxCount: 1 },
     { name: 'panPhoto', maxCount: 1 },
-    { name: 'drivingLicensePhoto', maxCount: 1 }
+    { name: 'drivingLicensePhoto', maxCount: 1 },
+    { name: 'upiQrCode', maxCount: 1 }
 ]);
 
 router.post('/register', uploadFields, registerDeliveryPartnerController);
@@ -24,7 +25,7 @@ router.patch('/profile/details', authMiddleware, requireRoles('DELIVERY_PARTNER'
 // Base64 profile photo update – designed for Flutter in-app WebView camera handler.
 router.post('/profile/photo-base64', authMiddleware, requireRoles('DELIVERY_PARTNER'), updateDeliveryPartnerProfilePhotoBase64Controller);
 
-router.patch('/profile/bank-details', authMiddleware, requireRoles('DELIVERY_PARTNER'), updateDeliveryPartnerBankDetailsController);
+router.patch('/profile/bank-details', authMiddleware, requireRoles('DELIVERY_PARTNER'), uploadFields, updateDeliveryPartnerBankDetailsController);
 
 router.patch('/availability', authMiddleware, requireRoles('DELIVERY_PARTNER'), updateAvailabilityController);
 

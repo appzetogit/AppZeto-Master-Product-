@@ -7,7 +7,7 @@ import { FoodRestaurant } from '../../restaurant/models/restaurant.model.js';
 import { FoodDeliveryPartner } from '../../delivery/models/deliveryPartner.model.js';
 import { FoodZone } from '../../admin/models/zone.model.js';
 import { FoodFeeSettings } from '../../admin/models/feeSettings.model.js';
-import { ValidationError, ForbiddenError } from '../../../../core/auth/errors.js';
+import { ValidationError, ForbiddenError, NotFoundError } from '../../../../core/auth/errors.js';
 import { buildPaginationOptions, buildPaginatedResult } from '../../../../utils/helpers.js';
 import { FoodOffer } from '../../admin/models/offer.model.js';
 import { FoodOfferUsage } from '../../admin/models/offerUsage.model.js';
@@ -820,7 +820,7 @@ export async function verifyPayment(userId, dto) {
     _id: new mongoose.Types.ObjectId(dto.orderId),
     userId: new mongoose.Types.ObjectId(userId),
   });
-  if (!order) throw new ValidationError("Order not found");
+  if (!order) throw new NotFoundError("Order not found");
   if (order.payment.status === "paid")
     return { order: order.toObject(), payment: order.payment };
 
@@ -1048,7 +1048,7 @@ export async function getOrderById(
     .populate("userId", "name phone email")
     .select("+deliveryOtp")
     .lean();
-  if (!order) throw new ValidationError("Order not found");
+  if (!order) throw new NotFoundError("Order not found");
 
   if (admin) return normalizeOrderForClient(order);
 
@@ -1096,7 +1096,7 @@ export async function cancelOrder(orderId, userId, reason) {
     ...identity,
     userId: new mongoose.Types.ObjectId(userId),
   });
-  if (!order) throw new ValidationError("Order not found");
+  if (!order) throw new NotFoundError("Order not found");
 
   const allowed = ["created"];
   if (!allowed.includes(order.orderStatus))
@@ -1149,7 +1149,7 @@ export async function submitOrderRatings(orderId, userId, dto) {
     ...identity,
     userId: new mongoose.Types.ObjectId(userId),
   });
-  if (!order) throw new ValidationError("Order not found");
+  if (!order) throw new NotFoundError("Order not found");
   if (String(order.orderStatus) !== "delivered") {
     throw new ValidationError("You can rate only delivered orders");
   }
@@ -1235,7 +1235,7 @@ export async function updateOrderStatusRestaurant(
     _id: new mongoose.Types.ObjectId(orderId),
     restaurantId: new mongoose.Types.ObjectId(restaurantId),
   });
-  if (!order) throw new ValidationError("Order not found");
+  if (!order) throw new NotFoundError("Order not found");
   const from = order.orderStatus;
   order.orderStatus = orderStatus;
   pushStatusHistory(order, {
@@ -1463,7 +1463,7 @@ export async function resendDeliveryNotificationRestaurant(orderId, restaurantId
         restaurantId: new mongoose.Types.ObjectId(restaurantId)
     });
 
-    if (!order) throw new ValidationError('Order not found');
+    if (!order) throw new NotFoundError('Order not found');
 
     // Only allow if order is still active and not already terminal
     const activeStatuses = ['preparing', 'ready_for_pickup', 'ready'];
@@ -1572,7 +1572,7 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId) {
     ],
   });
 
-  if (!order) throw new ValidationError("Order not found");
+  if (!order) throw new NotFoundError("Order not found");
 
   // Guard: only dispatchable after restaurant accepted.
   if (
@@ -1701,7 +1701,7 @@ export async function rejectOrderDelivery(orderId, deliveryPartnerId) {
     const identity = buildOrderIdentityFilter(orderId);
     if (!identity) throw new ValidationError('Order id required');
     const order = await FoodOrder.findOne(identity);
-    if (!order) throw new ValidationError('Order not found');
+    if (!order) throw new NotFoundError('Order not found');
     if (order.dispatch.deliveryPartnerId?.toString() !== deliveryPartnerId.toString()) throw new ForbiddenError('Not your order');
     
     // Mark as rejected in history
@@ -1732,7 +1732,7 @@ export async function confirmReachedPickupDelivery(orderId, deliveryPartnerId) {
   if (!identity) throw new ValidationError("Order id required");
 
   const order = await FoodOrder.findOne(identity);
-  if (!order) throw new ValidationError("Order not found");
+  if (!order) throw new NotFoundError("Order not found");
   if (
     order.dispatch?.deliveryPartnerId?.toString() !==
     deliveryPartnerId.toString()
@@ -1812,7 +1812,7 @@ export async function confirmPickupDelivery(
 ) {
   const identity = buildOrderIdentityFilter(orderId);
   const order = await FoodOrder.findOne(identity);
-  if (!order) throw new ValidationError("Order not found");
+  if (!order) throw new NotFoundError("Order not found");
   if (
     order.dispatch?.deliveryPartnerId?.toString() !==
     deliveryPartnerId.toString()
@@ -1852,7 +1852,7 @@ export async function confirmReachedDropDelivery(orderId, deliveryPartnerId) {
   if (!identity) throw new ValidationError("Order id required");
 
   const order = await FoodOrder.findOne(identity).select("+deliveryOtp");
-  if (!order) throw new ValidationError("Order not found");
+  if (!order) throw new NotFoundError("Order not found");
   if (
     order.dispatch?.deliveryPartnerId?.toString() !==
     deliveryPartnerId.toString()
@@ -1919,7 +1919,7 @@ export async function confirmReachedDropDelivery(orderId, deliveryPartnerId) {
 export async function verifyDropOtpDelivery(orderId, deliveryPartnerId, otp) {
   const identity = buildOrderIdentityFilter(orderId);
   const order = await FoodOrder.findOne(identity).select("+deliveryOtp");
-  if (!order) throw new ValidationError("Order not found");
+  if (!order) throw new NotFoundError("Order not found");
   if (
     order.dispatch?.deliveryPartnerId?.toString() !==
     deliveryPartnerId.toString()
@@ -1965,7 +1965,7 @@ export async function verifyDropOtpDelivery(orderId, deliveryPartnerId, otp) {
 export async function completeDelivery(orderId, deliveryPartnerId, body = {}) {
   const identity = buildOrderIdentityFilter(orderId);
   const order = await FoodOrder.findOne(identity);
-  if (!order) throw new ValidationError("Order not found");
+  if (!order) throw new NotFoundError("Order not found");
   if (
     order.dispatch?.deliveryPartnerId?.toString() !==
     deliveryPartnerId.toString()
@@ -2128,7 +2128,7 @@ export async function updateOrderStatusDelivery(orderId, deliveryPartnerId, orde
     const identity = buildOrderIdentityFilter(orderId);
     if (!identity) throw new ValidationError('Order id required');
     const order = await FoodOrder.findOne(identity);
-    if (!order) throw new ValidationError('Order not found');
+    if (!order) throw new NotFoundError('Order not found');
     if (order.dispatch.deliveryPartnerId?.toString() !== deliveryPartnerId.toString()) throw new ForbiddenError('Not your order');
     const from = order.orderStatus;
     order.orderStatus = orderStatus;
@@ -2154,7 +2154,7 @@ export async function createCollectQr(
   const order = await FoodOrder.findOne(query)
     .populate("userId", "name email phone")
     .lean();
-  if (!order) throw new ValidationError("Order not found");
+  if (!order) throw new NotFoundError("Order not found");
   if (
     order.dispatch.deliveryPartnerId?.toString() !==
     deliveryPartnerId.toString()
@@ -2293,7 +2293,7 @@ export async function getPaymentStatus(orderId, deliveryPartnerId) {
   const order = await FoodOrder.findOne(identity).select(
     "payment dispatch riderEarning platformProfit pricing"
   );
-  if (!order) throw new ValidationError("Order not found");
+  if (!order) throw new NotFoundError("Order not found");
   if (
     order.dispatch?.deliveryPartnerId?.toString() !==
     deliveryPartnerId.toString()
@@ -2437,7 +2437,7 @@ export async function assignDeliveryPartnerAdmin(
   adminId,
 ) {
   const order = await FoodOrder.findById(orderId);
-  if (!order) throw new ValidationError("Order not found");
+  if (!order) throw new NotFoundError("Order not found");
   if (order.dispatch.status === "accepted")
     throw new ValidationError("Order already accepted by partner");
 
@@ -2466,7 +2466,7 @@ export async function deleteOrderAdmin(orderId, adminId) {
   if (!identity) throw new ValidationError("Order id required");
 
   const order = await FoodOrder.findOne(identity).lean();
-  if (!order) throw new ValidationError("Order not found");
+  if (!order) throw new NotFoundError("Order not found");
 
   // Keep support tickets but detach deleted order reference.
   await Promise.all([
@@ -2523,3 +2523,4 @@ export async function deleteOrderAdmin(orderId, adminId) {
     orderMongoId: String(order._id),
   };
 }
+

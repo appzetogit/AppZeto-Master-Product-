@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react"
-import { Upload, Trash2, Image as ImageIcon, Loader2, AlertCircle, CheckCircle2, ArrowUp, ArrowDown, Layout, Tag, UtensilsCrossed, Trophy, ChefHat, Megaphone, Search } from "lucide-react"
+import { Upload, Trash2, Image as ImageIcon, Loader2, AlertCircle, CheckCircle2, ArrowUp, ArrowDown, Layout, Tag, UtensilsCrossed, ChefHat, Megaphone, Search } from "lucide-react"
 import api from "@food/api"
 import { adminAPI } from "@food/api"
 import { getModuleToken } from "@food/utils/auth"
@@ -15,7 +15,7 @@ const debugError = (...args) => {}
 
 export default function LandingPageManagement() {
   const [activeTab, setActiveTab] = useState('banners')
-  const [exploreMoreSubTab, setExploreMoreSubTab] = useState('top-10')
+  const [exploreMoreSubTab, setExploreMoreSubTab] = useState('icons')
 
   // Hero Banners
   const [banners, setBanners] = useState([])
@@ -65,12 +65,6 @@ export default function LandingPageManagement() {
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [recommendedSearchQuery, setRecommendedSearchQuery] = useState("")
 
-  // Top 10 Restaurants
-  const [top10Restaurants, setTop10Restaurants] = useState([])
-  const [top10Loading, setTop10Loading] = useState(true)
-  const [top10Deleting, setTop10Deleting] = useState(null)
-  const [selectedRestaurantTop10, setSelectedRestaurantTop10] = useState("")
-  const [selectedRank, setSelectedRank] = useState(1)
   const [allRestaurants, setAllRestaurants] = useState([])
   const [restaurantsLoading, setRestaurantsLoading] = useState(false)
 
@@ -156,9 +150,7 @@ export default function LandingPageManagement() {
       if (allRestaurants.length === 0) {
         fetchAllRestaurants()
       }
-      if (exploreMoreSubTab === 'top-10') {
-        fetchTop10Restaurants()
-      } else if (exploreMoreSubTab === 'gourmet') {
+      if (exploreMoreSubTab === 'gourmet') {
         fetchGourmetRestaurants()
       } else if (exploreMoreSubTab === 'icons') {
         fetchExploreMore()
@@ -1115,116 +1107,6 @@ export default function LandingPageManagement() {
     }
   }
 
-  // ==================== TOP 10 RESTAURANTS ====================
-  const fetchTop10Restaurants = async () => {
-    try {
-      setTop10Loading(true)
-      setError(null)
-      const response = await api.get('/food/hero-banners/top-10', getAuthConfig())
-      if (response.data.success) {
-        setTop10Restaurants(response.data.data.restaurants || [])
-      }
-    } catch (err) {
-      if (err.response?.status === 401 || err.response?.status === 404) {
-        setTop10Restaurants([])
-        setError(null)
-      } else {
-        const errorMessage = err.response?.data?.message || 'Failed to load Top 10 restaurants'
-        setErrorSafely(errorMessage)
-      }
-    } finally {
-      setTop10Loading(false)
-    }
-  }
-
-  const handleAddTop10Restaurant = async () => {
-    if (!selectedRestaurantTop10 || !selectedRank) {
-      setError('Please select a restaurant and rank')
-      return
-    }
-
-    try {
-      setError(null)
-      setSuccess(null)
-      const response = await api.post('/food/hero-banners/top-10', {
-        restaurantId: selectedRestaurantTop10,
-        rank: parseInt(selectedRank)
-      }, getAuthConfig())
-      if (response.data.success) {
-        setSuccess('Restaurant added to Top 10 successfully!')
-        setSelectedRestaurantTop10("")
-        setSelectedRank(1)
-        await fetchTop10Restaurants()
-        setTimeout(() => setSuccess(null), 3000)
-      }
-    } catch (err) {
-      setErrorSafely(err.response?.data?.message || 'Failed to add restaurant to Top 10.')
-    }
-  }
-
-  const handleDeleteTop10Restaurant = async (id) => {
-    if (!window.confirm('Are you sure you want to remove this restaurant from Top 10?')) return
-    try {
-      setTop10Deleting(id)
-      setError(null)
-      setSuccess(null)
-      const response = await api.delete(`/food/hero-banners/top-10/${id}`, getAuthConfig())
-      if (response.data.success) {
-        setSuccess('Restaurant removed from Top 10 successfully!')
-        await fetchTop10Restaurants()
-        setTimeout(() => setSuccess(null), 3000)
-      }
-    } catch (err) {
-      setErrorSafely(err.response?.data?.message || 'Failed to remove restaurant.')
-    } finally {
-      setTop10Deleting(null)
-    }
-  }
-
-  const handleTop10OrderChange = async (id, direction) => {
-    const restaurant = top10Restaurants.find(r => r._id === id)
-    if (!restaurant) return
-    const newOrder = direction === 'up' ? restaurant.order - 1 : restaurant.order + 1
-    const otherRestaurant = top10Restaurants.find(r => r.order === newOrder && r._id !== id)
-    if (!otherRestaurant && newOrder < 0) return
-    try {
-      setError(null)
-      await api.patch(`/food/hero-banners/top-10/${id}/order`, { order: newOrder }, getAuthConfig())
-      if (otherRestaurant) {
-        await api.patch(`/food/hero-banners/top-10/${otherRestaurant._id}/order`, { order: restaurant.order }, getAuthConfig())
-      }
-      await fetchTop10Restaurants()
-    } catch (err) {
-      setErrorSafely('Failed to update Top 10 restaurant order.')
-    }
-  }
-
-  const handleTop10RankChange = async (id, newRank) => {
-    try {
-      setError(null)
-      await api.patch(`/food/hero-banners/top-10/${id}/rank`, { rank: parseInt(newRank) }, getAuthConfig())
-      await fetchTop10Restaurants()
-    } catch (err) {
-      setErrorSafely('Failed to update Top 10 restaurant rank.')
-    }
-  }
-
-  const handleToggleTop10Status = async (id, currentStatus) => {
-    try {
-      setError(null)
-      setSuccess(null)
-      const response = await api.patch(`/food/hero-banners/top-10/${id}/status`, {}, getAuthConfig())
-      if (response.data.success) {
-        setSuccess(`Restaurant ${currentStatus ? 'deactivated' : 'activated'} successfully!`)
-        await fetchTop10Restaurants()
-        setTimeout(() => setSuccess(null), 3000)
-      }
-    } catch (err) {
-      setErrorSafely(err.response?.data?.message || 'Failed to update restaurant status.')
-    }
-  }
-
-  // ==================== GOURMET RESTAURANTS ====================
   const fetchGourmetRestaurants = async () => {
     try {
       setGourmetLoading(true)
@@ -1268,7 +1150,6 @@ export default function LandingPageManagement() {
       setErrorSafely(err.response?.data?.message || 'Failed to add restaurant to Gourmet.')
     }
   }
-
   const handleDeleteGourmetRestaurant = async (id) => {
     if (!window.confirm('Are you sure you want to remove this restaurant from Gourmet?')) return
     try {
@@ -1331,7 +1212,6 @@ export default function LandingPageManagement() {
 
   const exploreMoreTabs = [
     { id: 'icons', label: 'Icons', icon: ImageIcon },
-    { id: 'top-10', label: 'Top 10', icon: Trophy },
     { id: 'gourmet', label: 'Gourmet', icon: ChefHat },
   ]
 
@@ -1845,7 +1725,7 @@ export default function LandingPageManagement() {
                             >
                               <div className="min-w-0">
                                 <p className="text-sm font-medium text-slate-800 truncate">{restaurant.name}</p>
-                                <p className="text-xs text-slate-500 truncate">{restaurant.restaurantId || "No ID"}</p>
+                                 <p className="text-xs text-slate-500 truncate">{restaurant._id || "No ID"}</p>
                               </div>
                               <Checkbox
                                 checked={isChecked}
@@ -1866,7 +1746,7 @@ export default function LandingPageManagement() {
               <div className="flex gap-2 overflow-x-auto">
                 {exploreMoreTabs.map((tab) => {
                   const Icon = tab.icon
-                  const isActive = activeTab === 'explore-more' && (tab.id === 'top-10' ? top10Restaurants.length > 0 : tab.id === 'gourmet' ? gourmetRestaurants.length > 0 : false)
+                  const isActive = activeTab === 'explore-more' && (tab.id === 'gourmet' ? gourmetRestaurants.length > 0 : false)
                   return (
                     <button
                       key={tab.id}
@@ -1895,7 +1775,6 @@ export default function LandingPageManagement() {
                   {[
                     { id: 'offers', label: 'Offers', link: '/user/offers' },
                     { id: 'gourmet', label: 'Gourmet', link: '/user/gourmet' },
-                    { id: 'top10', label: 'Top 10', link: '/user/top-10' },
                     { id: 'collection', label: 'Collections', link: '/user/profile/favorites' }
                   ].map((item) => {
                     // Find matching item from DB
@@ -1949,113 +1828,6 @@ export default function LandingPageManagement() {
                   })}
                 </div>
               </div>
-            )}
-            {exploreMoreSubTab === 'top-10' && (
-              <>
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
-                  <h2 className="text-lg font-bold text-slate-900 mb-4">Add Restaurant to Top 10</h2>
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="restaurant-top10">Select Restaurant</Label>
-                      <select
-                        id="restaurant-top10"
-                        value={selectedRestaurantTop10}
-                        onChange={(e) => setSelectedRestaurantTop10(e.target.value)}
-                        className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        disabled={restaurantsLoading}
-                      >
-                        <option value="">Select a restaurant...</option>
-                        {allRestaurants
-                          .filter(r => !top10Restaurants.some(tr => tr.restaurant?._id === r._id))
-                          .map((restaurant) => (
-                            <option key={restaurant._id} value={restaurant._id}>
-                              {restaurant.name}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                    <div>
-                      <Label htmlFor="rank">Rank (1-10)</Label>
-                      <Input
-                        id="rank"
-                        type="number"
-                        min="1"
-                        max="10"
-                        value={selectedRank}
-                        onChange={(e) => setSelectedRank(e.target.value)}
-                        className="mt-1"
-                      />
-                    </div>
-                    <Button
-                      onClick={handleAddTop10Restaurant}
-                      disabled={!selectedRestaurantTop10 || !selectedRank}
-                      className="bg-blue-500 hover:bg-blue-600 text-white"
-                    >
-                      Add to Top 10
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                  <h2 className="text-lg font-bold text-slate-900 mb-4">Top 10 Restaurants ({top10Restaurants.length})</h2>
-                  {top10Loading ? (
-                    <div className="flex items-center justify-center py-12">
-                      <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-                    </div>
-                  ) : top10Restaurants.length === 0 ? (
-                    <div className="text-center py-12 text-slate-500">
-                      <Trophy className="w-12 h-12 mx-auto mb-3 text-slate-400" />
-                      <p>No restaurants added to Top 10 yet.</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {top10Restaurants
-                        .sort((a, b) => a.rank - b.rank)
-                        .map((item, index) => (
-                          <div key={item._id} className="border border-slate-200 rounded-lg p-4 flex items-center justify-between">
-                            <div className="flex items-center gap-4 flex-1">
-                              <div className="w-12 h-12 rounded-lg bg-orange-500 text-white flex items-center justify-center font-bold text-lg">
-                                {item.rank}
-                              </div>
-                              <div className="flex-1">
-                                <h3 className="font-semibold text-slate-900">{item.restaurant?.name || 'N/A'}</h3>
-                                <p className="text-xs text-slate-500">Rating: {item.restaurant?.rating || 0}?</p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Label className="text-xs">Rank:</Label>
-                                <select
-                                  value={item.rank}
-                                  onChange={(e) => handleTop10RankChange(item._id, e.target.value)}
-                                  className="px-2 py-1 border border-slate-300 rounded text-sm"
-                                >
-                                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(r => (
-                                    <option key={r} value={r}>{r}</option>
-                                  ))}
-                                </select>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <div className="flex items-center gap-1">
-                                <button onClick={() => handleTop10OrderChange(item._id, 'up')} disabled={index === 0} className="p-1.5 rounded hover:bg-slate-100 disabled:opacity-50">
-                                  <ArrowUp className="w-4 h-4 text-slate-600" />
-                                </button>
-                                <button onClick={() => handleTop10OrderChange(item._id, 'down')} disabled={index === top10Restaurants.length - 1} className="p-1.5 rounded hover:bg-slate-100 disabled:opacity-50">
-                                  <ArrowDown className="w-4 h-4 text-slate-600" />
-                                </button>
-                              </div>
-                              <button onClick={() => handleToggleTop10Status(item._id, item.isActive)} className={`px-3 py-1.5 rounded text-sm font-medium ${item.isActive ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
-                                {item.isActive ? 'Deactivate' : 'Activate'}
-                              </button>
-                              <button onClick={() => handleDeleteTop10Restaurant(item._id)} disabled={top10Deleting === item._id} className="p-1.5 rounded hover:bg-red-100 text-red-600 disabled:opacity-50">
-                                {top10Deleting === item._id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                    </div>
-                  )}
-                </div>
-              </>
             )}
 
             {/* Gourmet Tab Content */}

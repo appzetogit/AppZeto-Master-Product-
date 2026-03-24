@@ -1,4 +1,3 @@
-import { getPublicTop10Restaurants } from '../services/top10.service.js';
 import { getPublicGourmetRestaurants } from '../services/gourmet.service.js';
 import { getLandingSettings } from '../services/landingSettings.service.js';
 import { FoodHeroBanner } from '../models/heroBanner.model.js';
@@ -61,19 +60,6 @@ export const getPublicExploreIconsController = async (req, res, next) => {
     }
 };
 
-export const getPublicTop10Controller = async (req, res, next) => {
-    try {
-        const docs = await getPublicTop10Restaurants();
-        const restaurants = (docs || []).map((d) => ({
-            ...(d.restaurant || {}),
-            _id: d.restaurant?._id || d.restaurantId,
-            rank: d.rank
-        })).filter((r) => r && r._id);
-        return sendResponse(res, 200, 'Top 10 restaurants fetched', { restaurants });
-    } catch (error) {
-        next(error);
-    }
-};
 
 export const getPublicGourmetController = async (req, res, next) => {
     try {

@@ -38,19 +38,12 @@ import {
     getPublicUnder250BannersController,
     getPublicDiningBannersController,
     getPublicExploreIconsController,
-    getPublicTop10Controller,
     getPublicGourmetController,
     getPublicLandingSettingsController
 } from '../controllers/publicLanding.controller.js';
 import { detectZonePublicController, listZonesPublicController, listZonesNearbyPublicController } from '../controllers/zonePublic.controller.js';
 import { getPublicEnvController } from '../controllers/publicEnv.controller.js';
 import {
-    listTop10Admin,
-    createTop10Admin,
-    deleteTop10Admin,
-    updateTop10OrderAdmin,
-    updateTop10RankAdmin,
-    toggleTop10StatusAdmin,
     listGourmetAdmin,
     createGourmetAdmin,
     deleteGourmetAdmin,
@@ -116,14 +109,6 @@ router.patch(
     updateExploreMoreController
 );
 
-// Admin Top 10 (hero-banners)
-router.get('/hero-banners/top-10', listTop10Admin);
-router.post('/hero-banners/top-10', createTop10Admin);
-router.delete('/hero-banners/top-10/:id', deleteTop10Admin);
-router.patch('/hero-banners/top-10/:id/order', updateTop10OrderAdmin);
-router.patch('/hero-banners/top-10/:id/rank', updateTop10RankAdmin);
-router.patch('/hero-banners/top-10/:id/status', toggleTop10StatusAdmin);
-
 // Admin Gourmet (hero-banners)
 router.get('/hero-banners/gourmet', listGourmetAdmin);
 router.post('/hero-banners/gourmet', createGourmetAdmin);
@@ -136,7 +121,6 @@ router.get('/hero-banners/public', getPublicHeroBannersController);
 router.get('/hero-banners/under-250/public', getPublicUnder250BannersController);
 router.get('/hero-banners/dining/public', getPublicDiningBannersController);
 router.get('/explore-icons/public', getPublicExploreIconsController);
-router.get('/hero-banners/top-10/public', getPublicTop10Controller);
 router.get('/hero-banners/gourmet/public', getPublicGourmetController);
 router.get('/landing/settings/public', getPublicLandingSettingsController);
 router.get('/zones/detect', detectZonePublicController);

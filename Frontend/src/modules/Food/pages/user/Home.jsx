@@ -663,12 +663,6 @@ export default function Home() {
         href: "/food/user/gourmet",
       },
       {
-        id: "top10",
-        label: "Top 10",
-        image: exploreTop10,
-        href: "/food/user/top-10",
-      },
-      {
         id: "collection",
         label: "Collections",
         image: exploreCollection,

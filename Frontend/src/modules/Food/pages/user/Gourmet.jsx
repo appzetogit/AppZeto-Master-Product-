@@ -9,6 +9,7 @@ import { API_BASE_URL } from "@food/api/config"
 import OptimizedImage from "@food/components/OptimizedImage"
 import { RestaurantGridSkeleton } from "@food/components/ui/loading-skeletons"
 import { useDelayedLoading } from "@food/hooks/useDelayedLoading"
+import { useLocation } from "@food/hooks/useLocation"
 
 // Import banner
 import gourmetBanner from "@food/assets/groumetpagebanner.png"
@@ -23,6 +24,7 @@ export default function Gourmet() {
   const [gourmetRestaurants, setGourmetRestaurants] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const { location } = useLocation()
   const showGourmetSkeleton = useDelayedLoading(loading)
 
   const backendOrigin = (API_BASE_URL || "").replace(/\/api\/v1\/?$/, "")
@@ -127,10 +129,37 @@ export default function Gourmet() {
                   <p className="text-gray-500 dark:text-gray-400">No Gourmet restaurants available at the moment</p>
                 </div>
               ) : (
-                gourmetRestaurants.map((restaurant) => {
+                gourmetRestaurants.map((item) => {
+                  const restaurant = item.restaurant || item
                   const restaurantSlug = restaurant.slug || restaurant.restaurantName?.toLowerCase().replace(/\s+/g, "-") || restaurant.name?.toLowerCase().replace(/\s+/g, "-") || ""
                   const restaurantId = restaurant._id || restaurant.restaurantId || restaurant.id
                   const isFavorite = favorites.has(restaurantId)
+
+                  // Calculate distance if coordinates are available
+                  const calculateDistance = (lat1, lng1, lat2, lng2) => {
+                    const R = 6371; // Earth's radius in kilometers
+                    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+                    const dLng = ((lng2 - lng1) * Math.PI) / 180;
+                    const a =
+                      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos((lat1 * Math.PI) / 180) *
+                        Math.cos((lat2 * Math.PI) / 180) *
+                        Math.sin(dLng / 2) *
+                        Math.sin(dLng / 2);
+                    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                    return R * c; // Distance in kilometers
+                  };
+
+                  let distanceStr = '1.2 km'
+                  const restaurantLat = restaurant.location?.latitude || restaurant.location?.coordinates?.[1]
+                  const restaurantLng = restaurant.location?.longitude || restaurant.location?.coordinates?.[0]
+                  
+                  if (location?.latitude && location?.longitude && restaurantLat && restaurantLng) {
+                    const d = calculateDistance(location.latitude, location.longitude, restaurantLat, restaurantLng)
+                    distanceStr = `${d.toFixed(1)} km`
+                  } else if (restaurant.distance) {
+                    distanceStr = restaurant.distance
+                  }
 
                   // Get restaurant cover image with priority: coverImages > menuImages > profileImage
                   const coverImages = restaurant.coverImages && restaurant.coverImages.length > 0
@@ -202,9 +231,9 @@ export default function Gourmet() {
                           {/* Delivery Time & Distance */}
                           <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 mb-2">
                             <Clock className="h-4 w-4" strokeWidth={1.5} />
-                            <span className="font-medium">{restaurant.estimatedDeliveryTime || restaurant.deliveryTime || '25-30 mins'}</span>
+                            <span className="font-medium">{restaurant.estimatedDeliveryTime || '25-30 mins'}</span>
                             <span className="mx-1">|</span>
-                            <span className="font-medium">{restaurant.distance || '1.2 km'}</span>
+                            <span className="font-medium">{distanceStr}</span>
                           </div>
 
                           {/* Offer Badge */}

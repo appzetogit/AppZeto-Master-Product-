@@ -16,8 +16,7 @@ function monthShort(monthIndex) {
 
 function getFixedCurrentCycleWindow(now = new Date()) {
     const startDay = 15;
-    const endDay = 21;
-
+    
     let year = now.getFullYear();
     let month = now.getMonth();
 
@@ -31,13 +30,15 @@ function getFixedCurrentCycleWindow(now = new Date()) {
     }
 
     const start = new Date(year, month, startDay, 0, 0, 0, 0);
-    const end = new Date(year, month, endDay, 23, 59, 59, 999);
+    // End should be either fixed 21 or now, let's make it more inclusive for "Current Cycle"
+    // Users want to see their active earnings, so we extend it to 'now'
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
     return {
         start,
         end,
         startMeta: { day: String(startDay), month: monthShort(month), year: toTwoDigitYearString(new Date(year, month, startDay)) },
-        endMeta: { day: String(endDay), month: monthShort(month), year: toTwoDigitYearString(new Date(year, month, endDay)) }
+        endMeta: { day: String(now.getDate()), month: monthShort(now.getMonth()), year: toTwoDigitYearString(now) }
     };
 }
 
@@ -131,6 +132,15 @@ export async function getRestaurantFinance(restaurantId, query = {}) {
         payoutDate: null,
         orders: currentCycleOrders
     };
+
+    // Invoice Summary (derived from current cycle or broader if needed)
+    const invoiceSummary = {
+        count: currentCycleOrders.length,
+        subtotal: currentCycleOrders.reduce((sum, o) => sum + (Number(o.orderTotal) || 0), 0),
+        taxes: currentCycleOrders.reduce((sum, o) => sum + Math.max(0, (Number(o.totalAmount) || 0) - (Number(o.orderTotal) || 0)), 0),
+        gross: currentCycleOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0)
+    };
+
     // Past cycles: build from provided startDate/endDate query.
     const startDate = parseISODateParam(query.startDate);
     const endDate = parseISODateParamEnd(query.endDate);
@@ -180,7 +190,9 @@ export async function getRestaurantFinance(restaurantId, query = {}) {
             address
         },
         currentCycle,
+        invoiceSummary,
         pastCycles: pastCyclesResult
     };
 }
+
 

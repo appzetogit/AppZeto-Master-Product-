@@ -49,3 +49,12 @@ export const emptyYearlySalesData = {
   averageYearlySales: 0,
   chartData: [],
 };
+
+export const emptyDisbursementReportRestaurants = [];
+export const emptyDisbursementReportDeliverymen = [];
+
+export const emptyDisbursementStats = {
+  pending: 0,
+  completed: 0,
+  canceled: 0,
+};

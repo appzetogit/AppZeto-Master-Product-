@@ -2860,8 +2860,8 @@ function OrderCard({
                 {type}
                 {tableOrToken ? ` • ${tableOrToken}` : ""}
               </p>
-              {/* Delivery Assignment Status - Only show for preparing orders */}
-              {isPreparing && (
+              {/* Delivery Assignment Status - Only show for preparing and ready orders */}
+              {(isPreparing || isReady) && (
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span
                     className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
@@ -3278,6 +3278,7 @@ function ReadyOrders({ onSelectOrder, refreshToken = 0 }) {
             photoUrl: order.items?.[0]?.image || null,
             photoAlt: order.items?.[0]?.name || "Order",
             paymentMethod: order.paymentMethod || order.payment?.method || null,
+            deliveryPartnerId: order.deliveryPartnerId || null,
           }));
 
           if (isMounted) {

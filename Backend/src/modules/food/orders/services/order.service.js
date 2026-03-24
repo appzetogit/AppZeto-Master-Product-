@@ -1466,7 +1466,7 @@ export async function resendDeliveryNotificationRestaurant(orderId, restaurantId
     if (!order) throw new ValidationError('Order not found');
 
     // Only allow if order is still active and not already terminal
-    const activeStatuses = ['preparing', 'ready_for_pickup'];
+    const activeStatuses = ['preparing', 'ready_for_pickup', 'ready'];
     if (!activeStatuses.includes(order.orderStatus)) {
         throw new ValidationError(`Cannot resend notification for order in status: ${order.orderStatus}`);
     }
@@ -1479,11 +1479,8 @@ export async function resendDeliveryNotificationRestaurant(orderId, restaurantId
     // Reset dispatch state to unassigned to allow tryAutoAssign to start fresh
     order.dispatch.status = 'unassigned';
     order.dispatch.deliveryPartnerId = null;
-    order.dispatch.assignedAt = undefined;
-    
-    // Clear previously offered partners if we want to give them another chance, 
-    // or keep them to avoid spamming the same people. 
-    // Here we keep them but reset the state.
+    // Clear previously offered partners to give everyone a fresh chance when resending manually.
+    order.dispatch.offeredTo = [];
     
     await order.save();
 

@@ -157,7 +157,8 @@ export default function SuperAppPortal() {
                   alt={service.name} 
                   className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-125"
                 />
-                <div className={`absolute inset-0 bg-gradient-to-tr ${service.color.replace('from-', 'from-black/70 to-')} opacity-60`} />
+                <div className={`absolute inset-0 bg-gradient-to-tr ${service.color.replace('from-', 'from-black/40 to-')} opacity-30 group-hover:opacity-40 transition-opacity duration-500`} />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80" />
               </div>
 
               {/* CRAZY Linear Shine Effect */}

@@ -30,6 +30,8 @@ export default function HubFinance() {
   const [showWithdrawalModal, setShowWithdrawalModal] = useState(false)
   const [withdrawalAmount, setWithdrawalAmount] = useState('')
   const [submittingWithdrawal, setSubmittingWithdrawal] = useState(false)
+  const [withdrawalRequests, setWithdrawalRequests] = useState([])
+  const [loadingWithdrawals, setLoadingWithdrawals] = useState(false)
 
   // Fetch finance data on mount
   useEffect(() => {
@@ -53,6 +55,31 @@ export default function HubFinance() {
     }
 
     fetchFinanceData()
+  }, [])
+
+  useEffect(() => {
+    const fetchWithdrawals = async () => {
+      try {
+        setLoadingWithdrawals(true)
+        const response = await restaurantAPI.getWithdrawalHistory()
+        const payload = response?.data?.data
+        const list = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.withdrawals)
+            ? payload.withdrawals
+            : []
+        setWithdrawalRequests(list)
+      } catch (error) {
+        if (error?.response?.status !== 401) {
+          debugError('Error fetching withdrawal history:', error)
+        }
+        setWithdrawalRequests([])
+      } finally {
+        setLoadingWithdrawals(false)
+      }
+    }
+
+    fetchWithdrawals()
   }, [])
 
   // Fetch restaurant data for header display
@@ -140,6 +167,33 @@ export default function HubFinance() {
 
   const handleViewDetails = () => {
     navigate("/restaurant/finance-details", { state: { financeData, restaurantData } })
+  }
+
+  const getWithdrawalStatusClass = (statusRaw) => {
+    const status = String(statusRaw || '').trim().toLowerCase()
+    if (status === 'approved') return 'bg-green-100 text-green-700'
+    if (status === 'rejected') return 'bg-red-100 text-red-700'
+    return 'bg-amber-100 text-amber-700'
+  }
+
+  const formatWithdrawalStatus = (statusRaw) => {
+    const status = String(statusRaw || '').trim().toLowerCase()
+    if (!status) return 'Pending'
+    return status.charAt(0).toUpperCase() + status.slice(1)
+  }
+
+  const formatDateTime = (dateValue) => {
+    if (!dateValue) return 'N/A'
+    const date = new Date(dateValue)
+    if (Number.isNaN(date.getTime())) return 'N/A'
+    return date.toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    })
   }
 
   // Parse date range string to extract start and end dates
@@ -747,6 +801,58 @@ export default function HubFinance() {
               </div>
             </div>
 
+            {/* Withdrawal Requests */}
+            <div>
+              <h2 className="text-base font-bold text-gray-900 mb-3">Withdrawal requests</h2>
+              <div className="bg-white rounded-lg p-4">
+                {loadingWithdrawals ? (
+                  <div className="py-6 text-center text-sm text-gray-500">Loading withdrawal requests...</div>
+                ) : withdrawalRequests.length === 0 ? (
+                  <div className="py-6 text-center text-sm text-gray-500">No withdrawal requests found.</div>
+                ) : (
+                  <div className="space-y-3">
+                    {withdrawalRequests.slice(0, 8).map((request, index) => {
+                      const status = formatWithdrawalStatus(request?.status)
+                      return (
+                        <div
+                          key={request?._id || request?.id || index}
+                          className="border border-gray-200 rounded-lg p-3"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-gray-900">
+                                ₹{Number(request?.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </p>
+                              <p className="text-xs text-gray-500 mt-1">
+                                Requested: {formatDateTime(request?.createdAt || request?.requestedAt)}
+                              </p>
+                              {request?.processedAt ? (
+                                <p className="text-xs text-gray-500 mt-0.5">
+                                  Processed: {formatDateTime(request?.processedAt)}
+                                </p>
+                              ) : null}
+                            </div>
+                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${getWithdrawalStatusClass(request?.status)}`}>
+                              {status}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                    {withdrawalRequests.length > 8 ? (
+                      <button
+                        type="button"
+                        onClick={() => navigate("/restaurant/withdrawal-history")}
+                        className="w-full text-sm font-medium text-black hover:underline pt-1"
+                      >
+                        View all requests
+                      </button>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Past cycles */}
             <div>
               <h2 className="text-base font-bold text-gray-900 mb-3">Past cycles</h2>
@@ -1162,6 +1268,14 @@ export default function HubFinance() {
                           if (financeResponse.data?.success && financeResponse.data?.data) {
                             setFinanceData(financeResponse.data.data)
                           }
+                          const withdrawalResponse = await restaurantAPI.getWithdrawalHistory()
+                          const withdrawalPayload = withdrawalResponse?.data?.data
+                          const withdrawalList = Array.isArray(withdrawalPayload)
+                            ? withdrawalPayload
+                            : Array.isArray(withdrawalPayload?.withdrawals)
+                              ? withdrawalPayload.withdrawals
+                              : []
+                          setWithdrawalRequests(withdrawalList)
                         } else {
                           alert(response.data?.message || 'Failed to submit withdrawal request')
                         }

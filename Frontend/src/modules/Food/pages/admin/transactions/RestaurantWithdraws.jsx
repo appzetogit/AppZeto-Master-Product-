@@ -171,6 +171,13 @@ export default function RestaurantWithdraws() {
     })}`
   }
 
+  const getSafeQrUrl = (value) => {
+    if (!value) return ''
+    if (typeof value === 'string') return value
+    if (typeof value === 'object' && typeof value.url === 'string') return value.url
+    return ''
+  }
+
   const handleExport = async (format) => {
     if (filteredWithdraws.length === 0) {
       toast.error("No data to export.")
@@ -458,6 +465,41 @@ export default function RestaurantWithdraws() {
                       {selectedWithdraw.status}
                     </span>
                   </p>
+                </div>
+                <div className="border-t border-slate-200 pt-4">
+                  <label className="text-xs font-semibold text-slate-500 uppercase">Bank Details</label>
+                  <div className="mt-2 space-y-2">
+                    <p className="text-sm text-slate-800">
+                      <span className="font-semibold">Account Holder:</span>{' '}
+                      {selectedWithdraw.restaurantBankDetails?.accountHolderName || selectedWithdraw.restaurantId?.accountHolderName || 'N/A'}
+                    </p>
+                    <p className="text-sm text-slate-800">
+                      <span className="font-semibold">Account Number:</span>{' '}
+                      {selectedWithdraw.restaurantBankDetails?.accountNumber || selectedWithdraw.restaurantId?.accountNumber || 'N/A'}
+                    </p>
+                    <p className="text-sm text-slate-800">
+                      <span className="font-semibold">IFSC:</span>{' '}
+                      {selectedWithdraw.restaurantBankDetails?.ifscCode || selectedWithdraw.restaurantId?.ifscCode || 'N/A'}
+                    </p>
+                    <p className="text-sm text-slate-800">
+                      <span className="font-semibold">Account Type:</span>{' '}
+                      {selectedWithdraw.restaurantBankDetails?.accountType || selectedWithdraw.restaurantId?.accountType || 'N/A'}
+                    </p>
+                    <p className="text-sm text-slate-800">
+                      <span className="font-semibold">UPI ID:</span>{' '}
+                      {selectedWithdraw.restaurantBankDetails?.upiId || selectedWithdraw.restaurantId?.upiId || 'N/A'}
+                    </p>
+                    {getSafeQrUrl(selectedWithdraw.restaurantBankDetails?.upiQrImage || selectedWithdraw.restaurantId?.upiQrImage) ? (
+                      <div>
+                        <p className="text-sm text-slate-800 font-semibold mb-2">UPI QR</p>
+                        <img
+                          src={getSafeQrUrl(selectedWithdraw.restaurantBankDetails?.upiQrImage || selectedWithdraw.restaurantId?.upiQrImage)}
+                          alt="Restaurant UPI QR"
+                          className="w-32 h-32 object-contain border border-slate-200 rounded-md bg-white"
+                        />
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
                 {selectedWithdraw.rejectionReason && (
                   <div>

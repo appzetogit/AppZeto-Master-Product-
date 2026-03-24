@@ -1,450 +1,307 @@
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { ArrowLeft, AlertCircle } from "lucide-react"
-const debugLog = (...args) => {}
-const debugWarn = (...args) => {}
-const debugError = (...args) => {}
+import { ArrowLeft, AlertCircle, Upload, Loader2 } from "lucide-react"
+import { restaurantAPI, uploadAPI } from "@food/api"
 
+const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/
+const UPI_REGEX = /^[a-zA-Z0-9._-]{2,256}@[a-zA-Z]{2,64}$/
+
+const EMPTY_FORM = {
+  accountHolderName: "",
+  accountNumber: "",
+  confirmAccountNumber: "",
+  ifscCode: "",
+  upiId: "",
+  upiQrImage: "",
+}
 
 export default function UpdateBankDetails() {
   const navigate = useNavigate()
-  const [isEditMode, setIsEditMode] = useState(false)
-  
-  // Bank details state
-  const [bankDetails, setBankDetails] = useState({
-    beneficiaryName: "Mr. Rajkumar Chouhan",
-    accountNumber: "42479177517",
-    confirmAccountNumber: "42479177517",
-    ifscCode: "SBIN0018764",
-    lastUpdated: "9 Dec, 2023"
-  })
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [uploadingQr, setUploadingQr] = useState(false)
+  const [lastUpdated, setLastUpdated] = useState("")
 
-  const [formData, setFormData] = useState({
-    beneficiaryName: bankDetails.beneficiaryName,
-    accountNumber: bankDetails.accountNumber,
-    confirmAccountNumber: bankDetails.confirmAccountNumber,
-    ifscCode: bankDetails.ifscCode
-  })
+  const [form, setForm] = useState(EMPTY_FORM)
 
-  const [errors, setErrors] = useState({
-    beneficiaryName: "",
-    accountNumber: "",
-    confirmAccountNumber: "",
-    ifscCode: ""
-  })
+  const [errors, setErrors] = useState({})
 
-  const [touched, setTouched] = useState({
-    beneficiaryName: false,
-    accountNumber: false,
-    confirmAccountNumber: false,
-    ifscCode: false
-  })
+  const formattedUpdatedAt = useMemo(() => {
+    if (!lastUpdated) return ""
+    const date = new Date(lastUpdated)
+    if (Number.isNaN(date.getTime())) return ""
+    return date.toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    })
+  }, [lastUpdated])
 
-  // Validation functions
-  const validateBeneficiaryName = (name) => {
-    if (!name.trim()) {
-      return "Beneficiary name is required"
-    }
-    if (name.trim().length < 3) {
-      return "Beneficiary name must be at least 3 characters"
-    }
-    if (name.trim().length > 100) {
-      return "Beneficiary name must be less than 100 characters"
-    }
-    // Allow letters, spaces, dots, and common title prefixes
-    const nameRegex = /^[A-Za-z\s.]+$/
-    if (!nameRegex.test(name.trim())) {
-      return "Beneficiary name can only contain letters, spaces, and dots"
-    }
-    return ""
-  }
+  const validate = () => {
+    const nextErrors = {}
+    const accountHolderName = String(form.accountHolderName || "").trim()
+    const accountNumber = String(form.accountNumber || "").replace(/\s|-/g, "")
+    const confirmAccountNumber = String(form.confirmAccountNumber || "").replace(/\s|-/g, "")
+    const ifscCode = String(form.ifscCode || "").trim().toUpperCase()
+    const upiId = String(form.upiId || "").trim()
 
-  const validateAccountNumber = (accountNumber) => {
-    if (!accountNumber.trim()) {
-      return "Account number is required"
-    }
-    // Remove spaces and hyphens for validation
-    const cleanAccountNumber = accountNumber.replace(/[\s\-]/g, "")
-    // Account numbers are typically 9-18 digits
-    if (!/^\d+$/.test(cleanAccountNumber)) {
-      return "Account number must contain only digits"
-    }
-    if (cleanAccountNumber.length < 9) {
-      return "Account number must be at least 9 digits"
-    }
-    if (cleanAccountNumber.length > 18) {
-      return "Account number must be less than 18 digits"
-    }
-    return ""
-  }
+    const anyBankField = Boolean(accountHolderName || accountNumber || ifscCode)
 
-  const validateConfirmAccountNumber = (confirmAccountNumber, accountNumber) => {
-    if (!confirmAccountNumber.trim()) {
-      return "Please confirm your account number"
-    }
-    const cleanConfirm = confirmAccountNumber.replace(/[\s\-]/g, "")
-    const cleanAccount = accountNumber.replace(/[\s\-]/g, "")
-    if (cleanConfirm !== cleanAccount) {
-      return "Account numbers do not match"
-    }
-    return ""
-  }
-
-  const validateIFSC = (ifsc) => {
-    if (!ifsc.trim()) {
-      return "IFSC code is required"
-    }
-    
-    const trimmedIFSC = ifsc.trim().toUpperCase()
-    
-    // IFSC format: exactly 11 characters - 4 uppercase letters + 0 + 6 alphanumeric characters
-    // Pattern: AAAA0XXXXXX where AAAA is bank code (4 letters) and XXXXXX is branch code (6 alphanumeric)
-    const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/
-    
-    if (trimmedIFSC.length !== 11) {
-      return "IFSC code must be exactly 11 characters"
-    }
-    
-    if (!ifscRegex.test(trimmedIFSC)) {
-      return "Invalid IFSC code format (e.g., SBIN0018764)"
-    }
-    
-    return ""
-  }
-
-  const handleInputChange = (field, value) => {
-    let processedValue = value
-    
-    // Auto-uppercase for IFSC
-    if (field === "ifscCode") {
-      processedValue = value.toUpperCase()
-    }
-    
-    setFormData(prev => ({
-      ...prev,
-      [field]: processedValue
-    }))
-
-    // Real-time validation
-    let error = ""
-    if (field === "beneficiaryName") {
-      error = validateBeneficiaryName(processedValue)
-    } else if (field === "accountNumber") {
-      error = validateAccountNumber(processedValue)
-      // Also re-validate confirm account number if it's been touched
-      if (touched.confirmAccountNumber) {
-        setErrors(prev => ({
-          ...prev,
-          accountNumber: error,
-          confirmAccountNumber: validateConfirmAccountNumber(formData.confirmAccountNumber, processedValue)
-        }))
-        return
+    if (anyBankField) {
+      if (!accountHolderName) nextErrors.accountHolderName = "Account holder name is required"
+      if (!accountNumber) {
+        nextErrors.accountNumber = "Account number is required"
+      } else if (!/^\d{9,18}$/.test(accountNumber)) {
+        nextErrors.accountNumber = "Account number must be 9 to 18 digits"
       }
-    } else if (field === "confirmAccountNumber") {
-      error = validateConfirmAccountNumber(processedValue, formData.accountNumber)
-    } else if (field === "ifscCode") {
-      error = validateIFSC(processedValue)
-    }
-
-    setErrors(prev => ({
-      ...prev,
-      [field]: error
-    }))
-  }
-
-  const handleBlur = (field) => {
-    setTouched(prev => ({
-      ...prev,
-      [field]: true
-    }))
-
-    // Validate on blur
-    let error = ""
-    if (field === "beneficiaryName") {
-      error = validateBeneficiaryName(formData.beneficiaryName)
-    } else if (field === "accountNumber") {
-      error = validateAccountNumber(formData.accountNumber)
-      // Re-validate confirm account number
-      if (touched.confirmAccountNumber || formData.confirmAccountNumber) {
-        setErrors(prev => ({
-          ...prev,
-          accountNumber: error,
-          confirmAccountNumber: validateConfirmAccountNumber(formData.confirmAccountNumber, formData.accountNumber)
-        }))
-        return
+      if (!confirmAccountNumber) {
+        nextErrors.confirmAccountNumber = "Please confirm account number"
+      } else if (confirmAccountNumber !== accountNumber) {
+        nextErrors.confirmAccountNumber = "Account numbers do not match"
       }
-    } else if (field === "confirmAccountNumber") {
-      error = validateConfirmAccountNumber(formData.confirmAccountNumber, formData.accountNumber)
-    } else if (field === "ifscCode") {
-      error = validateIFSC(formData.ifscCode)
+      if (!ifscCode) {
+        nextErrors.ifscCode = "IFSC code is required"
+      } else if (!IFSC_REGEX.test(ifscCode)) {
+        nextErrors.ifscCode = "Invalid IFSC format (e.g. SBIN0018764)"
+      }
     }
 
-    setErrors(prev => ({
-      ...prev,
-      [field]: error
-    }))
+    if (upiId && !UPI_REGEX.test(upiId)) {
+      nextErrors.upiId = "Invalid UPI ID format (e.g. name@bank)"
+    }
+
+    setErrors(nextErrors)
+    return Object.keys(nextErrors).length === 0
   }
 
-  const handleSubmit = (e) => {
+  const loadProfile = async () => {
+    try {
+      setLoading(true)
+      const response = await restaurantAPI.getCurrentRestaurant()
+      const doc = response?.data?.data?.restaurant || response?.data?.restaurant || null
+      if (!doc) return
+
+      setForm({ ...EMPTY_FORM })
+      setLastUpdated(doc.updatedAt || "")
+    } catch (error) {
+      alert(error?.response?.data?.message || "Failed to load bank details")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadProfile()
+  }, [])
+
+  const handleQrUpload = async (file) => {
+    if (!file) return
+    try {
+      setUploadingQr(true)
+      const response = await uploadAPI.uploadMedia(file, { folder: "food/restaurants/upi-qr" })
+      const url =
+        response?.data?.data?.url ||
+        response?.data?.url ||
+        ""
+      if (!url) throw new Error("Upload failed")
+      setForm((prev) => ({ ...prev, upiQrImage: url }))
+    } catch (error) {
+      alert(error?.response?.data?.message || error?.message || "Failed to upload QR image")
+    } finally {
+      setUploadingQr(false)
+    }
+  }
+
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    
-    // Mark all fields as touched
-    setTouched({
-      beneficiaryName: true,
-      accountNumber: true,
-      confirmAccountNumber: true,
-      ifscCode: true
-    })
+    if (!validate()) return
 
-    // Validate all fields
-    const validationErrors = {
-      beneficiaryName: validateBeneficiaryName(formData.beneficiaryName),
-      accountNumber: validateAccountNumber(formData.accountNumber),
-      confirmAccountNumber: validateConfirmAccountNumber(formData.confirmAccountNumber, formData.accountNumber),
-      ifscCode: validateIFSC(formData.ifscCode)
+    const payload = {
+      accountHolderName: String(form.accountHolderName || "").trim(),
+      accountNumber: String(form.accountNumber || "").replace(/\s|-/g, ""),
+      ifscCode: String(form.ifscCode || "").trim().toUpperCase(),
+      upiId: String(form.upiId || "").trim(),
+      upiQrImage: String(form.upiQrImage || "").trim(),
     }
 
-    setErrors(validationErrors)
-
-    // Check if there are any errors
-    const hasErrors = Object.values(validationErrors).some(error => error !== "")
-    if (hasErrors) {
-      return
+    try {
+      setSaving(true)
+      await restaurantAPI.updateProfile(payload)
+      await loadProfile()
+      setErrors({})
+      alert("Bank details updated successfully")
+    } catch (error) {
+      alert(error?.response?.data?.message || "Failed to update bank details")
+    } finally {
+      setSaving(false)
     }
-
-    // Update bank details
-    setBankDetails({
-      beneficiaryName: formData.beneficiaryName.trim(),
-      accountNumber: formData.accountNumber.replace(/[\s\-]/g, ""),
-      confirmAccountNumber: formData.confirmAccountNumber.replace(/[\s\-]/g, ""),
-      ifscCode: formData.ifscCode.trim().toUpperCase(),
-      lastUpdated: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-    })
-    
-    // Switch back to view mode
-    setIsEditMode(false)
-    
-    // Reset touched state
-    setTouched({
-      beneficiaryName: false,
-      accountNumber: false,
-      confirmAccountNumber: false,
-      ifscCode: false
-    })
-    
-    // Here you would typically save to backend
-    debugLog("Bank details updated:", formData)
   }
 
-  const handleEditClick = () => {
-    // Reset form data to current bank details when entering edit mode
-    setFormData({
-      beneficiaryName: bankDetails.beneficiaryName,
-      accountNumber: bankDetails.accountNumber,
-      confirmAccountNumber: bankDetails.accountNumber,
-      ifscCode: bankDetails.ifscCode
-    })
-    // Reset errors and touched state
-    setErrors({
-      beneficiaryName: "",
-      accountNumber: "",
-      confirmAccountNumber: "",
-      ifscCode: ""
-    })
-    setTouched({
-      beneficiaryName: false,
-      accountNumber: false,
-      confirmAccountNumber: false,
-      ifscCode: false
-    })
-    setIsEditMode(true)
-  }
+  const inputClass = (key) =>
+    `w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 text-base transition-colors ${
+      errors[key]
+        ? "border-red-500 focus:ring-red-500 focus:border-red-500"
+        : "border-gray-300 focus:ring-blue-500 focus:border-transparent"
+    }`
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      {/* Header */}
       <div className="px-4 pt-4 pb-3 flex items-center gap-3 border-b border-gray-200">
-        <button
-          onClick={() => navigate(-1)}
-          className="p-2 rounded-full hover:bg-gray-100"
-          aria-label="Back"
-        >
+        <button onClick={() => navigate(-1)} className="p-2 rounded-full hover:bg-gray-100" aria-label="Back">
           <ArrowLeft className="w-5 h-5 text-gray-900" />
         </button>
-        <h1 className="text-lg font-bold text-gray-900">Update bank details</h1>
+        <h1 className="text-lg font-bold text-gray-900">Bank & UPI Details</h1>
       </div>
 
-      {/* Content */}
       <div className="flex-1 px-4 pt-4 pb-6">
-        {!isEditMode ? (
-          /* View Mode */
-          <>
-            {/* Account Information Section */}
-            <div className="mb-6">
-              <h2 className="text-base font-bold text-gray-900 mb-2">Account information</h2>
-              <p className="text-sm text-gray-500 mb-4">Last updated on {bankDetails.lastUpdated}</p>
-              
-              <div className="space-y-3">
-                <div className="flex justify-between items-start">
-                  <span className="text-sm text-gray-600">Beneficiary name:</span>
-                  <span className="text-sm font-medium text-gray-900 text-right ml-4">{bankDetails.beneficiaryName}</span>
-                </div>
-                <div className="flex justify-between items-start">
-                  <span className="text-sm text-gray-600">Account number:</span>
-                  <span className="text-sm font-medium text-gray-900 text-right ml-4">{bankDetails.accountNumber}</span>
-                </div>
-                <div className="flex justify-between items-start">
-                  <span className="text-sm text-gray-600">IFSC code:</span>
-                  <span className="text-sm font-medium text-gray-900 text-right ml-4">{bankDetails.ifscCode}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Divider */}
-            <div className="border-t border-gray-200 my-6"></div>
-
-            {/* Issue Query Section */}
-            <div className="mb-6">
-              <p className="text-base font-bold text-gray-900">Have any issue related to bank details?</p>
-            </div>
-          </>
+        {loading ? (
+          <div className="py-12 flex items-center justify-center gap-2 text-gray-600">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>Loading details...</span>
+          </div>
         ) : (
-          /* Edit Mode */
-          <>
-            {/* Form Title */}
-            <div className="mb-6">
-              <h2 className="text-lg font-bold text-gray-900">Update bank details</h2>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="mb-2">
+              <h2 className="text-base font-bold text-gray-900">Account details</h2>
+              {formattedUpdatedAt ? (
+                <p className="text-sm text-gray-500 mt-1">Last updated: {formattedUpdatedAt}</p>
+              ) : null}
             </div>
 
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Beneficiary Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Enter the beneficiary name<span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.beneficiaryName}
-                  onChange={(e) => handleInputChange("beneficiaryName", e.target.value)}
-                  onBlur={() => handleBlur("beneficiaryName")}
-                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 text-base transition-colors ${
-                    errors.beneficiaryName && touched.beneficiaryName
-                      ? "border-red-500 focus:ring-red-500 focus:border-red-500"
-                      : "border-gray-300 focus:ring-blue-500 focus:border-transparent"
-                  }`}
-                  required
-                />
-                {errors.beneficiaryName && touched.beneficiaryName && (
-                  <div className="flex items-center gap-1 mt-1.5 text-xs text-red-600">
-                    <AlertCircle className="h-3 w-3 shrink-0" />
-                    <span>{errors.beneficiaryName}</span>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Account holder name</label>
+              <input
+                type="text"
+                value={form.accountHolderName}
+                onChange={(e) => setForm((p) => ({ ...p, accountHolderName: e.target.value }))}
+                className={inputClass("accountHolderName")}
+                placeholder="Enter account holder name"
+              />
+              {errors.accountHolderName ? (
+                <p className="mt-1.5 text-xs text-red-600 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> {errors.accountHolderName}
+                </p>
+              ) : null}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Account number</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={form.accountNumber}
+                onChange={(e) => setForm((p) => ({ ...p, accountNumber: e.target.value.replace(/[^\d\s-]/g, "") }))}
+                className={inputClass("accountNumber")}
+                placeholder="Enter account number"
+              />
+              {errors.accountNumber ? (
+                <p className="mt-1.5 text-xs text-red-600 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> {errors.accountNumber}
+                </p>
+              ) : null}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Confirm account number</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={form.confirmAccountNumber}
+                onChange={(e) => setForm((p) => ({ ...p, confirmAccountNumber: e.target.value.replace(/[^\d\s-]/g, "") }))}
+                className={inputClass("confirmAccountNumber")}
+                placeholder="Re-enter account number"
+              />
+              {errors.confirmAccountNumber ? (
+                <p className="mt-1.5 text-xs text-red-600 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> {errors.confirmAccountNumber}
+                </p>
+              ) : null}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">IFSC code</label>
+              <input
+                type="text"
+                maxLength={11}
+                value={form.ifscCode}
+                onChange={(e) => setForm((p) => ({ ...p, ifscCode: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "") }))}
+                className={inputClass("ifscCode")}
+                placeholder="e.g. SBIN0018764"
+              />
+              {errors.ifscCode ? (
+                <p className="mt-1.5 text-xs text-red-600 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> {errors.ifscCode}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="pt-2 border-t border-gray-200">
+              <h2 className="text-base font-bold text-gray-900 mb-3">UPI details</h2>
+
+              <label className="block text-sm font-medium text-gray-700 mb-2">UPI ID</label>
+              <input
+                type="text"
+                value={form.upiId}
+                onChange={(e) => setForm((p) => ({ ...p, upiId: e.target.value.trim() }))}
+                className={inputClass("upiId")}
+                placeholder="e.g. merchant@okaxis"
+              />
+              {errors.upiId ? (
+                <p className="mt-1.5 text-xs text-red-600 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> {errors.upiId}
+                </p>
+              ) : null}
+
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">UPI QR image</label>
+                {form.upiQrImage ? (
+                  <img
+                    src={form.upiQrImage}
+                    alt="UPI QR"
+                    className="w-40 h-40 object-contain border border-gray-200 rounded-lg bg-white"
+                  />
+                ) : (
+                  <div className="w-40 h-40 border border-dashed border-gray-300 rounded-lg flex items-center justify-center text-xs text-gray-500">
+                    No QR uploaded
                   </div>
                 )}
-              </div>
 
-              {/* Account Number */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Enter the account number<span className="text-red-500">*</span>
+                <label className="inline-flex mt-3 items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium cursor-pointer hover:bg-gray-50">
+                  {uploadingQr ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4" />
+                      Upload QR Image
+                    </>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={uploadingQr}
+                    onChange={(e) => handleQrUpload(e.target.files?.[0])}
+                  />
                 </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={formData.accountNumber}
-                  onChange={(e) => handleInputChange("accountNumber", e.target.value)}
-                  onBlur={() => handleBlur("accountNumber")}
-                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 text-base transition-colors ${
-                    errors.accountNumber && touched.accountNumber
-                      ? "border-red-500 focus:ring-red-500 focus:border-red-500"
-                      : "border-gray-300 focus:ring-blue-500 focus:border-transparent"
-                  }`}
-                  required
-                />
-                {errors.accountNumber && touched.accountNumber && (
-                  <div className="flex items-center gap-1 mt-1.5 text-xs text-red-600">
-                    <AlertCircle className="h-3 w-3 shrink-0" />
-                    <span>{errors.accountNumber}</span>
-                  </div>
-                )}
               </div>
+            </div>
 
-              {/* Confirm Account Number */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Confirm account number<span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={formData.confirmAccountNumber}
-                  onChange={(e) => handleInputChange("confirmAccountNumber", e.target.value)}
-                  onBlur={() => handleBlur("confirmAccountNumber")}
-                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 text-base transition-colors ${
-                    errors.confirmAccountNumber && touched.confirmAccountNumber
-                      ? "border-red-500 focus:ring-red-500 focus:border-red-500"
-                      : "border-gray-300 focus:ring-blue-500 focus:border-transparent"
-                  }`}
-                  required
-                />
-                {errors.confirmAccountNumber && touched.confirmAccountNumber && (
-                  <div className="flex items-center gap-1 mt-1.5 text-xs text-red-600">
-                    <AlertCircle className="h-3 w-3 shrink-0" />
-                    <span>{errors.confirmAccountNumber}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* IFSC Code */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Enter the IFSC<span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.ifscCode}
-                  onChange={(e) => handleInputChange("ifscCode", e.target.value)}
-                  onBlur={() => handleBlur("ifscCode")}
-                  maxLength={11}
-                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 text-base transition-colors uppercase ${
-                    errors.ifscCode && touched.ifscCode
-                      ? "border-red-500 focus:ring-red-500 focus:border-red-500"
-                      : "border-gray-300 focus:ring-blue-500 focus:border-transparent"
-                  }`}
-                  required
-                />
-                {errors.ifscCode && touched.ifscCode && (
-                  <div className="flex items-center gap-1 mt-1.5 text-xs text-red-600">
-                    <AlertCircle className="h-3 w-3 shrink-0" />
-                    <span>{errors.ifscCode}</span>
-                  </div>
-                )}
-              </div>
-            </form>
-          </>
-        )}
-      </div>
-
-      {/* Action Button */}
-      <div className="px-4 pb-6 pt-4">
-        {!isEditMode ? (
-          <button
-            onClick={handleEditClick}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-lg text-base transition-colors"
-          >
-            Edit bank details
-          </button>
-        ) : (
-          <button
-            onClick={handleSubmit}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-lg text-base transition-colors"
-          >
-            Submit
-          </button>
+            <button
+              type="submit"
+              disabled={saving || uploadingQr}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white font-bold py-4 rounded-lg text-base transition-colors"
+            >
+              {saving ? "Saving..." : "Submit"}
+            </button>
+          </form>
         )}
       </div>
     </div>
   )
 }
-
-

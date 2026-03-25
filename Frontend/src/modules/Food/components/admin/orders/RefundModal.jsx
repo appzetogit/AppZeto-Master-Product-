@@ -104,7 +104,7 @@ export default function RefundModal({ isOpen, onOpenChange, order, onConfirm, is
               <p className="text-sm text-red-600 mt-1">{error}</p>
             )}
             <p className="text-xs text-slate-500">
-              Maximum refundable amount: ?{maxAmount.toFixed(2)}
+              Maximum refundable amount: ₹{maxAmount.toFixed(2)}
             </p>
           </div>
 

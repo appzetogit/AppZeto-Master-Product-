@@ -1,4 +1,4 @@
-import { useState } from "react"
+﻿import { useState } from "react"
 import { IndianRupee, Loader2 } from "lucide-react"
 import { deliveryAPI } from "@food/api"
 import { initRazorpayPayment } from "@food/utils/razorpay"
@@ -118,7 +118,7 @@ export default function DepositPopup({ onSuccess, cashInHand = 0 }) {
         </div>
         {cashInHandNum > 0 && (
           <p className="text-xs text-slate-500 mt-1">
-            Cash in hand: ?{cashInHandNum.toFixed(2)}. Deposit cannot exceed this.
+            Cash in hand: ₹{cashInHandNum.toFixed(2)}. Deposit cannot exceed this.
           </p>
         )}
       </div>
@@ -131,7 +131,7 @@ export default function DepositPopup({ onSuccess, cashInHand = 0 }) {
         {loading || processing ? (
           <Loader2 className="w-4 h-4 animate-spin" />
         ) : null}
-        {loading ? "Creating�" : processing ? "Complete payment�" : "Deposit"}
+        {loading ? "Creating…" : processing ? "Complete payment…" : "Deposit"}
       </button>
     </div>
   )

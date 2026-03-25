@@ -25,7 +25,7 @@ const buildRestaurantOrderNotification = (orderData = {}) => {
   return {
     title: `New order #${orderId}`,
     body: itemCount > 0
-      ? `${itemCount} item${itemCount === 1 ? '' : 's'} - Rs.${total.toFixed(2)}`
+      ? `${itemCount} item${itemCount === 1 ? '' : 's'} - ₹${total.toFixed(2)}`
       : 'A new order is waiting for review',
     tag: `restaurant-order-${orderId}`,
     data: {

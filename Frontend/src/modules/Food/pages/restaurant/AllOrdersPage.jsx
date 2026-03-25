@@ -19,7 +19,7 @@ const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
-const formatMoney = (value) => `Rs.${Number(value || 0).toFixed(2)}`
+const formatMoney = (value) => `₹${Number(value || 0).toFixed(2)}`
 
 
 // Mock order data matching the image (fallback)
@@ -203,11 +203,11 @@ const filterOptions = {
     { id: "cancelled", label: "Cancelled", key: "orderStatus" }
   ],
   "Ratings": [
-    { id: "5-star", label: "5? or less", key: "ratings", value: 5 },
-    { id: "4-star", label: "4? or less", key: "ratings", value: 4 },
-    { id: "3-star", label: "3? or less", key: "ratings", value: 3 },
-    { id: "2-star", label: "2? or less", key: "ratings", value: 2 },
-    { id: "1-star", label: "1?", key: "ratings", value: 1 }
+    { id: "5-star", label: "5★ or less", key: "ratings", value: 5 },
+    { id: "4-star", label: "4★ or less", key: "ratings", value: 4 },
+    { id: "3-star", label: "3★ or less", key: "ratings", value: 3 },
+    { id: "2-star", label: "2★ or less", key: "ratings", value: 2 },
+    { id: "1-star", label: "1★", key: "ratings", value: 1 }
   ],
   "KPT delay": [
     { id: "0-10", label: "0-10 mins", key: "kptDelay" },
@@ -799,105 +799,11 @@ export default function AllOrdersPage() {
                 <p className="text-sm text-red-600">{order.reason}</p>
               </div>
             )}
-          </motion.div>
-        ))}
+            </motion.div>
+            ))}
           </AnimatePresence>
         )}
-
-        {!loading && !error && filteredOrders.length === 0 && (
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center py-12 bg-white rounded-lg border border-gray-200"
-          >
-            <div className="flex flex-col items-center gap-3">
-              <Filter className="w-12 h-12 text-gray-300" />
-              <div>
-                <p className="text-gray-900 font-medium text-sm mb-1">No orders found</p>
-                <p className="text-gray-500 text-xs">Try adjusting your filters</p>
-              </div>
-              {hasActiveFilters() && (
-                <button
-                  onClick={handleClearFilters}
-                  className="mt-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Clear filters
-                </button>
-              )}
-            </div>
-          </motion.div>
-        )}
       </div>
-
-      {/* Date Range Selection Popup */}
-      <AnimatePresence>
-        {showDateRangePopup && (
-          <>
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="fixed inset-0 bg-black/50 z-50"
-              onClick={() => setShowDateRangePopup(false)}
-            />
-            
-            {/* Popup Sheet */}
-            <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ 
-                type: "spring",
-                damping: 30,
-                stiffness: 300
-              }}
-              className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl z-50 max-h-[90vh] overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 sticky top-0 bg-white z-10">
-                <h2 className="text-lg font-bold text-gray-900">Select date range</h2>
-                <button
-                  onClick={() => setShowDateRangePopup(false)}
-                  className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
-                  aria-label="Close"
-                >
-                  <X className="w-5 h-5 text-gray-900" />
-                </button>
-              </div>
-
-              {/* Options */}
-              <div className="px-6 py-4">
-                {dateRangeOptions.map((option, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handleDateRangeSelect(option)}
-                    className="w-full text-left py-4 px-4 rounded-lg hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0"
-                  >
-                    <span className="text-base text-gray-900 capitalize">{option.label}</span>
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* Calendar Popup */}
-      {showCalendar && (
-        <div className="fixed inset-0 bg-black/50 z-60 flex items-center justify-center p-4" onClick={() => setShowCalendar(false)}>
-          <div ref={calendarRef} onClick={(e) => e.stopPropagation()} className="bg-white rounded-lg shadow-lg">
-            <DateRangeCalendar
-              startDate={startDate}
-              endDate={endDate}
-              onDateRangeChange={handleDateRangeChange}
-              onClose={() => setShowCalendar(false)}
-            />
-          </div>
-        </div>
-      )}
 
       {/* Filter Popup */}
       <AnimatePresence>
@@ -1107,4 +1013,3 @@ export default function AllOrdersPage() {
     </div>
   )
 }
-

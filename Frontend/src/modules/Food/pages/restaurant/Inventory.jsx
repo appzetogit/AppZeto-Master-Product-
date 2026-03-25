@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react"
+﻿import { useState, useEffect, useRef, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   Search,
@@ -1406,7 +1406,7 @@ export default function Inventory() {
                           {addon.description && (
                             <p className="text-sm text-gray-600 mb-2">{addon.description}</p>
                           )}
-                          <p className="text-base font-bold text-gray-900">?{addon.price}</p>
+                          <p className="text-base font-bold text-gray-900">₹{addon.price}</p>
                           {addon.approvalStatus === 'rejected' && addon.rejectionReason && (
                             <p className="text-xs text-red-600 mt-1">Reason: {addon.rejectionReason}</p>
                           )}
@@ -1703,8 +1703,8 @@ export default function Inventory() {
                     <div className="">
                       <h3 className="text-base font-bold text-gray-900 mb-3">{categoryData.name}</h3>
                       <ul className="space-y-1 text-sm text-gray-600">
-                        <li>� {categoryData.name}</li>
-                        <li>� Includes {categoryData.itemCount} item{categoryData.itemCount !== 1 ? 's' : ''}</li>
+                        <li>• {categoryData.name}</li>
+                        <li>• Includes {categoryData.itemCount} item{categoryData.itemCount !== 1 ? 's' : ''}</li>
                       </ul>
                       <div className="border-t border-gray-200 mt-4"></div>
                     </div>

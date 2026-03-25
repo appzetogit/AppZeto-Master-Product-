@@ -39,8 +39,8 @@ const firstText = (...values) => {
   return ""
 }
 
-const formatMoney = (value) => `Rs.${Number(value || 0).toFixed(2)}`
-const formatDiscount = (value) => `-Rs.${Math.abs(Number(value || 0)).toFixed(2)}`
+const formatMoney = (value) => `₹${Number(value || 0).toFixed(2)}`
+const formatDiscount = (value) => `-₹${Math.abs(Number(value || 0)).toFixed(2)}`
 
 
 // Mock order data - fallback for testing

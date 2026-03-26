@@ -28,6 +28,8 @@ export const ProfileV2 = () => {
   const [loading, setLoading] = useState(true)
   const [referralReward, setReferralReward] = useState(0)
   const [showAlertSoundPopup, setShowAlertSoundPopup] = useState(false)
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
+  const [logoutSubmitting, setLogoutSubmitting] = useState(false)
   const [selectedAlertSound, setSelectedAlertSound] = useState(() => {
     return localStorage.getItem('delivery_alert_sound') || 'zomato_tone'
   })
@@ -75,13 +77,17 @@ export const ProfileV2 = () => {
   }
 
   const handleLogout = async () => {
+    if (logoutSubmitting) return
+    setShowLogoutConfirm(false)
     try {
+      setLogoutSubmitting(true)
       await deliveryAPI.logout()
     } catch (error) {}
     clearModuleAuth("delivery")
     localStorage.removeItem("app:isOnline")
     toast.success("Logged out successfully")
     navigate("/food/delivery/login", { replace: true })
+    setLogoutSubmitting(false)
   }
 
   if (loading) {
@@ -190,7 +196,7 @@ export const ProfileV2 = () => {
           {/* Logout Section */}
           <div className="pt-4">
             <div 
-              onClick={handleLogout}
+              onClick={() => setShowLogoutConfirm(true)}
               className="bg-white rounded-xl p-4 flex items-center justify-between cursor-pointer border border-red-50 hover:bg-red-50/30 active:bg-red-50 transition-colors"
             >
               <div className="flex items-center gap-3">
@@ -202,6 +208,31 @@ export const ProfileV2 = () => {
           </div>
         </div>
       </div>
+
+      {/* Logout Confirm Popup */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 bg-black/60 z-[1000] flex items-center justify-center px-4">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-5">
+            <h3 className="text-base font-black text-gray-900 mb-2">Do you want to log out?</h3>
+            <p className="text-sm text-gray-500 mb-5">You will be signed out from your delivery account.</p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="flex-1 h-11 rounded-xl border border-gray-200 text-gray-700 font-bold"
+              >
+                No
+              </button>
+              <button
+                onClick={handleLogout}
+                disabled={logoutSubmitting}
+                className="flex-1 h-11 rounded-xl bg-red-600 text-white font-bold disabled:opacity-60"
+              >
+                {logoutSubmitting ? "Logging out..." : "Yes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Order Alert Sound Popup */}
       {showAlertSoundPopup && (

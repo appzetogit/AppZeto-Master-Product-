@@ -27,7 +27,6 @@ import { ViewSupportTicketV2 } from './pages/help/ViewSupportTicketV2';
 import ShowIdCardV2 from './pages/help/ShowIdCardV2';
 import { PocketDetailsV2 } from './pages/pocket/PocketDetailsV2';
 import { ProfileDetailsV2 } from './pages/profile/ProfileDetailsV2';
-import { HistoryV2 } from './pages/HistoryV2';
 import TermsAndConditionsV2 from './pages/TermsAndConditionsV2';
 import PrivacyPolicyV2 from './pages/PrivacyPolicyV2';
 
@@ -44,12 +43,13 @@ const DeliveryV2Router = () => {
         <Route path="signup" element={<Signup />} />
         <Route path="signup/details" element={<SignupStep1 />} />
         <Route path="signup/documents" element={<SignupStep2 />} />
+        <Route path="terms" element={<TermsAndConditionsV2 />} />
 
         {/* Protected Core Routes */}
         <Route path="/" element={<ProtectedRoute><DeliveryHomeV2 tab="feed" /></ProtectedRoute>} />
         <Route path="/feed" element={<ProtectedRoute><DeliveryHomeV2 tab="feed" /></ProtectedRoute>} />
         <Route path="/pocket" element={<ProtectedRoute><DeliveryHomeV2 tab="pocket" /></ProtectedRoute>} />
-        <Route path="/history" element={<ProtectedRoute><HistoryV2 /></ProtectedRoute>} />
+        <Route path="/history" element={<ProtectedRoute><DeliveryHomeV2 tab="history" /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><DeliveryHomeV2 tab="profile" /></ProtectedRoute>} />
         <Route path="/profile/details" element={<ProtectedRoute><ProfileDetailsV2 /></ProtectedRoute>} />
         <Route path="/profile/bank" element={<ProtectedRoute><ProfileBankV2 /></ProtectedRoute>} />

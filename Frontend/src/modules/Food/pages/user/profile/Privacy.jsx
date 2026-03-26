@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { useState, useEffect } from "react"
 import { ArrowLeft, Lock, Loader2 } from "lucide-react"
 import { motion } from "framer-motion"
@@ -6,12 +6,9 @@ import AnimatedPage from "@food/components/user/AnimatedPage"
 import { Button } from "@food/components/ui/button"
 import api from "@food/api"
 import { API_ENDPOINTS } from "@food/api/config"
-const debugLog = (...args) => {}
-const debugWarn = (...args) => {}
-const debugError = (...args) => {}
-
 
 export default function Privacy() {
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [privacyData, setPrivacyData] = useState({
     title: 'Privacy Policy',
@@ -30,76 +27,81 @@ export default function Privacy() {
         setPrivacyData(response.data.data || { title: 'Privacy Policy', content: '' })
       }
     } catch (error) {
-      debugError('Error fetching privacy data:', error)
-      setPrivacyData({
-        title: 'Privacy Policy',
-        content: ''
-      })
+      console.error('Error fetching privacy data:', error)
     } finally {
       setLoading(false)
     }
   }
 
+  const handleBack = () => {
+    if (window.history.length > 2) {
+      navigate(-1)
+    } else {
+      navigate('/food/user')
+    }
+  }
+
   if (loading) {
     return (
-      <AnimatedPage className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-[#0a0a0a] dark:to-[#1a1a1a]">
-        <div className="max-w-4xl mx-auto px-4 md:px-6 lg:px-8 py-6 md:py-8 flex items-center justify-center min-h-[60vh]">
-          <div className="text-center">
-            <Loader2 className="h-8 w-8 animate-spin text-gray-600 dark:text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600 dark:text-gray-400">Loading...</p>
-          </div>
+      <div className="min-h-screen bg-white dark:bg-[#0a0a0a] flex items-center justify-center p-6">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-10 w-10 animate-spin text-[#CB202D]" />
+          <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Loading...</p>
         </div>
-      </AnimatedPage>
+      </div>
     )
   }
 
   return (
-    <AnimatedPage className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-[#0a0a0a] dark:to-[#1a1a1a]">
-      <div className="max-w-4xl mx-auto px-4 md:px-6 lg:px-8 py-6 md:py-8">
-        {/* Header */}
-        <div className="flex items-center gap-3 md:gap-4 mb-6 md:mb-8">
-          <Link to="/user/profile/about">
-            <Button variant="ghost" size="icon" className="h-9 w-9 md:h-10 md:w-10 p-0 hover:bg-gray-100 dark:hover:bg-gray-800">
-              <ArrowLeft className="h-5 w-5 md:h-6 md:w-6 text-gray-900 dark:text-white" />
-            </Button>
-          </Link>
-          <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-gray-900 dark:text-white">Privacy Policy</h1>
+    <AnimatedPage className="min-h-screen bg-white dark:bg-[#0a0a0a] pb-10">
+      {/* Premium Sticky Header */}
+      <div className="sticky top-0 z-50 bg-white/80 dark:bg-[#0a0a0a]/80 backdrop-blur-xl border-b border-gray-100 dark:border-gray-900">
+        <div className="max-w-4xl mx-auto px-4 h-16 md:h-20 flex items-center gap-4">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={handleBack}
+            className="h-10 w-10 rounded-full hover:bg-gray-100 dark:hover:bg-gray-900 transition-all active:scale-95"
+          >
+            <ArrowLeft className="h-6 w-6 text-gray-900 dark:text-white" />
+          </Button>
+          <div className="flex-1">
+             <h1 className="text-xl md:text-2xl font-black text-gray-900 dark:text-white tracking-tight leading-none">
+               {privacyData.title || "Privacy Policy"}
+             </h1>
+             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">AppZeto Policy</p>
+          </div>
         </div>
+      </div>
 
-        {/* Privacy Content */}
+      <div className="max-w-4xl mx-auto px-4 py-8">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="p-6 md:p-8 lg:p-10"
+          className="bg-white dark:bg-[#111] rounded-[2rem] p-6 md:p-10 shadow-sm border border-gray-50 dark:border-gray-900"
         >
-
-          <div
-            className="prose prose-slate dark:prose-invert max-w-none
-              prose-headings:text-gray-900 dark:prose-headings:text-white
-              prose-p:text-gray-700 dark:prose-p:text-gray-300
-              prose-strong:text-gray-900 dark:prose-strong:text-white
-              prose-ul:text-gray-700 dark:prose-ul:text-gray-300
-              prose-ol:text-gray-700 dark:prose-ol:text-gray-300
-              prose-li:text-gray-700 dark:prose-li:text-gray-300
-              prose-a:text-[#EB590E] dark:prose-a:text-[#F97316]
-              prose-a:no-underline hover:prose-a:underline
-              leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: privacyData.content }}
-          />
+          {privacyData.content ? (
+            <div
+              className="prose prose-slate dark:prose-invert max-w-none
+                prose-headings:font-black prose-headings:text-gray-900 dark:prose-headings:text-white
+                prose-p:text-gray-600 dark:prose-p:text-gray-400 prose-p:leading-relaxed
+                prose-strong:text-gray-900 dark:prose-strong:text-white
+                prose-a:text-[#CB202D] dark:prose-a:text-[#EB590E]
+                prose-li:text-gray-600 dark:prose-li:text-gray-400"
+              dangerouslySetInnerHTML={{ __html: privacyData.content }}
+            />
+          ) : (
+            <div className="text-center py-20">
+               <Lock className="w-16 h-16 text-gray-100 dark:text-gray-800 mx-auto mb-4" />
+               <p className="text-gray-400 font-medium">No content available at the moment.</p>
+            </div>
+          )}
         </motion.div>
 
-        {/* Footer Note */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3, duration: 0.5 }}
-          className="text-center mt-8 mb-4"
-        >
-          <p className="text-sm text-gray-500 dark:text-gray-500">
-            Last updated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-          </p>
-        </motion.div>
+        <p className="text-center mt-10 text-[10px] text-gray-400 font-black uppercase tracking-[0.2em] leading-relaxed">
+          Last updated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} <br />
+          © {new Date().getFullYear()} AppZeto. All Rights Reserved.
+        </p>
       </div>
     </AnimatedPage>
   )

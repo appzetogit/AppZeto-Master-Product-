@@ -96,8 +96,8 @@ export const requestRestaurantOtpController = async (req, res, next) => {
 
 export const verifyRestaurantOtpController = async (req, res, next) => {
   try {
-    const { phone, otp } = validateRestaurantOtpVerifyDto(req.body);
-    const result = await verifyRestaurantOtpAndLogin(phone, otp);
+    const { phone, otp, fcmToken, platform } = validateRestaurantOtpVerifyDto(req.body);
+    const result = await verifyRestaurantOtpAndLogin(phone, otp, fcmToken, platform);
     return sendResponse(res, 200, "Login successful", result);
   } catch (error) {
     next(error);
@@ -119,8 +119,8 @@ export const requestDeliveryOtpController = async (req, res, next) => {
 
 export const verifyDeliveryOtpController = async (req, res, next) => {
   try {
-    const { phone, otp } = validateDeliveryOtpVerifyDto(req.body);
-    const result = await verifyDeliveryOtpAndLogin(phone, otp);
+    const { phone, otp, fcmToken, platform } = validateDeliveryOtpVerifyDto(req.body);
+    const result = await verifyDeliveryOtpAndLogin(phone, otp, fcmToken, platform);
     return sendResponse(res, 200, "Login successful", result);
   } catch (error) {
     next(error);

@@ -1,7 +1,7 @@
-import React from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, ChevronDown, Search, Mic, Bell, CheckCircle2, Tag, Gift, AlertCircle, Clock } from 'lucide-react';
+import { MapPin, ChevronDown, Search, Mic, Bell, CheckCircle2, Tag, Gift, AlertCircle, Clock, BellOff } from 'lucide-react';
 import { 
   Popover, 
   PopoverContent, 
@@ -14,42 +14,12 @@ import quickIcon from "@food/assets/category-icons/quick.png";
 import taxiIcon from "@food/assets/category-icons/taxi.png";
 import hotelIcon from "@food/assets/category-icons/hotel.png";
 
-// Mock notification data (synced with Notifications page style)
-const mockNotifications = [
-  {
-    id: 1,
-    type: "order",
-    title: "Order Confirmed",
-    message: "Your order #12345 has been confirmed",
-    time: "2m ago",
-    read: false,
-    icon: CheckCircle2,
-    iconColor: "text-orange-500",
-    bgColor: "bg-orange-50"
-  },
-  {
-    id: 2,
-    type: "offer",
-    title: "Special Offer",
-    message: "Get 50% off on your next order",
-    time: "1h ago",
-    read: false,
-    icon: Tag,
-    iconColor: "text-orange-500",
-    bgColor: "bg-red-50"
-  },
-  {
-    id: 3,
-    type: "promotion",
-    title: "New Restaurant Added",
-    message: "Check out Italian delights near you",
-    time: "3h ago",
-    read: true,
-    icon: Gift,
-    iconColor: "text-blue-500",
-    bgColor: "bg-blue-50"
-  }
-];
+const ICON_MAP = {
+  CheckCircle2,
+  Tag,
+  Gift,
+  AlertCircle
+};
 
 export default function HomeHeader({ 
   activeTab,
@@ -61,6 +31,26 @@ export default function HomeHeader({
   placeholderIndex, 
   placeholders 
 }) {
+  const [notifications, setNotifications] = useState(() => {
+    const saved = localStorage.getItem('food_user_notifications');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    const syncNotifications = () => {
+      const saved = localStorage.getItem('food_user_notifications');
+      setNotifications(saved ? JSON.parse(saved) : []);
+    };
+
+    // Listen for updates from the main Notifications page
+    window.addEventListener('notificationsUpdated', syncNotifications);
+    // Also listen for new notifications being added via listeners in Notifications.jsx (indirectly via localStorage update)
+    // But since localStorage doesn't fire events on same window, we can use a custom event or a simple interval if needed.
+    // However, the Notifications.jsx already multi-dispatches.
+    
+    return () => window.removeEventListener('notificationsUpdated', syncNotifications);
+  }, []);
+
   const festCategories = [
     { id: "food", name: "Food", icon: foodIcon, bgColor: "bg-white" },
     { id: "quick", name: "Quick", icon: quickIcon, bgColor: "bg-white" },
@@ -68,7 +58,7 @@ export default function HomeHeader({
     { id: "hotel", name: "Hotel", icon: hotelIcon, bgColor: "bg-white" },
   ];
 
-  const unreadCount = mockNotifications.filter(n => !n.read).length;
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
     <div className="relative bg-gradient-to-b from-[#f36371] to-[#ef4f5f] pt-5 pb-5 px-4 space-y-5 shadow-xl overflow-hidden">
@@ -127,33 +117,43 @@ export default function HomeHeader({
                   )}
                 </h3>
                 <Link to="/food/user/notifications" className="text-xs font-bold text-orange-600 hover:text-orange-700">
-                  View All
+                  {notifications.length > 0 ? "View All" : ""}
                 </Link>
               </div>
               <div className="max-h-96 overflow-y-auto">
-                {mockNotifications.map((notif) => (
-                  <div 
-                    key={notif.id}
-                    className={`p-4 flex items-start gap-3 border-b border-gray-50 dark:border-gray-800 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer ${!notif.read ? 'bg-orange-50/20' : ''}`}
-                  >
-                    <div className={`mt-1 p-2 rounded-full ${notif.bgColor} ${notif.iconColor}`}>
-                      <notif.icon className="h-4 w-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2 mb-0.5">
-                        <span className="text-sm font-bold text-gray-900 dark:text-white truncate">{notif.title}</span>
-                        <span className="text-[10px] text-gray-400 whitespace-nowrap">{notif.time}</span>
+                {notifications.length > 0 ? (
+                  notifications.slice(0, 5).map((notif) => {
+                    const Icon = ICON_MAP[notif.icon] || Bell;
+                    return (
+                      <div 
+                        key={notif.id}
+                        className={`p-4 flex items-start gap-3 border-b border-gray-50 dark:border-gray-800 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer ${!notif.read ? 'bg-orange-50/20' : ''}`}
+                      >
+                        <div className={`mt-1 p-2 rounded-full ${notif.type === "order" ? "bg-green-100/50 text-green-600" : "bg-orange-100/50 text-orange-600"}`}>
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2 mb-0.5">
+                            <span className="text-sm font-bold text-gray-900 dark:text-white truncate">{notif.title}</span>
+                            <span className="text-[10px] text-gray-400 whitespace-nowrap">{notif.time}</span>
+                          </div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed">
+                            {notif.message}
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed">
-                        {notif.message}
-                      </p>
-                    </div>
+                    );
+                  })
+                ) : (
+                  <div className="p-8 text-center flex flex-col items-center gap-2">
+                    <BellOff className="h-10 w-10 text-gray-200" />
+                    <p className="text-xs text-gray-400 font-medium">All caught up!</p>
                   </div>
-                ))}
+                )}
               </div>
               <div className="p-3 bg-gray-50/50 dark:bg-gray-800/50 text-center">
                 <Link to="/food/user/notifications" className="text-xs font-bold text-gray-400 hover:text-gray-600">
-                  Manage Settings
+                  {notifications.length > 0 ? "Manage Settings" : "Check Notifications Page"}
                 </Link>
               </div>
             </div>

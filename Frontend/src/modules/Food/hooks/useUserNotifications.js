@@ -80,6 +80,18 @@ export const useUserNotifications = () => {
     socketRef.current.on('order_status_update', (data) => {
       debugLog('🔔 Order status update received:', data);
       
+      const title = data.title || `Order #${data.orderId || 'Update'}`;
+      const message = data.message || `Your order status is now ${String(data.orderStatus || '').replace(/_/g, ' ')}`;
+
+      // Optional: Show toast for important updates (Cancel, Ready, etc.)
+      const isImportant = String(data.orderStatus).includes('cancel') || ['ready_for_pickup', 'ready', 'confirmed'].includes(data.orderStatus);
+      if (isImportant) {
+        toast.message(title, {
+          description: message,
+          duration: 10000
+        });
+      }
+
       // Dispatch custom event for OrderTrackingCard and other listeners
       const event = new CustomEvent('orderStatusNotification', {
         detail: {
@@ -87,6 +99,8 @@ export const useUserNotifications = () => {
           orderId: data.orderId,
           status: data.orderStatus,
           orderStatus: data.orderStatus, // Ensure compatibility with different UI checks
+          title,
+          message,
           deliveryState: data.deliveryState,
           deliveryVerification: data.deliveryVerification,
           timestamp: new Date().toISOString()

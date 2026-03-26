@@ -30,7 +30,9 @@ const deliveryRegisterSchema = z.object({
         .string()
         .regex(aadharRegex, 'Invalid Aadhar format')
         .optional()
-        .or(z.literal(''))
+        .or(z.literal('')),
+    fcmToken: z.string().optional().nullable(),
+    platform: z.enum(['web', 'mobile']).optional().default('web')
 });
 
 export const validateDeliveryRegisterDto = (body) => {
@@ -51,7 +53,9 @@ const deliveryProfileUpdateSchema = z.object({
     vehicleName: z.string().optional(),
     vehicleNumber: z.string().optional(),
     panNumber: z.string().regex(panRegex).optional().or(z.literal('')),
-    aadharNumber: z.string().regex(aadharRegex).optional().or(z.literal(''))
+    aadharNumber: z.string().regex(aadharRegex).optional().or(z.literal('')),
+    fcmToken: z.string().optional().nullable(),
+    platform: z.enum(['web', 'mobile']).optional().default('web')
 });
 
 export const validateDeliveryProfileUpdateDto = (body) => {

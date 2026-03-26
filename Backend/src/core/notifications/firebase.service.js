@@ -424,3 +424,20 @@ export const sendTestNotification = async ({ ownerType, ownerId, platform }) => 
         }
     });
 };
+export const notifyOwnerSafely = async (target = {}, payload = {}) => {
+    try {
+        return await sendNotificationToOwner({ ...target, payload });
+    } catch (error) {
+        logger.warn(`FCM individual push failed: ${error.message}`);
+        return null;
+    }
+};
+
+export const notifyOwnersSafely = async (targets = [], payload = {}) => {
+    try {
+        return await sendNotificationToOwners(targets, payload);
+    } catch (error) {
+        logger.warn(`FCM broadcast push failed: ${error.message}`);
+        return [];
+    }
+};

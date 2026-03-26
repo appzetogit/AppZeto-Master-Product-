@@ -40,7 +40,14 @@ app.use(helmet({
 }));
 app.use(cors());
 app.use(morgan('dev'));
-app.use(express.json());
+app.use(express.json({
+    verify: (req, res, buf) => {
+        // ✅ Store rawBody for signature verification (Razorpay Webhooks)
+        if (req.originalUrl && req.originalUrl.includes('/webhook/razorpay')) {
+            req.rawBody = buf;
+        }
+    }
+}));
 app.use(express.urlencoded({ extended: true }));
 
 // Protect against NoSQL injection and XSS

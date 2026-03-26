@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+﻿import mongoose from 'mongoose';
 import { ValidationError } from '../../../../core/auth/errors.js';
 import { FoodRestaurant } from '../../restaurant/models/restaurant.model.js';
 import { FoodDeliveryPartner } from '../../delivery/models/deliveryPartner.model.js';
@@ -158,7 +158,7 @@ export async function globalSearch(query = '') {
         id: i._id,
         type: 'Product',
         title: i.name,
-        description: `Price: ₹${i.price}`,
+        description: `Price: â‚¹${i.price}`,
         path: `/admin/food/foods`
     }));
 
@@ -255,7 +255,12 @@ export async function getDashboardStats(query = {}) {
         ? new mongoose.Types.ObjectId(query.zoneId)
         : null;
 
-    const orderMatch = {};
+    const orderMatch = {
+        $or: [
+            { "payment.method": { $in: ["cash", "wallet"] } },
+            { "payment.status": { $in: ["paid", "authorized", "captured", "settled", "refunded"] } },
+        ],
+    };
     if (periodRange) {
         orderMatch.createdAt = { $gte: periodRange.start, $lte: periodRange.end };
     }
@@ -356,9 +361,21 @@ export async function getDashboardStats(query = {}) {
         FoodUser.countDocuments({}),
         FoodRestaurant.find({ status: 'pending' }).sort({ createdAt: -1 }).limit(5).select('restaurantName createdAt').lean(),
         FoodDeliveryPartner.find({ status: 'pending' }).sort({ createdAt: -1 }).limit(5).select('name createdAt').lean(),
-        FoodOrder.find({ orderStatus: { $in: PENDING_ORDER_STATUSES } }).sort({ createdAt: -1 }).limit(5).select('orderId createdAt').lean(),
+        FoodOrder.find({ 
+            orderStatus: { $in: PENDING_ORDER_STATUSES },
+            $or: [
+                { "payment.method": { $in: ["cash", "wallet"] } },
+                { "payment.status": { $in: ["paid", "authorized", "captured", "settled", "refunded"] } },
+            ],
+        }).sort({ createdAt: -1 }).limit(5).select('orderId createdAt').lean(),
         FoodOrder.find({ orderStatus: 'delivered' }).sort({ updatedAt: -1 }).limit(5).select('orderId updatedAt').lean(),
-        FoodOrder.find({ orderStatus: { $in: CANCELLED_ORDER_STATUSES } }).sort({ updatedAt: -1 }).limit(5).select('orderId updatedAt').lean(),
+        FoodOrder.find({ 
+            orderStatus: { $in: CANCELLED_ORDER_STATUSES },
+            $or: [
+                { "payment.method": { $in: ["cash", "wallet"] } },
+                { "payment.status": { $in: ["paid", "authorized", "captured", "settled", "refunded"] } },
+            ],
+        }).sort({ updatedAt: -1 }).limit(5).select('orderId updatedAt').lean(),
         FoodUser.find({}).sort({ createdAt: -1 }).limit(5).select('name createdAt').lean()
     ]);
 
@@ -638,7 +655,7 @@ export async function getRestaurantReport(query = {}) {
         return null;
     };
 
-    const formatCurrency = (value) => `₹${Number(value || 0).toFixed(2)}`;
+    const formatCurrency = (value) => `â‚¹${Number(value || 0).toFixed(2)}`;
 
     const limit = Math.min(Math.max(parseInt(query.limit, 10) || 1000, 1), 5000);
     const page = Math.max(parseInt(query.page, 10) || 1, 1);
@@ -716,7 +733,11 @@ export async function getRestaurantReport(query = {}) {
 
     const orderCreatedAtFilter = parseTimeRange(query.time);
     const orderMatch = {
-        restaurantId: { $in: restaurantIds }
+        restaurantId: { $in: restaurantIds },
+        $or: [
+            { "payment.method": { $in: ["cash", "wallet"] } },
+            { "payment.status": { $in: ["paid", "authorized", "captured", "settled", "refunded"] } },
+        ],
     };
     if (orderCreatedAtFilter) {
         orderMatch.createdAt = orderCreatedAtFilter;
@@ -860,8 +881,8 @@ export async function getTaxReport(query = {}) {
             sl: index + 1,
             id: item._id,
             incomeSource: item.incomeSource,
-            totalIncome: `₹${item.totalIncome.toFixed(2)}`,
-            totalTax: `₹${item.totalTax.toFixed(2)}`,
+            totalIncome: `â‚¹${item.totalIncome.toFixed(2)}`,
+            totalTax: `â‚¹${item.totalTax.toFixed(2)}`,
             orderCount: item.orderCount
         };
     });
@@ -869,8 +890,8 @@ export async function getTaxReport(query = {}) {
     return {
         reports,
         stats: {
-            totalIncome: `₹${stats.totalIncome.toFixed(2)}`,
-            totalTax: `₹${stats.totalTax.toFixed(2)}`
+            totalIncome: `â‚¹${stats.totalIncome.toFixed(2)}`,
+            totalTax: `â‚¹${stats.totalTax.toFixed(2)}`
         }
     };
 }
@@ -902,8 +923,8 @@ export async function getTaxReportDetail(restaurantId, query = {}) {
         orders: orders.map(o => ({
             id: o._id,
             orderId: o.orderId,
-            totalAmount: `₹${(o.pricing?.total || 0).toFixed(2)}`,
-            taxAmount: `₹${(o.pricing?.tax || 0).toFixed(2)}`,
+            totalAmount: `â‚¹${(o.pricing?.total || 0).toFixed(2)}`,
+            taxAmount: `â‚¹${(o.pricing?.tax || 0).toFixed(2)}`,
             date: o.createdAt
         }))
     };
@@ -2389,11 +2410,11 @@ export async function approveRestaurantAddon(addonId) {
 
     if (updated?.restaurantId) {
         try {
-            const { notifyOwnersSafely } = await import('../../../core/notifications/firebase.service.js');
+            const { notifyOwnersSafely } = await import('../../../../core/notifications/firebase.service.js');
             await notifyOwnersSafely(
                 [{ ownerType: 'RESTAURANT', ownerId: updated.restaurantId }],
                 {
-                    title: 'Addon Approved! ✅',
+                    title: 'Addon Approved! âœ…',
                     body: `Your addon "${updated.published?.name || 'New Addon'}" has been approved and is now live.`,
                     image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
                     data: {
@@ -2432,11 +2453,11 @@ export async function rejectRestaurantAddon(addonId, reason) {
 
     if (updated?.restaurantId) {
         try {
-            const { notifyOwnersSafely } = await import('../../../core/notifications/firebase.service.js');
+            const { notifyOwnersSafely } = await import('../../../../core/notifications/firebase.service.js');
             await notifyOwnersSafely(
                 [{ ownerType: 'RESTAURANT', ownerId: updated.restaurantId }],
                 {
-                    title: 'Addon Rejected ❌',
+                    title: 'Addon Rejected âŒ',
                     body: `Your addon request for "${updated.draft?.name || 'New Addon'}" was rejected. Reason: ${rejectionReason}`,
                     image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
                     data: {
@@ -2670,11 +2691,11 @@ export async function approveRestaurant(id) {
 
     if (updated) {
         try {
-            const { notifyOwnersSafely } = await import('../../../core/notifications/firebase.service.js');
+            const { notifyOwnersSafely } = await import('../../../../core/notifications/firebase.service.js');
             await notifyOwnersSafely(
                 [{ ownerType: 'RESTAURANT', ownerId: updated._id }],
                 {
-                    title: 'Congratulations! 🎉',
+                    title: 'Congratulations! ðŸŽ‰',
                     body: `Your restaurant "${updated.restaurantName}" has been approved. You can now start receiving orders!`,
                     image: updated.profileImage || 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
                     data: {
@@ -2707,11 +2728,11 @@ export async function rejectRestaurant(id, reason) {
 
     if (updated) {
         try {
-            const { notifyOwnersSafely } = await import('../../../core/notifications/firebase.service.js');
+            const { notifyOwnersSafely } = await import('../../../../core/notifications/firebase.service.js');
             await notifyOwnersSafely(
                 [{ ownerType: 'RESTAURANT', ownerId: updated._id }],
                 {
-                    title: 'Update on Registration 📋',
+                    title: 'Update on Registration ðŸ“‹',
                     body: `Your restaurant registration for "${updated.restaurantName}" has been rejected. Reason: ${reason || 'Incomplete documents'}.`,
                     image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
                     data: {
@@ -2802,11 +2823,11 @@ export async function createAdminOffer(body) {
 
     if (doc.restaurantScope === 'selected' && doc.restaurantId) {
         try {
-            const { notifyOwnersSafely } = await import('../../../core/notifications/firebase.service.js');
+            const { notifyOwnersSafely } = await import('../../../../core/notifications/firebase.service.js');
             await notifyOwnersSafely(
                 [{ ownerType: 'RESTAURANT', ownerId: doc.restaurantId }],
                 {
-                    title: 'New Campaign Invitation! 📢',
+                    title: 'New Campaign Invitation! ðŸ“¢',
                     body: `You have been invited to join a new campaign: "${doc.couponCode}". Check it out now!`,
                     image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
                     data: {
@@ -3154,12 +3175,12 @@ export async function addDeliveryPartnerBonus(body, adminUser) {
     });
 
     try {
-        const { notifyOwnerSafely } = await import('../../../core/notifications/firebase.service.js');
+        const { notifyOwnerSafely } = await import('../../../../core/notifications/firebase.service.js');
         await notifyOwnerSafely(
             { ownerType: 'DELIVERY_PARTNER', ownerId: body.deliveryPartnerId },
             {
-                title: 'Bonus Credited! 🎊',
-                body: `You have received a bonus of ₹${body.amount}. ${body.reference || 'Great job!'}`,
+                title: 'Bonus Credited! ðŸŽŠ',
+                body: `You have received a bonus of â‚¹${body.amount}. ${body.reference || 'Great job!'}`,
                 image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
                 data: {
                     type: 'bonus_credited',
@@ -3511,11 +3532,11 @@ export async function creditEarningAddonHistory(historyId, notes) {
     }
 
     try {
-        const { notifyOwnerSafely } = await import('../../../core/notifications/firebase.service.js');
+        const { notifyOwnerSafely } = await import('../../../../core/notifications/firebase.service.js');
         await notifyOwnerSafely(
             { ownerType: 'DELIVERY_PARTNER', ownerId: doc.deliveryPartnerId },
             {
-                title: 'Incentive Credited! 🎯',
+                title: 'Incentive Credited! ðŸŽ¯',
                 body: `Your incentive for "${doc.offerId?.title || 'Earning Addon'}" has been approved and moved to your pocket.`,
                 image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
                 data: {
@@ -3543,11 +3564,11 @@ export async function cancelEarningAddonHistory(historyId, reason) {
     await doc.save();
 
     try {
-        const { notifyOwnerSafely } = await import('../../../core/notifications/firebase.service.js');
+        const { notifyOwnerSafely } = await import('../../../../core/notifications/firebase.service.js');
         await notifyOwnerSafely(
             { ownerType: 'DELIVERY_PARTNER', ownerId: doc.deliveryPartnerId },
             {
-                title: 'Incentive Update 📋',
+                title: 'Incentive Update ðŸ“‹',
                 body: `Your incentive request for "${doc.offerId?.title || 'Earning Addon'}" was not approved. Reason: ${doc.cancelReason || 'Ineligible'}`,
                 image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
                 data: {
@@ -3749,11 +3770,11 @@ export async function approveDeliveryPartner(id) {
     await partner.save();
 
     try {
-        const { notifyOwnerSafely } = await import('../../../core/notifications/firebase.service.js');
+        const { notifyOwnerSafely } = await import('../../../../core/notifications/firebase.service.js');
         await notifyOwnerSafely(
             { ownerType: 'DELIVERY_PARTNER', ownerId: partner._id },
             {
-                title: 'Welcome Aboard! 🚲',
+                title: 'Welcome Aboard! ðŸš²',
                 body: `Your delivery partner application has been approved. You can now go online and start earning!`,
                 image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
                 data: {
@@ -3830,11 +3851,11 @@ export async function rejectDeliveryPartner(id, reason) {
 
     if (updated) {
         try {
-            const { notifyOwnerSafely } = await import('../../../core/notifications/firebase.service.js');
+            const { notifyOwnerSafely } = await import('../../../../core/notifications/firebase.service.js');
             await notifyOwnerSafely(
                 { ownerType: 'DELIVERY_PARTNER', ownerId: updated._id },
                 {
-                    title: 'Onboarding Update 📋',
+                    title: 'Onboarding Update ðŸ“‹',
                     body: `Your application to join as a delivery partner was rejected. Reason: ${reason || 'Incomplete documents'}.`,
                     image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
                     data: {
@@ -4235,3 +4256,4 @@ export async function getSidebarBadges() {
         return {};
     }
 }
+

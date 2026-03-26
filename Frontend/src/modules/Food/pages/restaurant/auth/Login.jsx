@@ -13,26 +13,7 @@ import { restaurantAPI } from "@food/api"
 import { useCompanyName } from "@food/hooks/useCompanyName"
 
 const countryCodes = [
-  { code: "+1", country: "US/CA", flag: "🇺🇸" },
-  { code: "+44", country: "UK", flag: "🇬🇧" },
   { code: "+91", country: "IN", flag: "🇮🇳" },
-  { code: "+86", country: "CN", flag: "🇨🇳" },
-  { code: "+81", country: "JP", flag: "🇯🇵" },
-  { code: "+49", country: "DE", flag: "🇩🇪" },
-  { code: "+33", country: "FR", flag: "🇫🇷" },
-  { code: "+39", country: "IT", flag: "🇮🇹" },
-  { code: "+34", country: "ES", flag: "🇪🇸" },
-  { code: "+61", country: "AU", flag: "🇦🇺" },
-  { code: "+7", country: "RU", flag: "🇷🇺" },
-  { code: "+55", country: "BR", flag: "🇧🇷" },
-  { code: "+52", country: "MX", flag: "🇲🇽" },
-  { code: "+82", country: "KR", flag: "🇰🇷" },
-  { code: "+65", country: "SG", flag: "🇸🇬" },
-  { code: "+971", country: "AE", flag: "🇦🇪" },
-  { code: "+966", country: "SA", flag: "🇸🇦" },
-  { code: "+27", country: "ZA", flag: "🇿🇦" },
-  { code: "+31", country: "NL", flag: "🇳🇱" },
-  { code: "+46", country: "SE", flag: "🇸🇪" },
 ]
 
 export default function RestaurantLogin() {
@@ -49,7 +30,7 @@ export default function RestaurantLogin() {
   const [error, setError] = useState("")
   const [isSending, setIsSending] = useState(false)
 
-  const selectedCountry = countryCodes.find((c) => c.code === formData.countryCode) || countryCodes[2]
+  const selectedCountry = countryCodes.find((c) => c.code === formData.countryCode) || countryCodes[0]
 
   const validatePhone = (phone, countryCode) => {
     if (!phone || phone.trim() === "") return "Phone number is required"
@@ -178,7 +159,7 @@ export default function RestaurantLogin() {
                   placeholder="Mobile number"
                   value={formData.phone}
                   onChange={handlePhoneChange}
-                  className="flex-1 h-full bg-transparent border-none focus:ring-0 text-lg font-bold text-slate-900 placeholder-slate-300 px-4"
+                  className="flex-1 h-full bg-transparent border-0 outline-none ring-0 shadow-none focus:border-0 focus:outline-none focus:ring-0 focus:shadow-none text-lg font-bold text-slate-900 placeholder-slate-300 px-4"
                 />
               </div>
 
@@ -205,7 +186,21 @@ export default function RestaurantLogin() {
           <div className="text-center pt-8">
             <p className="text-slate-400 text-xs font-medium">
               By logging in, you agree to our <br />
-              <span className="text-[#ef4f5f] font-bold hover:underline cursor-pointer">Terms</span> and <span className="text-[#ef4f5f] font-bold hover:underline cursor-pointer">Privacy Policy</span>
+              <button
+                type="button"
+                onClick={() => navigate("/food/restaurant/terms")}
+                className="bg-transparent border-0 p-0 text-[#ef4f5f] font-bold hover:underline cursor-pointer"
+              >
+                Terms
+              </button>{" "}
+              and{" "}
+              <button
+                type="button"
+                onClick={() => navigate("/food/restaurant/privacy")}
+                className="bg-transparent border-0 p-0 text-[#ef4f5f] font-bold hover:underline cursor-pointer"
+              >
+                Privacy Policy
+              </button>
             </p>
           </div>
         </div>

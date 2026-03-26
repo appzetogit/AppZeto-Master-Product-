@@ -289,7 +289,7 @@ export default function DeliverySignup() {
               <div className="flex gap-2">
                 <div className="flex items-center px-4 h-11 border border-gray-300 bg-gray-50 text-gray-700 rounded-md shrink-0">
                   <span className="flex items-center gap-2 text-sm font-medium">
-                    <span>????</span>
+                    <span>🇮🇳</span>
                     <span>+91</span>
                   </span>
                 </div>

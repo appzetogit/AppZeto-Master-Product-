@@ -59,6 +59,11 @@ export const PocketV2 = () => {
         const profile = profileRes?.data?.data?.profile || {};
         const summary = earningsRes?.data?.data?.summary || {};
         const wallet = walletRes?.data?.data?.wallet || {};
+        const activeAddonsRes = await deliveryAPI.getActiveEarningAddons().catch(() => null);
+        const activeOfferPayload =
+          activeAddonsRes?.data?.data?.activeOffer ||
+          activeAddonsRes?.data?.activeOffer ||
+          null;
         
         const bankDetails = profile?.documents?.bankDetails;
         const isFilled = !!(bankDetails?.accountNumber);
@@ -75,14 +80,13 @@ export const PocketV2 = () => {
           bankDetailsFilled: isFilled
         });
 
-        // Mocking or fetching actual offer data
         setActiveOffer({
-           targetAmount: 2500,
-           targetOrders: 50,
-           currentOrders: summary.totalOrders || 0,
-           currentEarnings: summary.totalEarnings || 0,
-           validTill: 'Sunday',
-           isLive: true
+           targetAmount: Number(activeOfferPayload?.targetAmount) || 0,
+           targetOrders: Number(activeOfferPayload?.targetOrders) || 0,
+           currentOrders: Number(activeOfferPayload?.currentOrders) || 0,
+           currentEarnings: Number(activeOfferPayload?.currentEarnings) || 0,
+           validTill: activeOfferPayload?.validTill || '',
+           isLive: Boolean(activeOfferPayload)
         });
 
       } catch (err) {
@@ -166,6 +170,14 @@ export const PocketV2 = () => {
 
   const ordersProgress = activeOffer.targetOrders > 0 ? Math.min(activeOffer.currentOrders / activeOffer.targetOrders, 1) : 0;
   const earningsProgress = activeOffer.targetAmount > 0 ? Math.min(activeOffer.currentEarnings / activeOffer.targetAmount, 1) : 0;
+  const hasActiveOffer = activeOffer.isLive && (activeOffer.targetAmount > 0 || activeOffer.targetOrders > 0);
+
+  const formatOfferValidTill = (validTill) => {
+    if (!validTill) return '';
+    const parsed = new Date(validTill);
+    if (Number.isNaN(parsed.getTime())) return String(validTill);
+    return parsed.toLocaleDateString('en-US', { weekday: 'long' });
+  };
 
   const getCurrentWeekRange = () => {
     const now = new Date();
@@ -219,17 +231,20 @@ export const PocketV2 = () => {
              </h2>
           </div>
 
-          {/* 3. EARNINGS GUARANTEE - CIRCLES RESTORED */}
+          {/* 3. EARNINGS GUARANTEE - API DRIVEN (NO STATIC VALUES) */}
+          {hasActiveOffer && (
           <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 mb-6">
              <div className="bg-black p-4 flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-black text-white leading-none mb-1">Earnings Guarantee</h3>
                   <div className="flex items-center gap-2">
-                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Valid till {activeOffer.validTill}</span>
-                     <div className="flex items-center gap-1.5">
-                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                        <span className="text-[10px] font-bold text-green-500 uppercase">Live</span>
-                     </div>
+                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Valid till {formatOfferValidTill(activeOffer.validTill)}</span>
+                     {activeOffer.isLive && (
+                       <div className="flex items-center gap-1.5">
+                          <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                          <span className="text-[10px] font-bold text-green-500 uppercase">Live</span>
+                       </div>
+                     )}
                   </div>
                 </div>
                 <div className="bg-white/10 px-4 py-2 rounded-xl text-center border border-white/5">
@@ -276,6 +291,7 @@ export const PocketV2 = () => {
                 </div>
              </div>
           </div>
+          )}
 
           {/* 4. POCKET ACTION BUTTONS */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">

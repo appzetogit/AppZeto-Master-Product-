@@ -239,7 +239,7 @@ export function requestRestaurantOtp(phone) {
   return apiClient.post(AUTH.RESTAURANT_REQUEST_OTP, { phone: normalized });
 }
 
-export function verifyRestaurantOtp(phone, otp) {
+export function verifyRestaurantOtp(phone, otp, fcmToken = null, platform = "web") {
   const normalized = normalizePhone(phone);
   const otpStr = String(otp).replace(/\D/g, "").slice(0, 6);
   if (!normalized || otpStr.length < 4) {
@@ -248,6 +248,7 @@ export function verifyRestaurantOtp(phone, otp) {
   return apiClient.post(AUTH.RESTAURANT_VERIFY_OTP, {
     phone: normalized,
     otp: otpStr,
+    ...(fcmToken ? { fcmToken, platform } : {}),
   });
 }
 
@@ -262,7 +263,7 @@ export function requestDeliveryOtp(phone) {
   return apiClient.post(AUTH.DELIVERY_REQUEST_OTP, { phone: normalized });
 }
 
-export function verifyDeliveryOtp(phone, otp) {
+export function verifyDeliveryOtp(phone, otp, fcmToken = null, platform = "web") {
   const normalized = normalizePhone(phone);
   const otpStr = String(otp).replace(/\D/g, "").slice(0, 6);
   if (!normalized || otpStr.length < 4) {
@@ -271,5 +272,6 @@ export function verifyDeliveryOtp(phone, otp) {
   return apiClient.post(AUTH.DELIVERY_VERIFY_OTP, {
     phone: normalized,
     otp: otpStr,
+    ...(fcmToken ? { fcmToken, platform } : {}),
   });
 }

@@ -43,7 +43,9 @@ export default function Orders() {
 
   // Calculate countdown for an order
   const calculateCountdown = (order) => {
-    if (!order || order.status === 'delivered' || order.status === 'cancelled' || order.status === 'restaurant_cancelled') {
+    if (!order || 
+        order.status === 'delivered' || 
+        String(order.status).toLowerCase().includes('cancel')) {
       return null
     }
 
@@ -82,9 +84,8 @@ export default function Orders() {
     const status = order.status
     if (status === 'delivered' || status === 'completed') return 'delivered'
     if (status === 'out_for_delivery' || status === 'outForDelivery') return 'outForDelivery'
-    if (status === 'ready') return 'preparing'
-    if (status === 'preparing') return 'preparing'
-    if (status === 'confirmed') return 'confirmed'
+    if (status === 'ready' || status === 'preparing') return 'preparing'
+    if (String(status).toLowerCase().includes('cancel')) return 'cancelled'
     return status || 'confirmed'
   }
 

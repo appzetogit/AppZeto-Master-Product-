@@ -352,6 +352,36 @@ export default function SignupStep2() {
     formData.append("panPhoto", documents.panPhoto)
     formData.append("drivingLicensePhoto", documents.drivingLicensePhoto)
 
+    // Try to get FCM token before registering
+    let fcmToken = null;
+    let platform = "web";
+    try {
+      if (typeof window !== "undefined") {
+        if (window.flutter_inappwebview) {
+          platform = "mobile";
+          const handlerNames = ["getFcmToken", "getFCMToken", "getPushToken", "getFirebaseToken"];
+          for (const handlerName of handlerNames) {
+            try {
+              const t = await window.flutter_inappwebview.callHandler(handlerName, { module: "delivery" });
+              if (t && typeof t === "string" && t.length > 20) {
+                fcmToken = t.trim();
+                break;
+              }
+            } catch (e) {}
+          }
+        } else {
+          fcmToken = localStorage.getItem("fcm_web_registered_token_delivery") || null;
+        }
+      }
+    } catch (e) {
+      debugWarn("Failed to get FCM token during signup", e);
+    }
+
+    if (fcmToken) {
+      formData.append("fcmToken", fcmToken);
+      formData.append("platform", platform);
+    }
+
     const isCompleteProfile = sessionStorage.getItem("deliveryNeedsRegistration") === "true"
 
     setIsSubmitting(true)

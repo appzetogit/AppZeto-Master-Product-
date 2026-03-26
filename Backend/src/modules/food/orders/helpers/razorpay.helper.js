@@ -79,3 +79,39 @@ export async function fetchRazorpayPaymentLink(paymentLinkId) {
     if (!paymentLinkId) throw new Error('paymentLinkId is required');
     return instance.paymentLink.fetch(String(paymentLinkId));
 }
+
+/**
+ * ✅ NEW: Initiate a refund for a successful payment.
+ * NON-BREAKING Extension for automated cancellation refunds.
+ * @param {string} paymentId - Original Razorpay payment_id (captured)
+ * @param {number} amount - Amount to refund (in major unit, e.g., INR 123.45)
+ */
+export async function initiateRazorpayRefund(paymentId, amount) {
+    if (!isRazorpayConfigured()) {
+        throw new Error('Razorpay is not configured on this server');
+    }
+    const instance = getRazorpayInstance();
+    try {
+        const refund = await instance.payments.refund(paymentId, {
+            amount: Math.round(Number(amount) * 100), // convert to paise
+            notes: {
+                reason: 'Order cancelled by system flow',
+                at: new Date().toISOString()
+            }
+        });
+        return {
+            success: true,
+            refundId: refund.id,
+            status: refund.status || 'processed',
+            raw: refund
+        };
+    } catch (err) {
+        // Log locally but pass the error to the service to handle status update
+        console.error(`Razorpay Refund API Failure [PaymentId: ${paymentId}]:`, err?.message || err);
+        return {
+            success: false,
+            error: err?.message || 'Razorpay refund API error',
+            status: 'failed'
+        };
+    }
+}

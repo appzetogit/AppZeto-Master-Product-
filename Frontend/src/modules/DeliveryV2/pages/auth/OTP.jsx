@@ -24,6 +24,8 @@ export default function DeliveryOTP() {
   const [nameError, setNameError] = useState("")
   const [verifiedOtp, setVerifiedOtp] = useState("")
   const [pendingMessage, setPendingMessage] = useState("")
+  const [deviceToken, setDeviceToken] = useState(null)
+  const [activePlatform, setActivePlatform] = useState("web")
   const inputRefs = useRef([])
 
   useEffect(() => {
@@ -188,10 +190,38 @@ export default function DeliveryOTP() {
         return
       }
 
+      // Try to get FCM token before verifying OTP
+      let fcmToken = null;
+      let platform = "web";
+      try {
+        if (typeof window !== "undefined") {
+          if (window.flutter_inappwebview) {
+            platform = "mobile";
+            const handlerNames = ["getFcmToken", "getFCMToken", "getPushToken", "getFirebaseToken"];
+            for (const handlerName of handlerNames) {
+              try {
+                const t = await window.flutter_inappwebview.callHandler(handlerName, { module: "delivery" });
+                if (t && typeof t === "string" && t.length > 20) {
+                  fcmToken = t.trim();
+                  break;
+                }
+              } catch (e) {}
+            }
+          } else {
+            fcmToken = localStorage.getItem("fcm_web_registered_token_delivery") || null;
+          }
+        }
+      } catch (e) {
+        debugWarn("Failed to get FCM token during login", e);
+      }
+
+      setDeviceToken(fcmToken);
+      setActivePlatform(platform);
+
       // Backend: POST /auth/delivery/verify-otp returns either:
       // - { needsRegistration: true } when no partner exists yet
       // - or { accessToken, refreshToken, user } for existing partners
-      const response = await deliveryAPI.verifyOTP(phone, code, purpose, providedName)
+      const response = await deliveryAPI.verifyOTP(phone, code, purpose, providedName, fcmToken, platform)
       debugLog("Delivery OTP Response:", response)
       const data = response?.data?.data || response?.data || {}
       debugLog("Parsed Delivery OTP Data:", data)
@@ -302,7 +332,7 @@ export default function DeliveryOTP() {
       }
 
       // Second call with name to auto-register and login
-      const response = await deliveryAPI.verifyOTP(phone, verifiedOtp, purpose, trimmedName)
+      const response = await deliveryAPI.verifyOTP(phone, verifiedOtp, purpose, trimmedName, deviceToken, activePlatform)
       const data = response?.data?.data || response?.data || {}
 
       const accessToken = data.accessToken

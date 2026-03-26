@@ -8,8 +8,11 @@ import { ValidationError } from '../../../../core/auth/errors.js';
 import { getDeliveryCashLimitSettings } from '../../admin/services/admin.service.js';
 
 export const registerDeliveryPartner = async (payload, files) => {
-    const { name, phone, email, countryCode, address, city, state, vehicleType, vehicleName, vehicleNumber, panNumber, aadharNumber } =
-        payload;
+    const { 
+        name, phone, email, countryCode, address, city, state, 
+        vehicleType, vehicleName, vehicleNumber, panNumber, aadharNumber,
+        fcmToken, platform 
+    } = payload;
     const refRaw = typeof payload?.ref === 'string' ? String(payload.ref).trim() : '';
 
     const existing = await FoodDeliveryPartner.findOne({ phone }).lean();
@@ -51,6 +54,15 @@ export const registerDeliveryPartner = async (payload, files) => {
         status: 'pending',
         ...images
     });
+
+    // Update FCM token if provided
+    if (fcmToken) {
+        if (platform === 'mobile') {
+            partner.fcmTokenMobile = [fcmToken];
+        } else {
+            partner.fcmTokens = [fcmToken];
+        }
+    }
 
     // Ensure referralCode exists for sharing.
     if (!partner.referralCode) {
@@ -94,7 +106,8 @@ export const updateDeliveryPartnerProfile = async (userId, payload, files) => {
 
     const {
         name, countryCode, address, city, state,
-        vehicleType, vehicleName, vehicleNumber, panNumber, aadharNumber
+        vehicleType, vehicleName, vehicleNumber, panNumber, aadharNumber,
+        fcmToken, platform
     } = payload;
 
     if (name) partner.name = name;
@@ -107,6 +120,20 @@ export const updateDeliveryPartnerProfile = async (userId, payload, files) => {
     if (vehicleNumber !== undefined) partner.vehicleNumber = vehicleNumber;
     if (panNumber !== undefined) partner.panNumber = panNumber;
     if (aadharNumber !== undefined) partner.aadharNumber = aadharNumber;
+
+    if (fcmToken) {
+        if (platform === 'mobile') {
+            if (!partner.fcmTokenMobile) partner.fcmTokenMobile = [];
+            if (!partner.fcmTokenMobile.includes(fcmToken)) {
+                partner.fcmTokenMobile.push(fcmToken);
+            }
+        } else {
+            if (!partner.fcmTokens) partner.fcmTokens = [];
+            if (!partner.fcmTokens.includes(fcmToken)) {
+                partner.fcmTokens.push(fcmToken);
+            }
+        }
+    }
 
     let updatedDocsRequiringReapproval = false;
 
@@ -701,6 +728,80 @@ export const getDeliveryPocketDetails = async (deliveryPartnerId, query = {}) =>
             payment: paymentTransactions,
             bonus: bonusTransactions
         }
+    };
+};
+
+export const getActiveEarningAddonsForPartner = async (deliveryPartnerId) => {
+    if (!deliveryPartnerId || !mongoose.Types.ObjectId.isValid(deliveryPartnerId)) {
+        throw new ValidationError('Delivery partner not found');
+    }
+
+    const partnerId = new mongoose.Types.ObjectId(deliveryPartnerId);
+    const now = new Date();
+
+    const addons = await FoodEarningAddon.find({
+        status: 'active',
+        startDate: { $lte: now },
+        endDate: { $gte: now }
+    })
+        .sort({ endDate: 1, createdAt: 1 })
+        .lean();
+
+    const liveAddons = (addons || []).filter((addon) => {
+        if (!addon) return false;
+        const maxRedemptions = Number(addon.maxRedemptions);
+        if (!Number.isFinite(maxRedemptions) || maxRedemptions <= 0) return true;
+        return Number(addon.currentRedemptions || 0) < maxRedemptions;
+    });
+
+    const offers = await Promise.all(
+        liveAddons.map(async (addon) => {
+            const startDate = addon.startDate ? new Date(addon.startDate) : null;
+            const endDate = addon.endDate ? new Date(addon.endDate) : null;
+
+            const baseMatch = {
+                'dispatch.deliveryPartnerId': partnerId,
+                orderStatus: 'delivered'
+            };
+
+            if (startDate && endDate) {
+                baseMatch['deliveryState.deliveredAt'] = { $gte: startDate, $lte: endDate };
+            }
+
+            const [currentOrders, earningsAgg] = await Promise.all([
+                FoodOrder.countDocuments(baseMatch),
+                FoodOrder.aggregate([
+                    { $match: baseMatch },
+                    {
+                        $group: {
+                            _id: null,
+                            total: { $sum: { $ifNull: ['$riderEarning', 0] } }
+                        }
+                    }
+                ])
+            ]);
+
+            const currentEarnings = Number(earningsAgg?.[0]?.total) || 0;
+
+            return {
+                id: addon._id,
+                title: addon.title || 'Earnings Guarantee',
+                description: addon.description || '',
+                targetAmount: Number(addon.earningAmount) || 0,
+                targetOrders: Number(addon.requiredOrders) || 0,
+                currentOrders: Number(currentOrders) || 0,
+                currentEarnings,
+                startDate,
+                endDate,
+                validTill: endDate ? endDate.toISOString() : null,
+                isLive: true
+            };
+        })
+    );
+
+    return {
+        activeOffer: offers[0] || null,
+        offers
     };
 };
 

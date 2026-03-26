@@ -847,10 +847,10 @@ export const restaurantAPI = {
     if (!phone) return Promise.reject(new Error("Phone is required"));
     return authService.requestRestaurantOtp(phone);
   },
-  verifyOTP: (phone, otp, _purpose, _name, _email) => {
+  verifyOTP: (phone, otp, _purpose, _name, _email, fcmToken = null, platform = "web") => {
     if (!phone || !otp)
       return Promise.reject(new Error("Phone and OTP are required"));
-    return authService.verifyRestaurantOtp(phone, otp);
+    return authService.verifyRestaurantOtp(phone, otp, fcmToken, platform);
   },
   getMe: () => authService.getMe("restaurant"),
   /** Restaurant dashboard: fetch current restaurant profile (deduped + short-cached). */
@@ -1099,6 +1099,7 @@ export const restaurantAPI = {
             if (v === "ready_for_pickup") return "ready";
             // Backend: picked_up -> out_for_delivery (restaurant handed over)
             if (v === "picked_up") return "out_for_delivery";
+            if (v.includes("cancel")) return "cancelled";
             return v || "confirmed";
           };
 
@@ -1493,10 +1494,10 @@ export const deliveryAPI = {
     if (!phone) return Promise.reject(new Error("Phone is required"));
     return authService.requestDeliveryOtp(phone);
   },
-  verifyOTP: (phone, otp, _purpose, _name) => {
+  verifyOTP: (phone, otp, _purpose, _name, fcmToken = null, platform = "web") => {
     if (!phone || !otp)
       return Promise.reject(new Error("Phone and OTP are required"));
-    return authService.verifyDeliveryOtp(phone, otp);
+    return authService.verifyDeliveryOtp(phone, otp, fcmToken, platform);
   },
   getMe: () => getDeliveryMeOnce(),
   /** Get delivery profile (same as getMe under the hood; maps response to profile shape). */

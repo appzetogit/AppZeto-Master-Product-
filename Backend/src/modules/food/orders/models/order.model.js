@@ -77,6 +77,17 @@ const paymentSchema = new mongoose.Schema(
             shortUrl: { type: String },
             status: { type: String },
             expiresAt: { type: Date }
+        },
+        // ✅ NEW: Added refund object to track refund status without breaking existing flow
+        refund: {
+            status: { 
+                type: String, 
+                enum: ['none', 'pending', 'processed', 'failed'], 
+                default: 'none' 
+            },
+            amount: { type: Number, default: 0 },
+            refundId: { type: String, default: '' },
+            processedAt: { type: Date }
         }
     },
     { _id: false }

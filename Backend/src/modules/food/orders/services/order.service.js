@@ -25,7 +25,8 @@ import {
     verifyPaymentSignature,
     getRazorpayKeyId,
     isRazorpayConfigured,
-    fetchRazorpayPaymentLink
+    fetchRazorpayPaymentLink,
+    initiateRazorpayRefund
 } from '../helpers/razorpay.helper.js';
 import { getIO, rooms } from '../../../../config/socket.js';
 import { addOrderJob } from '../../../../queues/producers/order.producer.js';
@@ -308,9 +309,10 @@ function canExposeOrderToRestaurant(orderLike) {
   const method = String(orderLike?.payment?.method || "").toLowerCase();
   const status = String(orderLike?.payment?.status || "").toLowerCase();
 
-  // Online payment orders should only appear for restaurants after successful payment.
-  if (method === "razorpay") return status === "paid";
-  return true;
+  // Cash and Wallet are considered confirmed immediately
+  if (["cash", "wallet"].includes(method)) return true;
+  // Online payments must be successful
+  return ["paid", "authorized", "captured", "settled"].includes(status);
 }
 
 async function notifyRestaurantNewOrder(orderDoc) {
@@ -1149,6 +1151,41 @@ export async function cancelOrder(orderId, userId, reason) {
     to: "cancelled_by_user",
     note: reason || "",
   });
+
+  // ✅ NEW: Automated Razorpay Refund on User Cancel
+  if (
+    order.payment.status === "paid" &&
+    order.payment.method === "razorpay" &&
+    order.payment.razorpay?.paymentId &&
+    (!order.payment.refund || order.payment.refund.status !== "processed")
+  ) {
+    try {
+      const refundResult = await initiateRazorpayRefund(
+        order.payment.razorpay.paymentId,
+        order.pricing.total
+      );
+
+      if (refundResult.success) {
+        order.payment.status = "refunded";
+        order.payment.refund = {
+          status: "processed",
+          amount: order.pricing.total,
+          refundId: refundResult.refundId,
+          processedAt: new Date()
+        };
+      } else {
+        // Log failure but let order cancellation proceed
+        order.payment.refund = {
+          status: "failed",
+          amount: order.pricing.total
+        };
+      }
+    } catch (err) {
+      console.error(`Refund processing error for Order ${orderId}:`, err);
+      order.payment.refund = { status: "failed", amount: order.pricing.total };
+    }
+  }
+
   await order.save();
 
   enqueueOrderEvent("order_cancelled_by_user", {
@@ -1158,7 +1195,23 @@ export async function cancelOrder(orderId, userId, reason) {
     reason: reason || "",
   });
 
+  // Sync transaction status
+  try {
+    const isOnlinePaid = order.payment.method === "razorpay" && (order.payment.status === "paid" || order.payment.status === "refunded");
+    await foodTransactionService.updateTransactionStatus(order._id, 'cancelled_by_user', {
+        status: isOnlinePaid ? 'refunded' : 'failed',
+        note: `Order cancelled by user: ${reason || "No reason"}`,
+        recordedByRole: 'USER',
+        recordedById: userId
+    });
+  } catch (err) {
+    logger.warn(`cancelOrder transaction sync failed: ${err?.message || err}`);
+  }
+
   // Notify User and Restaurant about the cancellation
+  const isOnlinePaid = order.payment.method === "razorpay" && (order.payment.status === "paid" || order.payment.status === "refunded");
+  const refundDetail = isOnlinePaid ? ` Your refund of ₹${order.pricing.total} is being processed and will be credited to your original payment method within 5-7 working days.` : "";
+  
   await notifyOwnersSafely(
     [
       { ownerType: "USER", ownerId: userId },
@@ -1166,7 +1219,7 @@ export async function cancelOrder(orderId, userId, reason) {
     ],
     {
       title: "Order Cancelled ❌",
-      body: `Order #${order.orderId} has been cancelled successfully.`,
+      body: `Order #${order.orderId} has been cancelled successfully.${refundDetail}`,
       image: "https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png",
       data: {
         type: "order_cancelled",
@@ -1175,6 +1228,23 @@ export async function cancelOrder(orderId, userId, reason) {
       },
     },
   );
+
+  // Real-time: status update via socket
+  try {
+    const io = getIO();
+    if (io) {
+      const payload = {
+        orderMongoId: order._id?.toString?.(),
+        orderId: order.orderId,
+        orderStatus: order.orderStatus,
+        message: `Order #${order.orderId} has been cancelled successfully.${refundDetail}`
+      };
+      io.to(rooms.user(userId)).emit("order_status_update", payload);
+      io.to(rooms.restaurant(order.restaurantId)).emit("order_status_update", payload);
+    }
+  } catch (err) {
+    logger.warn(`cancelOrder socket emit failed: ${err?.message || err}`);
+  }
 
   return order.toObject();
 }
@@ -1254,8 +1324,8 @@ export async function listOrdersRestaurant(restaurantId, query) {
   const filter = {
     restaurantId: new mongoose.Types.ObjectId(restaurantId),
     $or: [
-      { "payment.method": { $ne: "razorpay" } },
-      { "payment.status": "paid" },
+      { "payment.method": { $in: ["cash", "wallet"] } },
+      { "payment.status": { $in: ["paid", "authorized", "captured", "settled", "refunded"] } },
     ],
   };
   const [docs, total] = await Promise.all([
@@ -1301,6 +1371,8 @@ export async function updateOrderStatusRestaurant(
         orderMongoId: order._id?.toString?.(),
         orderId: order.orderId,
         orderStatus: order.orderStatus,
+        title: title || `Order ${order.orderId} updated`,
+        message: body || "",
       };
       io.to(rooms.restaurant(restaurantId)).emit(
         "order_status_update",
@@ -1324,8 +1396,11 @@ export async function updateOrderStatusRestaurant(
       title = "Food is ready! 🛍️";
       body = "Your order is ready and waiting to be picked up.";
     } else if (String(orderStatus).includes("cancel")) {
+      const isOnlinePaid = order.payment.method === "razorpay" && (order.payment.status === "paid" || order.payment.status === "refunded");
+      const refundDetail = isOnlinePaid ? ` Your refund of ₹${order.pricing.total} is being processed and will be credited to your original payment method within 5-7 working days.` : "";
+      
       title = "Order Cancelled ❌";
-      body = "Unfortunately, your order has been cancelled by the restaurant.";
+      body = `Unfortunately, your order has been cancelled by the restaurant.${refundDetail}`;
     }
 
     const notifyList = [
@@ -1344,6 +1419,19 @@ export async function updateOrderStatusRestaurant(
     if (String(orderStatus).includes("cancel")) {
       riderTitle = "Order Cancelled ❌";
       riderBody = `Order #${order.orderId} has been cancelled. Please stop your current task.`;
+      
+      // Sync transaction status
+      try {
+        const isOnlinePaid = order.payment.method === "razorpay" && (order.payment.status === "paid" || order.payment.status === "refunded");
+        await foodTransactionService.updateTransactionStatus(order._id, 'cancelled_by_restaurant', {
+            status: isOnlinePaid ? 'refunded' : 'failed',
+            note: `Order cancelled by restaurant/admin`,
+            recordedByRole: 'RESTAURANT',
+            recordedById: restaurantId
+        });
+      } catch (err) {
+        logger.warn(`updateOrderStatusRestaurant transaction sync failed: ${err?.message || err}`);
+      }
     }
 
     await notifyOwnersSafely(
@@ -1491,6 +1579,7 @@ export async function updateOrderStatusRestaurant(
     } catch (err) {
         console.error('[DEBUG] Error in delivery notification logic:', err);
     }
+
     enqueueOrderEvent('restaurant_order_status_updated', {
         orderMongoId: order._id?.toString?.(),
         orderId: order.orderId,
@@ -1498,6 +1587,45 @@ export async function updateOrderStatusRestaurant(
         from,
         to: orderStatus
     });
+
+    // ✅ NEW: Automated Razorpay Refund on Restaurant Cancel
+    // Triggers if the restaurant sets status to a cancelled state (e.g., cancelled_by_restaurant)
+    if (
+      String(orderStatus).includes("cancel") &&
+      order.payment.status === "paid" &&
+      order.payment.method === "razorpay" &&
+      order.payment.razorpay?.paymentId &&
+      (!order.payment.refund || order.payment.refund.status !== "processed")
+    ) {
+      try {
+        const refundResult = await initiateRazorpayRefund(
+          order.payment.razorpay.paymentId,
+          order.pricing.total
+        );
+
+        if (refundResult.success) {
+          order.payment.status = "refunded";
+          order.payment.refund = {
+            status: "processed",
+            amount: order.pricing.total,
+            refundId: refundResult.refundId,
+            processedAt: new Date()
+          };
+        } else {
+          // Record failure so admin knows a manual refund might be needed
+          order.payment.refund = {
+            status: "failed",
+            amount: order.pricing.total
+          };
+        }
+      } catch (err) {
+        console.error(`Automated refund failed for Order ${orderId} (Restaurant Cancel):`, err);
+        order.payment.refund = { status: "failed", amount: order.pricing.total };
+      }
+      // Re-save order with updated payment status
+      await order.save();
+    }
+
     return order.toObject();
 }
 
@@ -2374,7 +2502,12 @@ export async function getPaymentStatus(orderId, deliveryPartnerId) {
 // ----- Admin -----
 export async function listOrdersAdmin(query) {
   const { page, limit, skip } = buildPaginationOptions(query);
-  const filter = {};
+  const filter = {
+    $or: [
+      { "payment.method": { $in: ["cash", "wallet"] } },
+      { "payment.status": { $in: ["paid", "authorized", "captured", "settled", "refunded"] } },
+    ],
+  };
 
   const rawStatus =
     typeof query.status === "string" ? query.status.trim().toLowerCase() : "";

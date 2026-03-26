@@ -15,6 +15,7 @@ import * as businessSettingsController from '../modules/food/admin/controllers/b
 import { requireRoles } from '../core/roles/role.middleware.js';
 import { getQueuesController } from '../controllers/admin.controller.js';
 import { getPublicEnvController } from '../modules/food/landing/controllers/publicEnv.controller.js';
+import webhookRoutes from '../core/payments/routes/webhook.routes.js'; // ✅ NEW
 
 const router = express.Router();
 
@@ -42,6 +43,7 @@ router.use('/v1/food/admin', authMiddleware, requireRoles('ADMIN'), restaurantAd
 router.use('/v1/food/user', authMiddleware, requireRoles('USER'), userRoutes);
 router.use('/v1/food/orders', authMiddleware, requireRoles('USER'), orderUserRoutes);
 router.use('/v1/food/payments', authMiddleware, paymentRoutes);
+router.use('/v1/payments/webhook', webhookRoutes); // ✅ NEW: Public Webhook
 router.use('/v1/fcm-tokens', fcmRoutes);
 router.use('/fcm-tokens', fcmRoutes);
 

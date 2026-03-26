@@ -1,76 +1,114 @@
+import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
-import { ArrowLeft, Bell, CheckCircle2, Clock, Tag, Gift, AlertCircle } from "lucide-react"
+import { ArrowLeft, Bell, CheckCircle2, Clock, Tag, Gift, AlertCircle, Trash2 } from "lucide-react"
 import AnimatedPage from "@food/components/user/AnimatedPage"
 import { Button } from "@food/components/ui/button"
 import { Card, CardContent } from "@food/components/ui/card"
 import { Badge } from "@food/components/ui/badge"
 
-// Mock notification data
-const notifications = [
+// Initial mock notification data (fallback if localStorage is empty)
+const DEFAULT_NOTIFICATIONS = [
   {
-    id: 1,
+    id: "1",
     type: "order",
     title: "Order Confirmed",
     message: "Your order #12345 has been confirmed and is being prepared",
     time: "2 minutes ago",
+    timestamp: Date.now() - 120000,
     read: false,
-    icon: CheckCircle2,
+    icon: "CheckCircle2",
     iconColor: "text-[#EB590E]"
   },
   {
-    id: 2,
+    id: "2",
     type: "offer",
     title: "Special Offer",
     message: "Get 50% off on your next order above ₹500",
     time: "1 hour ago",
+    timestamp: Date.now() - 3600000,
     read: false,
-    icon: Tag,
-    iconColor: "text-[#EB590E]"
-  },
-  {
-    id: 3,
-    type: "promotion",
-    title: "New Restaurant Added",
-    message: "Check out the new Italian restaurant in your area",
-    time: "3 hours ago",
-    read: true,
-    icon: Gift,
-    iconColor: "text-[#EB590E]"
-  },
-  {
-    id: 4,
-    type: "order",
-    title: "Order Delivered",
-    message: "Your order #12340 has been delivered successfully",
-    time: "Yesterday",
-    read: true,
-    icon: CheckCircle2,
-    iconColor: "text-[#EB590E]"
-  },
-  {
-    id: 5,
-    type: "alert",
-    title: "Payment Failed",
-    message: "Your payment for order #12338 failed. Please try again",
-    time: "2 days ago",
-    read: true,
-    icon: AlertCircle,
-    iconColor: "text-orange-600"
-  },
-  {
-    id: 6,
-    type: "offer",
-    title: "Weekend Special",
-    message: "Enjoy free delivery on all orders this weekend",
-    time: "3 days ago",
-    read: true,
-    icon: Tag,
+    icon: "Tag",
     iconColor: "text-[#EB590E]"
   }
 ]
 
+// Icon mapping for dynamic icons
+const ICON_MAP = {
+  CheckCircle2,
+  Tag,
+  Gift,
+  AlertCircle
+}
+
 export default function Notifications() {
-  const unreadCount = notifications.filter(n => !n.read).length
+  const [notificationsList, setNotificationsList] = useState(() => {
+    const saved = localStorage.getItem('food_user_notifications')
+    return saved ? JSON.parse(saved) : DEFAULT_NOTIFICATIONS
+  })
+
+  // Persistence: Save to localStorage whenever list updates
+  useEffect(() => {
+    localStorage.setItem('food_user_notifications', JSON.stringify(notificationsList))
+    // Also dispatch an event to update other components (like navbar badge)
+    window.dispatchEvent(new CustomEvent('notificationsUpdated', { detail: { count: notificationsList.filter(n => !n.read).length } }))
+  }, [notificationsList])
+
+  // Real-time: Listen for status updates from useUserNotifications hook
+  useEffect(() => {
+    const handleOrderUpdate = (event) => {
+      const { orderId, status, message, title } = event.detail
+      const isCancelled = String(status || "").toLowerCase().includes('cancel')
+      
+      const newNotification = {
+        id: `order-${Date.now()}`,
+        type: isCancelled ? "alert" : "order",
+        title: title || `Order #${orderId} ${status}`,
+        message: message || `Your order status is now ${status}`,
+        time: "Just now",
+        timestamp: Date.now(),
+        read: false,
+        icon: isCancelled ? "AlertCircle" : "CheckCircle2",
+        iconColor: isCancelled ? "text-red-600" : "text-[#EB590E]"
+      }
+      setNotificationsList(prev => [newNotification, ...prev])
+    }
+
+    const handleDeliveryOtp = (event) => {
+      const { orderId, otp, message } = event.detail
+      const newNotification = {
+        id: `otp-${Date.now()}`,
+        type: "alert",
+        title: "Delivery OTP Received",
+        message: message || `Your OTP for order #${orderId} is ${otp}`,
+        time: "Just now",
+        timestamp: Date.now(),
+        read: false,
+        icon: "AlertCircle",
+        iconColor: "text-orange-600"
+      }
+      setNotificationsList(prev => [newNotification, ...prev])
+    }
+
+    window.addEventListener('orderStatusNotification', handleOrderUpdate)
+    window.addEventListener('deliveryDropOtp', handleDeliveryOtp)
+
+    return () => {
+      window.removeEventListener('orderStatusNotification', handleOrderUpdate)
+      window.removeEventListener('deliveryDropOtp', handleDeliveryOtp)
+    }
+  }, [])
+  
+  const unreadCount = notificationsList.filter(n => !n.read).length
+
+  const handleMarkAsRead = (id) => {
+    setNotificationsList(prev => 
+      prev.map(n => n.id === id ? { ...n, read: true } : n)
+    )
+  }
+
+  const handleClearAll = () => {
+    setNotificationsList([])
+  }
 
   return (
     <AnimatedPage className="min-h-screen bg-white dark:bg-[#0a0a0a]">
@@ -91,15 +129,27 @@ export default function Notifications() {
               </Badge>
             )}
           </div>
+          {notificationsList.length > 0 && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={handleClearAll}
+              className="text-gray-500 hover:text-red-500 transition-colors flex items-center gap-1.5 px-2 md:px-3"
+            >
+              <Trash2 className="h-4 w-4" />
+              <span className="text-xs md:text-sm font-medium">Clear All</span>
+            </Button>
+          )}
         </div>
 
         {/* Notifications List */}
         <div className="space-y-3 md:space-y-4">
-          {notifications.map((notification) => {
-            const Icon = notification.icon
+          {notificationsList.map((notification) => {
+            const Icon = ICON_MAP[notification.icon] || Bell
             return (
               <Card
                 key={notification.id}
+                onClick={() => handleMarkAsRead(notification.id)}
                 className={`relative cursor-pointer transition-all duration-200 py-1 hover:shadow-md ${!notification.read ? "bg-red-50/50 dark:bg-red-900/20 border-red-200 dark:border-red-800" : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
                   }`}
               >
@@ -141,7 +191,7 @@ export default function Notifications() {
         </div>
 
         {/* Empty State (if no notifications) */}
-        {notifications.length === 0 && (
+        {notificationsList.length === 0 && (
           <div className="text-center py-12 md:py-16 lg:py-20">
             <Bell className="h-16 w-16 md:h-20 md:w-20 lg:h-24 lg:w-24 text-gray-300 dark:text-gray-600 mx-auto mb-4 md:mb-5 lg:mb-6" />
             <h3 className="text-lg md:text-xl lg:text-2xl font-semibold text-gray-700 dark:text-gray-300 mb-2 md:mb-3">No notifications</h3>

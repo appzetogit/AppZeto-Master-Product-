@@ -1,4 +1,4 @@
-import { registerDeliveryPartner, updateDeliveryPartnerProfile, updateDeliveryPartnerBankDetails, listSupportTicketsByPartner, createSupportTicket, getSupportTicketByIdAndPartner, updateDeliveryPartnerDetails, updateDeliveryPartnerProfilePhotoBase64, updateDeliveryAvailability, getDeliveryPartnerWallet, getDeliveryPartnerEarnings, getDeliveryPartnerTripHistory, getDeliveryPocketDetails } from '../services/delivery.service.js';
+import { registerDeliveryPartner, updateDeliveryPartnerProfile, updateDeliveryPartnerBankDetails, listSupportTicketsByPartner, createSupportTicket, getSupportTicketByIdAndPartner, updateDeliveryPartnerDetails, updateDeliveryPartnerProfilePhotoBase64, updateDeliveryAvailability, getDeliveryPartnerWallet, getDeliveryPartnerEarnings, getDeliveryPartnerTripHistory, getDeliveryPocketDetails, getActiveEarningAddonsForPartner } from '../services/delivery.service.js';
 import { getDeliveryPartnerWalletEnhanced, requestDeliveryWithdrawal } from '../services/deliveryFinance.service.js';
 import { getDeliveryCashLimitSettings, getDeliveryEmergencyHelp } from '../../admin/services/admin.service.js';
 import { validateDeliveryRegisterDto, validateDeliveryProfileUpdateDto, validateDeliveryBankDetailsDto } from '../validators/delivery.validator.js';
@@ -136,6 +136,16 @@ export const getEarningsController = async (req, res, next) => {
         const deliveryPartnerId = req.user?.userId;
         const data = await getDeliveryPartnerEarnings(deliveryPartnerId, req.query || {});
         return sendResponse(res, 200, 'Earnings fetched successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const getActiveEarningAddonsController = async (req, res, next) => {
+    try {
+        const deliveryPartnerId = req.user?.userId;
+        const data = await getActiveEarningAddonsForPartner(deliveryPartnerId);
+        return sendResponse(res, 200, 'Active earning addons fetched successfully', data);
     } catch (error) {
         next(error);
     }

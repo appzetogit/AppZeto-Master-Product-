@@ -758,7 +758,8 @@ export default function OrdersPage({ statusKey = "all" }) {
       let paymentStatus = order.paymentStatus
       if (!paymentStatus) {
         const s = String(paymentStatusRaw || "").toLowerCase()
-        if (s === "paid" || s === "refunded") paymentStatus = "Paid"
+        if (s === "refunded") paymentStatus = "Refunded"
+        else if (s === "paid" || s === "authorized" || s === "captured" || s === "settled") paymentStatus = "Paid"
         else if (s === "failed") paymentStatus = "Failed"
         else paymentStatus = "Pending"
       }
@@ -832,6 +833,7 @@ export default function OrdersPage({ statusKey = "all" }) {
         deliveryPartnerPhone,
         deliveryType: order.deliveryType || "Home Delivery",
         address: order.address || order.customerAddress || order.deliveryAddress,
+        refundStatus: order.payment?.refund?.status || (order.payment?.status === 'refunded' ? 'processed' : null)
       }
     })
   }, [orders])

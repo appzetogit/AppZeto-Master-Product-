@@ -250,7 +250,7 @@ export const requestRestaurantOtp = async (phone) => {
   return shouldExposeOtp ? { otp } : {};
 };
 
-export const verifyRestaurantOtpAndLogin = async (phone, otp) => {
+export const verifyRestaurantOtpAndLogin = async (phone, otp, fcmToken, platform) => {
   const result = await verifyOtp(phone, otp);
   if (!result.valid) {
     throw new AuthError(result.reason || "OTP verification failed");
@@ -271,7 +271,7 @@ export const verifyRestaurantOtpAndLogin = async (phone, otp) => {
       ...phoneOrFields("ownerPhone"),
       ...phoneOrFields("primaryContactNumber"),
     ],
-  }).lean();
+  });
   if (!restaurant) {
     // Phone has been successfully verified, but no restaurant exists yet.
     // Frontend will use this to redirect into registration/onboarding.
@@ -279,6 +279,27 @@ export const verifyRestaurantOtpAndLogin = async (phone, otp) => {
       needsRegistration: true,
       phone,
     };
+  }
+
+  // Update FCM token if provided
+  if (fcmToken) {
+    let isModified = false;
+    if (platform === "mobile") {
+      if (!restaurant.fcmTokenMobile) restaurant.fcmTokenMobile = [];
+      if (!restaurant.fcmTokenMobile.includes(fcmToken)) {
+        restaurant.fcmTokenMobile.push(fcmToken);
+        isModified = true;
+      }
+    } else {
+      if (!restaurant.fcmTokens) restaurant.fcmTokens = [];
+      if (!restaurant.fcmTokens.includes(fcmToken)) {
+        restaurant.fcmTokens.push(fcmToken);
+        isModified = true;
+      }
+    }
+    if (isModified) {
+      await restaurant.save();
+    }
   }
 
   // If restaurant approval status is used, only allow login for approved restaurants.
@@ -326,7 +347,7 @@ const normalizePhoneForDelivery = (phone) => {
   return digits.slice(-10) || null;
 };
 
-export const verifyDeliveryOtpAndLogin = async (phone, otp) => {
+export const verifyDeliveryOtpAndLogin = async (phone, otp, fcmToken, platform) => {
   const result = await verifyOtp(phone, otp);
   if (!result.valid) {
     throw new AuthError(result.reason || "OTP verification failed");
@@ -342,10 +363,32 @@ export const verifyDeliveryOtpAndLogin = async (phone, otp) => {
       { phone: normalized },
       { phone: { $regex: new RegExp(normalized + "$") } },
     ],
-  }).lean();
+  });
 
   if (!deliveryPartner) {
     return { needsRegistration: true, phone };
+  }
+
+  // Update FCM token if provided - CRITICAL: do this BEFORE returning pendingApproval
+  // so we can notify them when approved.
+  if (fcmToken) {
+    let isModified = false;
+    if (platform === "mobile") {
+      if (!deliveryPartner.fcmTokenMobile) deliveryPartner.fcmTokenMobile = [];
+      if (!deliveryPartner.fcmTokenMobile.includes(fcmToken)) {
+        deliveryPartner.fcmTokenMobile.push(fcmToken);
+        isModified = true;
+      }
+    } else {
+      if (!deliveryPartner.fcmTokens) deliveryPartner.fcmTokens = [];
+      if (!deliveryPartner.fcmTokens.includes(fcmToken)) {
+        deliveryPartner.fcmTokens.push(fcmToken);
+        isModified = true;
+      }
+    }
+    if (isModified) {
+      await deliveryPartner.save();
+    }
   }
 
   if (deliveryPartner.status && deliveryPartner.status !== "approved") {

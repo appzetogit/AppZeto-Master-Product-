@@ -34,7 +34,8 @@ export default function BottomPopup({
   disableSwipeToClose = false,
   collapsedContent = null, // Content to show when collapsed (e.g., Reached pickup button)
   showBackdrop = true, // Show backdrop overlay
-  backdropBlocksInteraction = true // Whether backdrop blocks pointer events
+  backdropBlocksInteraction = true, // Whether backdrop blocks pointer events
+  closeOnHandleClick = false // Close instead of collapse when handle is clicked
 }) {
   const popupRef = useRef(null)
   const handleRef = useRef(null)
@@ -309,7 +310,11 @@ export default function BottomPopup({
                   debugLog('??? Handle clicked, current collapsed:', isCollapsed)
                   e.stopPropagation()
                   e.preventDefault()
-                  handleCollapseToggle(e)
+                  if (closeOnHandleClick) {
+                    handleClose()
+                  } else {
+                    handleCollapseToggle(e)
+                  }
                 }}
                 onTouchStart={(e) => {
                   // Store touch start for click detection

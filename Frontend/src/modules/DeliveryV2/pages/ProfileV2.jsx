@@ -211,8 +211,14 @@ export const ProfileV2 = () => {
 
       {/* Logout Confirm Popup */}
       {showLogoutConfirm && (
-        <div className="fixed inset-0 bg-black/60 z-[1000] flex items-center justify-center px-4">
-          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-5">
+        <div 
+          className="fixed inset-0 bg-black/60 z-[1000] flex items-center justify-center px-4"
+          onClick={() => setShowLogoutConfirm(false)}
+        >
+          <div 
+            className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="text-base font-black text-gray-900 mb-2">Do you want to log out?</h3>
             <p className="text-sm text-gray-500 mb-5">You will be signed out from your delivery account.</p>
             <div className="flex items-center gap-3">
@@ -236,8 +242,14 @@ export const ProfileV2 = () => {
 
       {/* Order Alert Sound Popup */}
       {showAlertSoundPopup && (
-        <div className="fixed inset-0 bg-black/60 z-[1000] flex items-end justify-center">
-          <div className="bg-white w-full max-w-md rounded-t-[2rem] shadow-2xl animate-in slide-in-from-bottom duration-300 pb-8">
+        <div 
+          className="fixed inset-0 bg-black/60 z-[1000] flex items-end justify-center"
+          onClick={() => setShowAlertSoundPopup(false)}
+        >
+          <div 
+            className="bg-white w-full max-w-md rounded-t-[2rem] shadow-2xl animate-in slide-in-from-bottom duration-300 pb-8"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between p-6 border-b border-gray-50">
               <h3 className="text-lg font-black text-gray-900 uppercase tracking-tight">Order alert sound</h3>
               <button onClick={() => setShowAlertSoundPopup(false)} className="p-2 bg-gray-50 rounded-full text-gray-400"><X className="w-6 h-6" /></button>

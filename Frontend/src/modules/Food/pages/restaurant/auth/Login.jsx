@@ -126,7 +126,7 @@ export default function RestaurantLogin() {
             {companyName}
           </h1>
           <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">
-            Partner Digital Login
+            Partner Login
           </p>
         </div>
 

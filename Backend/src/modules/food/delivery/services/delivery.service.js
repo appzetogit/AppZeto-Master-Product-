@@ -15,9 +15,13 @@ export const registerDeliveryPartner = async (payload, files) => {
     } = payload;
     const refRaw = typeof payload?.ref === 'string' ? String(payload.ref).trim() : '';
 
-    const existing = await FoodDeliveryPartner.findOne({ phone }).lean();
+    const existing = await FoodDeliveryPartner.findOne({ phone });
     if (existing) {
-        throw new ValidationError('Delivery partner with this phone already exists');
+        if (existing.status !== 'rejected') {
+            throw new ValidationError('Delivery partner with this phone already exists');
+        }
+        // If rejected, delete the old record so they can start fresh with same phone
+        await FoodDeliveryPartner.deleteMany({ phone });
     }
 
     const images = {};
@@ -118,8 +122,6 @@ export const updateDeliveryPartnerProfile = async (userId, payload, files) => {
     if (vehicleType !== undefined) partner.vehicleType = vehicleType;
     if (vehicleName !== undefined) partner.vehicleName = vehicleName;
     if (vehicleNumber !== undefined) partner.vehicleNumber = vehicleNumber;
-    if (panNumber !== undefined) partner.panNumber = panNumber;
-    if (aadharNumber !== undefined) partner.aadharNumber = aadharNumber;
 
     if (fcmToken) {
         if (platform === 'mobile') {
@@ -140,31 +142,11 @@ export const updateDeliveryPartnerProfile = async (userId, payload, files) => {
     if (files?.profilePhoto?.[0]) {
         partner.profilePhoto = await uploadImageBuffer(files.profilePhoto[0].buffer, 'food/delivery/profile');
     }
-    if (files?.aadharPhoto?.[0]) {
-        partner.aadharPhoto = await uploadImageBuffer(files.aadharPhoto[0].buffer, 'food/delivery/aadhar');
-        updatedDocsRequiringReapproval = true;
-    }
-    if (files?.panPhoto?.[0]) {
-        partner.panPhoto = await uploadImageBuffer(files.panPhoto[0].buffer, 'food/delivery/pan');
-        updatedDocsRequiringReapproval = true;
-    }
-    if (files?.drivingLicensePhoto?.[0]) {
-        partner.drivingLicensePhoto = await uploadImageBuffer(
-            files.drivingLicensePhoto[0].buffer,
-            'food/delivery/license'
-        );
-        updatedDocsRequiringReapproval = true;
-    }
-
-    if (updatedDocsRequiringReapproval && String(partner.status).toLowerCase() === 'approved') {
-        partner.status = 'pending';
-        partner.approvedAt = undefined;
-    }
 
     await partner.save();
     return {
         partner: partner.toObject(),
-        requiresReapproval: Boolean(updatedDocsRequiringReapproval)
+        requiresReapproval: false
     };
 };
 

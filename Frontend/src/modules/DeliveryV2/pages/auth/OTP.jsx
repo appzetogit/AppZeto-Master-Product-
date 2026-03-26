@@ -24,6 +24,8 @@ export default function DeliveryOTP() {
   const [nameError, setNameError] = useState("")
   const [verifiedOtp, setVerifiedOtp] = useState("")
   const [pendingMessage, setPendingMessage] = useState("")
+  const [isRejected, setIsRejected] = useState(false)
+  const [rejectionReason, setRejectionReason] = useState("")
   const [deviceToken, setDeviceToken] = useState(null)
   const [activePlatform, setActivePlatform] = useState("web")
   const inputRefs = useRef([])
@@ -231,6 +233,8 @@ export default function DeliveryOTP() {
         setIsLoading(false)
         setError("")
         setPendingMessage(data.message || "Your account is pending admin verification. You will be notified once approved.")
+        setIsRejected(data.isRejected || false)
+        setRejectionReason(data.rejectionReason || "")
         return
       }
 
@@ -505,17 +509,52 @@ export default function DeliveryOTP() {
 
           {/* Pending approval message – already registered, waiting for admin */}
           {pendingMessage && (
-            <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 text-center space-y-3">
-              <p className="text-sm text-amber-800 font-medium">
-                {pendingMessage}
-              </p>
-              <button
-                type="button"
-                onClick={() => navigate("/food/delivery/login", { replace: true })}
-                className="text-sm font-medium text-amber-800 hover:text-amber-900 underline"
-              >
-                Back to login
-              </button>
+            <div className={`rounded-xl border p-5 text-center space-y-4 shadow-sm ${isRejected ? "bg-red-50 border-red-100" : "bg-amber-50 border-amber-100"}`}>
+              <div className="space-y-2">
+                <p className={`text-sm font-semibold ${isRejected ? "text-red-800" : "text-amber-800"}`}>
+                  {isRejected ? "Application Rejected" : "Pending Verification"}
+                </p>
+                <p className={`text-sm leading-relaxed ${isRejected ? "text-red-700" : "text-amber-700"}`}>
+                  {pendingMessage}
+                </p>
+                {isRejected && rejectionReason && (
+                  <div className="mt-2 p-3 bg-white/50 rounded-lg border border-red-200">
+                    <p className="text-xs font-medium text-red-600 uppercase tracking-wider mb-1">Reason</p>
+                    <p className="text-sm text-red-800 italic">"{rejectionReason}"</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-2 pt-2">
+                {isRejected ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const phone = authData?.phone
+                      const digits = String(phone || "").replace(/\D/g, "")
+                      sessionStorage.setItem("deliveryNeedsRegistration", "true")
+                      const details = {
+                        name: "",
+                        phone: digits.slice(-10),
+                        countryCode: "+91",
+                      }
+                      sessionStorage.setItem("deliverySignupDetails", JSON.stringify(details))
+                      navigate("/food/delivery/signup/details", { replace: true })
+                    }}
+                    className="w-full py-3 bg-red-600 text-white rounded-lg font-bold text-sm hover:bg-red-700 shadow-md transition-all active:scale-95"
+                  >
+                    Re-apply Now
+                  </button>
+                ) : null}
+                
+                <button
+                  type="button"
+                  onClick={() => navigate("/food/delivery/login", { replace: true })}
+                  className={`text-sm font-medium underline transition-colors ${isRejected ? "text-red-600 hover:text-red-800" : "text-amber-700 hover:text-amber-900"}`}
+                >
+                  Back to login
+                </button>
+              </div>
             </div>
           )}
 

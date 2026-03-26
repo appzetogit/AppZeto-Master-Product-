@@ -392,11 +392,16 @@ export const verifyDeliveryOtpAndLogin = async (phone, otp, fcmToken, platform) 
   }
 
   if (deliveryPartner.status && deliveryPartner.status !== "approved") {
+    const isRejected = deliveryPartner.status === "rejected";
     return {
       pendingApproval: true,
+      isRejected,
+      rejectionReason: isRejected ? deliveryPartner.rejectionReason : null,
       message:
-        deliveryPartner.status === "rejected"
-          ? "Your delivery account was not approved. Please contact support."
+        isRejected
+          ? (deliveryPartner.rejectionReason 
+              ? `Your account was rejected: ${deliveryPartner.rejectionReason}`
+              : "Your delivery account was not approved. Please contact support.")
           : "Your account is pending admin verification. You will be notified once approved.",
     };
   }
@@ -571,12 +576,16 @@ export const getProfile = async (userId, role) => {
             partner.bankAccountHolderName ||
             partner.bankAccountNumber ||
             partner.bankIfscCode ||
-            partner.bankName
+            partner.bankName ||
+            partner.upiId ||
+            partner.upiQrCode
               ? {
                   accountHolderName: partner.bankAccountHolderName || null,
                   accountNumber: partner.bankAccountNumber || null,
                   ifscCode: partner.bankIfscCode || null,
                   bankName: partner.bankName || null,
+                  upiId: partner.upiId || null,
+                  upiQrCode: partner.upiQrCode || null,
                 }
               : null,
         },

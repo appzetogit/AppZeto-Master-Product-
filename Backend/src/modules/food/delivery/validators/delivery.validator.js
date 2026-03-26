@@ -52,8 +52,6 @@ const deliveryProfileUpdateSchema = z.object({
     vehicleType: z.string().optional(),
     vehicleName: z.string().optional(),
     vehicleNumber: z.string().optional(),
-    panNumber: z.string().regex(panRegex).optional().or(z.literal('')),
-    aadharNumber: z.string().regex(aadharRegex).optional().or(z.literal('')),
     fcmToken: z.string().optional().nullable(),
     platform: z.enum(['web', 'mobile']).optional().default('web')
 });

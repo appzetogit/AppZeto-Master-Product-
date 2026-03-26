@@ -2,7 +2,7 @@ import { motion } from "framer-motion"
 import { useNavigate } from "react-router-dom"
 import { useState, useEffect } from "react"
 import { ArrowLeft, Loader2 } from "lucide-react"
-import { publicAPI } from "@food/api"
+import api, { API_ENDPOINTS } from "@food/api"
 
 export default function TermsAndConditionsV2() {
   const navigate = useNavigate()
@@ -13,10 +13,11 @@ export default function TermsAndConditionsV2() {
   useEffect(() => {
     const fetchTerms = async () => {
       try {
-        const response = await publicAPI.getTerms()
-        if (response.data.success) {
-          setContent(response.data.data.content)
-          setLastUpdated(response.data.data.updatedAt)
+        const response = await api.get(API_ENDPOINTS.ADMIN.TERMS_PUBLIC)
+        const payload = response?.data?.data || response?.data || {}
+        if (response?.data?.success) {
+          setContent(payload?.content || "")
+          setLastUpdated(payload?.updatedAt || "")
         }
       } catch (error) {
         console.error("Error fetching terms:", error)
@@ -58,10 +59,14 @@ export default function TermsAndConditionsV2() {
             </div>
           ) : (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
-              <div
-                className="prose prose-sm prose-orange dark:prose-invert max-w-none text-gray-700 dark:text-gray-300"
-                dangerouslySetInnerHTML={{ __html: content }}
-              />
+              {content ? (
+                <div
+                  className="prose prose-sm prose-orange dark:prose-invert max-w-none text-gray-700 dark:text-gray-300"
+                  dangerouslySetInnerHTML={{ __html: content }}
+                />
+              ) : (
+                <p className="text-gray-500">No terms content available.</p>
+              )}
               {lastUpdated && (
                 <div className="mt-12 pt-6 border-t border-gray-100">
                   <p className="text-gray-400 text-xs italic">Last updated: {formatDate(lastUpdated)}</p>

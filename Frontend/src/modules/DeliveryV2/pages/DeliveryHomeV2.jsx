@@ -237,7 +237,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
 
   const helpOptions = [
     { title: "Support tickets", subtitle: "Check status of tickets raised", icon: <Clock className="text-gray-600" />, path: "/food/delivery/help/tickets" },
-    { title: "Show ID card", subtitle: `See your ${companyName} ID card`, icon: <UserIcon className="text-gray-600" />, path: "/food/delivery/id-card" },
+    { title: "Show ID card", subtitle: `See your ${companyName} ID card`, icon: <UserIcon className="text-gray-600" />, path: "/food/delivery/help/id-card" },
   ];
 
   // Reset simulation when path, order or mode changes
@@ -506,7 +506,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
           <div className="flex items-center gap-3">
              <button onClick={() => setShowEmergencyPopup(true)} className="w-9 h-9 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 border border-red-500/20 active:scale-95 transition-all shadow-lg"><AlertTriangle className="w-4 h-4" /></button>
              <button onClick={() => setShowHelpPopup(true)} className="w-9 h-9 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 border border-blue-500/20 active:scale-95 transition-all shadow-lg"><HelpCircle className="w-4 h-4" /></button>
-             <button onClick={() => toast.info('Ordering Support...')} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white border border-white/10 active:scale-95 transition-all shadow-lg"><Headset className="w-4 h-4" /></button>
+             <button onClick={() => navigate('/food/delivery/help/tickets')} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white border border-white/10 active:scale-95 transition-all shadow-lg"><Headset className="w-4 h-4" /></button>
           </div>
         </div>
 

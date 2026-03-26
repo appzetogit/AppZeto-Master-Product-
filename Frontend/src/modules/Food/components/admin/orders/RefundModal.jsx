@@ -36,17 +36,17 @@ export default function RefundModal({ isOpen, onOpenChange, order, onConfirm, is
     const maxAmount = order?.totalAmount || 0
 
     if (!refundAmount || refundAmount.trim() === "") {
-      setError("????? ????? ???? ???? ????")
+      setError("Refund राशि डालना अनिवार्य है")
       return
     }
 
     if (isNaN(amount) || amount <= 0) {
-      setError("????? ??? ???? ???? ????")
+      setError("कृपया सही राशि डालें")
       return
     }
 
     if (amount > maxAmount) {
-      setError(`????? ???? ??? ???? (?${maxAmount.toFixed(2)}) ?? ???? ???? ?? ????`)
+      setError(`Refund राशि कुल राशि (₹${maxAmount.toFixed(2)}) से अधिक नहीं हो सकती`)
       return
     }
 
@@ -110,7 +110,7 @@ export default function RefundModal({ isOpen, onOpenChange, order, onConfirm, is
 
           <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
             <p className="text-sm text-purple-800">
-              <span className="font-semibold">Note:</span> ?? ???? customer ?? wallet ??? credit ?? ????? ?? order ?? status "Refunded" ?? ??????
+              <span className="font-semibold">Note:</span> यह पैसा ग्राहक के वॉलेट में क्रेडिट हो जाएगा और ऑर्डर का स्टेटस "Refunded" हो जाएगा।
             </p>
           </div>
         </div>

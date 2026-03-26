@@ -17,26 +17,7 @@ const debugError = (...args) => {}
 
 // Common country codes
 const countryCodes = [
-  { code: "+1", country: "US/CA", flag: "????" },
-  { code: "+44", country: "UK", flag: "????" },
-  { code: "+91", country: "IN", flag: "????" },
-  { code: "+86", country: "CN", flag: "????" },
-  { code: "+81", country: "JP", flag: "????" },
-  { code: "+49", country: "DE", flag: "????" },
-  { code: "+33", country: "FR", flag: "????" },
-  { code: "+39", country: "IT", flag: "????" },
-  { code: "+34", country: "ES", flag: "????" },
-  { code: "+61", country: "AU", flag: "????" },
-  { code: "+7", country: "RU", flag: "????" },
-  { code: "+55", country: "BR", flag: "????" },
-  { code: "+52", country: "MX", flag: "????" },
-  { code: "+82", country: "KR", flag: "????" },
-  { code: "+65", country: "SG", flag: "????" },
-  { code: "+971", country: "AE", flag: "????" },
-  { code: "+966", country: "SA", flag: "????" },
-  { code: "+27", country: "ZA", flag: "????" },
-  { code: "+31", country: "NL", flag: "????" },
-  { code: "+46", country: "SE", flag: "????" },
+  { code: "+91", country: "IN", flag: "🇮🇳" },
 ]
 
 export default function DeliverySignIn() {
@@ -191,7 +172,7 @@ export default function DeliverySignIn() {
             <div className="flex gap-2 items-stretch w-full">
               <div className="flex items-center px-4 h-12 border border-gray-300 bg-gray-50 text-gray-900 rounded-lg shrink-0">
                 <span className="flex items-center gap-2 text-base font-medium">
-                  <span>????</span>
+                  <span>🇮🇳</span>
                   <span>+91</span>
                 </span>
               </div>

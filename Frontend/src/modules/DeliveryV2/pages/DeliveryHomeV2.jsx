@@ -493,7 +493,18 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                 <img src={profileImage || "https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png"} alt="Profile" className="w-full h-full object-cover rounded-full" />
              </div>
              <button 
-               onClick={toggleOnline}
+               onClick={async () => {
+                 const nextState = !isOnline;
+                 toggleOnline(); // Store action
+                 if (nextState) {
+                    // Try to get location and sync immediately so we are visible for dispatch right away
+                    navigator.geolocation.getCurrentPosition((pos) => {
+                        deliveryAPI.updateLocation(pos.coords.latitude, pos.coords.longitude, true).catch(() => {});
+                    }, (err) => console.warn('Online sync position failed:', err), { enableHighAccuracy: true });
+                 } else {
+                    deliveryAPI.updateOnlineStatus(false).catch(() => {});
+                 }
+               }}
                className={`relative w-[92px] h-8 rounded-full p-1 transition-all duration-500 flex items-center ${isOnline ? 'bg-green-500 shadow-lg shadow-green-500/20' : 'bg-gray-400'}`}
              >
                <div className={`flex items-center justify-between w-full px-2 text-[8.5px] font-black uppercase tracking-widest text-white`}>
@@ -734,9 +745,8 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                 {showVerification && (
                   <DeliveryVerificationModal 
                     order={activeOrder} 
-                    onComplete={(otp) => {
-                      setShowVerification(false);
-                      completeDelivery(otp);
+                    onComplete={async (otp) => {
+                      return await completeDelivery(otp);
                     }}
                     onClose={() => setShowVerification(false)}
                   />

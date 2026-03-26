@@ -185,13 +185,13 @@ const DeliveryMap = ({ orderId, order, isVisible, fallbackCustomerCoords = null,
   }
 
   // Firebase and backend write tracking under order.orderId (string) or mongoId; subscribe to all so we receive updates
-  const orderTrackingIdsList = [
+  const orderTrackingIdsList = useMemo(() => [
     order?.orderId,
     order?.mongoId,
     order?._id,
     orderId,
     order?.id
-  ].filter(Boolean);
+  ].filter(Boolean), [order?.orderId, order?.mongoId, order?._id, orderId, order?.id]);
 
   return (
     <motion.div
@@ -206,6 +206,7 @@ const DeliveryMap = ({ orderId, order, isVisible, fallbackCustomerCoords = null,
         orderTrackingIds={orderTrackingIdsList}
         restaurantCoords={restaurantCoords}
         customerCoords={customerCoords}
+
         userLiveCoords={userLiveCoords}
         userLocationAccuracy={userLocationAccuracy}
         deliveryBoyData={deliveryBoyData}
@@ -366,20 +367,28 @@ const transformOrderForTracking = (apiOrder, previousOrder = null, explicitResta
     deliveryVerification: (() => {
       const prevDV = previousOrder?.deliveryVerification || null
       const apiDV = apiOrder?.deliveryVerification || null
-      if (!prevDV && !apiDV) return null
+      const handoverOtp = apiOrder?.handoverOtp || null
+      
+      if (!prevDV && !apiDV && !handoverOtp) return null
 
       const prevDropOtp = prevDV?.dropOtp || null
       const apiDropOtp = apiDV?.dropOtp || null
+      
       const merged = {
         ...(prevDV || {}),
         ...(apiDV || {})
       }
 
-      if (prevDropOtp || apiDropOtp) {
+      // Prioritize: 1. Real-time handoverOtp from current API response
+      // 2. Previously preserved code in local state (from socket or earlier poll)
+      // 3. Nested code field in API response (if ever present)
+      const finalCode = handoverOtp || prevDropOtp?.code || apiDropOtp?.code
+
+      if (finalCode || prevDropOtp?.required || apiDropOtp?.required) {
         merged.dropOtp = {
           ...(prevDropOtp || {}),
           ...(apiDropOtp || {}),
-          code: prevDropOtp?.code ?? apiDropOtp?.code
+          code: finalCode
         }
       }
       return merged
@@ -396,8 +405,8 @@ function mapBackendOrderStatusToUi(raw) {
   if (!s) return "placed"
   if (s === "created" || s === "confirmed") return "placed"
   if (s === "preparing" || s === "processed" || s === "accepted") return "preparing"
-  if (s === "ready" || s === "ready_for_pickup" || s === "reached_pickup" || s === "order_confirmed") return "pickup"
-  if (s === "picked_up" || s === "out_for_delivery" || s === "en_route_to_delivery") return "delivery"
+  if (s === "ready" || s === "ready_for_pickup" || s === "reached_pickup" || s === "order_confirmed") return "ready"
+  if (s === "picked_up" || s === "out_for_delivery" || s === "en_route_to_delivery") return "on_way"
   if (s === "reached_drop" || s === "at_drop" || s === "at_delivery") return "at_drop"
   if (s === "delivered" || s === "completed") return "delivered"
   if (s.includes("cancelled") || s === "cancelled") return "cancelled"
@@ -408,17 +417,18 @@ function mapOrderToTrackingUiStatus(orderLike) {
   if (!orderLike) return "placed"
   const statusRaw = orderLike.status || orderLike.orderStatus
   const phase = orderLike.deliveryState?.currentPhase
-  const deliveryStatus = orderLike.deliveryState?.status
 
-  // Terminal states handle first
+  // Terminal states handled first
   if (isFoodOrderCancelledStatus(statusRaw)) return "cancelled"
   if (statusRaw === "delivered" || statusRaw === "completed") return "delivered"
 
-  // Precise phase mapping for real-time accuracy (Matches Delivery App logic)
+  // Live Ride / Phase-based mapping (Highest priority for precision)
   if (phase === "reached_drop" || phase === "at_drop" || statusRaw === "at_drop") return "at_drop"
-  if (phase === "en_route_to_delivery" || statusRaw === "out_for_delivery") return "delivery"
-  if (phase === "at_pickup" || phase === "en_route_to_pickup" || statusRaw === "picked_up") return "pickup"
+  if (phase === "en_route_to_delivery" || statusRaw === "picked_up" || statusRaw === "out_for_delivery") return "on_way"
+  if (phase === "at_pickup") return "at_pickup"
+  if (phase === "en_route_to_pickup") return "assigned"
 
+  // Fallback to basic status mapping
   return mapBackendOrderStatusToUi(statusRaw)
 }
 
@@ -459,15 +469,19 @@ export default function OrderTracking() {
   const [isCancelling, setIsCancelling] = useState(false)
   const [resolvedLookupId, setResolvedLookupId] = useState("")
   const [timerNow, setTimerNow] = useState(Date.now())
+  const handleEtaUpdate = useCallback((newEta) => setEstimatedTime(newEta), [])
   const lastRealtimeRefreshRef = useRef(0)
   const trackingOrderIdsRef = useRef(new Set())
   const terminalPollStopRef = useRef(false)
   const lookupIdsRef = useRef([])
+  const isInitialPollRequestedRef = useRef(null)
+  const lastPollExecutionRef = useRef(0) // New: Hard throttle for extreme cases
 
   // Delivery handover OTP received via socket event.
   // Kept separately so UI still renders even if the event arrives
   // before the order API poll populates `order` state.
   const [socketDropOtpCode, setSocketDropOtpCode] = useState(null)
+
 
   // OTP received via socket event (deliveryDropOtp)
   useEffect(() => {
@@ -500,6 +514,10 @@ export default function OrderTracking() {
         if (!prev) return prev
         const prevDV = prev.deliveryVerification || {}
         const prevDropOtp = prevDV.dropOtp || {}
+        
+        // Only update if code actually changed to avoid render loops
+        if (prevDropOtp.code === otp) return prev;
+        
         return {
           ...prev,
           deliveryVerification: {
@@ -518,6 +536,10 @@ export default function OrderTracking() {
     window.addEventListener('deliveryDropOtp', handleDeliveryDropOtp)
     return () => window.removeEventListener('deliveryDropOtp', handleDeliveryDropOtp)
   }, [orderId, order])
+
+  // --------------------------------------------------------------------------
+  // DATA FETCHING & POLLING STABILITY (FIXED FOR HAMMERING)
+  // --------------------------------------------------------------------------
 
   // Socket notifications include order ids — keep a set so events match this page.
   useEffect(() => {
@@ -542,88 +564,66 @@ export default function OrderTracking() {
     lookupIdsRef.current = Array.from(new Set(ids))
   }, [orderId, resolvedLookupId, order?.orderId, order?.mongoId, order?._id, order?.id])
 
-  const resolveOrderFromList = useCallback(
-    async (rawLookupId) => {
+  // Stability Nuke: Move function bodies into a ref-protected execute flow
+  const stableOpsRef = useRef({
+    resolveOrderFromList: async (rawLookupId) => {
       const needle = normalizeLookupId(rawLookupId)
       if (!needle) return null
-
       const maxPages = 3
       const limit = 50
 
       for (let page = 1; page <= maxPages; page += 1) {
         const listResponse = await orderAPI.getOrders({ page, limit })
         let orders = []
-
         if (listResponse?.data?.success && listResponse?.data?.data?.orders) {
           orders = listResponse.data.data.orders || []
         } else if (listResponse?.data?.orders) {
           orders = listResponse.data.orders || []
-        } else if (
-          Array.isArray(listResponse?.data?.data?.data)
-        ) {
+        } else if (Array.isArray(listResponse?.data?.data?.data)) {
           orders = listResponse.data.data.data || []
         } else if (Array.isArray(listResponse?.data?.data)) {
           orders = listResponse.data.data || []
         }
 
         const matched = (orders || []).find((o) => {
-          const candidates = [
-            o?._id,
-            o?.id,
-            o?.orderId,
-            o?.mongoId,
-          ].map(normalizeLookupId)
+          const candidates = [o?._id, o?.id, o?.orderId, o?.mongoId].map(normalizeLookupId)
           return candidates.includes(needle)
         })
-
         if (matched) return matched
-
-        const totalPages =
-          Number(listResponse?.data?.data?.pagination?.pages) ||
-          Number(listResponse?.data?.data?.totalPages) ||
-          Number(listResponse?.data?.pagination?.pages) ||
-          1
+        const totalPages = Number(listResponse?.data?.data?.pagination?.pages) || Number(listResponse?.data?.data?.totalPages) || 1
         if (page >= totalPages) break
       }
-
       return null
     },
-    [],
-  )
-
-  const fetchOrderDetailsWithFallback = useCallback(
-    async (options = {}) => {
+    fetchOrderDetailsWithFallback: async (options = {}) => {
       const lookupIds = lookupIdsRef.current
-      if (lookupIds.length === 0) {
-        const err = new Error("Order id required")
-        err.code = "MISSING_ORDER_ID"
-        throw err
-      }
-
+      if (lookupIds.length === 0) throw new Error("Order id required")
       let lastError = null
       for (const id of lookupIds) {
         try {
-          const response = await orderAPI.getOrderDetails(id, options)
-          return response
+          // Double guard against hammer
+          return await orderAPI.getOrderDetails(id, options)
         } catch (err) {
           lastError = err
-          const status = err?.response?.status
-          // Try next candidate for not-found/bad-request identifier mismatch.
-          if (status === 400 || status === 404) continue
+          if (err?.response?.status === 400 || err?.response?.status === 404) continue
           throw err
         }
       }
-
       throw lastError || new Error("Failed to fetch order details")
-    },
-    [],
-  )
+    }
+  });
+
+  const resolveOrderFromList = useCallback((id) => stableOpsRef.current.resolveOrderFromList(id), [])
+  const fetchOrderDetailsWithFallback = useCallback((opts) => stableOpsRef.current.fetchOrderDetailsWithFallback(opts), [])
 
   // Clear OTP when order is finalized.
   useEffect(() => {
     if (!order) return
-    if (orderStatus === 'delivered' || orderStatus === 'cancelled') {
+    const status = mapOrderToTrackingUiStatus(order)
+    if (status === 'delivered' || status === 'cancelled') {
       setSocketDropOtpCode(null)
+
+
       setOrder((prev) => {
         if (!prev?.deliveryVerification?.dropOtp?.code) return prev
         return {
@@ -763,6 +763,7 @@ export default function OrderTracking() {
   }, [isEditWindowOpen])
 
   // Poll for order updates (especially when delivery partner accepts)
+
   // Re-run poll if orderId changes. Status changes are handled inside the interval.
   useEffect(() => {
     if (!orderId) return;
@@ -775,6 +776,15 @@ export default function OrderTracking() {
       if (!isSubscribed || requestInProgress) return;
       if (terminalPollStopRef.current && !isInitial) return;
 
+      // Hard safety throttle: prevent the "150 requests" hammer 
+      // even if the effect itself is re-binding infinitely.
+      const now = Date.now();
+      if (isInitial && now - lastPollExecutionRef.current < 1000) {
+        debugLog('?? Throttling initial poll re-entrancy hammer');
+        return;
+      }
+      if (isInitial) lastPollExecutionRef.current = now;
+
       requestInProgress = true;
       try {
         if (isInitial && lookupIdsRef.current.length <= 1) {
@@ -785,14 +795,17 @@ export default function OrderTracking() {
                 normalizeLookupId(matchedOrder?._id) ||
                 normalizeLookupId(matchedOrder?.orderId) ||
                 normalizeLookupId(matchedOrder?.id)
-              if (nextLookupId) setResolvedLookupId(nextLookupId)
+              
+              if (nextLookupId && nextLookupId !== resolvedLookupId) {
+                setResolvedLookupId(nextLookupId)
+              }
             }
           } catch {
             // Continue with direct detail fetch if list resolution fails.
           }
         }
 
-        const response = await fetchOrderDetailsWithFallback();
+        const response = await fetchOrderDetailsWithFallback({ force: isInitial });
         if (!isSubscribed) return;
 
         if (response.data?.success && response.data.data?.order) {
@@ -858,16 +871,21 @@ export default function OrderTracking() {
       if (terminalPollStopRef.current) return
       poll(false)
     }
-    const interval = setInterval(tick, 15000);
+    const interval = setInterval(tick, 5000);
 
-    // Run once immediately
-    poll(true);
+    // Guard initial poll to run EXACTLY once for the current orderId, 
+    // protecting against frequent re-renders from location hooks.
+    if (isInitialPollRequestedRef.current !== orderId) {
+      isInitialPollRequestedRef.current = orderId;
+      poll(true);
+    }
 
     return () => {
       isSubscribed = false;
       clearInterval(interval);
     }
   }, [orderId, fetchOrderDetailsWithFallback, resolveOrderFromList]);
+
 
   // Fetch order: show context immediately if present.
   // We rely on the unified polling effect above for the actual network fetch.
@@ -935,11 +953,9 @@ export default function OrderTracking() {
 
         // Pull latest order state without refresh spam on bursty socket events.
         const now = Date.now();
-        if (now - lastRealtimeRefreshRef.current > 1500) {
+        if (now - lastRealtimeRefreshRef.current > 1500 && !isRefreshing) {
           lastRealtimeRefreshRef.current = now;
-          setTimeout(() => {
-            handleRefresh();
-          }, 0);
+          handleRefresh();
         }
       }
 
@@ -1107,7 +1123,11 @@ export default function OrderTracking() {
     }
   }
 
-  // Loading state
+  // --------------------------------------------------------------------------
+  // RENDER (Final JSX)
+  // --------------------------------------------------------------------------
+
+  // Loading state (moved after hooks)
   if (loading) {
     return (
       <AnimatedPage className="min-h-screen bg-gray-50 p-4">
@@ -1119,7 +1139,7 @@ export default function OrderTracking() {
     )
   }
 
-  // Error state
+  // Error state (moved after hooks)
   if (error || !order) {
     return (
       <AnimatedPage className="min-h-screen bg-gray-50 p-4">
@@ -1137,28 +1157,43 @@ export default function OrderTracking() {
   const statusConfig = {
     placed: {
       title: "Order placed",
-      subtitle: "Food preparation will begin shortly",
-      color: "bg-[#EB590E]"
+      subtitle: "Waiting for restaurant to accept",
+      color: "bg-green-600"
     },
     preparing: {
-      title: "Preparing your order",
-      subtitle: typeof estimatedTime === 'number' ? `Arriving in ${estimatedTime} mins` : `Arriving in ${estimatedTime}`,
-      color: "bg-[#EB590E]"
+      title: "Food is being prepared",
+      subtitle: typeof estimatedTime === 'number' ? `Arriving in ${estimatedTime} mins` : "Cooking your meal",
+      color: "bg-green-600"
     },
-    pickup: {
-      title: "Order picked up",
-      subtitle: typeof estimatedTime === 'number' ? `Arriving in ${estimatedTime} mins` : `Arriving in ${estimatedTime}`,
-      color: "bg-[#EB590E]"
+    assigned: {
+      title: "Rider is arriving",
+      subtitle: "A delivery partner is arriving at the restaurant",
+      color: "bg-green-600"
+    },
+    at_pickup: {
+      title: "Rider at restaurant",
+      subtitle: "Rider is waiting for your order",
+      color: "bg-green-600"
+    },
+    ready: {
+      title: "Handover in progress",
+      subtitle: "Rider is picking up your order",
+      color: "bg-green-600"
     },
     on_way: {
-      title: "Order picked up",
-      subtitle: typeof estimatedTime === 'number' ? `Arriving in ${estimatedTime} mins` : `Arriving in ${estimatedTime}`,
-      color: "bg-[#EB590E]"
+      title: "Out for delivery",
+      subtitle: typeof estimatedTime === 'number' ? `Arriving in ${estimatedTime} mins` : "Rider is out for delivery",
+      color: "bg-green-600"
+    },
+    at_drop: {
+      title: "Arrived at location",
+      subtitle: "Please come to the door",
+      color: "bg-green-600"
     },
     delivered: {
       title: "Order delivered",
       subtitle: "Enjoy your meal!",
-      color: "bg-[#EB590E]"
+      color: "bg-green-600"
     },
     cancelled: {
       title: "Order cancelled",
@@ -1289,13 +1324,11 @@ export default function OrderTracking() {
         <DeliveryMap
           orderId={orderId}
           order={order}
-          // Don't hide the map while the "Order Confirmed" splash is visible;
-          // the modal should overlay only, not block map initialization.
           isVisible={order !== null}
           fallbackCustomerCoords={fallbackCustomerCoords}
           userLiveCoords={userLiveCoords}
           userLocationAccuracy={userLiveLocation?.accuracy ?? null}
-          onEtaUpdate={(newEta) => setEstimatedTime(newEta)}
+          onEtaUpdate={handleEtaUpdate}
         />
       )}
 

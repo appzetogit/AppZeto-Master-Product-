@@ -1,4 +1,4 @@
-import { Outlet, useLocation } from "react-router-dom"
+import { Outlet, useLocation, useNavigate } from "react-router-dom"
 import { useEffect, useState, createContext, useContext, lazy, Suspense } from "react"
 import { ProfileProvider } from "@food/context/ProfileContext"
 import LocationPrompt from "./LocationPrompt"
@@ -10,7 +10,6 @@ const debugError = (...args) => {}
 
 // Lazy load overlays to reduce initial bundle size
 const SearchOverlay = lazy(() => import("./SearchOverlay"))
-const LocationSelectorOverlay = lazy(() => import("./LocationSelectorOverlay"))
 import BottomNavigation from "./BottomNavigation"
 import DesktopNavbar from "./DesktopNavbar"
 import { useUserNotifications } from "../../hooks/useUserNotifications"
@@ -82,18 +81,17 @@ export function useLocationSelector() {
 }
 
 function LocationSelectorProvider({ children }) {
-  const [isLocationSelectorOpen, setIsLocationSelectorOpen] = useState(false)
+  const navigate = useNavigate()
 
   const openLocationSelector = () => {
-    setIsLocationSelectorOpen(true)
+    // Navigate to the standalone address selector page
+    navigate("/food/user/cart/address-selector")
   }
 
-  const closeLocationSelector = () => {
-    setIsLocationSelectorOpen(false)
-  }
+  const closeLocationSelector = () => { }
 
   const value = {
-    isLocationSelectorOpen,
+    isLocationSelectorOpen: false,
     openLocationSelector,
     closeLocationSelector
   }
@@ -101,14 +99,6 @@ function LocationSelectorProvider({ children }) {
   return (
     <LocationSelectorContext.Provider value={value}>
       {children}
-      <Suspense fallback={null}>
-        {isLocationSelectorOpen && (
-          <LocationSelectorOverlay
-            isOpen={isLocationSelectorOpen}
-            onClose={closeLocationSelector}
-          />
-        )}
-      </Suspense>
     </LocationSelectorContext.Provider>
   )
 }

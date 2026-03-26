@@ -62,6 +62,7 @@ const OtpModal = ({ order, onVerified, onClose }) => {
       }
     } catch (err) {
       toast.error(err?.response?.data?.message || "Invalid OTP entered");
+      throw err;
     } finally {
       setIsVerifyingOtp(false);
     }
@@ -208,7 +209,9 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
           <div className="bg-amber-50 rounded-3xl p-6 border border-amber-100 mb-8">
              <div className="flex justify-between items-center mb-6">
                <div>
-                 <p className="text-amber-700 text-[10px] font-bold uppercase tracking-widest mb-1">Cash to Collect</p>
+                 <p className="text-amber-700 text-[10px] font-bold uppercase tracking-widest mb-1">
+                    {isPaid ? "Amount Paid Online" : "Cash to Collect"}
+                 </p>
                  <p className="text-amber-950 text-4xl font-bold">₹{amountToCollect.toFixed(2)}</p>
                </div>
                {isPaid && <div className="bg-green-500 text-white px-4 py-2 rounded-full text-[10px] font-bold">PAID ✓</div>}
@@ -234,7 +237,14 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
             label="Slide to Complete Order" 
             successLabel="Delivered! ✓"
             disabled={!isPaid && paymentStatus === 'pending'} // Disable only if we are specifically waiting for QR to sync
-            onConfirm={() => onComplete(otpString)}
+            onConfirm={async () => {
+                try {
+                    await onComplete(otpString);
+                } catch (e) {
+                    // Slider handles reset
+                    throw e;
+                }
+            }}
             color="bg-green-600"
           />
         </motion.div>
@@ -289,18 +299,12 @@ export const DeliveryVerificationModal = ({ order, onComplete, onClose }) => {
   const [step, setStep] = useState('otp'); // 'otp' | 'payment'
   const [verifiedOtp, setVerifiedOtp] = useState('');
 
-  if (!order) return null;
-
-  const paymentMethod = (order.paymentMethod || order.payment?.method || 'cod').toLowerCase();
+  const paymentMethod = (order?.paymentMethod || order?.payment?.method || 'cod').toLowerCase();
   const isCod = ['cash', 'cod', 'cash_on_delivery', 'razorpay_qr'].includes(paymentMethod);
 
   const handleOtpVerified = (otpValue) => {
     setVerifiedOtp(otpValue);
-    if (isCod) {
-      setStep('payment');
-    } else {
-      onComplete(otpValue);
-    }
+    setStep('payment');
   };
 
   useEffect(() => {
@@ -310,6 +314,8 @@ export const DeliveryVerificationModal = ({ order, onComplete, onClose }) => {
       if (!isCod) onComplete(order.deliveryVerification.dropOtp.code || '');
     }
   }, [order?.deliveryVerification?.dropOtp?.verified, isCod]);
+
+  if (!order) return null;
 
   return (
     <AnimatePresence mode="wait">

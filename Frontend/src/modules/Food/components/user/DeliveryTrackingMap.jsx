@@ -13,7 +13,7 @@ import { API_BASE_URL } from '@food/api/config';
 import bikeLogo from '@food/assets/bikelogo.png';
 import { subscribeOrderTracking } from '@food/realtimeTracking';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Navigation, Info } from 'lucide-react';
+import { Play, Navigation, Info, Circle } from 'lucide-react';
 
 const LIBRARIES = ['geometry', 'places'];
 
@@ -51,7 +51,9 @@ const DeliveryTrackingMap = ({
   const [lastDirectionsAt, setLastDirectionsAt] = useState(0);
   const [currentEta, setCurrentEta] = useState(null);
   const [cloudPolyline, setCloudPolyline] = useState(null);
+  const [smoothLocation, setSmoothLocation] = useState(null);
   const socketRef = useRef(null);
+  const interpStateRef = useRef({ lastPos: null, nextPos: null, startTime: 0 });
 
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
@@ -99,9 +101,11 @@ const DeliveryTrackingMap = ({
 
       // Sync Cloud Polyline and ETA to eliminate Directions API usage on user side
       if (data?.polyline) {
+        debugLog('?? Received Cloud Polyline for live path');
         setCloudPolyline(data.polyline);
       }
       if (data?.eta) {
+        debugLog('?? Received real-time ETA:', data.eta);
         setCurrentEta(data.eta);
         if (onEtaUpdate) onEtaUpdate(data.eta);
       }
@@ -119,12 +123,23 @@ const DeliveryTrackingMap = ({
     });
 
     socketRef.current.on('location-update', (data) => {
-      if (data && trackingIds.includes(data.orderId) && typeof data.lat === 'number') {
-        setRiderLocation({
+      // Ensure data belongs to one of our tracked orders
+      const matchedId = trackingIds.find(id => String(id) === String(data.orderId));
+      if (data && matchedId && typeof data.lat === 'number') {
+        const nextPos = {
           lat: data.lat,
           lng: data.lng,
           heading: data.heading || data.bearing || 0
-        });
+        };
+        
+        // Trigger Smooth Interpolation
+        interpStateRef.current = {
+           lastPos: smoothLocation || riderLocation || nextPos,
+           nextPos: nextPos,
+           startTime: Date.now()
+        };
+        
+        setRiderLocation(nextPos);
       }
     });
 
@@ -132,32 +147,81 @@ const DeliveryTrackingMap = ({
       unsubs.forEach(u => u?.());
       socketRef.current?.disconnect();
     };
-  }, [trackingIds, backendUrl]);
+  }, [trackingIds, backendUrl, smoothLocation, riderLocation]);
 
-  // 2. Pro Camera: Keep everyone in view (Rider + Restaurant + Customer)
+  // 3. Smooth Animation Loop (60 FPS Glide)
   useEffect(() => {
-    if (!map || !restaurantCoords || !customerCoords) return;
+    let frame;
+    const update = () => {
+      const { lastPos, nextPos, startTime } = interpStateRef.current;
+      if (lastPos && nextPos) {
+        const duration = 5000; // Expected update interval (match rider app throttle)
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Linear Interpolation (LERP)
+        const lat = lastPos.lat + (nextPos.lat - lastPos.lat) * progress;
+        const lng = lastPos.lng + (nextPos.lng - lastPos.lng) * progress;
+        
+        // Heading interpolation (shortest path)
+        let lastHead = lastPos.heading || 0;
+        let nextHead = nextPos.heading || 0;
+        if (Math.abs(nextHead - lastHead) > 180) {
+          if (nextHead > lastHead) lastHead += 360;
+          else nextHead += 360;
+        }
+        const heading = lastHead + (nextHead - lastHead) * progress;
+
+        setSmoothLocation({ lat, lng, heading: heading % 360 });
+      }
+      frame = requestAnimationFrame(update);
+    };
+    frame = requestAnimationFrame(update);
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  // Use smooth location for sync if available
+  const displayRiderLocation = smoothLocation || riderLocation;
+
+  const tripStatus = order?.status || order?.orderStatus || 'pending';
+  const isOrderPickedUp = ['picked_up', 'out_for_delivery', 'delivered'].includes(tripStatus.toLowerCase());
+
+  // 2. Pro Camera: Intelligent Frame Management
+  useEffect(() => {
+    if (!map || !restaurantCoords || !customerCoords || !isLoaded) return;
 
     const bounds = new window.google.maps.LatLngBounds();
-    bounds.extend(restaurantCoords);
-    bounds.extend(customerCoords);
-    if (riderLocation) bounds.extend(riderLocation);
+    
+    if (isOrderPickedUp) {
+      // Focus on Rider -> Customer
+      if (riderLocation) bounds.extend(riderLocation);
+      bounds.extend(customerCoords);
+      // Include restaurant only if nearby or for context during initial phase
+      if (!riderLocation) bounds.extend(restaurantCoords);
+    } else {
+      // Focus on Rider -> Restaurant
+      if (riderLocation) {
+        bounds.extend(riderLocation);
+        bounds.extend(restaurantCoords);
+      } else {
+        // Fallback to Full View
+        bounds.extend(restaurantCoords);
+        bounds.extend(customerCoords);
+      }
+    }
 
     // Apply fitBounds with generous padding for a professional overview
     map.fitBounds(bounds, { 
       top: 100, 
       bottom: 120, 
-      left: 50, 
-      right: 50 
+      left: 60, 
+      right: 60 
     });
     
-    debugLog('?? Auto-fitting camera to polyline bounds');
-  }, [map, riderLocation, restaurantCoords, customerCoords]);
+    debugLog(`?? Camera focusing on ${isOrderPickedUp ? 'Delivery' : 'Pickup'} leg`);
+  }, [map, riderLocation, restaurantCoords, customerCoords, isOrderPickedUp, isLoaded]);
 
   // 3. Directions Management
-  const tripStatus = order?.status || order?.orderStatus || 'pending';
-  const isOrderPickedUp = ['picked_up', 'out_for_delivery', 'delivered'].includes(tripStatus.toLowerCase());
-
   const directionsCallback = useCallback((result, status) => {
     if (status === 'OK' && result) {
       setDirections(result);
@@ -179,12 +243,38 @@ const DeliveryTrackingMap = ({
     return Date.now() - lastDirectionsAt > 15000;
   }, [directions, lastDirectionsAt]);
 
-  if (!isLoaded) return <div className="w-full h-full bg-gray-100 animate-pulse" />;
+  const directionsServiceOptions = useMemo(() => {
+    if (!riderLocation) return null;
+    const dest = isOrderPickedUp ? customerCoords : restaurantCoords;
+    if (!dest) return null;
+    return {
+      origin: riderLocation,
+      destination: dest,
+      travelMode: 'DRIVING'
+    };
+  }, [riderLocation?.lat, riderLocation?.lng, isOrderPickedUp, restaurantCoords?.lat, restaurantCoords?.lng, customerCoords?.lat, customerCoords?.lng]);
 
-  const center = riderLocation || {
-    lat: (restaurantCoords.lat + customerCoords.lat) / 2,
-    lng: (restaurantCoords.lng + customerCoords.lng) / 2
-  };
+  const center = useMemo(() => {
+    if (riderLocation) return riderLocation;
+    if (restaurantCoords && customerCoords) {
+      return {
+        lat: (restaurantCoords.lat + customerCoords.lat) / 2,
+        lng: (restaurantCoords.lng + customerCoords.lng) / 2
+      };
+    }
+    return { lat: 0, lng: 0 };
+  }, [riderLocation, restaurantCoords, customerCoords]);
+
+  const baselineDirectionsServiceOptions = useMemo(() => {
+    if (!restaurantCoords || !customerCoords) return null;
+    return {
+      origin: restaurantCoords,
+      destination: customerCoords,
+      travelMode: 'DRIVING'
+    };
+  }, [restaurantCoords?.lat, restaurantCoords?.lng, customerCoords?.lat, customerCoords?.lng]);
+
+  if (!isLoaded) return <div className="w-full h-full bg-gray-100 animate-pulse" />;
 
   return (
     <div className="relative w-full h-full overflow-hidden rounded-2xl shadow-inner border border-gray-100">
@@ -209,36 +299,43 @@ const DeliveryTrackingMap = ({
         }}
       >
         {/* 1. PERSISTENT BASELINE (Full journey: Restaurant -> Customer) */}
-        {!baselineDirections && restaurantCoords && customerCoords && (
+        {!baselineDirections && baselineDirectionsServiceOptions && (
            <DirectionsService
-             options={{
-               origin: restaurantCoords,
-               destination: customerCoords,
-               travelMode: 'DRIVING'
-             }}
+             options={baselineDirectionsServiceOptions}
              callback={(r, s) => { 
-                if (s === 'OK' && r) setBaselineDirections(r); 
+                debugLog('?? Baseline Directions Status:', s);
+
+                if (s === 'OK' && r) {
+                    const points = r.routes[0]?.overview_path?.length || 0;
+                    debugLog(`? Baseline directions SET with ${points} points`);
+                    setBaselineDirections(r); 
+                } else if (s !== 'OK') {
+                  console.error('[DeliveryTrackingMap] DirectionsService failed:', s);
+                }
              }}
            />
         )}
 
+        {/* 1. PERSISTENT BASELINE (Full journey: Restaurant -> Customer) */}
         {baselineDirections && (
-          <DirectionsRenderer
-            directions={baselineDirections}
+          <Polyline
+            path={baselineDirections.routes[0].overview_path}
             options={{
-              suppressMarkers: true,
-              preserveViewport: true,
-              polylineOptions: {
-                strokeColor: '#cbd5e1', 
-                strokeOpacity: 0.6,
-                strokeWeight: 4,
-                zIndex: 1,
-                icons: [{
-                  icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, scale: 2 },
-                  offset: '0',
-                  repeat: '12px'
-                }]
-              }
+              strokeColor: '#94a3b8', 
+              strokeOpacity: 0, // Dotted
+              strokeWeight: 4,
+              zIndex: 5,
+              icons: [{
+                icon: { 
+                  path: 'M 0,-1 0,1', 
+                  strokeOpacity: 0.5, 
+                  scale: 3, 
+                  strokeWeight: 4,
+                  strokeColor: '#64748b'
+                },
+                offset: '0',
+                repeat: '15px'
+              }]
             }}
           />
         )}
@@ -246,9 +343,13 @@ const DeliveryTrackingMap = ({
         {/* 2. LIVE RIDER LEG (From Rider's App: Current Rider Pos -> Target) */}
         {cloudPolyline && window.google?.maps?.geometry?.encoding && (
           <Polyline
-            path={window.google.maps.geometry.encoding.decodePath(
-              typeof cloudPolyline === 'string' ? cloudPolyline : (cloudPolyline.points || '')
-            )}
+            path={(() => {
+              const decoded = window.google.maps.geometry.encoding.decodePath(
+                typeof cloudPolyline === 'string' ? cloudPolyline : (cloudPolyline.points || '')
+              );
+              debugLog(`?? Decoded Cloud Polyline with ${decoded?.length || 0} points`);
+              return decoded;
+            })()}
             options={{
               strokeColor: isOrderPickedUp ? '#3b82f6' : '#22c55e',
               strokeWeight: 6,
@@ -258,22 +359,29 @@ const DeliveryTrackingMap = ({
           />
         )}
 
-        {/* INACTIVE LIVE DIRECTIONS (Disabled to lower Map Key usage) */}
-        {/*
-          {riderLocation && !cloudPolyline && (
-            <DirectionsService
-              options={{ origin: riderLocation, destination: isOrderPickedUp ? customerCoords : restaurantCoords, travelMode: 'DRIVING' }}
-              callback={shouldUpdateRoute ? directionsCallback : undefined}
-            />
-          )}
+        {/* 2. LIVE RIDER LEG (Rider -> Target) */}
+        {!cloudPolyline && directionsServiceOptions && (
+          <DirectionsService
+            options={directionsServiceOptions}
+            callback={shouldUpdateRoute ? directionsCallback : undefined}
+          />
+        )}
 
-          {directions && !cloudPolyline && (
-            <DirectionsRenderer
-              directions={directions}
-              options={{ ... }}
-            />
-          )}
-        */}
+        {directions && !cloudPolyline && (
+          <DirectionsRenderer
+            directions={directions}
+            options={{
+              suppressMarkers: true,
+              preserveViewport: true,
+              polylineOptions: {
+                strokeColor: isOrderPickedUp ? '#3b82f6' : '#22c55e',
+                strokeWeight: 6,
+                strokeOpacity: 0.8,
+                zIndex: 10
+              }
+            }}
+          />
+        )}
 
         {/* RESTAURANT PIN (OVERLAY VIEW FOR CUSTOM STLYE) */}
         <OverlayView
@@ -281,11 +389,21 @@ const DeliveryTrackingMap = ({
           mapPaneName={OverlayView.MARKER_LAYER}
         >
           <div className="relative -translate-x-1/2 -translate-y-full mb-1 group">
-             <div className="w-11 h-11 rounded-full p-1 bg-white shadow-xl border-2 border-orange-500 overflow-hidden group-hover:scale-110 transition-transform">
+             {/* Pulsing ring if this is the active destination */}
+             {!isOrderPickedUp && (
+               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                 <motion.div 
+                   animate={{ scale: [1, 2], opacity: [0.5, 0] }}
+                   transition={{ duration: 2, repeat: Infinity }}
+                   className="w-16 h-16 rounded-full border-4 border-orange-500/50"
+                 />
+               </div>
+             )}
+             <div className="relative w-11 h-11 rounded-full p-1 bg-white shadow-xl border-2 border-orange-500 overflow-hidden group-hover:scale-110 transition-transform">
                 <img 
                   src={order?.restaurantLogo || order?.restaurantId?.logo || order?.restaurantId?.profileImage || `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(RESTAURANT_PIN_SVG)}`}
                   alt="Restaurant"
-                  className="w-full h-full object-cover rounded-full"
+                  className="w-full h-full object-contain rounded-full bg-gray-50"
                   onError={(e) => { e.target.src = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(RESTAURANT_PIN_SVG)}`; }}
                 />
              </div>
@@ -300,11 +418,21 @@ const DeliveryTrackingMap = ({
           mapPaneName={OverlayView.MARKER_LAYER}
         >
           <div className="relative -translate-x-1/2 -translate-y-full mb-1 group">
-             <div className="w-11 h-11 rounded-full p-1 bg-white shadow-xl border-2 border-green-500 overflow-hidden group-hover:scale-110 transition-transform">
+             {/* Pulsing ring if this is the active destination */}
+             {isOrderPickedUp && (
+               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                 <motion.div 
+                   animate={{ scale: [1, 2], opacity: [0.5, 0] }}
+                   transition={{ duration: 2, repeat: Infinity }}
+                   className="w-16 h-16 rounded-full border-4 border-green-500/50"
+                 />
+               </div>
+             )}
+             <div className="relative w-11 h-11 rounded-full p-1 bg-white shadow-xl border-2 border-green-500 overflow-hidden group-hover:scale-110 transition-transform">
                 <img 
                   src={order?.customerImage || order?.userId?.profileImage || order?.userId?.avatar || `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(CUSTOMER_PIN_SVG)}`}
                   alt="Me"
-                  className="w-full h-full object-cover rounded-full bg-gray-50"
+                  className="w-full h-full object-contain rounded-full bg-gray-50"
                   onError={(e) => { e.target.src = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(CUSTOMER_PIN_SVG)}`; }}
                 />
              </div>
@@ -314,15 +442,15 @@ const DeliveryTrackingMap = ({
         </OverlayView>
 
         {/* PRO RIDER (OVERLAY VIEW FOR SMOOTH ROTATION / GLIDE) */}
-        {riderLocation && (
+        {displayRiderLocation && (
           <OverlayView
-            position={riderLocation}
+            position={displayRiderLocation}
             mapPaneName={OverlayView.MARKER_LAYER}
           >
             <div 
               style={{
-                transform: `translate(-50%, -50%) rotate(${riderLocation.heading || 0}deg)`,
-                transition: 'all 0.8s linear', // SILKY SMOOTH GLIDE
+                transform: `translate(-50%, -50%) rotate(${displayRiderLocation.heading || 0}deg)`,
+                transition: 'all 0.1s linear', // Micro-damping for heading
               }}
               className="relative w-16 h-16"
             >

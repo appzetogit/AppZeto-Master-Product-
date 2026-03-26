@@ -30,6 +30,7 @@ const ProductDetail = lazy(() => import("@food/pages/user/ProductDetail"))
 const Cart = lazy(() => import("@food/pages/user/cart/Cart"))
 const Checkout = lazy(() => import("@food/pages/user/cart/Checkout"))
 const SelectAddress = lazy(() => import("@food/pages/user/cart/SelectAddress"))
+const AddressSelectorPage = lazy(() => import("@food/pages/user/cart/AddressSelectorPage"))
 
 // Orders
 const Orders = lazy(() => import("@food/pages/user/orders/Orders"))
@@ -123,6 +124,7 @@ export default function UserRouter() {
           <Route path="cart" element={<Cart />} />
           <Route path="cart/checkout" element={<Checkout />} />
           <Route path="cart/select-address" element={<SelectAddress />} />
+          <Route path="cart/address-selector" element={<AddressSelectorPage />} />
 
           {/* Orders - Protected (require user auth) */}
           <Route

@@ -26,13 +26,17 @@ let pushSoundUnlocked = false;
 let pushSoundContext = null;
 const PUSH_DEBUG_PREFIX = "[push-debug]";
 const notificationDedupWindowMs = 8000;
-const pushDebugLog = () => {};
-const pushDebugWarn = () => {};
+const pushDebugLog = (prefix, message, data = {}) => {
+  console.log(`${prefix} ${message}`, data);
+};
+const pushDebugWarn = (prefix, message, data = {}) => {
+  console.warn(`${prefix} ${message}`, data);
+};
 
 function normalizeModuleFromPath(pathname = window.location.pathname) {
-  if (pathname.startsWith("/restaurant") && !pathname.startsWith("/restaurants")) return "restaurant";
-  if (pathname.startsWith("/delivery")) return "delivery";
-  if (pathname.startsWith("/admin")) return "admin";
+  if (pathname.includes("/restaurant") && !pathname.includes("/restaurants")) return "restaurant";
+  if (pathname.includes("/delivery")) return "delivery";
+  if (pathname.includes("/admin")) return "admin";
   return "user";
 }
 
@@ -438,6 +442,7 @@ function setSavedToken(moduleName, token) {
 }
 
 async function saveTokenByModule(moduleName, token, platform = "web") {
+  pushDebugLog(PUSH_DEBUG_PREFIX, "saveTokenByModule starting", { moduleName, platform, tokenPreview: `${token?.slice(0, 10)}...` });
   if (moduleName === "restaurant") {
     await restaurantAPI.saveFcmToken(token, platform);
     return;
@@ -731,15 +736,14 @@ export async function registerWebPushForCurrentModule(pathname = window.location
         tokenPreview: `${token.slice(0, 12)}...`,
       });
 
-      const lastSavedToken = getSavedToken(moduleName);
-      if (lastSavedToken !== token) {
-        try {
-          await saveTokenByModule(moduleName, token);
-          setSavedToken(moduleName, token);
-          pushDebugLog(PUSH_DEBUG_PREFIX, "FCM token saved to backend");
-        } catch (e) {
-          pushDebugWarn(PUSH_DEBUG_PREFIX, "Failed to save FCM token to backend", e);
-        }
+      // Removed localStorage caching (getSavedToken/setSavedToken) as per user requirements.
+      // The backend 'upsert' already handles duplicates efficiently.
+      try {
+        pushDebugLog(PUSH_DEBUG_PREFIX, "Synchronizing FCM token with backend database", { moduleName, tokenPreview: `${token?.slice(0, 10)}...` });
+        await saveTokenByModule(moduleName, token);
+        pushDebugLog(PUSH_DEBUG_PREFIX, "FCM token synchronized with backend successfully");
+      } catch (e) {
+        pushDebugWarn(PUSH_DEBUG_PREFIX, "Failed to synchronize FCM token to backend", { error: e?.message || e, stack: e?.stack });
       }
       
       await attachForegroundListener(app);

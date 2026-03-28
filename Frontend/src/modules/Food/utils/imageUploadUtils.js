@@ -122,12 +122,18 @@ export const openGallery = async ({ onSelectFile, fileNamePrefix = "gallery-phot
       return
     }
 
-    const result = await window.flutter_inappwebview.callHandler("openGallery", {
+    // Attempting to use the same 'openCamera' handler but with source='gallery'
+    // as many bridge implementations use a single handler for both.
+    const result = await window.flutter_inappwebview.callHandler("openCamera", {
+      source: "gallery",
       accept: "image/*",
       multiple: false,
     })
 
-    if (!result || !result.success) return
+    if (!result || !result.success) {
+      // If the bridge result is unsuccessful, fall back to the browser input
+      throw new Error("Bridge gallery call unsuccessful")
+    }
 
     let selectedFile = null
     if (result.base64) {
@@ -147,8 +153,8 @@ export const openGallery = async ({ onSelectFile, fileNamePrefix = "gallery-phot
 
     onSelectFile(selectedFile)
   } catch (error) {
-    console.error("Gallery pick failed:", error)
-    // Fallback to browser
+    console.warn("Native gallery pick failed, falling back to browser picker:", error)
+    // Fallback to standard browser input
     const input = document.createElement("input")
     input.type = "file"
     input.accept = "image/*"

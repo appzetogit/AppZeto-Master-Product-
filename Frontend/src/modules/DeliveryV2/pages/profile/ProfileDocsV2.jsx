@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Eye, Edit2, Loader2, Camera, X, Plus, FileText } from 'lucide-react';
+import { ArrowLeft, Eye, Edit2, Loader2, Camera, X, Plus, FileText, Image as ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { deliveryAPI } from '@food/api';
 import { toast } from 'sonner';
+import { openCamera } from "@food/utils/imageUploadUtils";
 
 /**
  * ProfileDocsV2 - Restored Old UI for Registration Documents & Vehicle Info.
@@ -44,7 +45,14 @@ export const ProfileDocsV2 = () => {
      finally { setIsUpdating(false); }
   };
 
-  const openPicker = (field) => {
+  const handleTakeCameraPhoto = (field) => {
+    openCamera({
+      onSelectFile: (file) => handleUpdate(field, file),
+      fileNamePrefix: `profile-doc-${field}`
+    })
+  }
+
+  const handlePickFromGallery = (field) => {
     setUploadField(field)
     fileInputRef.current?.click()
   }
@@ -92,10 +100,16 @@ export const ProfileDocsV2 = () => {
                             <button onClick={() => setShowViewer({ title: doc.label, url: doc.data.document })} className="p-3 bg-gray-50 rounded-xl text-gray-600 hover:bg-gray-100 active:scale-95 transition-all"><Eye className="w-5 h-5" /></button>
                          )}
                          <button 
-                            onClick={() => openPicker(doc.field)}
-                            className="p-3 bg-orange-50 rounded-xl text-orange-600 hover:bg-orange-100 active:scale-95 transition-all cursor-pointer relative"
+                            onClick={() => handleTakeCameraPhoto(doc.field)}
+                            className="p-3 bg-gray-900 rounded-xl text-white hover:bg-black active:scale-95 transition-all cursor-pointer relative"
                          >
                             <Camera className="w-5 h-5" />
+                         </button>
+                         <button 
+                            onClick={() => handlePickFromGallery(doc.field)}
+                            className="p-3 bg-orange-50 rounded-xl text-orange-600 hover:bg-orange-100 active:scale-95 transition-all cursor-pointer relative"
+                         >
+                            <ImageIcon className="w-5 h-5" />
                          </button>
                       </div>
                    </div>

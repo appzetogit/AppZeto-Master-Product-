@@ -3,13 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChefHat, MapPin, Phone, 
   ChevronDown, ChevronUp, Package, 
-  Navigation, CheckCircle2, Camera, Loader2
+  Navigation, CheckCircle2, Camera, Loader2, Image as ImageIcon
 } from 'lucide-react';
 import { ActionSlider } from '@/modules/DeliveryV2/components/ui/ActionSlider';
 import { uploadAPI } from '@food/api';
 import { toast } from 'sonner';
-import { ImageSourcePicker } from "@food/components/ImageSourcePicker"
-import { isFlutterBridgeAvailable } from "@food/utils/imageUploadUtils"
+import { openCamera } from "@food/utils/imageUploadUtils";
 
 /**
  * PickupActionModal - Unified White/Green Theme with Slider Actions.
@@ -28,7 +27,6 @@ export const PickupActionModal = ({
   const [isUploadingBill, setIsUploadingBill] = useState(false);
   const [billImageUploaded, setBillImageUploaded] = useState(false);
   const [billImageUrl, setBillImageUrl] = useState(null);
-  const [isPickerOpen, setIsPickerOpen] = useState(false);
   const cameraInputRef = useRef(null);
 
   if (!order) return null;
@@ -60,12 +58,22 @@ export const PickupActionModal = ({
     }
   };
 
+  const handleTakeCameraPhoto = () => {
+    openCamera({
+      onSelectFile: (file) => handleBillImageSelect(file),
+      fileNamePrefix: `bill-${order.orderId || order._id}`
+    })
+  }
+
+  const handlePickFromGallery = () => {
+    cameraInputRef.current?.click()
+  }
+
   const isAtPickup = status === 'REACHED_PICKUP';
   const restaurantName = order.restaurantName || order.restaurant_name || 'Restaurant';
   const restaurantAddress = order.restaurantAddress || order.restaurant_address || order.restaurantLocation?.address || 'Address not available';
   const restaurantPhone = order.restaurantPhone || order.restaurant_phone || order.restaurantId?.phone || '';
   const items = order.items || [];
-
   const restaurantLogo = order.restaurantImage || order.restaurant?.logo || order.restaurant?.profileImage || 'https://cdn-icons-png.flaticon.com/512/3170/3170733.png';
 
   return (
@@ -142,26 +150,40 @@ export const PickupActionModal = ({
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="flex justify-center flex-col items-center gap-2">
-                 <button
-                   onClick={() => cameraInputRef.current?.click()}
-                   disabled={isUploadingBill}
-                   className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl transition-all font-bold text-xs uppercase tracking-widest ${
-                     isUploadingBill
-                       ? "bg-gray-100 text-gray-400"
-                       : billImageUploaded
-                         ? "bg-green-100 text-green-700 border border-transparent shadow-none"
-                         : "bg-white text-gray-900 border border-gray-200 shadow-sm"
-                   }`}
-                 >
-                   {isUploadingBill ? (
-                     <><Loader2 className="w-4 h-4 animate-spin" /> Uploading...</>
-                   ) : billImageUploaded ? (
-                     <><CheckCircle2 className="w-4 h-4" /> Bill Uploaded</>
-                   ) : (
-                     <><Camera className="w-4 h-4" /> Capture Bill Photo</>
-                   )}
-                 </button>
+              <div className="flex justify-center items-center gap-3 w-full">
+                 {!billImageUploaded && !isUploadingBill && (
+                   <>
+                      <button
+                        onClick={handleTakeCameraPhoto}
+                        className="flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl bg-gray-900 text-white font-bold text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all"
+                      >
+                        <Camera className="w-5 h-5" />
+                        <span>Camera</span>
+                      </button>
+                      <button
+                        onClick={handlePickFromGallery}
+                        className="flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl bg-orange-50 text-orange-600 border border-orange-100 font-bold text-xs uppercase tracking-widest active:scale-95 transition-all"
+                      >
+                        <ImageIcon className="w-5 h-5" />
+                        <span>Gallery</span>
+                      </button>
+                   </>
+                 )}
+
+                 {isUploadingBill && (
+                    <div className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-gray-50 text-gray-400 font-bold text-xs uppercase tracking-widest">
+                       <Loader2 className="w-4 h-4 animate-spin" />
+                       <span>Uploading...</span>
+                    </div>
+                 )}
+
+                 {billImageUploaded && (
+                    <div className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-green-100 text-green-700 font-bold text-xs uppercase tracking-widest">
+                       <CheckCircle2 className="w-4 h-4" />
+                       <span>Bill Uploaded</span>
+                    </div>
+                 )}
+
                  <input
                    ref={cameraInputRef}
                    type="file"
@@ -173,7 +195,7 @@ export const PickupActionModal = ({
 
               <div>
                 <p className={`text-center text-[10px] font-bold uppercase tracking-widest mb-3 ${billImageUploaded ? 'text-green-600' : 'text-gray-400'}`}>
-                  {billImageUploaded ? "Found the restaurant - Swipe to Pick up" : "Upload bill to unlock swipe"}
+                  {billImageUploaded ? "Check the restaurant logo - Swipe to pick up" : "Capture bill to unlock swipe"}
                 </p>
                 <ActionSlider 
                   key="action-pickup"
@@ -214,3 +236,5 @@ export const PickupActionModal = ({
     </div>
   );
 };
+
+export default PickupActionModal;

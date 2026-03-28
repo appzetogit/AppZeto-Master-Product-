@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
-import { ArrowLeft, Upload, X, Check } from "lucide-react"
+import { ArrowLeft, Upload, X, Check, Camera, Image as ImageIcon } from "lucide-react"
 import { deliveryAPI } from "@food/api"
 import { toast } from "sonner"
-import { ImageSourcePicker } from "@food/components/ImageSourcePicker"
-import { isFlutterBridgeAvailable } from "@food/utils/imageUploadUtils"
+import { isFlutterBridgeAvailable, openCamera } from "@food/utils/imageUploadUtils"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -132,6 +131,17 @@ export default function SignupStep2() {
     setDocuments((prev) => ({ ...prev, [docType]: file }))
     setUploadedDocs((prev) => ({ ...prev, [docType]: { file: true } }))
     toast.success(`${docType.replace(/([A-Z])/g, " $1").trim()} selected`)
+  }
+
+  const handleTakeCameraPhoto = (docType, label) => {
+    openCamera({
+      onSelectFile: (file) => handleFileSelect(docType, file),
+      fileNamePrefix: `signup-${docType}`
+    })
+  }
+
+  const handlePickFromGallery = (docType) => {
+    fileInputRefs.current[docType]?.click()
   }
 
   const handleRemove = (docType) => {
@@ -300,13 +310,22 @@ export default function SignupStep2() {
             </div>
 
             {!isUploading && (
-              <div className="w-full flex items-center gap-2 pb-4">
+              <div className="w-full grid grid-cols-2 gap-2 pb-4">
                 <button
                   type="button"
-                  onClick={() => handleOpenUploadOptions(docType, label)}
-                  className="w-full text-center px-3 py-2 rounded-md bg-[#00B761] text-white text-sm font-medium cursor-pointer hover:bg-[#00A055] transition-colors"
+                  onClick={() => handleTakeCameraPhoto(docType, label)}
+                  className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-gray-900 text-white text-xs font-bold cursor-pointer hover:bg-black transition-all active:scale-95"
                 >
-                  Upload
+                  <Camera className="w-4 h-4" />
+                  <span>Take Photo</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePickFromGallery(docType)}
+                  className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-[#00B761] text-white text-xs font-bold cursor-pointer hover:bg-[#00A055] transition-all active:scale-95"
+                >
+                  <ImageIcon className="w-4 h-4" />
+                  <span>Gallery</span>
                 </button>
               </div>
             )}

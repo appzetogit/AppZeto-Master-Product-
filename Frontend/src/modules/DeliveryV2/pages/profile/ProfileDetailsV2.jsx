@@ -4,10 +4,12 @@ import {
   ArrowLeft, Plus, Edit2, Eye, X, Loader2, User, Camera, 
   QrCode, Smartphone, Banknote, Shield, CheckCircle, 
   Info, AlertCircle, Copy, Check, MapPin, Truck, FileText,
-  Bike, Car
+  Bike, Car, Image as ImageIcon
 } from "lucide-react"
 import BottomPopup from "@delivery/components/BottomPopup"
 import { toast } from "sonner"
+import { openCamera } from "@food/utils/imageUploadUtils"
+import { deliveryAPI } from "@food/api"
 import { deliveryAPI } from "@food/api"
 import { motion, AnimatePresence } from "framer-motion"
 import { ImageSourcePicker } from "@food/components/ImageSourcePicker"
@@ -176,7 +178,17 @@ export const ProfileDetailsV2 = () => {
     }
   }
 
-  const openPicker = (target, ref) => {
+  const handleTakeCameraPhoto = (target) => {
+    openCamera({
+      onSelectFile: (file) => {
+        if (target === "profilePhoto") uploadProfileFile(file)
+        else if (target === "upiQrCode") uploadUpiQrFile(file)
+      },
+      fileNamePrefix: `profile-${target}`
+    })
+  }
+
+  const handlePickFromGallery = (target, ref) => {
     setUploadTarget(target)
     ref.current?.click()
   }
@@ -360,18 +372,28 @@ export const ProfileDetailsV2 = () => {
               )}
            </div>
            
-           <div className="flex items-center justify-center absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 gap-3">
+           <div className="flex items-center justify-center absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 gap-2">
               <button 
-                onClick={() => openPicker("profilePhoto", fileInputRef, "Profile Photo")}
-                className="bg-black text-white p-3 rounded-2xl shadow-xl hover:bg-gray-900 transition-all active:scale-90 border-4 border-white"
+                onClick={() => handleTakeCameraPhoto('profilePhoto')}
+                className="bg-black text-white p-3 rounded-2xl shadow-xl hover:bg-gray-900 transition-all active:scale-95 border-4 border-white flex items-center justify-center"
+                title="Take Photo"
               >
                 <Camera className="w-5 h-5" />
               </button>
               
+              <button 
+                onClick={() => handlePickFromGallery('profilePhoto', fileInputRef)}
+                className="bg-orange-500 text-white p-3 rounded-2xl shadow-xl hover:bg-orange-600 transition-all active:scale-95 border-4 border-white flex items-center justify-center"
+                title="Gallery"
+              >
+                <ImageIcon className="w-5 h-5" />
+              </button>
+
               {profileImageUrl && (
                 <button 
                   onClick={() => setShowDeletePopup(true)}
-                  className="bg-red-500 text-white p-3 rounded-2xl shadow-xl hover:bg-red-600 transition-all active:scale-90 border-4 border-white"
+                  className="bg-red-500 text-white p-3 rounded-2xl shadow-xl hover:bg-red-600 transition-all active:scale-95 border-4 border-white flex items-center justify-center"
+                  title="Remove"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -753,12 +775,21 @@ export const ProfileDetailsV2 = () => {
                     </button>
                   </div>
                 ) : (
-                  <div 
-                    onClick={() => openPicker("upiQrCode", upiQrInputRef, "UPI QR Code")}
-                    className="w-full aspect-square rounded-3xl bg-gray-50 border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-gray-100 transition-all group overflow-hidden"
-                  >
-                     <QrCode className="w-8 h-8 text-purple-300" />
-                     <span className="text-[9px] font-bold text-purple-400 uppercase">Upload Image</span>
+                  <div className="w-full flex gap-3">
+                    <div 
+                      onClick={() => handleTakeCameraPhoto("upiQrCode")}
+                      className="flex-1 aspect-square rounded-3xl bg-gray-50 border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-gray-100 transition-all"
+                    >
+                       <Camera className="w-6 h-6 text-purple-300" />
+                       <span className="text-[8px] font-black text-purple-400 uppercase">Camera</span>
+                    </div>
+                    <div 
+                      onClick={() => handlePickFromGallery("upiQrCode", upiQrInputRef)}
+                      className="flex-1 aspect-square rounded-3xl bg-gray-50 border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-gray-100 transition-all"
+                    >
+                       <ImageIcon className="w-6 h-6 text-purple-300" />
+                       <span className="text-[8px] font-black text-purple-400 uppercase">Gallery</span>
+                    </div>
                   </div>
                 )}
                 <input ref={upiQrInputRef} type="file" accept="image/*" className="hidden" onChange={handleUpiQrSelected} />

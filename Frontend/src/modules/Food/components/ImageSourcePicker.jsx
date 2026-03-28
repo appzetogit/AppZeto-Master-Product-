@@ -6,7 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@food/components/ui/dialog"
-import { isFlutterBridgeAvailable, openCamera } from "@food/utils/imageUploadUtils"
+import { isFlutterBridgeAvailable, openCamera, openGallery } from "@food/utils/imageUploadUtils"
 
 /**
  * ImageSourcePicker component to choose between Camera and Gallery
@@ -30,12 +30,23 @@ export const ImageSourcePicker = ({
     })
   }
 
-  const handlePickFromDevice = () => {
+  const handlePickFromDevice = async () => {
     onClose()
+    
+    // 1. Try Bridge first
+    if (isFlutterBridgeAvailable()) {
+      await openGallery({
+        onSelectFile: onFileSelect,
+        fileNamePrefix: fileNamePrefix
+      })
+      return
+    }
+
+    // 2. Try provided ref (Standard browser behavior)
     if (galleryInputRef && galleryInputRef.current) {
       galleryInputRef.current.click()
     } else {
-      // Create a temporary hidden input if no ref provided
+      // 3. Last resort - generic browser input
       const input = document.createElement("input")
       input.type = "file"
       input.accept = "image/*"

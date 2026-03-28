@@ -104,3 +104,58 @@ export const openCamera = async ({ onSelectFile, fileNamePrefix = "camera-photo"
     openBrowserCameraFallback(onSelectFile)
   }
 }
+
+/**
+ * Open gallery via Flutter bridge or browser fallback
+ */
+export const openGallery = async ({ onSelectFile, fileNamePrefix = "gallery-photo" }) => {
+  try {
+    if (!isFlutterBridgeAvailable()) {
+      const input = document.createElement("input")
+      input.type = "file"
+      input.accept = "image/*"
+      input.onchange = (event) => {
+        const file = event?.target?.files?.[0] || null
+        if (file) onSelectFile(file)
+      }
+      input.click()
+      return
+    }
+
+    const result = await window.flutter_inappwebview.callHandler("openGallery", {
+      accept: "image/*",
+      multiple: false,
+    })
+
+    if (!result || !result.success) return
+
+    let selectedFile = null
+    if (result.base64) {
+      selectedFile = convertBase64ToFile(
+        result.base64,
+        result.mimeType || "image/jpeg",
+        fileNamePrefix
+      )
+    } else if (result.file instanceof File || result.file instanceof Blob) {
+      selectedFile = result.file
+    }
+
+    if (!selectedFile || !String(selectedFile.type || "").startsWith("image/")) {
+      toast.error("Failed to pick image from gallery")
+      return
+    }
+
+    onSelectFile(selectedFile)
+  } catch (error) {
+    console.error("Gallery pick failed:", error)
+    // Fallback to browser
+    const input = document.createElement("input")
+    input.type = "file"
+    input.accept = "image/*"
+    input.onchange = (event) => {
+      const file = event?.target?.files?.[0] || null
+      if (file) onSelectFile(file)
+    }
+    input.click()
+  }
+}

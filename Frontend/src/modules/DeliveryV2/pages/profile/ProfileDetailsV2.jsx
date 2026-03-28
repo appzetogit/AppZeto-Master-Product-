@@ -8,12 +8,9 @@ import {
 } from "lucide-react"
 import BottomPopup from "@delivery/components/BottomPopup"
 import { toast } from "sonner"
-import { openCamera } from "@food/utils/imageUploadUtils"
-import { deliveryAPI } from "@food/api"
+import { openCamera, isFlutterBridgeAvailable } from "@food/utils/imageUploadUtils"
 import { deliveryAPI } from "@food/api"
 import { motion, AnimatePresence } from "framer-motion"
-import { ImageSourcePicker } from "@food/components/ImageSourcePicker"
-import { isFlutterBridgeAvailable } from "@food/utils/imageUploadUtils"
 
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}

@@ -71,6 +71,8 @@ export default function SignupStep2() {
     return createEmptyUploadedDocs()
   })
   const [activePicker, setActivePicker] = useState(null) // { docType: string, title: string, ref: any }
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [uploading, setUploading] = useState({})
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" })

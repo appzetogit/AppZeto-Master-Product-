@@ -125,6 +125,7 @@ export const ProfileDocsV2 = () => {
                             <input 
                                type="file" 
                                className="absolute inset-0 opacity-0 cursor-pointer" 
+                               accept=".jpg,.jpeg,.png,.webp,.heic,.heif"
                                onChange={(e) => handleUpdate(doc.field, e.target.files[0])} 
                                disabled={isUpdating} 
                             />

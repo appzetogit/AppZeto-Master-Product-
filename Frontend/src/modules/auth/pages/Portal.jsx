@@ -12,7 +12,8 @@ const SERVICES = [
     path: "/food/user",
     icon: UtensilsCrossed,
     color: "from-[#FF4D4D] to-[#CB202D]",
-    badge: "Fast"
+    badge: "Fast",
+    badgeIcon: "⚡"
   },
   {
     id: "grocery",
@@ -22,7 +23,8 @@ const SERVICES = [
     path: "/food/user",
     icon: ShoppingBasket,
     color: "from-[#4CAF50] to-[#2DAB52]",
-    badge: "Instant"
+    badge: "Instant",
+    badgeIcon: "⏱️"
   },
   {
     id: "taxi",
@@ -32,7 +34,8 @@ const SERVICES = [
     path: "/food/user",
     icon: Car,
     color: "from-[#333333] to-[#000000]",
-    badge: "Safe"
+    badge: "Safe",
+    badgeIcon: "🛡️"
   },
   {
     id: "hotel",
@@ -42,7 +45,8 @@ const SERVICES = [
     path: "/food/user",
     icon: Bed,
     color: "from-[#64B5F6] to-[#4A90E2]",
-    badge: "Premium"
+    badge: "Premium",
+    badgeIcon: "💎"
   }
 ]
 
@@ -188,10 +192,16 @@ export default function SuperAppPortal() {
               </div>
 
               {/* Corner Badge */}
-              <div className="absolute top-6 right-6 z-30">
-                 <div className="bg-white/90 backdrop-blur-md px-3 py-1 rounded-full shadow-lg">
-                    <span className="text-[9px] font-black text-gray-900 uppercase">{service.badge}</span>
-                 </div>
+              <div className="absolute top-0 right-0 z-30">
+                 <motion.div 
+                   initial={{ x: 20, opacity: 0 }}
+                   animate={{ x: 0, opacity: 1 }}
+                   transition={{ delay: 0.8 + idx * 0.1 }}
+                   className="bg-black/80 backdrop-blur-xl px-4 py-2 rounded-bl-3xl border-l border-b border-white/20 shadow-2xl flex items-center gap-2"
+                 >
+                    <span className="text-[10px] scale-125 mb-0.5">{service.badgeIcon}</span>
+                    <span className="text-[10px] font-black text-white uppercase tracking-widest">{service.badge}</span>
+                 </motion.div>
               </div>
             </div>
 

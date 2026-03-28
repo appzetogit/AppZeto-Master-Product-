@@ -2410,7 +2410,7 @@ export default function Home() {
             displayCategories.slice(0, 12).map((category, index) => (
               <Link
                 key={category.id || index}
-                to={`/user/category/${category.slug || category.name.toLowerCase().replace(/\s+/g, "-")}`}
+                to={`/food/user/category/${category.slug || category.name.toLowerCase().replace(/\s+/g, "-")}`}
                 className="flex-shrink-0 flex flex-col items-center gap-2 group transition-all duration-300 hover:-translate-y-1"
                 style={{ animation: `fade-in-up 0.5s ease-out forwards ${index * 0.05}s`, opacity: 0 }}
               >
@@ -2432,7 +2432,7 @@ export default function Home() {
           {displayCategories.length > 12 && !showCategorySkeleton && (
             <div 
               className="flex-shrink-0 flex flex-col items-center gap-2 cursor-pointer group"
-              onClick={() => setShowAllCategoriesModal(true)}
+              onClick={() => navigate("/food/user/categories")}
             >
               <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-orange-50 dark:bg-orange-950 flex items-center justify-center border border-orange-100 group-hover:border-[#EB590E] transition-all">
                 <Plus className="w-6 h-6 text-[#EB590E]" />
@@ -2617,7 +2617,7 @@ export default function Home() {
                   <div className="flex items-center gap-2 min-w-0">
                     <h2 className="text-lg sm:text-xl font-bold text-gray-900 min-w-0 flex-shrink leading-tight">What's on your mind today?</h2>
                     <div className="h-[1px] bg-gray-100 flex-1"></div>
-                    <Link to="/user/categories" className="text-sm font-bold text-gray-400 flex items-center gap-0.5 whitespace-nowrap shrink-0">
+                    <Link to="/food/user/categories" className="text-sm font-bold text-gray-400 flex items-center gap-0.5 whitespace-nowrap shrink-0">
                       View All <ArrowDownUp className="h-3 w-3 rotate-90" />
                     </Link>
                   </div>
@@ -2626,7 +2626,7 @@ export default function Home() {
                     {displayCategories.slice(0, 8).map((category, index) => (
                       <Link 
                         key={category.id || index}
-                        to={`/user/category/${category.slug}`}
+                        to={`/food/user/category/${category.slug}`}
                         className="flex flex-col items-center gap-2 group"
                       >
                         <div className="relative w-full aspect-square rounded-full overflow-hidden shadow-sm border border-gray-100 bg-white group-active:scale-95 transition-all duration-300">

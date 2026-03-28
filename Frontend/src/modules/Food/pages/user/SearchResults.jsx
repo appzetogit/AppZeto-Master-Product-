@@ -24,6 +24,7 @@ const filterOptions = [
   { id: 'under-250', label: 'Under ₹250' },
   { id: 'rating-4-plus', label: 'Rating 4.0+' },
 ]
+const SEARCH_HISTORY_KEY = "user_recent_searches_v1"
 
 // Mock data removed - using backend data only
 
@@ -528,7 +529,17 @@ export default function SearchResults() {
   const handleSearch = (e) => {
     e.preventDefault()
     if (searchQuery.trim()) {
-      setSearchParams({ q: searchQuery.trim() })
+      const term = searchQuery.trim()
+      try {
+        const raw = localStorage.getItem(SEARCH_HISTORY_KEY)
+        const parsed = raw ? JSON.parse(raw) : []
+        const prev = Array.isArray(parsed) ? parsed : []
+        const next = [term, ...prev.filter((item) => String(item).toLowerCase() !== term.toLowerCase())].slice(0, 8)
+        localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(next))
+      } catch {
+        // Ignore storage parsing errors.
+      }
+      setSearchParams({ q: term })
     }
   }
 

@@ -175,20 +175,57 @@ export const ProfileDetailsV2 = () => {
 
   const openPicker = (target) => {
     setUploadTarget(target)
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ""
+    
+    // Check for Flutter Bridge
+    const hasBridge = typeof window !== "undefined" && window.flutter_inappwebview && typeof window.flutter_inappwebview.callHandler === "function";
+    
+    if (hasBridge && target === "profilePhoto") {
+       handleFlutterCamera(target);
+       return;
+    }
+
+    if (target === "profilePhoto" && fileInputRef.current) {
       fileInputRef.current.click()
     }
   }
 
-  const handleFileSelected = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file || !uploadTarget) return
-    if (uploadTarget !== "profilePhoto") return
+  const handleFlutterCamera = async (target) => {
+    try {
+      const result = await window.flutter_inappwebview.callHandler("openCamera");
+      if (result && result.success && result.base64) {
+        const file = convertBase64ToFile(result.base64, result.mimeType || "image/jpeg", result.fileName || "profile.jpg");
+        if (target === "profilePhoto") {
+           // Direct upload for profile photo
+           uploadProfileFile(file);
+        } else if (target === "upiQrCode") {
+           // Handled via state for bank details
+           setUpiQrFile(file);
+           setUpiQrPreview(URL.createObjectURL(file));
+        }
+      }
+    } catch (err) {
+      console.error("Camera bridge failed:", err);
+      // Fallback to standard picker
+      if (target === "profilePhoto") fileInputRef.current?.click();
+    }
+  }
+
+  const convertBase64ToFile = (base64, mimeType, fileName) => {
+    const byteCharacters = atob(base64.includes(',') ? base64.split(',')[1] : base64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: mimeType });
+    return new File([blob], fileName, { type: mimeType });
+  }
+
+  const uploadProfileFile = async (file) => {
     try {
       setIsUploadingImage(true)
       const formData = new FormData()
-      formData.append(uploadTarget, file)
+      formData.append("profilePhoto", file)
       const response = await deliveryAPI.updateProfileMultipart(formData)
       if (response?.data?.success) {
         toast.success("Profile photo updated")
@@ -201,8 +238,16 @@ export const ProfileDetailsV2 = () => {
     } finally {
       setIsUploadingImage(false)
       setUploadTarget(null)
-      if (fileInputRef.current) fileInputRef.current.value = ""
     }
+  }
+
+  const handleFileSelected = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file || !uploadTarget) return
+    if (uploadTarget === "profilePhoto") {
+       uploadProfileFile(file);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
   const handleDeletePhoto = async () => {
@@ -748,8 +793,15 @@ export const ProfileDetailsV2 = () => {
                   </div>
                 ) : (
                   <div 
-                    onClick={() => upiQrInputRef.current?.click()}
-                    className="w-32 h-32 bg-white rounded-xl border-2 border-dashed border-purple-200 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-purple-100/30 transition-all"
+                    onClick={() => {
+                      const hasBridge = typeof window !== "undefined" && window.flutter_inappwebview && typeof window.flutter_inappwebview.callHandler === "function";
+                      if (hasBridge) {
+                        handleFlutterCamera("upiQrCode");
+                      } else {
+                        upiQrInputRef.current?.click();
+                      }
+                    }}
+                    className="w-full aspect-square rounded-3xl bg-gray-50 border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-gray-100 transition-all group overflow-hidden"
                   >
                      <QrCode className="w-8 h-8 text-purple-300" />
                      <span className="text-[9px] font-bold text-purple-400 uppercase">Upload Image</span>

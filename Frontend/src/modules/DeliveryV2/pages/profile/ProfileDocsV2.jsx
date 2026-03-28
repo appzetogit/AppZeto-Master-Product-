@@ -43,6 +43,33 @@ export const ProfileDocsV2 = () => {
      finally { setIsUpdating(false); }
   };
 
+  const triggerFlutterCamera = async (field) => {
+    try {
+      if (window.flutter_inappwebview && typeof window.flutter_inappwebview.callHandler === 'function') {
+        const result = await window.flutter_inappwebview.callHandler('openCamera');
+        if (result && result.success && result.base64) {
+          const file = convertBase64ToFile(result.base64, result.mimeType || 'image/jpeg', result.fileName || `${field}.jpg`);
+          handleUpdate(field, file);
+          return true;
+        }
+      }
+    } catch (err) {
+      console.error("Flutter bridge error:", err);
+    }
+    return false;
+  };
+
+  const convertBase64ToFile = (base64, mimeType, fileName) => {
+    const byteCharacters = atob(base64.includes(',') ? base64.split(',')[1] : base64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: mimeType });
+    return new File([blob], fileName, { type: mimeType });
+  };
+
   const getDocStatus = (doc) => {
     if (!doc?.document) return "Not Uploaded";
     return doc.verified ? "Verified" : "Pending Verification";
@@ -85,10 +112,23 @@ export const ProfileDocsV2 = () => {
                          {doc.data?.document && (
                             <button onClick={() => setShowViewer({ title: doc.label, url: doc.data.document })} className="p-3 bg-gray-50 rounded-xl text-gray-600 hover:bg-gray-100 active:scale-95 transition-all"><Eye className="w-5 h-5" /></button>
                          )}
-                         <label className="p-3 bg-orange-50 rounded-xl text-orange-600 hover:bg-orange-100 active:scale-95 transition-all cursor-pointer">
+                         <button 
+                            onClick={async () => {
+                               const handled = await triggerFlutterCamera(doc.field);
+                               if (!handled) {
+                                  // Fallback handled by the label wrapping the input or just manual trigger if we had a ref
+                               }
+                            }}
+                            className="p-3 bg-orange-50 rounded-xl text-orange-600 hover:bg-orange-100 active:scale-95 transition-all cursor-pointer relative"
+                         >
                             <Camera className="w-5 h-5" />
-                            <input type="file" className="hidden" onChange={(e) => handleUpdate(doc.field, e.target.files[0])} disabled={isUpdating} />
-                         </label>
+                            <input 
+                               type="file" 
+                               className="absolute inset-0 opacity-0 cursor-pointer" 
+                               onChange={(e) => handleUpdate(doc.field, e.target.files[0])} 
+                               disabled={isUpdating} 
+                            />
+                         </button>
                       </div>
                    </div>
                    {doc.data?.document && (

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react"
+import React, { useEffect, useState, useRef } from "react"
 import { motion } from "framer-motion"
 import { Routes, Route, Navigate, Link, useNavigate } from "react-router-dom"
 import { Phone, Lock, ArrowRight, ShieldCheck, Loader2 } from "lucide-react"
@@ -7,11 +7,13 @@ import { authAPI } from "@food/api"
 import { setAuthData } from "@food/utils/auth"
 
 export default function UnifiedOTPFastLogin() {
+  const RESEND_COOLDOWN_SECONDS = 60
   const [phoneNumber, setPhoneNumber] = useState("")
   const [otp, setOtp] = useState("")
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [otpSent, setOtpSent] = useState(false)
+  const [resendTimer, setResendTimer] = useState(0)
   const navigate = useNavigate()
   const submitting = useRef(false)
 
@@ -33,7 +35,9 @@ export default function UnifiedOTPFastLogin() {
     try {
       await authAPI.sendOTP(phoneNumber, "login", null)
       setOtpSent(true)
+      setOtp("")
       setStep(2)
+      setResendTimer(RESEND_COOLDOWN_SECONDS)
       toast.success("OTP sent! Check your phone.")
     } catch (err) {
       const msg = err?.response?.data?.message || err?.message || "Failed to send OTP."
@@ -42,6 +46,36 @@ export default function UnifiedOTPFastLogin() {
       setLoading(false)
       submitting.current = false
     }
+  }
+
+  const handleResendOTP = async () => {
+    const phone = normalizedPhone()
+    if (phone.length < 8) {
+      toast.error("Please enter a valid phone number (at least 8 digits)")
+      return
+    }
+    if (resendTimer > 0 || submitting.current) return
+    submitting.current = true
+    setLoading(true)
+    try {
+      await authAPI.sendOTP(phoneNumber, "login", null)
+      setOtp("")
+      setOtpSent(true)
+      setResendTimer(RESEND_COOLDOWN_SECONDS)
+      toast.success("OTP resent successfully.")
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || "Failed to resend OTP."
+      toast.error(msg)
+    } finally {
+      setLoading(false)
+      submitting.current = false
+    }
+  }
+
+  const handleEditNumber = () => {
+    setStep(1)
+    setOtp("")
+    setResendTimer(0)
   }
 
   const handleVerifyOTP = async (e) => {
@@ -111,6 +145,20 @@ export default function UnifiedOTPFastLogin() {
     }
   }
 
+  useEffect(() => {
+    if (step !== 2 || resendTimer <= 0) return
+    const intervalId = setInterval(() => {
+      setResendTimer((prev) => (prev > 0 ? prev - 1 : 0))
+    }, 1000)
+    return () => clearInterval(intervalId)
+  }, [step, resendTimer])
+
+  const formatResendTimer = (seconds) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`
+  }
+
   // Service images (served from public folder)
   const foodIcon = "/super-app/food.png"
   const taxiIcon = "/super-app/taxi.png"
@@ -148,7 +196,7 @@ export default function UnifiedOTPFastLogin() {
             animate={{ opacity: 1, y: 0 }}
             className="text-2xl md:text-5xl font-black tracking-tight mb-1"
           >
-            AppZeto <span className="text-white/80 font-normal">Food</span>
+            AppZeto <span className="text-white/80 font-normal">Master</span>
           </motion.h1>
           <p className="text-xs md:text-base font-bold text-white/90 tracking-[0.2em] uppercase">
             Taste the best, forget the rest
@@ -202,7 +250,7 @@ export default function UnifiedOTPFastLogin() {
                          <p className="text-[10px] uppercase font-black text-gray-400 tracking-widest leading-none mb-1">Sent to</p>
                          <p className="text-sm font-black text-gray-900 dark:text-white">+91 {phoneNumber}</p>
                       </div>
-                      <button type="button" onClick={() => setStep(1)} className="text-xs text-[#CB202D] font-black underline cursor-pointer">Edit</button>
+                      <button type="button" onClick={handleEditNumber} className="text-xs text-[#CB202D] font-black underline cursor-pointer">Edit</button>
                    </div>
 
                   <div className="flex justify-center gap-3 mt-4">
@@ -251,6 +299,22 @@ export default function UnifiedOTPFastLogin() {
                         placeholder="-"
                       />
                     ))}
+                  </div>
+                  <div className="text-center mt-4">
+                    {resendTimer > 0 ? (
+                      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                        Resend OTP in {formatResendTimer(resendTimer)}
+                      </p>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleResendOTP}
+                        disabled={loading}
+                        className="text-xs font-black text-[#CB202D] underline disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        Resend OTP
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

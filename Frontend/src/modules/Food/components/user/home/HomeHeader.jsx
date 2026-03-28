@@ -208,9 +208,25 @@ export default function HomeHeader({
       <div 
         className="relative z-10 bg-white rounded-xl flex items-center px-4 py-3 shadow-md border border-white/20 cursor-pointer active:scale-[0.99] transition-all duration-200 mx-1"
         onClick={handleSearchFocus}
+        onTouchStart={handleSearchFocus}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            handleSearchFocus();
+          }
+        }}
       >
         <Search className="h-4 w-4 text-gray-500 mr-3" strokeWidth={2.5} />
         <div className="flex-1 overflow-hidden relative h-5">
+          <input
+            type="text"
+            readOnly
+            aria-label="Search"
+            onFocus={handleSearchFocus}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          />
           <AnimatePresence mode="wait">
             <motion.span
               key={placeholderIndex}

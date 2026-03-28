@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from "react"
+import { useMemo, useState, useEffect, useRef, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
 import { ChevronLeft, ChevronRight, Plus, MapPin, MoreHorizontal, Navigation, Home, Building2, Briefcase, Phone, X, Crosshair, Search } from "lucide-react"
 import { Button } from "@food/components/ui/button"
@@ -72,6 +72,13 @@ export default function AddressSelectorPage() {
   const [isKeywordSearching, setIsKeywordSearching] = useState(false)
   const [lockMapToAutocomplete, setLockMapToAutocomplete] = useState(true)
   const [GOOGLE_MAPS_API_KEY, setGOOGLE_MAPS_API_KEY] = useState(null)
+  const [formScrollTop, setFormScrollTop] = useState(0)
+  const [keyboardInset, setKeyboardInset] = useState(0)
+  const [baseMapHeight, setBaseMapHeight] = useState(320)
+  const [mapCollapseProgress, setMapCollapseProgress] = useState(0)
+  const formBodyRef = useRef(null)
+  const manualFieldRefs = useRef({})
+  const mapTouchStartYRef = useRef(null)
   
   const ENABLE_LOCATION_REVERSE_GEOCODE = import.meta.env.VITE_ENABLE_LOCATION_REVERSE_GEOCODE !== "false"
   const ENABLE_NOMINATIM_SEARCH = import.meta.env.VITE_ENABLE_NOMINATIM_SEARCH !== "false"
@@ -235,6 +242,20 @@ export default function AddressSelectorPage() {
     setShowAddressForm(false)
   }
 
+  const scrollFieldIntoView = useCallback((fieldName) => {
+    const el = manualFieldRefs.current?.[fieldName]
+    if (!el) return
+    setTimeout(() => {
+      try {
+        el.scrollIntoView({ behavior: "smooth", block: "center" })
+      } catch {
+        // Ignore scrolling errors.
+      }
+    }, 120)
+  }, [])
+
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
+
   const handleMapMoveEnd = async (lat, lng) => {
     if (!ENABLE_LOCATION_REVERSE_GEOCODE) return
     try {
@@ -285,7 +306,45 @@ export default function AddressSelectorPage() {
     }
   }
 
+  useEffect(() => {
+    if (!showAddressForm) return
+    const updateBaseMapHeight = () => {
+      const vh = typeof window !== "undefined" ? window.innerHeight : 800
+      const target = Math.round(vh * 0.45)
+      setBaseMapHeight(Math.max(260, Math.min(420, target)))
+    }
+    updateBaseMapHeight()
+    window.addEventListener("resize", updateBaseMapHeight)
+    return () => window.removeEventListener("resize", updateBaseMapHeight)
+  }, [showAddressForm])
+
+  useEffect(() => {
+    if (!showAddressForm) return
+    setMapCollapseProgress(0)
+    setFormScrollTop(0)
+  }, [showAddressForm])
+
+  useEffect(() => {
+    if (!showAddressForm || typeof window === "undefined" || !window.visualViewport) return
+    const viewport = window.visualViewport
+    const updateKeyboardInset = () => {
+      const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+      setKeyboardInset(inset > 0 ? inset : 0)
+    }
+    updateKeyboardInset()
+    viewport.addEventListener("resize", updateKeyboardInset)
+    viewport.addEventListener("scroll", updateKeyboardInset)
+    return () => {
+      viewport.removeEventListener("resize", updateKeyboardInset)
+      viewport.removeEventListener("scroll", updateKeyboardInset)
+    }
+  }, [showAddressForm])
+
   if (showAddressForm) {
+    const minMapHeight = 120
+    const scrollDrivenProgress = clamp(formScrollTop / 170, 0, 1)
+    const effectiveProgress = Math.max(mapCollapseProgress, scrollDrivenProgress)
+    const mapHeight = Math.round(baseMapHeight - (baseMapHeight - minMapHeight) * effectiveProgress)
     return (
       <AnimatedPage className="fixed inset-0 z-50 bg-white dark:bg-[#0a0a0a] flex flex-col h-screen overflow-hidden">
         <div className="flex-shrink-0 bg-white dark:bg-[#1a1a1a] border-b border-gray-100 dark:border-gray-800 px-4 py-3 flex items-center gap-4">
@@ -295,7 +354,30 @@ export default function AddressSelectorPage() {
           <h1 className="text-lg font-bold">Add delivery location</h1>
         </div>
 
-        <div className="flex-shrink-0 relative h-[45vh] min-h-[300px]">
+        <div
+          className="flex-shrink-0 relative transition-[height] duration-200"
+          style={{ height: `${mapHeight}px` }}
+          onWheel={(e) => {
+            const delta = e.deltaY
+            if (!Number.isFinite(delta) || delta === 0) return
+            setMapCollapseProgress((prev) => clamp(prev + (delta > 0 ? 0.08 : -0.08), 0, 1))
+          }}
+          onTouchStart={(e) => {
+            mapTouchStartYRef.current = e.touches?.[0]?.clientY ?? null
+          }}
+          onTouchMove={(e) => {
+            const currentY = e.touches?.[0]?.clientY
+            const startY = mapTouchStartYRef.current
+            if (!Number.isFinite(currentY) || !Number.isFinite(startY)) return
+            const deltaY = startY - currentY
+            if (Math.abs(deltaY) < 4) return
+            setMapCollapseProgress((prev) => clamp(prev + (deltaY > 0 ? 0.06 : -0.06), 0, 1))
+            mapTouchStartYRef.current = currentY
+          }}
+          onTouchEnd={() => {
+            mapTouchStartYRef.current = null
+          }}
+        >
           {/* Autocomplete Search Box Over Map */}
           <div className="absolute top-4 left-4 right-4 z-20">
             <div className="relative group shadow-2xl">
@@ -393,7 +475,16 @@ export default function AddressSelectorPage() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-24">
+        <div
+          ref={formBodyRef}
+          onScroll={(e) => {
+            const top = e.currentTarget.scrollTop
+            setFormScrollTop(top)
+            setMapCollapseProgress(clamp(top / 170, 0, 1))
+          }}
+          className="flex-1 overflow-y-auto p-4 space-y-6"
+          style={{ paddingBottom: `${96 + keyboardInset}px` }}
+        >
           <div className="bg-orange-50/50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/20 rounded-xl p-4 flex gap-3">
              <MapPin className="h-5 w-5 text-[#EB590E] mt-0.5" />
              <div className="min-w-0">
@@ -408,6 +499,8 @@ export default function AddressSelectorPage() {
               placeholder="Search or drag to update street/area" 
               value={addressFormData.street} 
               onChange={e => setAddressFormData({...addressFormData, street: e.target.value})}
+              onFocus={() => scrollFieldIntoView("street")}
+              ref={(el) => { manualFieldRefs.current.street = el }}
               className="mb-4 h-12 rounded-xl bg-gray-50 dark:bg-gray-800/50"
               required
             />
@@ -417,6 +510,8 @@ export default function AddressSelectorPage() {
               placeholder="E.g. Flat 402, 4th Floor, AppZeto Building" 
               value={addressFormData.additionalDetails} 
               onChange={e => setAddressFormData({...addressFormData, additionalDetails: e.target.value})}
+              onFocus={() => scrollFieldIntoView("additionalDetails")}
+              ref={(el) => { manualFieldRefs.current.additionalDetails = el }}
               className="h-12 rounded-xl border-orange-200 dark:border-orange-900/40 focus:ring-orange-500"
             />
           </div>
@@ -427,6 +522,8 @@ export default function AddressSelectorPage() {
               <Input 
                 value={addressFormData.city} 
                 onChange={e => setAddressFormData({...addressFormData, city: e.target.value})} 
+                onFocus={() => scrollFieldIntoView("city")}
+                ref={(el) => { manualFieldRefs.current.city = el }}
                 className="h-12 rounded-xl"
                 required 
               />
@@ -436,6 +533,8 @@ export default function AddressSelectorPage() {
               <Input 
                 value={addressFormData.state} 
                 onChange={e => setAddressFormData({...addressFormData, state: e.target.value})} 
+                onFocus={() => scrollFieldIntoView("state")}
+                ref={(el) => { manualFieldRefs.current.state = el }}
                 className="h-12 rounded-xl"
                 required 
               />
@@ -448,6 +547,8 @@ export default function AddressSelectorPage() {
               placeholder="Pincode" 
               value={addressFormData.zipCode || ""} 
               onChange={e => setAddressFormData({...addressFormData, zipCode: e.target.value})} 
+              onFocus={() => scrollFieldIntoView("zipCode")}
+              ref={(el) => { manualFieldRefs.current.zipCode = el }}
               className="h-12 rounded-xl"
             />
           </div>
@@ -470,7 +571,10 @@ export default function AddressSelectorPage() {
           </div>
         </div>
 
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white dark:bg-[#1a1a1a] border-t dark:border-gray-800">
+        <div
+          className="fixed left-0 right-0 p-4 bg-white dark:bg-[#1a1a1a] border-t dark:border-gray-800 transition-[bottom] duration-150"
+          style={{ bottom: `${keyboardInset}px` }}
+        >
           <Button 
             className="w-full h-12 text-white font-bold text-lg" 
             style={{backgroundColor: '#EB590E'}}

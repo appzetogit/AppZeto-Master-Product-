@@ -1,5 +1,5 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom"
-import { useEffect, useState, createContext, useContext, lazy, Suspense } from "react"
+import { useEffect, useState, createContext, useContext } from "react"
 import { ProfileProvider } from "@food/context/ProfileContext"
 import LocationPrompt from "./LocationPrompt"
 import { CartProvider } from "@food/context/CartContext"
@@ -8,8 +8,7 @@ const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
-// Lazy load overlays to reduce initial bundle size
-const SearchOverlay = lazy(() => import("./SearchOverlay"))
+import SearchOverlay from "./SearchOverlay"
 import BottomNavigation from "./BottomNavigation"
 import DesktopNavbar from "./DesktopNavbar"
 import { useUserNotifications } from "../../hooks/useUserNotifications"
@@ -49,16 +48,14 @@ function SearchOverlayProvider({ children }) {
   return (
     <SearchOverlayContext.Provider value={{ isSearchOpen, searchValue, setSearchValue, openSearch, closeSearch }}>
       {children}
-      <Suspense fallback={null}>
-        {isSearchOpen && (
-          <SearchOverlay
-            isOpen={isSearchOpen}
-            onClose={closeSearch}
-            searchValue={searchValue}
-            onSearchChange={setSearchValue}
-          />
-        )}
-      </Suspense>
+      {isSearchOpen && (
+        <SearchOverlay
+          isOpen={isSearchOpen}
+          onClose={closeSearch}
+          searchValue={searchValue}
+          onSearchChange={setSearchValue}
+        />
+      )}
     </SearchOverlayContext.Provider>
   )
 }
@@ -120,20 +117,22 @@ export default function UserLayout() {
   const path = location.pathname.startsWith("/food")
     ? location.pathname.substring(5) || "/"
     : location.pathname
+  const normalizedPath =
+    path.length > 1 ? path.replace(/\/+$/, "") : path
 
-  const showBottomNav = path === "/" ||
-    path === "/user" ||
-    path === "/dining" ||
-    path === "/user/dining" ||
-    path === "/under-250" ||
-    path === "/user/under-250" ||
-    path === "/profile" ||
-    path.startsWith("/profile") ||
-    path === "/user/profile" ||
-    path.startsWith("/user/profile") ||
-    path === "" // Handle empty string case for root relative to /food
+  const showBottomNav = normalizedPath === "/" ||
+    normalizedPath === "/user" ||
+    normalizedPath === "/dining" ||
+    normalizedPath === "/user/dining" ||
+    normalizedPath === "/under-250" ||
+    normalizedPath === "/user/under-250" ||
+    normalizedPath === "/profile" ||
+    normalizedPath.startsWith("/profile") ||
+    normalizedPath === "/user/profile" ||
+    normalizedPath.startsWith("/user/profile") ||
+    normalizedPath === "" // Handle empty string case for root relative to /food
 
-  const isUnder250 = path === "/under-250" || path === "/user/under-250"
+  const isUnder250 = normalizedPath === "/under-250" || normalizedPath === "/user/under-250"
 
   return (
     <div className="min-h-screen bg-[#f5f5f5] dark:bg-[#0a0a0a] transition-colors duration-200">

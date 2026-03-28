@@ -76,6 +76,7 @@ export default function Profile() {
   // Popup states
   const [vegModeOpen, setVegModeOpen] = useState(false);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [referralReward, setReferralReward] = useState(0);
   const [walletBalance, setWalletBalance] = useState(0);
@@ -396,6 +397,11 @@ export default function Profile() {
     } finally {
       setIsLoggingOut(false);
     }
+  };
+
+  const handleLogoutClick = () => {
+    if (isLoggingOut) return;
+    setLogoutConfirmOpen(true);
   };
 
   return (
@@ -911,7 +917,7 @@ export default function Profile() {
               transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
               <Card
                 className="bg-white dark:bg-[#1a1a1a] py-0 rounded-xl shadow-sm border-0 dark:border-gray-800 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                onClick={handleLogout}>
+                onClick={handleLogoutClick}>
                 <CardContent className="p-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <motion.div
@@ -1006,6 +1012,42 @@ export default function Profile() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Logout Confirmation Popup */}
+      {logoutConfirmOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#1a1a1a] p-5 shadow-2xl border border-gray-200 dark:border-gray-800">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+              Log out?
+            </h3>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Are you sure you want to log out?
+            </p>
+            <div className="mt-5 flex items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1 rounded-xl"
+                onClick={() => setLogoutConfirmOpen(false)}
+                disabled={isLoggingOut}
+              >
+                No
+              </Button>
+              <Button
+                type="button"
+                className="flex-1 rounded-xl bg-[#CB202D] hover:bg-[#b01c27] text-white"
+                onClick={() => {
+                  setLogoutConfirmOpen(false);
+                  handleLogout();
+                }}
+                disabled={isLoggingOut}
+              >
+                Yes
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Appearance Popup */}
       <Dialog open={appearanceOpen} onOpenChange={setAppearanceOpen}>

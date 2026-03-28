@@ -49,6 +49,8 @@ export const ProfileDetailsV2 = () => {
   const [isUploadingImage, setIsUploadingImage] = useState(false)
   const fileInputRef = useRef(null)
   const [uploadTarget, setUploadTarget] = useState(null) // 'profilePhoto' only for instant picker
+  const [showDeletePopup, setShowDeletePopup] = useState(false)
+  const [isDeletingImage, setIsDeletingImage] = useState(false)
   const drivingLicenseInputRef = useRef(null)
 
   // Fetch profile data
@@ -203,6 +205,25 @@ export const ProfileDetailsV2 = () => {
     }
   }
 
+  const handleDeletePhoto = async () => {
+    try {
+      setIsDeletingImage(true)
+      const response = await deliveryAPI.updateProfileDetails({ profilePhoto: "" })
+      // Backend might return different structures; check for success
+      if (response?.status === 200) {
+        toast.success("Profile photo removed")
+        await refreshProfile()
+        setShowDeletePopup(false)
+      } else {
+        toast.error("Failed to remove photo")
+      }
+    } catch (error) {
+       toast.error(error?.response?.data?.message || "Delete failed")
+    } finally {
+      setIsDeletingImage(false)
+    }
+  }
+
   const handleUpiQrSelected = (e) => {
     const file = e.target.files?.[0]
     if (file) {
@@ -332,12 +353,24 @@ export const ProfileDetailsV2 = () => {
                 </div>
               )}
            </div>
-           <button 
-             onClick={() => openPicker("profilePhoto")}
-             className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 bg-black text-white p-3 rounded-2xl shadow-xl hover:bg-gray-900 transition-all active:scale-90 border-4 border-white"
-           >
-             <Camera className="w-5 h-5" />
-           </button>
+           
+           <div className="flex items-center justify-center absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 gap-3">
+              <button 
+                onClick={() => openPicker("profilePhoto")}
+                className="bg-black text-white p-3 rounded-2xl shadow-xl hover:bg-gray-900 transition-all active:scale-90 border-4 border-white"
+              >
+                <Camera className="w-5 h-5" />
+              </button>
+              
+              {profileImageUrl && (
+                <button 
+                  onClick={() => setShowDeletePopup(true)}
+                  className="bg-red-500 text-white p-3 rounded-2xl shadow-xl hover:bg-red-600 transition-all active:scale-90 border-4 border-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              )}
+           </div>
         </div>
 
         <div className="text-center pt-6">
@@ -514,10 +547,49 @@ export const ProfileDetailsV2 = () => {
         </section>
       </div>
 
-      <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelected} />
+      <input 
+        ref={fileInputRef} 
+        type="file" 
+        accept="image/*" 
+        className="hidden" 
+        onChange={handleFileSelected} 
+        style={{ display: 'none' }}
+      />
 
       {/* ─── MODALS ─── */}
       
+      {/* Delete Confirmation Popup */}
+      <BottomPopup 
+        isOpen={showDeletePopup} 
+        onClose={() => setShowDeletePopup(false)} 
+        title="Remove Photo?"
+        showCloseButton={false}
+      >
+         <div className="pb-10 pt-4 text-center">
+            <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                <AlertCircle className="w-10 h-10 text-red-500" />
+            </div>
+            <h3 className="text-xl font-black text-gray-950 mb-2 uppercase tracking-tight">Are you sure?</h3>
+            <p className="text-sm font-medium text-gray-500 mb-8 max-w-[200px] mx-auto">This will remove your current profile picture.</p>
+            
+            <div className="grid grid-cols-2 gap-3 px-2">
+                <button 
+                  onClick={() => setShowDeletePopup(false)}
+                  className="bg-gray-100 text-gray-500 py-4 rounded-2xl font-black uppercase tracking-widest text-[11px] active:scale-95"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleDeletePhoto}
+                  disabled={isDeletingImage}
+                  className="bg-red-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-red-500/20 active:scale-95 flex items-center justify-center gap-2"
+                >
+                  {isDeletingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : "Yes, Remove"}
+                </button>
+            </div>
+         </div>
+      </BottomPopup>
+
       {/* Vehicle Popup */}
       <BottomPopup isOpen={showVehiclePopup} onClose={() => setShowVehiclePopup(false)} title="Vehicle Info" closeOnHandleClick={true} showCloseButton={false}>
          <div className="space-y-4 pb-10">

@@ -24,8 +24,10 @@ export default function RestaurantOTP() {
   const [authData, setAuthData] = useState(null)
   const [contactInfo, setContactInfo] = useState("") 
   const [focusedIndex, setFocusedIndex] = useState(null)
+  const [keyboardOffset, setKeyboardOffset] = useState(0)
   const inputRefs = useRef([])
   const hasSubmittedRef = useRef(false)
+  const otpSectionRef = useRef(null)
 
   useEffect(() => {
     const stored = sessionStorage.getItem("restaurantAuthData")
@@ -68,6 +70,53 @@ export default function RestaurantOTP() {
       inputRefs.current[0].focus()
     }
   }, [])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const viewport = window.visualViewport
+    if (!viewport) return
+
+    const updateKeyboardState = () => {
+      const keyboardHeight = Math.max(0, window.innerHeight - viewport.height)
+      setKeyboardOffset(keyboardHeight > 120 ? keyboardHeight : 0)
+    }
+
+    updateKeyboardState()
+    viewport.addEventListener("resize", updateKeyboardState)
+    viewport.addEventListener("scroll", updateKeyboardState)
+
+    return () => {
+      viewport.removeEventListener("resize", updateKeyboardState)
+      viewport.removeEventListener("scroll", updateKeyboardState)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (focusedIndex == null) return
+
+    const targetInput = inputRefs.current[focusedIndex]
+    if (!targetInput) return
+
+    const id = window.setTimeout(() => {
+      try {
+        targetInput.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+          inline: "nearest",
+        })
+        otpSectionRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+          inline: "nearest",
+        })
+      } catch {
+        // no-op
+      }
+    }, 120)
+
+    return () => window.clearTimeout(id)
+  }, [focusedIndex, keyboardOffset])
 
   const handleChange = (index, value) => {
     if (value && !/^\d$/.test(value)) {
@@ -289,9 +338,12 @@ export default function RestaurantOTP() {
   }
 
   return (
-    <div className="min-h-screen bg-white flex flex-col font-sans">
+    <div
+      className={`h-[100dvh] bg-white flex flex-col font-sans ${keyboardOffset > 0 ? "overflow-y-auto overflow-x-hidden" : "overflow-hidden"}`}
+      style={keyboardOffset > 0 ? { paddingBottom: `${Math.min(keyboardOffset, 360)}px` } : undefined}
+    >
       {/* Curved Header Background */}
-      <div className="relative h-[300px] w-full bg-[#ef4f5f] overflow-hidden">
+      <div className="relative h-[240px] sm:h-[300px] w-full bg-[#ef4f5f] overflow-hidden">
         {/* Abstract Circles like in the image */}
         <div className="absolute -top-10 -left-10 w-48 h-48 rounded-full bg-white/10" />
         <div className="absolute top-20 -right-10 w-64 h-64 rounded-full bg-white/10" />
@@ -303,15 +355,15 @@ export default function RestaurantOTP() {
         {/* Back Button */}
         <button
           onClick={() => navigate("/food/restaurant/login")}
-          className="absolute top-12 left-8 p-3 bg-white shadow-xl rounded-full text-[#ef4f5f] hover:scale-110 active:scale-95 transition-all"
+          className="absolute top-10 sm:top-12 left-6 sm:left-8 p-2.5 sm:p-3 bg-white shadow-xl rounded-full text-[#ef4f5f] hover:scale-110 active:scale-95 transition-all"
         >
-          <ArrowLeft className="w-5 h-5" />
+          <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
       </div>
 
-      <div className="flex-1 flex flex-col items-center px-8 -mt-16 z-10">
+      <div className="flex-1 flex flex-col items-center px-4 sm:px-8 -mt-12 sm:-mt-16 z-10 overflow-hidden">
         {/* Central Logo / Branding */}
-        <div className="w-32 h-32 bg-white rounded-full shadow-xl flex items-center justify-center border-4 border-slate-50 mb-6 overflow-hidden">
+        <div className="w-28 h-28 sm:w-32 sm:h-32 bg-white rounded-full shadow-xl flex items-center justify-center border-4 border-slate-50 mb-4 sm:mb-6 overflow-hidden">
           <div className="text-center">
              <div className="w-16 h-16 bg-[#ef4f5f] rounded-2xl mx-auto flex items-center justify-center transform rotate-12 shadow-lg mb-1">
                 <ShieldCheck className="w-8 h-8 text-white -rotate-12" />
@@ -319,8 +371,8 @@ export default function RestaurantOTP() {
           </div>
         </div>
 
-        <div className="text-center space-y-2 mb-10">
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight lowercase">
+        <div className="text-center space-y-1.5 sm:space-y-2 mb-6 sm:mb-10">
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight lowercase">
             verify otp
           </h2>
           <p className="text-slate-400 text-xs font-bold uppercase tracking-widest leading-relaxed">
@@ -328,9 +380,9 @@ export default function RestaurantOTP() {
           </p>
         </div>
 
-        <div className="w-full max-w-[400px] space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="space-y-8">
-            <div className="flex justify-center gap-4">
+        <div className="w-full max-w-[400px] flex-1 flex flex-col justify-between animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="space-y-6">
+            <div ref={otpSectionRef} className="flex justify-center gap-4">
               {otp.map((digit, index) => (
                 <input
                   key={index}
@@ -345,7 +397,7 @@ export default function RestaurantOTP() {
                   onFocus={() => setFocusedIndex(index)}
                   onBlur={() => setFocusedIndex(null)}
                   disabled={isLoading}
-                  className={`w-14 h-16 bg-slate-50 border-2 rounded-2xl text-center text-2xl font-black text-slate-900 focus:outline-none transition-all duration-300 ${
+                  className={`w-12 h-14 sm:w-14 sm:h-16 bg-slate-50 border-2 rounded-2xl text-center text-2xl font-black text-slate-900 focus:outline-none transition-all duration-300 ${
                     error 
                       ? "border-red-500 bg-red-50" 
                       : focusedIndex === index 
@@ -362,11 +414,11 @@ export default function RestaurantOTP() {
               </p>
             )}
 
-            <div className="space-y-4">
+            <div className="space-y-3">
               <Button
                 onClick={() => handleVerify()}
                 disabled={isLoading || !isOtpComplete}
-                className={`w-full h-16 rounded-[32px] font-black text-lg tracking-widest uppercase shadow-lg transition-all duration-300 ${
+                className={`w-full h-14 sm:h-16 rounded-[32px] font-black text-base sm:text-lg tracking-widest uppercase shadow-lg transition-all duration-300 ${
                   isOtpComplete && !isLoading
                     ? "bg-[#ef4f5f] hover:bg-[#d63a4a] text-white shadow-[#ef4f5f]/20 transform active:scale-[0.98]"
                     : "bg-slate-100 text-slate-300 cursor-not-allowed"
@@ -375,7 +427,7 @@ export default function RestaurantOTP() {
                 {isLoading ? "Verifying..." : "Verify Code"}
               </Button>
 
-              <div className="flex flex-col items-center gap-6">
+              <div className="flex flex-col items-center gap-4">
                 {resendTimer > 0 ? (
                   <div className="flex items-center gap-2 text-slate-400 text-xs font-black tracking-widest uppercase">
                     <Timer className="w-4 h-4 text-[#ef4f5f]" />
@@ -397,7 +449,7 @@ export default function RestaurantOTP() {
         </div>
       </div>
 
-      <div className="pb-8 text-center mt-auto">
+      <div className="py-3 text-center">
           <p className="text-[10px] font-black text-slate-300 tracking-[0.2em] uppercase">
             SECURE VERIFICATION SYSTEM &bull; {companyName.toUpperCase()}
           </p>

@@ -43,42 +43,7 @@ export default function ReviewsPage() {
     }
   }, [])
 
-  // Reviews data matching the image
-  const reviews = [
-    {
-      id: 1,
-      orderId: "100113",
-      date: "01 Jun 2023",
-      time: "16:55 PM",
-      productName: "Meat Pizza",
-      productImage: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=200&h=200&fit=crop",
-      reviewerName: "Purno Test",
-      phoneNumber: "+8801629889679",
-      hasReply: false
-    },
-    {
-      id: 2,
-      orderId: "100080",
-      date: "02 Jan 2023",
-      time: "21:35 PM",
-      productName: "Meat Pizza",
-      productImage: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=200&h=200&fit=crop",
-      reviewerName: "Jane Doe",
-      phoneNumber: "+8801624343926",
-      hasReply: true
-    },
-    {
-      id: 3,
-      orderId: "100008",
-      date: "22 Aug 2021",
-      time: "03:46 AM",
-      productName: "Meat Pizza",
-      productImage: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=200&h=200&fit=crop",
-      reviewerName: "John Smith",
-      phoneNumber: "+8801621234567",
-      hasReply: true
-    }
-  ]
+  const reviews = []
 
   // Filter reviews based on search
   const filteredReviews = reviews.filter(review => {

@@ -23,8 +23,9 @@ export default function EditAdvertisementPage() {
   const { id } = useParams()
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false)
   const [showValidityPicker, setShowValidityPicker] = useState(false)
+  const [adData, setAdData] = useState(null)
   const [formData, setFormData] = useState({
-    category: "Video Promotion",
+    category: "",
     validity: "",
     title: "",
     description: "",
@@ -38,36 +39,16 @@ export default function EditAdvertisementPage() {
 
   // Load ad data on mount
   useEffect(() => {
-    // Mock ad data - In real app, fetch from API using id
-    const adData = {
-      id: id || "1000003",
-      category: "Video Promotion",
-      validity: "2025-07-16",
-      title: "Taste the Flavor! Food Fest Extravaganza!",
-      description: "Indulge in culinary delights at our Food Fest Extravaganza! From gourmet dishes to savory snacks, satisfy your cravings with irresistible flavors. Join us for a feast you won't forget!",
-      fileDescription: "Delicious food festival promotion",
-      videoDescription: "",
-      profileImage: "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=400&h=400&fit=crop",
-      coverImage: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800&h=400&fit=crop"
-    }
-    
-    // In real app, fetch ad data from API
+    setAdData(null)
     setFormData({
-      category: adData.category,
-      validity: adData.validity,
-      title: adData.title,
-      description: adData.description,
-      fileDescription: adData.fileDescription,
-      videoDescription: adData.videoDescription || ""
+      category: "",
+      validity: "",
+      title: "",
+      description: "",
+      fileDescription: "",
+      videoDescription: ""
     })
   }, [id])
-
-  // Mock ad data for display - In real app, this would come from state/API
-  const adData = {
-    id: id || "1000003",
-    profileImage: "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=400&h=400&fit=crop",
-    coverImage: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800&h=400&fit=crop"
-  }
 
   // Lenis smooth scrolling
   useEffect(() => {
@@ -148,6 +129,16 @@ export default function EditAdvertisementPage() {
 
       {/* Main Content */}
       <div className="px-4 py-4 space-y-4">
+        {!adData && (
+          <Card className="bg-white shadow-sm border border-gray-100">
+            <CardContent className="p-6 text-center">
+              <p className="text-gray-900 font-semibold">Advertisement unavailable</p>
+              <p className="text-sm text-gray-600 mt-2">
+                This advertisement can&apos;t be edited because no real data was loaded.
+              </p>
+            </CardContent>
+          </Card>
+        )}
         {/* Category Info Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -290,7 +281,7 @@ export default function EditAdvertisementPage() {
                     <div className="text-center">
                       <p className="text-sm text-gray-700">{uploadedFile.name}</p>
                     </div>
-                  ) : adData.profileImage ? (
+                  ) : adData?.profileImage ? (
                     <div className="text-center">
                       <img 
                         src={adData.profileImage} 
@@ -362,7 +353,7 @@ export default function EditAdvertisementPage() {
                         <p className="text-sm text-gray-700 mb-2">{uploadedVideo.name}</p>
                         <p className="text-xs text-gray-500">{(uploadedVideo.size / (1024 * 1024)).toFixed(2)} MB</p>
                       </div>
-                    ) : adData.coverImage ? (
+                    ) : adData?.coverImage ? (
                       <div>
                         <img 
                           src={adData.coverImage} 
@@ -402,19 +393,18 @@ export default function EditAdvertisementPage() {
         <div className="flex gap-3">
           <Button
             onClick={() => {
-              // Reset to original data - In real app, reload from API
-              const originalData = {
-                category: "Video Promotion",
-                validity: "2025-07-16",
-                title: "Taste the Flavor! Food Fest Extravaganza!",
-                description: "Indulge in culinary delights at our Food Fest Extravaganza! From gourmet dishes to savory snacks, satisfy your cravings with irresistible flavors. Join us for a feast you won't forget!",
-                fileDescription: "Delicious food festival promotion",
+              setFormData({
+                category: "",
+                validity: "",
+                title: "",
+                description: "",
+                fileDescription: "",
                 videoDescription: ""
-              }
-              setFormData(originalData)
+              })
               setUploadedFile(null)
               setUploadedVideo(null)
             }}
+            disabled={!adData}
             variant="outline"
             className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 rounded-lg border-0"
           >
@@ -426,6 +416,7 @@ export default function EditAdvertisementPage() {
               // Navigate to advertisements list after update
               navigate("/restaurant/advertisements")
             }}
+            disabled={!adData}
             className="flex-1 bg-[#ff8100] hover:bg-[#e67300] text-white font-semibold py-3 rounded-lg"
           >
             Update Ads

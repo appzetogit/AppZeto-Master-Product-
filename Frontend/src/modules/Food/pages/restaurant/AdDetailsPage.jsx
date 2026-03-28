@@ -39,23 +39,7 @@ export default function AdDetailsPage() {
     }
   }, [])
 
-  // Ad data matching the image
-  const adData = {
-    id: id || "1000003",
-    status: "Running",
-    adsCreated: "3 Jul, 2024 11:50 AM",
-    duration: {
-      start: "16 Jul, 2025",
-      end: "05 Mar, 2028"
-    },
-    adsDetails: "Restaurant Promotion",
-    paymentStatus: "Unpaid",
-    title: "Taste the Flavor! Food Fest Extravaganza!",
-    description: "Indulge in culinary delights at our Food Fest Extravaganza! From gourmet dishes to savory snacks, satisfy your cravings with irresistible flavors. Join us for a feast you won't forget!",
-    pauseNote: "hhh",
-    profileImage: "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=400&h=400&fit=crop",
-    coverImage: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800&h=400&fit=crop"
-  }
+  const adData = null
 
   return (
     <div className="min-h-screen bg-[#f6e9dc] overflow-x-hidden pb-24 md:pb-6">
@@ -72,6 +56,19 @@ export default function AdDetailsPage() {
 
       {/* Main Content */}
       <div className="px-4 py-4 space-y-4">
+        {!adData && (
+          <Card className="bg-white shadow-sm border border-gray-100">
+            <CardContent className="p-6 text-center">
+              <p className="text-gray-900 font-semibold">Advertisement unavailable</p>
+              <p className="text-sm text-gray-600 mt-2">
+                No real advertisement data was found for ID {id || "unknown"}.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {adData && (
+          <>
         {/* Ad ID and Status Card */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -218,14 +215,19 @@ export default function AdDetailsPage() {
             </CardContent>
           </Card>
         </motion.div>
+          </>
+        )}
       </div>
 
       {/* Edit Ads Button - Fixed at Bottom */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-4 z-50 md:relative md:border-t-0 md:px-4 md:py-4 md:mt-6">
         <Button
           onClick={() => {
-            navigate(`/restaurant/advertisements/${adData.id}/edit`)
+            if (adData?.id) {
+              navigate(`/restaurant/advertisements/${adData.id}/edit`)
+            }
           }}
+          disabled={!adData}
           className="w-full bg-[#ff8100] hover:bg-[#e67300] text-white font-semibold py-3 rounded-lg flex items-center justify-center gap-2"
         >
           <Edit className="w-5 h-5" />

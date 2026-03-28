@@ -1,5 +1,5 @@
 import { sendResponse } from '../../../../utils/response.js';
-import { getUserReferralStats } from '../services/userReferral.service.js';
+import { getUserReferralDetails, getUserReferralStats } from '../services/userReferral.service.js';
 
 export const getUserReferralStatsController = async (req, res, next) => {
     try {
@@ -11,3 +11,12 @@ export const getUserReferralStatsController = async (req, res, next) => {
     }
 };
 
+export const getUserReferralDetailsController = async (req, res, next) => {
+    try {
+        const userId = req.user?.userId;
+        const details = await getUserReferralDetails(userId);
+        return sendResponse(res, 200, 'Referral details fetched successfully', details);
+    } catch (error) {
+        next(error);
+    }
+};

@@ -66,39 +66,7 @@ export default function AdvertisementsPage() {
     }
   }, [])
 
-  // Advertisement data matching the image
-  const advertisements = [
-    {
-      id: "1000000",
-      status: "Running",
-      type: "Restaurant Promotion",
-      adsPlaced: "03 Jul, 2024",
-      duration: {
-        start: "16 Jul 2025",
-        end: "13 Jun 2028"
-      }
-    },
-    {
-      id: "1000003",
-      status: "Running",
-      type: "Restaurant Promotion",
-      adsPlaced: "03 Jul, 2024",
-      duration: {
-        start: "16 Jul 2025",
-        end: "05 Mar 2028"
-      }
-    },
-    {
-      id: "1000005",
-      status: "Pending",
-      type: "Video Promotion",
-      adsPlaced: "03 Jul, 2024",
-      duration: {
-        start: "03 Jul 2024",
-        end: "13 Jul 2024"
-      }
-    }
-  ]
+  const advertisements = []
 
   // Filter counts
   const filterCounts = {

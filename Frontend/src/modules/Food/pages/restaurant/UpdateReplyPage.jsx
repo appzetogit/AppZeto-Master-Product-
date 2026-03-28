@@ -18,7 +18,7 @@ const debugError = (...args) => {}
 export default function UpdateReplyPage() {
   const navigate = useNavigate()
   const { id } = useParams()
-  const [replyText, setReplyText] = useState("Thanks.")
+  const [replyText, setReplyText] = useState("")
 
   // Lenis smooth scrolling
   useEffect(() => {
@@ -40,24 +40,14 @@ export default function UpdateReplyPage() {
     }
   }, [])
 
-  // Mock review data - In real app, fetch from API using id
-  const reviewData = {
-    id: id || "1",
-    orderId: "100080",
-    productName: "Meat Pizza",
-    productImage: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&h=400&fit=crop",
-    rating: 5,
-    reviewerName: "Jane Doe",
-    reviewText: "Pizza packaging and test was so good...",
-    currentReply: "Thanks."
-  }
+  const reviewData = null
 
   // Load existing reply if editing
   useEffect(() => {
-    if (reviewData.currentReply) {
+    if (reviewData?.currentReply) {
       setReplyText(reviewData.currentReply)
     }
-  }, [id])
+  }, [id, reviewData])
 
   return (
     <div className="min-h-screen bg-[#f6e9dc] overflow-x-hidden pb-24 md:pb-6">
@@ -74,7 +64,18 @@ export default function UpdateReplyPage() {
 
       {/* Main Content */}
       <div className="px-4 py-4 space-y-4">
+        {!reviewData && (
+          <Card className="bg-white shadow-sm border border-gray-100">
+            <CardContent className="p-6 text-center">
+              <p className="text-gray-900 font-semibold">Review unavailable</p>
+              <p className="text-sm text-gray-600 mt-2">
+                No real review data was found for ID {id || "unknown"}.
+              </p>
+            </CardContent>
+          </Card>
+        )}
         {/* Product Review Section */}
+        {reviewData && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -134,6 +135,7 @@ export default function UpdateReplyPage() {
             </CardContent>
           </Card>
         </motion.div>
+        )}
 
         {/* Reply Input Section */}
         <motion.div
@@ -147,6 +149,7 @@ export default function UpdateReplyPage() {
                 value={replyText}
                 onChange={(e) => setReplyText(e.target.value)}
                 placeholder="Write your reply..."
+                disabled={!reviewData}
                 className="w-full min-h-[120px] bg-orange-50 border-orange-200 text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-[#ff8100] focus:border-[#ff8100] resize-none"
                 rows={5}
               />
@@ -163,6 +166,7 @@ export default function UpdateReplyPage() {
             // Navigate back to reviews list after update
             navigate("/restaurant/reviews")
           }}
+          disabled={!reviewData}
           className="w-full bg-[#ff8100] hover:bg-[#e67300] text-white font-semibold py-3 rounded-lg"
         >
           Update Review

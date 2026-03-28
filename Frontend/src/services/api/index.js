@@ -1951,6 +1951,9 @@ export const userAPI = {
   /** GET /food/user/referrals/stats (Bearer USER) */
   getReferralStats: () =>
     apiClient.get("/food/user/referrals/stats", { contextModule: "user" }),
+  /** GET /food/user/referrals/details (Bearer USER) */
+  getReferralDetails: () =>
+    apiClient.get("/food/user/referrals/details", { contextModule: "user" }),
   /** POST /food/user/wallet/topup/order (Bearer USER). Body: { amount } */
   createWalletTopupOrder: (amount) =>
     apiClient.post(

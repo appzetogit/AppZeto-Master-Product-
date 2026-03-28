@@ -1597,7 +1597,21 @@ export default function Home() {
                 return aAvailable ? -1 : 1; // Available restaurants come first
               }
 
-              // If both have same availability, sort by distance
+              // Apply secondary sort based on sortBy filter
+              if (filters.sortBy === "price-low") {
+                return (a.featuredPrice || 0) - (b.featuredPrice || 0);
+              }
+              if (filters.sortBy === "price-high") {
+                return (b.featuredPrice || 0) - (a.featuredPrice || 0);
+              }
+              if (filters.sortBy === "rating-high") {
+                return (b.rating || 0) - (a.rating || 0);
+              }
+              if (filters.sortBy === "rating-low") {
+                return (a.rating || 0) - (b.rating || 0);
+              }
+
+              // Default: sort by distance
               const aDistance =
                 a.distanceInKm !== null ? a.distanceInKm : Infinity;
               const bDistance =
@@ -1983,133 +1997,12 @@ export default function Home() {
     [vegMode],
   );
 
-  // Filter restaurants and foods based on active filters
+    // Filter restaurants and foods based on active filters
   const filteredRestaurants = useMemo(() => {
-    // Use only API data - no mock data fallback
-    let filtered = [...restaurantsData];
-
-    filtered = filtered.filter(matchesVegMode);
-
-    // Apply filters
-    if (activeFilters.has("price-under-200")) {
-      filtered = filtered.filter(
-        (r) => r.priceRange === "$" || r.priceRange === "$$",
-      );
-    }
-    if (activeFilters.has("price-under-500")) {
-      filtered = filtered.filter((r) => r.priceRange !== "$$$");
-    }
-    if (activeFilters.has("delivery-under-30")) {
-      filtered = filtered.filter((r) => {
-        const timeMatch = r.deliveryTime.match(/(\d+)/);
-        return timeMatch && parseInt(timeMatch[1]) <= 30;
-      });
-    }
-    if (activeFilters.has("delivery-under-45")) {
-      filtered = filtered.filter((r) => {
-        const timeMatch = r.deliveryTime.match(/(\d+)/);
-        return timeMatch && parseInt(timeMatch[1]) <= 45;
-      });
-    }
-    if (activeFilters.has("rating-35-plus")) {
-      filtered = filtered.filter((r) => r.rating >= 3.5);
-    }
-    if (activeFilters.has("rating-4-plus")) {
-      filtered = filtered.filter((r) => r.rating >= 4.0);
-    }
-    if (activeFilters.has("rating-45-plus")) {
-      filtered = filtered.filter((r) => r.rating >= 4.5);
-    }
-    if (activeFilters.has("distance-under-1km")) {
-      filtered = filtered.filter((r) => {
-        const distMatch = r.distance.match(/(\d+\.?\d*)/);
-        return distMatch && parseFloat(distMatch[1]) <= 1.0;
-      });
-    }
-    if (activeFilters.has("distance-under-2km")) {
-      filtered = filtered.filter((r) => {
-        const distMatch = r.distance.match(/(\d+\.?\d*)/);
-        return distMatch && parseFloat(distMatch[1]) <= 2.0;
-      });
-    }
-    if (activeFilters.has("delivery-under-45")) {
-      filtered = filtered.filter((r) => {
-        const timeMatch = r.deliveryTime.match(/(\d+)/);
-        return timeMatch && parseInt(timeMatch[1]) <= 45;
-      });
-    }
-    if (activeFilters.has("top-rated")) {
-      filtered = filtered.filter((r) => r.rating >= 4.5);
-    }
-    if (activeFilters.has("trusted")) {
-      filtered = filtered.filter((r) => r.rating >= 4.0);
-    }
-    if (activeFilters.has("has-offers")) {
-      filtered = filtered.filter((r) => r.offer && r.offer.length > 0);
-    }
-    if (selectedCuisine) {
-      filtered = filtered.filter((r) => r.cuisine === selectedCuisine);
-    }
-
-    // Apply sorting
-    if (sortBy === "price-low") {
-      filtered.sort((a, b) => {
-        const aPrice = a.priceRange === "$" ? 1 : a.priceRange === "$$" ? 2 : 3;
-        const bPrice = b.priceRange === "$" ? 1 : b.priceRange === "$$" ? 2 : 3;
-        return aPrice - bPrice;
-      });
-    } else if (sortBy === "price-high") {
-      filtered.sort((a, b) => {
-        const aPrice = a.priceRange === "$" ? 1 : a.priceRange === "$$" ? 2 : 3;
-        const bPrice = b.priceRange === "$" ? 1 : b.priceRange === "$$" ? 2 : 3;
-        return bPrice - aPrice;
-      });
-    } else if (sortBy === "rating-high") {
-      filtered.sort((a, b) => b.rating - a.rating);
-    } else if (sortBy === "rating-low") {
-      filtered.sort((a, b) => a.rating - b.rating);
-    } else {
-      // Default sorting: Available restaurants first, then by distance (nearby first)
-      // This ensures all restaurants in zone are shown, but nearby ones appear first
-      filtered.sort((a, b) => {
-        // Available restaurants first, then unavailable
-        const aAvailable = getRestaurantAvailabilityStatus(
-          a,
-          new Date(availabilityTick),
-          { ignoreOperationalStatus: true },
-        ).isOpen;
-        const bAvailable = getRestaurantAvailabilityStatus(
-          b,
-          new Date(availabilityTick),
-          { ignoreOperationalStatus: true },
-        ).isOpen;
-
-        if (aAvailable !== bAvailable) {
-          return aAvailable ? -1 : 1; // Available restaurants come first
-        }
-
-        // If both have same availability, sort by distance
-        const aDistance =
-          a.distanceInKm !== null && a.distanceInKm !== undefined
-            ? a.distanceInKm
-            : Infinity;
-        const bDistance =
-          b.distanceInKm !== null && b.distanceInKm !== undefined
-            ? b.distanceInKm
-            : Infinity;
-        return aDistance - bDistance;
-      });
-    }
-
-    return filtered;
-  }, [
-    restaurantsData,
-    matchesVegMode,
-    activeFilters,
-    selectedCuisine,
-    sortBy,
-    availabilityTick,
-  ]);
+    // Rely on API data which is already filtered and sorted by the backend.
+    // We only apply client-side Veg Mode filtering here.
+    return (restaurantsData || []).filter(matchesVegMode);
+  }, [restaurantsData, matchesVegMode]);
 
   const restaurantLazyLoadResetKey = useMemo(() => {
     const activeFilterKey = Array.from(activeFilters).sort().join("|");
@@ -2662,6 +2555,73 @@ export default function Home() {
 
                 {/* Admin Hero Banners Section - Now below categories */}
                 {HeroBannerSection}
+
+                {/* Filters Sticky Sidebar Header */}
+                <section className="py-3 px-4 bg-white sticky top-[0px] z-[40] -mx-4 w-[calc(100%+2rem)] border-b border-gray-100 shadow-sm">
+                  <div
+                    className="flex items-center gap-2 overflow-x-auto scrollbar-hide px-4"
+                    style={{
+                      scrollbarWidth: "none",
+                      msOverflowStyle: "none",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setIsFilterOpen(true)}
+                      className="h-9 px-4 rounded-full flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 font-bold transition-all bg-white dark:bg-[#1a1a1a] border border-gray-200 shadow-sm active:scale-95"
+                    >
+                      <SlidersHorizontal className="h-4 w-4 text-black" />
+                      <span className="text-xs font-bold text-black dark:text-white uppercase tracking-tight">
+                        Filters
+                      </span>
+                    </button>
+
+                    {[
+                      { id: "delivery-under-30", label: "Under 30 mins" },
+                      { id: "delivery-under-45", label: "Under 45 mins" },
+                      { id: "distance-under-1km", label: "Under 1km", icon: MapPin },
+                      { id: "distance-under-2km", label: "Under 2km", icon: MapPin },
+                    ].map((filter) => {
+                      const Icon = filter.icon;
+                      const isActive = activeFilters.has(filter.id);
+                      return (
+                        <button
+                          key={filter.id}
+                          type="button"
+                          onClick={() => {
+                            const nextFilters = new Set(activeFilters);
+                            if (nextFilters.has(filter.id)) {
+                              nextFilters.delete(filter.id);
+                            } else {
+                              nextFilters.add(filter.id);
+                            }
+                            setActiveFilters(nextFilters);
+                            void applyFiltersAndRefetch(
+                              nextFilters,
+                              sortBy,
+                              selectedCuisine,
+                            );
+                          }}
+                          className={`h-9 px-4 rounded-full flex items-center gap-2 whitespace-nowrap flex-shrink-0 transition-all font-bold shadow-sm active:scale-95 ${
+                            isActive
+                              ? "bg-[#EB590E] text-white border border-[#EB590E] hover:bg-orange-700"
+                              : "bg-white dark:bg-[#1a1a1a] border border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300"
+                          }`}
+                        >
+                          {Icon && (
+                            <Icon
+                              className={`h-3.5 w-3.5 ${isActive ? "fill-white" : ""}`}
+                            />
+                          )}
+                          <span className="text-xs font-bold tracking-tight">
+                            {filter.label}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+
               </motion.div>
             ) : (
               <motion.div
@@ -2675,88 +2635,7 @@ export default function Home() {
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
-
-
-          {/* Filters */}
-          <motion.section
-            className="py-1 lg:py-2"
-            initial={false}
-            animate={{ opacity: 1, y: 0 }}>
-            <div
-              className="flex items-center gap-1.5 sm:gap-2 lg:gap-3 overflow-x-auto scrollbar-hide pb-1 lg:pb-2"
-              style={{
-                scrollbarWidth: "none",
-                msOverflowStyle: "none",
-              }}>
-              {/* Filter Button - Opens Modal */}
-              <motion.div
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}>
-                <Button
-                  variant="outline"
-                  onClick={() => setIsFilterOpen(true)}
-                  className="h-7 sm:h-8 px-2 sm:px-3 rounded-md flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 font-medium transition-all bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-white">
-                  <SlidersHorizontal className="h-3 w-3 sm:h-4 sm:w-4" />
-                  <span className="text-xs sm:text-sm font-bold text-black dark:text-white">
-                    Filters
-                  </span>
-                </Button>
-              </motion.div>
-
-              {/* Filter Buttons */}
-              {[
-                { id: "delivery-under-30", label: "Under 30 mins" },
-                { id: "delivery-under-45", label: "Under 45 mins" },
-                { id: "distance-under-1km", label: "Under 1km", icon: MapPin },
-                { id: "distance-under-2km", label: "Under 2km", icon: MapPin },
-              ].map((filter, index) => {
-                const Icon = filter.icon;
-                const isActive = activeFilters.has(filter.id);
-                return (
-                  <motion.div
-                    key={filter.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    whileInView={{ opacity: 1, x: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.4, delay: index * 0.1 }}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        const nextFilters = new Set(activeFilters);
-                        if (nextFilters.has(filter.id)) {
-                          nextFilters.delete(filter.id);
-                        } else {
-                          nextFilters.add(filter.id);
-                        }
-                        setActiveFilters(nextFilters);
-                        void applyFiltersAndRefetch(
-                          nextFilters,
-                          sortBy,
-                          selectedCuisine,
-                        );
-                      }}
-                      className={`h-7 sm:h-8 px-2 sm:px-3 rounded-md flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 transition-all font-medium ${
-                        isActive
-                          ? "bg-green-600 text-white border border-green-600 hover:bg-green-600/90"
-                          : "bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300"
-                      }`}>
-                      {Icon && (
-                        <Icon
-                          className={`h-3 w-3 sm:h-4 sm:w-4 ${isActive ? "fill-white" : ""}`}
-                        />
-                      )}
-                      <span className="text-xs sm:text-sm font-bold text-black dark:text-white">
-                        {filter.label}
-                      </span>
-                    </Button>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </motion.section>
+        </div>   )}
 
           {recommendedForYouRestaurants.length > 0 && (
             <motion.section
@@ -3188,11 +3067,6 @@ export default function Home() {
                       { id: "rating", label: "Rating", icon: Star },
                       { id: "distance", label: "Distance", icon: MapPin },
                       { id: "price", label: "Dish Price", icon: IndianRupee },
-                      {
-                        id: "cuisine",
-                        label: "Cuisine",
-                        icon: UtensilsCrossed,
-                      },
                       { id: "offers", label: "Offers", icon: BadgePercent },
                       { id: "trust", label: "Trust", icon: ShieldCheck },
                     ].map((tab) => {
@@ -3448,112 +3322,67 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* Cuisine Tab */}
+                    
+
+                    {/* Trust Markers Tab */}
                     <div
-                      ref={(el) => (filterSectionRefs.current["cuisine"] = el)}
-                      data-section-id="cuisine"
+                      ref={(el) => (filterSectionRefs.current["trust"] = el)}
+                      data-section-id="trust"
                       className="space-y-4 mb-8">
                       <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                        Cuisine
+                        Trust Markers
                       </h3>
-                      <div className="grid grid-cols-2 gap-3">
-                        {[
-                          "Chinese",
-                          "American",
-                          "Japanese",
-                          "Italian",
-                          "Mexican",
-                          "Indian",
-                          "Asian",
-                          "Seafood",
-                          "Desserts",
-                          "Cafe",
-                          "Healthy",
-                        ].map((cuisine) => (
-                          <button
-                            key={cuisine}
-                            onClick={() =>
-                              setSelectedCuisine(
-                                selectedCuisine === cuisine ? null : cuisine,
-                              )
-                            }
-                            className={`px-4 py-3 rounded-xl border text-center transition-colors ${
-                              selectedCuisine === cuisine
-                                ? "border-[#EB590E] bg-[#FFF2EB] dark:bg-green-900/20"
-                                : "border-gray-200 dark:border-gray-800 hover:border-[#EB590E]"
-                            }`}>
-                            <span
-                              className={`text-sm font-medium ${selectedCuisine === cuisine ? "text-[#EB590E]" : "text-gray-700 dark:text-gray-300"}`}>
-                              {cuisine}
-                            </span>
-                          </button>
-                        ))}
+                      <div className="flex flex-col gap-3">
+                        <button
+                          onClick={() => toggleFilter("top-rated")}
+                          className={`px-4 py-3 rounded-xl border text-left transition-colors ${
+                            activeFilters.has("top-rated")
+                              ? "border-[#EB590E] bg-[#FFF2EB] dark:bg-green-900/20"
+                              : "border-gray-200 dark:border-gray-800 hover:border-[#EB590E]"
+                          }`}>
+                          <span
+                            className={`text-sm font-medium ${activeFilters.has("top-rated") ? "text-[#EB590E]" : "text-gray-700 dark:text-gray-300"}`}>
+                            Top Rated
+                          </span>
+                        </button>
+                        <button
+                          onClick={() => toggleFilter("trusted")}
+                          className={`px-4 py-3 rounded-xl border text-left transition-colors ${
+                            activeFilters.has("trusted")
+                              ? "border-[#EB590E] bg-[#FFF2EB] dark:bg-green-900/20"
+                              : "border-gray-200 dark:border-gray-800 hover:border-[#EB590E]"
+                          }`}>
+                          <span
+                            className={`text-sm font-medium ${activeFilters.has("trusted") ? "text-[#EB590E]" : "text-gray-700 dark:text-gray-300"}`}>
+                            Trusted by 1000+ users
+                          </span>
+                        </button>
                       </div>
                     </div>
 
-                    {/* Trust Markers Tab */}
-                    {activeFilterTab === "trust" && (
-                      <div
-                        ref={(el) => (filterSectionRefs.current["trust"] = el)}
-                        data-section-id="trust"
-                        className="space-y-4 mb-8">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                          Trust Markers
-                        </h3>
-                        <div className="flex flex-col gap-3">
-                          <button
-                            onClick={() => toggleFilter("top-rated")}
-                            className={`px-4 py-3 rounded-xl border text-left transition-colors ${
-                              activeFilters.has("top-rated")
-                                ? "border-[#EB590E] bg-[#FFF2EB] dark:bg-green-900/20"
-                                : "border-gray-200 dark:border-gray-800 hover:border-[#EB590E]"
-                            }`}>
-                            <span
-                              className={`text-sm font-medium ${activeFilters.has("top-rated") ? "text-[#EB590E]" : "text-gray-700 dark:text-gray-300"}`}>
-                              Top Rated
-                            </span>
-                          </button>
-                          <button
-                            onClick={() => toggleFilter("trusted")}
-                            className={`px-4 py-3 rounded-xl border text-left transition-colors ${
-                              activeFilters.has("trusted")
-                                ? "border-[#EB590E] bg-[#FFF2EB] dark:bg-green-900/20"
-                                : "border-gray-200 dark:border-gray-800 hover:border-[#EB590E]"
-                            }`}>
-                            <span
-                              className={`text-sm font-medium ${activeFilters.has("trusted") ? "text-[#EB590E]" : "text-gray-700 dark:text-gray-300"}`}>
-                              Trusted by 1000+ users
-                            </span>
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
                     {/* Offers Tab */}
-                    {activeFilterTab === "offers" && (
-                      <div
-                        ref={(el) => (filterSectionRefs.current["offers"] = el)}
-                        data-section-id="offers"
-                        className="space-y-4 mb-8">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                          Offers
-                        </h3>
-                        <div className="flex flex-col gap-3">
-                          <button
-                            onClick={() => toggleFilter("has-offers")}
-                            className={`px-4 py-3 rounded-xl border text-left transition-colors ${
-                              activeFilters.has("has-offers")
-                                ? "border-[#EB590E] bg-[#FFF2EB] dark:bg-green-900/20"
-                                : "border-gray-200 dark:border-gray-800 hover:border-[#EB590E]"
-                            }`}>
-                            <span
-                              className={`text-sm font-medium ${activeFilters.has("has-offers") ? "text-[#EB590E]" : "text-gray-700 dark:text-gray-300"}`}>
-                              Restaurants with offers
-                            </span>
-                          </button>
-                        </div>
+                    <div
+                      ref={(el) => (filterSectionRefs.current["offers"] = el)}
+                      data-section-id="offers"
+                      className="space-y-4 mb-8">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                        Offers
+                      </h3>
+                      <div className="flex flex-col gap-3">
+                        <button
+                          onClick={() => toggleFilter("has-offers")}
+                          className={`px-4 py-3 rounded-xl border text-left transition-colors ${
+                            activeFilters.has("has-offers")
+                              ? "border-[#EB590E] bg-[#FFF2EB] dark:bg-green-900/20"
+                              : "border-gray-200 dark:border-gray-800 hover:border-[#EB590E]"
+                          }`}>
+                          <span
+                            className={`text-sm font-medium ${activeFilters.has("has-offers") ? "text-[#EB590E]" : "text-gray-700 dark:text-gray-300"}`}>
+                            Restaurants with offers
+                          </span>
+                        </button>
                       </div>
-                    )}
+                    </div>
                   </div>
                 </div>
 

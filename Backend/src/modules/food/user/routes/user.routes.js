@@ -17,7 +17,10 @@ import {
     createWalletTopupOrderController,
     verifyWalletTopupPaymentController
 } from '../controllers/userWallet.controller.js';
-import { getUserReferralStatsController } from '../controllers/userReferral.controller.js';
+import {
+    getUserReferralDetailsController,
+    getUserReferralStatsController
+} from '../controllers/userReferral.controller.js';
 import {
     createSafetyEmergencyReportController,
     listMySafetyEmergencyReportsController
@@ -40,6 +43,7 @@ router.post('/wallet/topup/verify', verifyWalletTopupPaymentController);
 
 // Referral stats (Bearer USER)
 router.get('/referrals/stats', getUserReferralStatsController);
+router.get('/referrals/details', getUserReferralDetailsController);
 
 // Safety / Emergency reports (Bearer USER)
 router.post('/safety-emergency-reports', createSafetyEmergencyReportController);

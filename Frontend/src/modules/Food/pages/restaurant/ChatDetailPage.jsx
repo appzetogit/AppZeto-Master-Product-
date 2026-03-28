@@ -36,27 +36,7 @@ export default function ChatDetailPage() {
     }
   }, [])
 
-  // Mock messages data
-  const messages = [
-    {
-      id: 1,
-      text: "Hi",
-      sender: "other",
-      time: "10:30 AM",
-    },
-    {
-      id: 2,
-      text: "Hello! How can I help you?",
-      sender: "me",
-      time: "10:31 AM",
-    },
-    {
-      id: 3,
-      text: "I need help with my order",
-      sender: "other",
-      time: "10:32 AM",
-    },
-  ]
+  const messages = []
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -91,9 +71,9 @@ export default function ChatDetailPage() {
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-base md:text-lg font-semibold text-gray-900 truncate">
-              StackFood
+              Conversation {conversationId || ""}
             </h2>
-            <p className="text-xs text-gray-500">Admin</p>
+            <p className="text-xs text-gray-500">Messaging unavailable</p>
           </div>
         </div>
         <motion.button
@@ -110,7 +90,11 @@ export default function ChatDetailPage() {
 
       {/* Messages Container */}
       <div className="flex-1 overflow-y-auto px-4 py-4 pb-20 md:pb-4 space-y-4">
-        {messages.map((msg, index) => (
+        {messages.length === 0 ? (
+          <div className="h-full flex items-center justify-center text-center text-sm text-gray-500">
+            Chat messages are not available yet.
+          </div>
+        ) : messages.map((msg, index) => (
           <motion.div
             key={msg.id}
             initial={{ opacity: 0, y: 10 }}
@@ -157,7 +141,7 @@ export default function ChatDetailPage() {
           <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
             <Button
               onClick={handleSend}
-              disabled={!message.trim()}
+              disabled
               className="rounded-full bg-[#ff8100] hover:bg-[#e67300] text-white p-2.5 w-10 h-10 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Send className="w-5 h-5" />

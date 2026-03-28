@@ -25,10 +25,7 @@ export const getUnreadNotificationCount = () => {
       unreadCount += 1 // First payment notification is unread
     }
     
-    // Static notifications (hardcoded unread ones)
-    const staticUnread = 2 // "New Order Received" and "New Review"
-    
-    return unreadCount + staticUnread
+    return unreadCount
   } catch (error) {
     debugError('Error getting unread notification count:', error)
     return 0

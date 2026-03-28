@@ -18,33 +18,10 @@ import BottomNavbar from "@food/components/restaurant/BottomNavbar"
 import MenuOverlay from "@food/components/restaurant/MenuOverlay"
 import { formatCurrency } from "@food/utils/currency"
 import { restaurantAPI } from "@food/api"
-import { findItemInSections, flattenMenuItems, getMenuFromResponse } from "@food/utils/menuItems"
-
-const getDefaultFoodData = (foodId) => ({
-  id: foodId || "",
-  name: "Food Not Found",
-  nameArabic: "",
-  image: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=300&fit=crop",
-  price: 0,
-  rating: 0.0,
-  reviews: 0,
-  availabilityTime: "12:01 AM - 11:57 PM",
-  description: "",
-  category: "Varieties",
-  foodType: "Non-Veg",
-  discountType: "Percent",
-  discountAmount: 0.0,
-  discount: 0,
-  variations: [],
-  tags: [],
-  nutrition: [],
-  allergies: [],
-  isAvailable: true,
-  isRecommended: false,
-})
+import { flattenMenuItems, getMenuFromResponse } from "@food/utils/menuItems"
 
 const toFoodData = (food, fallbackId = "") => {
-  if (!food) return getDefaultFoodData(fallbackId)
+  if (!food) return null
   return {
     ...food,
     id: String(food.id || food._id || fallbackId || ""),
@@ -71,11 +48,13 @@ export default function FoodDetailsPage() {
   const [showMenu, setShowMenu] = useState(false)
   const [showStockModal, setShowStockModal] = useState(false)
   const [menuSections, setMenuSections] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
   const [stockData, setStockData] = useState({
     mainStock: 0,
     variations: []
   })
-  const [foodData, setFoodData] = useState(() => getDefaultFoodData(id))
+  const [foodData, setFoodData] = useState(null)
   const [isAvailable, setIsAvailable] = useState(true)
   const [isRecommended, setIsRecommended] = useState(false)
 
@@ -105,6 +84,8 @@ export default function FoodDetailsPage() {
 
     const refreshFoodData = async () => {
       try {
+        setLoading(true)
+        setError("")
         const response = await restaurantAPI.getMenu()
         const menu = getMenuFromResponse(response)
         const sections = Array.isArray(menu?.sections) ? menu.sections : []
@@ -115,16 +96,23 @@ export default function FoodDetailsPage() {
         if (isMounted) {
           setMenuSections(sections)
           setFoodData(mapped)
-          setIsAvailable(mapped.isAvailable)
-          setIsRecommended(mapped.isRecommended)
+          setIsAvailable(mapped?.isAvailable ?? false)
+          setIsRecommended(mapped?.isRecommended ?? false)
+          if (!mapped) {
+            setError("Food item not found.")
+          }
         }
-      } catch {
+      } catch (err) {
         if (isMounted) {
-          const fallback = getDefaultFoodData(id)
           setMenuSections([])
-          setFoodData(fallback)
-          setIsAvailable(fallback.isAvailable)
-          setIsRecommended(fallback.isRecommended)
+          setFoodData(null)
+          setIsAvailable(false)
+          setIsRecommended(false)
+          setError(err?.response?.data?.message || err?.message || "Unable to load food details.")
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false)
         }
       }
     }
@@ -213,45 +201,7 @@ export default function FoodDetailsPage() {
   }
 
 
-  // Mock reviews data
-  const reviews = [
-    {
-      id: 1,
-      userName: "John Doe",
-      userAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop",
-      rating: 5,
-      comment: "Absolutely delicious! The Medu Vada was crispy on the outside and soft on the inside. Highly recommended!",
-      date: "2 days ago",
-      verified: true
-    },
-    {
-      id: 2,
-      userName: "Sarah Smith",
-      userAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop",
-      rating: 4,
-      comment: "Great taste and good quality. The food was fresh and well-prepared. Will order again!",
-      date: "1 week ago",
-      verified: false
-    },
-    {
-      id: 3,
-      userName: "Mike Johnson",
-      userAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop",
-      rating: 5,
-      comment: "Best Medu Vada I've ever had! The flavors are authentic and the texture is perfect.",
-      date: "2 weeks ago",
-      verified: true
-    },
-    {
-      id: 4,
-      userName: "Emily Davis",
-      userAvatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop",
-      rating: 3,
-      comment: "It was okay, but could be better. The taste was good but a bit too oily for my liking.",
-      date: "3 weeks ago",
-      verified: false
-    }
-  ]
+  const reviews = []
 
   return (
     <div className="min-h-screen bg-[#f6e9dc] overflow-x-hidden flex flex-col">
@@ -311,6 +261,21 @@ export default function FoodDetailsPage() {
         <div className="px-4 py-6 space-y-4">
           {activeTab === "overview" && (
             <>
+              {!foodData ? (
+                <Card className="bg-white shadow-sm border-0">
+                  <CardContent className="p-6 text-center">
+                    <p className="text-gray-900 font-semibold">
+                      {loading ? "Loading food details..." : "Food details unavailable"}
+                    </p>
+                    {!loading && (
+                      <p className="text-sm text-gray-600 mt-2">
+                        {error || "This item could not be loaded."}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : (
+                <>
               {/* Food Item Summary Card */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -517,6 +482,8 @@ export default function FoodDetailsPage() {
                   </div>
                 </CardContent>
               </Card>
+                </>
+              )}
             </>
           )}
 
@@ -596,12 +563,14 @@ export default function FoodDetailsPage() {
             type="button"
             variant="outline"
             onClick={handleOpenStockModal}
+            disabled={!foodData}
             className="flex-1 border-[#ff8100] text-[#ff8100] hover:bg-[#ff8100] hover:text-white font-semibold py-3"
           >
             Update Stock
           </Button>
           <Button
             type="button"
+            disabled={!foodData}
             onClick={() => navigate(`/restaurant/food/${id}/edit`)}
             className="flex-1 bg-[#ff8100] hover:bg-[#e67300] text-white font-semibold py-3"
           >

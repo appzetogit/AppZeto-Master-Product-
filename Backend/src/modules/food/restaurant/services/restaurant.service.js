@@ -120,7 +120,7 @@ const normalizeCuisine = (value) => String(value || '').trim().slice(0, 80);
 
 const parseSortBy = (value) => {
     const v = String(value || '').trim();
-    const allowed = new Set(['nearest', 'rating', 'newest', 'deliveryTime']);
+    const allowed = new Set(['nearest', 'rating', 'newest', 'deliveryTime', 'price-low', 'price-high', 'rating-high', 'rating-low']);
     return allowed.has(v) ? v : null;
 };
 
@@ -643,6 +643,16 @@ export const listApprovedRestaurants = async (query = {}) => {
     if (maxDeliveryTime !== null) {
         filter.estimatedDeliveryTimeMinutes = { $lte: Math.max(0, Math.round(maxDeliveryTime)) };
     }
+    const maxPrice = toFiniteNumber(query.maxPrice);
+    if (maxPrice !== null) {
+        filter.featuredPrice = { $lte: Math.max(0, maxPrice) };
+    }
+    if (query.topRated === 'true') {
+        filter.rating = { ...(filter.rating || {}), $gte: 4.5 };
+    }
+    if (query.trusted === 'true') {
+        filter.totalRatings = { ...(filter.totalRatings || {}), $gte: 100 };
+    }
     if (query.search && String(query.search).trim()) {
         const raw = String(query.search).trim().slice(0, 80);
         const term = escapeRegex(raw);
@@ -716,7 +726,10 @@ export const listApprovedRestaurants = async (query = {}) => {
         }
 
         const sortStage = (() => {
-            if (sortBy === 'rating') return { $sort: { rating: -1, distanceMeters: 1 } };
+            if (sortBy === 'rating' || sortBy === 'rating-high') return { $sort: { rating: -1, distanceMeters: 1 } };
+            if (sortBy === 'rating-low') return { $sort: { rating: 1, distanceMeters: 1 } };
+            if (sortBy === 'price-low') return { $sort: { featuredPrice: 1, distanceMeters: 1 } };
+            if (sortBy === 'price-high') return { $sort: { featuredPrice: -1, distanceMeters: 1 } };
             if (sortBy === 'newest') return { $sort: { createdAt: -1 } };
             if (sortBy === 'deliveryTime') return { $sort: { estimatedDeliveryTimeMinutes: 1, distanceMeters: 1 } };
             // nearest (default)
@@ -748,12 +761,14 @@ export const listApprovedRestaurants = async (query = {}) => {
     }
 
     // Non-geo path: normal query + sort.
-    const sort =
-        sortBy === 'rating'
-            ? { rating: -1, createdAt: -1 }
-            : sortBy === 'deliveryTime'
-                ? { estimatedDeliveryTimeMinutes: 1, createdAt: -1 }
-                : { createdAt: -1 };
+    const sort = (() => {
+        if (sortBy === 'rating' || sortBy === 'rating-high') return { rating: -1, createdAt: -1 };
+        if (sortBy === 'rating-low') return { rating: 1, createdAt: -1 };
+        if (sortBy === 'price-low') return { featuredPrice: 1, createdAt: -1 };
+        if (sortBy === 'price-high') return { featuredPrice: -1, createdAt: -1 };
+        if (sortBy === 'deliveryTime') return { estimatedDeliveryTimeMinutes: 1, createdAt: -1 };
+        return { createdAt: -1 };
+    })();
 
     const [restaurantsRaw, total] = await Promise.all([
         FoodRestaurant.find(filter)

@@ -110,51 +110,10 @@ export const openCamera = async ({ onSelectFile, fileNamePrefix = "camera-photo"
  */
 export const openGallery = async ({ onSelectFile, fileNamePrefix = "gallery-photo" }) => {
   try {
-    if (!isFlutterBridgeAvailable()) {
-      const input = document.createElement("input")
-      input.type = "file"
-      input.accept = "image/*"
-      input.onchange = (event) => {
-        const file = event?.target?.files?.[0] || null
-        if (file) onSelectFile(file)
-      }
-      input.click()
-      return
-    }
-
-    // Attempting to use the same 'openCamera' handler but with source='gallery'
-    // as many bridge implementations use a single handler for both.
-    const result = await window.flutter_inappwebview.callHandler("openCamera", {
-      source: "gallery",
-      accept: "image/*",
-      multiple: false,
-    })
-
-    if (!result || !result.success) {
-      // If the bridge result is unsuccessful, fall back to the browser input
-      throw new Error("Bridge gallery call unsuccessful")
-    }
-
-    let selectedFile = null
-    if (result.base64) {
-      selectedFile = convertBase64ToFile(
-        result.base64,
-        result.mimeType || "image/jpeg",
-        fileNamePrefix
-      )
-    } else if (result.file instanceof File || result.file instanceof Blob) {
-      selectedFile = result.file
-    }
-
-    if (!selectedFile || !String(selectedFile.type || "").startsWith("image/")) {
-      toast.error("Failed to pick image from gallery")
-      return
-    }
-
-    onSelectFile(selectedFile)
-  } catch (error) {
-    console.warn("Native gallery pick failed, falling back to browser picker:", error)
-    // Fallback to standard browser input
+    // For Gallery, we use the standard browser input.
+    // Why? Because the browser's native file picker on Android/iOS 
+    // is highly reliable and provides direct gallery access.
+    // The bridge "openCamera" seems to force camera even for gallery source.
     const input = document.createElement("input")
     input.type = "file"
     input.accept = "image/*"
@@ -163,5 +122,8 @@ export const openGallery = async ({ onSelectFile, fileNamePrefix = "gallery-phot
       if (file) onSelectFile(file)
     }
     input.click()
+  } catch (error) {
+    console.error("Gallery pick failed:", error)
+    toast.error("Failed to open gallery")
   }
 }

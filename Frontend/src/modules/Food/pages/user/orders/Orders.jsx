@@ -272,7 +272,7 @@ export default function Orders() {
             const deliveryPartnerRating = order.ratings?.deliveryPartner?.rating || null
 
             return {
-              id: order.orderId || order._id?.toString() || `ORD-${order._id}`,
+              id: order._id?.toString() || order.orderId || `ORD-${order._id}`,
               mongoId: order._id,
               orderId: order.orderId || order._id?.toString(), // Keep orderId for display
               status: isRestaurantCancelled ? 'restaurant_cancelled' : getOrderStatus({ ...order, status: backendStatus }),

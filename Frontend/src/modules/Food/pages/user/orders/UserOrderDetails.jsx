@@ -34,12 +34,13 @@ export default function UserOrderDetails() {
     const fetchOrderDetails = async () => {
       try {
         setLoading(true)
+        // Fetch using the ID from params (which will now be the MongoDB _id)
         const response = await orderAPI.getOrderDetails(orderId)
 
         let orderData = null
         if (response?.data?.success && response.data.data?.order) {
           orderData = response.data.data.order
-        } else if (response?.data?.order) {
+        } else if (response?.data?.order && typeof response.data.order === 'object') {
           orderData = response.data.order
         } else {
           toast.error("Order not found")

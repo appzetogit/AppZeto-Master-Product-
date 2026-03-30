@@ -962,9 +962,42 @@ export async function tryAutoAssign(orderId, options = {}) {
 
     if (eligible.length === 0) {
         // No more specific partners to offer to? 
-        // If it's still unassigned, we leave it in the marketplace pool (broadcast was already sent)
-        // or we could expand the search radius.
-        logger.info(`SmartDispatch: No more eligible partners for order ${order.orderId}. Leaving in marketplace.`);
+        // If it's still unassigned, we leave it in the marketplace pool (sending broadcast now)
+        logger.info(`SmartDispatch: No more eligible partners for order ${order.orderId}. Broadcasting to marketplace.`);
+        
+        try {
+            const io = getIO();
+            if (io) {
+                const restaurant = order.restaurantId;
+                const payload = buildDeliverySocketPayload(order, restaurant);
+                for (const p of partners) {
+                    io.to(rooms.delivery(p.partnerId)).emit('new_order_available', {
+                        ...payload,
+                        pickupDistanceKm: p.distanceKm
+                    });
+                    io.to(rooms.delivery(p.partnerId)).emit('play_notification_sound', {
+                        orderId: payload.orderId,
+                        orderMongoId: payload.orderMongoId
+                    });
+                }
+            }
+            
+            await notifyOwnersSafely(
+                partners.slice(0, 10).map(p => ({ ownerType: 'DELIVERY_PARTNER', ownerId: p.partnerId })),
+                {
+                    title: 'New delivery order available',
+                    body: `Order #${order.orderId} is available near you.`,
+                    data: {
+                        type: 'new_order_available',
+                        orderId: order.orderId,
+                        orderMongoId: order._id.toString(),
+                        link: '/delivery'
+                    }
+                }
+            );
+        } catch (err) {
+            logger.warn(`SmartDispatch: Broadcast failed for order ${order.orderId}: ${err.message}`);
+        }
         return order;
     }
 
@@ -1398,7 +1431,7 @@ export async function updateOrderStatusRestaurant(
     } else if (orderStatus === "preparing") {
       title = "Food is being prepared! 🍳";
       body = "Your food is currently being prepared by the restaurant.";
-    } else if (orderStatus === "ready_for_pickup" || orderStatus === "ready") {
+    } else if (orderStatus === "ready_for_pickup") {
       title = "Food is ready! 🛍️";
       body = "Your order is ready and waiting to be picked up.";
     } else if (String(orderStatus).includes("cancel")) {
@@ -1463,108 +1496,29 @@ export async function updateOrderStatusRestaurant(
   try {
     const io = getIO();
     if (io) {
-      // On accept (confirmed or preparing) -> request delivery partners.
+      // On accept (confirmed or preparing) -> request delivery partners via central logic
       if (
         (String(orderStatus) === "preparing" || String(orderStatus) === "confirmed") && 
         (String(from) !== "preparing" && String(from) !== "confirmed")
       ) {
         console.log(
-          `[DEBUG] Order ${order.orderId} status changed to '${orderStatus}'. Triggering delivery dispatch.`,
+          `[DEBUG] Order ${order.orderId} status changed to '${orderStatus}'. Triggering central delivery dispatch.`,
         );
-        // If auto dispatch, try assign now.
-        if (
-          order.dispatch?.status === "unassigned" &&
-          order.dispatch?.modeAtCreation === "auto"
-        ) {
-          try {
-            console.log(`[DEBUG] Auto-assigning order ${order.orderId}`);
-            await tryAutoAssign(order._id);
-            // Refresh order state from DB after auto-assignment
-            order = await FoodOrder.findById(order._id); 
-          } catch (err) {
-            console.error(
-              `[DEBUG] Auto-assign failed for order ${order.orderId}:`,
-              err,
-            );
-          }
-        }
 
-        const restaurant = await FoodRestaurant.findById(order.restaurantId)
-          .select("restaurantName location addressLine1 area city state")
-          .lean();
-        const payload = buildDeliverySocketPayload(order, restaurant);
-
-        // If assigned, notify assigned partner only.
-        const assignedId =
-          order.dispatch?.deliveryPartnerId?.toString?.() ||
-          order.dispatch?.deliveryPartnerId;
-        if (assignedId && order.dispatch?.status === "assigned") {
-          console.log(
-            `[DEBUG] Order ${order.orderId} assigned to ${assignedId}. Notifying.`,
-          );
-          io.to(rooms.delivery(assignedId)).emit("new_order", payload);
-          io.to(rooms.delivery(assignedId)).emit("play_notification_sound", {
-            orderId: payload.orderId,
-            orderMongoId: payload.orderMongoId,
-          });
-          await notifyOwnerSafely(
-            { ownerType: "DELIVERY_PARTNER", ownerId: assignedId },
-            {
-              title: "New delivery task",
-              body: `Order ${payload.orderId} is assigned to you.`,
-              data: {
-                type: "new_order",
-                orderId: payload.orderId,
-                orderMongoId: payload.orderMongoId,
-                link: "/delivery",
-              },
-            },
-          );
+        if (order.dispatch?.modeAtCreation === "auto") {
+            try {
+                await tryAutoAssign(order._id);
+                // Refresh local order state after assignment
+                order = await FoodOrder.findById(order._id); 
+            } catch (err) {
+                console.error(`[DEBUG] Auto-assign in updateOrderStatusRestaurant failed:`, err);
+            }
         } else {
-          // Broadcast to nearby online partners so someone can accept/claim.
-          console.log(
-            `[DEBUG] Searching for nearby partners for order ${order.orderId}`,
-          );
-          const { partners } = await listNearbyOnlineDeliveryPartners(
-            order.restaurantId,
-            { maxKm: 15, limit: 25 },
-          );
-          console.log(
-            `[DEBUG] Found ${partners.length} partners: ${JSON.stringify(partners)}`,
-          );
-          for (const p of partners) {
-            const targetRoom = rooms.delivery(p.partnerId);
-            console.log(
-              `[DEBUG] Emitting new_order_available to room: ${targetRoom}`,
-            );
-            io.to(targetRoom).emit("new_order_available", {
-              ...payload,
-              pickupDistanceKm: p.distanceKm,
-            });
-          }
-          await notifyOwnersSafely(
-            partners.slice(0, 5).map((p) => ({
-              ownerType: "DELIVERY_PARTNER",
-              ownerId: p.partnerId,
-            })),
-            {
-              title: "New delivery order available",
-              body: `Order ${payload.orderId} is available near ${restaurant?.restaurantName || "your area"}.`,
-              data: {
-                type: "new_order_available",
-                orderId: payload.orderId,
-                orderMongoId: payload.orderMongoId,
-                link: "/delivery",
-              },
-            },
-          );
-          // Also trigger a generic sound event for the first few partners.
-          for (const p of partners.slice(0, 5)) {
-            io.to(rooms.delivery(p.partnerId)).emit("play_notification_sound", {
-              orderId: payload.orderId,
-              orderMongoId: payload.orderMongoId,
-            });
-          }
+            // Manual mode: just trigger the broadcast aspect of tryAutoAssign if unassigned
+            if (order.dispatch?.status === 'unassigned') {
+              await tryAutoAssign(order._id);
+              order = await FoodOrder.findById(order._id);
+            }
         }
       }
 
@@ -1667,7 +1621,6 @@ export async function resendDeliveryNotificationRestaurant(orderId, restaurantId
     await order.save();
 
     // Trigger smart dispatch logic immediately
-    const { tryAutoAssign } = await import('./order.service.js');
     await tryAutoAssign(order._id);
 
     return { success: true };
@@ -1681,7 +1634,7 @@ export async function getCurrentTripDelivery(deliveryPartnerId) {
   const order = await FoodOrder.findOne({
     "dispatch.deliveryPartnerId": partnerId,
     orderStatus: {
-      $in: ["confirmed", "preparing", "ready_for_pickup", "picked_up", "reached_pickup", "reached_drop"]
+      $in: ["confirmed", "preparing", "ready_for_pickup", "picked_up"]
     }
   })
     .populate({ path: "restaurantId", select: "restaurantName name phone location addressLine1 area city state profileImage" })
@@ -2158,10 +2111,15 @@ export async function completeDelivery(orderId, deliveryPartnerId, body = {}) {
 
   // Inline verification if OTP is passed in body but not yet verified in DB
   if (otp && order.deliveryVerification?.dropOtp?.required && !order.deliveryVerification?.dropOtp?.verified) {
-     // We can refetch with secret to verify, but for robustness against racing calls, 
-     // we assume the prior verify-otp call did its job. 
-     // If we really want security, we'd verify here too.
-     // For now, let's just proceed if 'verified' is false but OTP provided.
+      const orderWithSecret = await FoodOrder.findById(order._id).select('+deliveryOtp');
+      const expected = String(orderWithSecret?.deliveryOtp || '').trim();
+      if (expected && expected === String(otp).trim()) {
+           order.deliveryVerification.dropOtp.verified = true;
+           order.deliveryOtp = ""; // Clear secret
+           order.markModified('deliveryVerification.dropOtp.verified');
+      } else {
+           throw new ValidationError("Invalid handover OTP provided.");
+      }
   }
 
   if (

@@ -450,6 +450,30 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
     return () => navigator.geolocation.clearWatch(watchId);
   }, [isOnline, setRiderLocation, isSimMode]);
 
+  // 3.5. Background Ping / Heartbeat
+  // If watchPosition stops firing (e.g. app in background or device stationary),
+  // this ensures we ping the backend periodically. This keeps the token fresh (via 401 interceptor)
+  // and keeps the Delivery Partner "online" in the backend.
+  useEffect(() => {
+    if (!isOnline) return;
+    
+    const pingInterval = setInterval(() => {
+      const now = Date.now();
+      // If no natural GPS update happened in the last 15 seconds, force a ping
+      if (now - lastLocationSentAt.current >= 15000 && lastCoordRef.current) {
+        lastLocationSentAt.current = now;
+        deliveryAPI.updateLocation(
+          lastCoordRef.current.lat, 
+          lastCoordRef.current.lng, 
+          true, 
+          { heading: 0, speed: 0, accuracy: null }
+        ).catch(() => {});
+      }
+    }, 10000); // Check every 10 seconds
+    
+    return () => clearInterval(pingInterval);
+  }, [isOnline]);
+
   useEffect(() => { if (newOrder) setIncomingOrder(newOrder); }, [newOrder]);
 
   useEffect(() => {

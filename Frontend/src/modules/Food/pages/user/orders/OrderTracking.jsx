@@ -351,7 +351,8 @@ const transformOrderForTracking = (apiOrder, previousOrder = null, explicitResta
       name: apiOrder.deliveryPartnerId.name || 'Delivery Partner',
       avatar: null
     } : (previousOrder?.deliveryPartner || null),
-    deliveryPartnerId: apiOrder?.deliveryPartnerId?._id || apiOrder?.deliveryPartnerId || apiOrder?.assignmentInfo?.deliveryPartnerId || previousOrder?.deliveryPartnerId || null,
+    deliveryPartnerId: apiOrder?.deliveryPartnerId?._id || apiOrder?.deliveryPartnerId || apiOrder?.dispatch?.deliveryPartnerId?._id || apiOrder?.dispatch?.deliveryPartnerId || apiOrder?.assignmentInfo?.deliveryPartnerId || null,
+    dispatch: apiOrder?.dispatch || previousOrder?.dispatch || null,
     assignmentInfo: apiOrder?.assignmentInfo || previousOrder?.assignmentInfo || null,
     tracking: apiOrder?.tracking || previousOrder?.tracking || {},
     deliveryState: apiOrder?.deliveryState || previousOrder?.deliveryState || null,
@@ -423,10 +424,12 @@ function mapOrderToTrackingUiStatus(orderLike) {
   if (statusRaw === "delivered" || statusRaw === "completed") return "delivered"
 
   // Live Ride / Phase-based mapping (Highest priority for precision)
+  const isRiderAccepted = orderLike.dispatch?.status === "accepted" || orderLike.assignmentInfo?.status === "accepted" || orderLike.deliveryPartner?.status === "accepted";
+  
   if (phase === "reached_drop" || phase === "at_drop" || statusRaw === "at_drop") return "at_drop"
   if (phase === "en_route_to_delivery" || statusRaw === "picked_up" || statusRaw === "out_for_delivery") return "on_way"
-  if (phase === "at_pickup") return "at_pickup"
-  if (phase === "en_route_to_pickup") return "assigned"
+  if (phase === "at_pickup" && orderLike.deliveryPartnerId && isRiderAccepted) return "at_pickup"
+  if (phase === "en_route_to_pickup" && orderLike.deliveryPartnerId && isRiderAccepted) return "assigned"
 
   // Fallback to basic status mapping
   return mapBackendOrderStatusToUi(statusRaw)

@@ -37,6 +37,47 @@ const approvalStatusBadgeClass = (status) => {
   return "bg-amber-100 text-amber-700"
 }
 
+const normalizeTimeValue = (value) => {
+  const raw = String(value || "").trim()
+  if (!raw) return ""
+  const hhmm = raw.match(/^(\d{1,2}):(\d{2})$/)
+  if (hhmm) {
+    const h = Number(hhmm[1]); const m = Number(hhmm[2])
+    if (!Number.isFinite(h) || !Number.isFinite(m) || h < 0 || h > 23 || m < 0 || m > 59) return ""
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
+  }
+  const ampm = raw.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/)
+  if (ampm) {
+    let h = Number(ampm[1]); const m = Number(ampm[2]); const p = ampm[3].toUpperCase()
+    if (!Number.isFinite(h) || !Number.isFinite(m) || h < 1 || h > 12 || m < 0 || m > 59) return ""
+    if (p === "AM") h = h === 12 ? 0 : h
+    if (p === "PM") h = h === 12 ? 12 : h + 12
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
+  }
+  const parsed = new Date(raw)
+  if (!Number.isNaN(parsed.getTime())) {
+    return `${String(parsed.getHours()).padStart(2, "0")}:${String(parsed.getMinutes()).padStart(2, "0")}`
+  }
+  return ""
+}
+
+const timeToMinutes = (value) => {
+  const normalized = normalizeTimeValue(value)
+  if (!normalized) return null
+  const [h, m] = normalized.split(":").map(Number)
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null
+  return h * 60 + m
+}
+
+const formatTime12Hour = (value) => {
+  const normalized = normalizeTimeValue(value)
+  if (!normalized) return value || "N/A"
+  const [h, m] = normalized.split(":").map(Number)
+  const hour12 = h % 12 === 0 ? 12 : h % 12
+  const period = h >= 12 ? "PM" : "AM"
+  return `${String(hour12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${period}`
+}
+
 
 export default function RestaurantsList() {
   const navigate = useNavigate()
@@ -735,6 +776,21 @@ export default function RestaurantsList() {
         }
       }
 
+      const normalizedOpeningTime = normalizeTimeValue(detailsForm.openingTime.trim())
+      const normalizedClosingTime = normalizeTimeValue(detailsForm.closingTime.trim())
+      const openingMinutes = timeToMinutes(normalizedOpeningTime)
+      const closingMinutes = timeToMinutes(normalizedClosingTime)
+      if (openingMinutes !== null && closingMinutes !== null) {
+        if (openingMinutes === closingMinutes) {
+          alert("Opening time and closing time cannot be same")
+          return
+        }
+        if (closingMinutes < openingMinutes) {
+          alert("Closing time cannot be less than opening time")
+          return
+        }
+      }
+
       const payload = {
         name: detailsForm.name.trim(),
         pureVegRestaurant: detailsForm.pureVegRestaurant === true,
@@ -749,8 +805,8 @@ export default function RestaurantsList() {
           .filter(Boolean),
         estimatedDeliveryTime: detailsForm.estimatedDeliveryTime.trim(),
         offer: detailsForm.offer.trim(),
-        openingTime: detailsForm.openingTime.trim(),
-        closingTime: detailsForm.closingTime.trim(),
+        openingTime: normalizedOpeningTime,
+        closingTime: normalizedClosingTime,
         isActive: detailsForm.isActive,
       }
 
@@ -1124,7 +1180,10 @@ export default function RestaurantsList() {
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 flex items-center justify-center shrink-0">
+                            <div 
+                              className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 flex items-center justify-center shrink-0 cursor-pointer hover:opacity-80 transition-all border border-slate-100"
+                              onClick={() => handleViewDetails(restaurant)}
+                            >
                               <img
                                 src={restaurant.logo}
                                 alt={restaurant.name}
@@ -1135,7 +1194,12 @@ export default function RestaurantsList() {
                               />
                             </div>
                             <div className="flex flex-col">
-                              <span className="text-sm font-medium text-slate-900">{restaurant.name}</span>
+                              <span 
+                                className="text-sm font-medium text-slate-900 cursor-pointer hover:text-blue-600 transition-colors"
+                                onClick={() => handleViewDetails(restaurant)}
+                              >
+                                {restaurant.name}
+                              </span>
                               <span className="text-xs text-slate-500">ID #{formatRestaurantId(restaurant.originalData?.restaurantId || restaurant.originalData?._id || restaurant._id || restaurant.id)}</span>
                               <span className="text-xs text-slate-500">{renderStars(restaurant.rating)}</span>
                             </div>
@@ -1573,57 +1637,8 @@ export default function RestaurantsList() {
                     </div>
                   </div>
 
-                  {/* Cuisine & Timings */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <h4 className="text-lg font-semibold text-slate-900 mb-4">Cuisine & Details</h4>
-                      <div className="space-y-3">
-                        <div>
-                          <p className="text-xs text-slate-500 mb-1">Cuisines</p>
-                          <div className="flex flex-wrap gap-2">
-                            {cuisinesList ? (
-                              cuisinesList.map((cuisine, idx) => (
-                                <span key={idx} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
-                                  {cuisine}
-                                </span>
-                              ))
-                            ) : (
-                              <span className="text-sm text-slate-500">{r?.cuisine || "N/A"}</span>
-                            )}
-                          </div>
-                        </div>
-                        {(featuredDishVal || featuredPriceVal != null) && (
-                          <div>
-                            <p className="text-xs text-slate-500 mb-1">Featured Dish</p>
-                            <p className="text-sm font-medium text-slate-900">
-                              {featuredDishVal || "—"}
-                              {featuredPriceVal != null && featuredPriceVal !== "" && (
-                                <span className="text-slate-600 ml-1">(₹{featuredPriceVal})</span>
-                              )}
-                            </p>
-                          </div>
-                        )}
-                        {offerVal && (
-                          <div>
-                            <p className="text-xs text-slate-500 mb-1">Current Offer</p>
-                            <p className="text-sm font-medium text-green-600">{offerVal}</p>
-                          </div>
-                        )}
-                        {diningSettingsVal && (
-                          <div>
-                            <p className="text-xs text-slate-500 mb-1">Dining</p>
-                            <p className="text-sm font-medium text-slate-900">
-                              {diningSettingsVal?.isEnabled ? "Enabled" : "Disabled"}
-                              {diningSettingsVal?.isEnabled && (
-                                <span className="text-slate-600 ml-1">
-                                  (max {diningSettingsVal?.maxGuests ?? 6}, {diningSettingsVal?.diningType || "family-dining"})
-                                </span>
-                              )}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                  {/* Timings */}
+                  <div className="grid grid-cols-1 gap-6">
 
                     <div>
                       <h4 className="text-lg font-semibold text-slate-900 mb-4">Timings & Status</h4>
@@ -1634,7 +1649,7 @@ export default function RestaurantsList() {
                             <div>
                               <p className="text-xs text-slate-500">Opening / Closing</p>
                               <p className="text-sm font-medium text-slate-900">
-                                {openingTimeVal || "N/A"} – {closingTimeVal || "N/A"}
+                                {formatTime12Hour(openingTimeVal)} – {formatTime12Hour(closingTimeVal)}
                               </p>
                             </div>
                           </div>
@@ -2026,11 +2041,11 @@ export default function RestaurantsList() {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                             <div>
                               <p className="text-xs text-slate-500 mb-1">Opening Time (at registration)</p>
-                              <p className="font-medium text-slate-900">{r.onboarding.step2.deliveryTimings.openingTime || "N/A"}</p>
+                              <p className="font-medium text-slate-900">{formatTime12Hour(r.onboarding.step2.deliveryTimings.openingTime)}</p>
                             </div>
                             <div>
                               <p className="text-xs text-slate-500 mb-1">Closing Time (at registration)</p>
-                              <p className="font-medium text-slate-900">{r.onboarding.step2.deliveryTimings.closingTime || "N/A"}</p>
+                              <p className="font-medium text-slate-900">{formatTime12Hour(r.onboarding.step2.deliveryTimings.closingTime)}</p>
                             </div>
                           </div>
                         )}

@@ -4,7 +4,18 @@ const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
 
-const ONBOARDING_STORAGE_KEY = "restaurant_onboarding_data"
+const getOnboardingStorageKey = () => {
+    try {
+      const userStr = localStorage.getItem("restaurant_user")
+      if (userStr) {
+        const user = JSON.parse(userStr)
+        const userId = user._id || user.id
+        if (userId) return `restaurant_onboarding_data_${userId}`
+      }
+    } catch (e) {}
+    return "restaurant_onboarding_data"
+}
+const ONBOARDING_STORAGE_KEY = getOnboardingStorageKey()
 
 // Helper function to check if a step is complete
 const isStepComplete = (stepData, stepNumber) => {
@@ -242,7 +253,7 @@ export const checkOnboardingStatus = async () => {
   } catch (err) {
     // If API call fails, check localStorage
     try {
-      const localData = localStorage.getItem(ONBOARDING_STORAGE_KEY)
+      const localData = localStorage.getItem(getOnboardingStorageKey())
       if (localData) {
         const parsed = JSON.parse(localData)
         return parsed.currentStep || 1

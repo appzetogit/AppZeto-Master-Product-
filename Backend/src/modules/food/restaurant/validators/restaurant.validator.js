@@ -19,6 +19,40 @@ const requiredBooleanSchema = z.preprocess((value) => {
 
 const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
 
+const normalizeTimeValue = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+
+    const hhmm = raw.match(/^(\d{1,2}):(\d{2})$/);
+    if (hhmm) {
+        const h = Number(hhmm[1]);
+        const m = Number(hhmm[2]);
+        if (!Number.isFinite(h) || !Number.isFinite(m) || h < 0 || h > 23 || m < 0 || m > 59) return '';
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+
+    const ampm = raw.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/);
+    if (ampm) {
+        let h = Number(ampm[1]);
+        const m = Number(ampm[2]);
+        const p = ampm[3].toUpperCase();
+        if (!Number.isFinite(h) || !Number.isFinite(m) || h < 1 || h > 12 || m < 0 || m > 59) return '';
+        if (p === 'AM') h = h === 12 ? 0 : h;
+        if (p === 'PM') h = h === 12 ? 12 : h + 12;
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+
+    return '';
+};
+
+const timeToMinutes = (value) => {
+    const normalized = normalizeTimeValue(value);
+    if (!normalized) return null;
+    const [h, m] = normalized.split(':').map(Number);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+    return h * 60 + m;
+};
+
 const restaurantRegisterSchema = z.object({
     restaurantName: z.string().min(1, 'Restaurant name is required'),
     ownerName: z.string().min(1, 'Owner name is required'),
@@ -43,6 +77,7 @@ const restaurantRegisterSchema = z.object({
         .transform((val) => (val ? val.split(',').map((c) => c.trim()).filter(Boolean) : [])),
     openingTime: z.string().optional(),
     closingTime: z.string().optional(),
+    estimatedDeliveryTime: z.string().optional(),
     openDays: z
         .string()
         .optional()
@@ -75,6 +110,16 @@ export const validateRestaurantRegisterDto = (body) => {
     }
 
     const data = result.data;
+    const openingMinutes = timeToMinutes(data.openingTime);
+    const closingMinutes = timeToMinutes(data.closingTime);
+    if (openingMinutes !== null && closingMinutes !== null) {
+        if (openingMinutes === closingMinutes) {
+            throw new ValidationError('Opening time and closing time cannot be same');
+        }
+        if (closingMinutes < openingMinutes) {
+            throw new ValidationError('Closing time cannot be less than opening time');
+        }
+    }
     return {
         ...data,
         gstRegistered: data.gstRegistered ?? false

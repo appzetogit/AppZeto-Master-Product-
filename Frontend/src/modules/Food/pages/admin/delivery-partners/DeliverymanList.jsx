@@ -553,7 +553,10 @@ availableCashLimit: deliveryman.availableCashLimit || 0,
                         {visibleColumns.name && (
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center shrink-0 overflow-hidden">
+                              <div 
+                                className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center shrink-0 overflow-hidden cursor-pointer hover:opacity-80 transition-all border border-slate-100"
+                                onClick={() => handleView(dm)}
+                              >
                                 {(dm.profileImage?.url ?? dm.profilePhoto) ? (
                                   <img
                                     src={dm.profileImage?.url ?? dm.profilePhoto}
@@ -567,7 +570,12 @@ availableCashLimit: deliveryman.availableCashLimit || 0,
                                 )}
                               </div>
                               <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium text-slate-900">{dm.name}</span>
+                                <span 
+                                  className="text-sm font-medium text-slate-900 cursor-pointer hover:text-blue-600 transition-colors"
+                                  onClick={() => handleView(dm)}
+                                >
+                                  {dm.name}
+                                </span>
                                 {dm.rating > 0 && (
                                   <div className="flex items-center gap-1">
                                     <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />

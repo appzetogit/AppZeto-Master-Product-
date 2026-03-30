@@ -169,7 +169,7 @@ export default function Customers() {
   const handleToggleStatus = async (customerId) => {
     try {
       // Find customer
-      const customer = customers.find(c => c.id === customerId)
+      const customer = customers.find(c => (c._id || c.id) === customerId)
       if (!customer) return
 
       const newStatus = !customer.status
@@ -457,7 +457,10 @@ export default function Customers() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center shrink-0 overflow-hidden">
+                          <div 
+                            className="w-10 h-10 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center shrink-0 overflow-hidden cursor-pointer hover:opacity-80 transition-all border border-slate-100"
+                            onClick={() => handleViewDetails(customer._id || customer.id || customer.sl)}
+                          >
                             {customer.profileImage ? (
                               <img
                                 src={customer.profileImage}
@@ -471,7 +474,12 @@ export default function Customers() {
                               <span className="text-xs font-semibold">{getInitials(customer.name)}</span>
                             )}
                           </div>
-                          <span className="text-sm font-medium text-slate-900">{customer.name}</span>
+                          <span 
+                            className="text-sm font-medium text-slate-900 cursor-pointer hover:text-blue-600 transition-colors"
+                            onClick={() => handleViewDetails(customer._id || customer.id || customer.sl)}
+                          >
+                            {customer.name}
+                          </span>
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -503,7 +511,7 @@ export default function Customers() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <button
-                          onClick={() => handleViewDetails(customer.id || customer.sl)}
+                          onClick={() => handleViewDetails(customer._id || customer.id || customer.sl)}
                           className="p-1.5 rounded text-blue-600 hover:bg-blue-50 transition-colors"
                         >
                           <Eye className="w-4 h-4" />

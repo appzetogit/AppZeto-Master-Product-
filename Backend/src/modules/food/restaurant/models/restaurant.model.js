@@ -280,9 +280,36 @@ restaurantSchema.pre("validate", function normalizeDerivedFields(next) {
     this.state ||
     this.pincode ||
     this.landmark;
-  if (!this.location && hasAnyFlatAddress) {
-    this.location = { type: "Point" };
+  if (this.location) {
+    // If a location object exists but has no usable geo coordinates,
+    // keep flat address fields only and drop location to avoid 2dsphere write errors.
+    const hasCoordinates =
+      Array.isArray(this.location.coordinates) &&
+      this.location.coordinates.length === 2 &&
+      this.location.coordinates.every(
+        (n) => typeof n === "number" && Number.isFinite(n),
+      );
+    const hasLatLng =
+      typeof this.location.latitude === "number" &&
+      Number.isFinite(this.location.latitude) &&
+      typeof this.location.longitude === "number" &&
+      Number.isFinite(this.location.longitude);
+    if (!hasCoordinates && !hasLatLng) {
+      if (!this.addressLine1 && this.location.addressLine1)
+        this.addressLine1 = this.location.addressLine1;
+      if (!this.addressLine2 && this.location.addressLine2)
+        this.addressLine2 = this.location.addressLine2;
+      if (!this.area && this.location.area) this.area = this.location.area;
+      if (!this.city && this.location.city) this.city = this.location.city;
+      if (!this.state && this.location.state) this.state = this.location.state;
+      if (!this.pincode && this.location.pincode)
+        this.pincode = this.location.pincode;
+      if (!this.landmark && this.location.landmark)
+        this.landmark = this.location.landmark;
+      this.location = undefined;
+    }
   }
+
   if (this.location) {
     // Sync coords <-> lat/lng
     const lat =

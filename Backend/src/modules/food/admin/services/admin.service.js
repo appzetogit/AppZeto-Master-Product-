@@ -48,6 +48,61 @@ const toFiniteNumber = (value) => {
     return Number.isFinite(num) ? num : null;
 };
 
+const normalizeRestaurantTime = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+
+    const toHHMM = (hour, minute) => {
+        const h = Number(hour);
+        const m = Number(minute);
+        if (!Number.isFinite(h) || !Number.isFinite(m)) return '';
+        if (h < 0 || h > 23 || m < 0 || m > 59) return '';
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    };
+
+    const hhmm = raw.match(/^(\d{1,2}):(\d{2})$/);
+    if (hhmm) return toHHMM(hhmm[1], hhmm[2]);
+
+    const ampm = raw.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/);
+    if (ampm) {
+        let hour = Number(ampm[1]);
+        const minute = Number(ampm[2]);
+        const period = ampm[3].toUpperCase();
+        if (!Number.isFinite(hour) || !Number.isFinite(minute)) return '';
+        if (hour < 1 || hour > 12 || minute < 0 || minute > 59) return '';
+        if (period === 'AM') hour = hour === 12 ? 0 : hour;
+        if (period === 'PM') hour = hour === 12 ? 12 : hour + 12;
+        return toHHMM(hour, minute);
+    }
+
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+        return toHHMM(parsed.getHours(), parsed.getMinutes());
+    }
+
+    return '';
+};
+
+const timeToMinutes = (value) => {
+    const normalized = normalizeRestaurantTime(value);
+    if (!normalized) return null;
+    const [h, m] = normalized.split(':').map(Number);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+    return h * 60 + m;
+};
+
+const validateOpeningClosingTimes = (openingTime, closingTime) => {
+    const open = timeToMinutes(openingTime);
+    const close = timeToMinutes(closingTime);
+    if (open === null || close === null) return;
+    if (open === close) {
+        throw new ValidationError('Opening time and closing time cannot be same');
+    }
+    if (close < open) {
+        throw new ValidationError('Closing time cannot be less than opening time');
+    }
+};
+
 export async function getRestaurantComplaints(query = {}) {
     const limit = Math.min(Math.max(parseInt(query.limit, 10) || 50, 1), 500);
     const page = Math.max(parseInt(query.page, 10) || 1, 1);
@@ -2067,8 +2122,9 @@ export async function updateRestaurantById(id, body = {}) {
         }
     }
 
-    if (body.openingTime !== undefined) doc.openingTime = toStr(body.openingTime);
-    if (body.closingTime !== undefined) doc.closingTime = toStr(body.closingTime);
+    if (body.openingTime !== undefined) doc.openingTime = normalizeRestaurantTime(body.openingTime) || '';
+    if (body.closingTime !== undefined) doc.closingTime = normalizeRestaurantTime(body.closingTime) || '';
+    validateOpeningClosingTimes(doc.openingTime, doc.closingTime);
     if (body.openDays !== undefined && Array.isArray(body.openDays)) {
         doc.openDays = body.openDays.map(d => toStr(d)).filter(Boolean);
     }
@@ -2633,9 +2689,18 @@ export async function createRestaurantByAdmin(body) {
     const loc = body.location || {};
     const toStr = (v) => (v != null && v !== undefined ? String(v).trim() : '');
     const toUrl = (v) => (v && (typeof v === 'string' ? v : v.url)) ? (typeof v === 'string' ? v : v.url) : undefined;
+    const coordinates = Array.isArray(loc.coordinates) ? loc.coordinates : [];
+    const lngFromCoordinates = toFiniteNumber(coordinates[0]);
+    const latFromCoordinates = toFiniteNumber(coordinates[1]);
+    const latitude = toFiniteNumber(loc.latitude ?? latFromCoordinates);
+    const longitude = toFiniteNumber(loc.longitude ?? lngFromCoordinates);
     const menuUrls = Array.isArray(body.menuImages)
         ? body.menuImages.map((m) => toUrl(m)).filter(Boolean)
         : [];
+
+    const normalizedOpeningTime = normalizeRestaurantTime(body.openingTime) || '09:00';
+    const normalizedClosingTime = normalizeRestaurantTime(body.closingTime) || '22:00';
+    validateOpeningClosingTimes(normalizedOpeningTime, normalizedClosingTime);
 
     const doc = {
         restaurantName: toStr(body.restaurantName) || toStr(body.name),
@@ -2643,6 +2708,9 @@ export async function createRestaurantByAdmin(body) {
         ownerEmail: toStr(body.ownerEmail),
         ownerPhone: toStr(body.ownerPhone),
         primaryContactNumber: toStr(body.primaryContactNumber) || toStr(body.ownerPhone),
+        pureVegRestaurant: body.pureVegRestaurant !== undefined
+            ? parseBooleanLike(body.pureVegRestaurant, 'pureVegRestaurant')
+            : false,
         addressLine1: toStr(loc.addressLine1),
         addressLine2: toStr(loc.addressLine2),
         area: toStr(loc.area),
@@ -2651,8 +2719,8 @@ export async function createRestaurantByAdmin(body) {
         pincode: toStr(loc.pincode),
         landmark: toStr(loc.landmark),
         cuisines: Array.isArray(body.cuisines) ? body.cuisines : [],
-        openingTime: toStr(body.openingTime) || '09:00',
-        closingTime: toStr(body.closingTime) || '22:00',
+        openingTime: normalizedOpeningTime,
+        closingTime: normalizedClosingTime,
         openDays: Array.isArray(body.openDays) ? body.openDays : [],
         panNumber: toStr(body.panNumber),
         nameOnPan: toStr(body.nameOnPan),
@@ -2685,6 +2753,35 @@ export async function createRestaurantByAdmin(body) {
         status: 'approved',
         approvedAt: new Date()
     };
+
+    if (body.zoneId !== undefined) {
+        const zoneId = String(body.zoneId || '').trim();
+        if (!zoneId) {
+            doc.zoneId = undefined;
+        } else if (!mongoose.Types.ObjectId.isValid(zoneId)) {
+            throw new ValidationError('Invalid zoneId');
+        } else {
+            doc.zoneId = new mongoose.Types.ObjectId(zoneId);
+        }
+    }
+
+    if (latitude !== null && longitude !== null) {
+        doc.location = {
+            type: 'Point',
+            coordinates: [longitude, latitude],
+            latitude,
+            longitude,
+            formattedAddress: toStr(loc.formattedAddress || loc.address || loc.addressLine1),
+            address: toStr(loc.address || loc.formattedAddress || loc.addressLine1),
+            addressLine1: toStr(loc.addressLine1 || loc.formattedAddress || loc.address),
+            addressLine2: toStr(loc.addressLine2),
+            area: toStr(loc.area),
+            city: toStr(loc.city),
+            state: toStr(loc.state),
+            pincode: toStr(loc.pincode || loc.zipCode || loc.postalCode),
+            landmark: toStr(loc.landmark),
+        };
+    }
 
     if (!doc.restaurantName || !doc.ownerName) {
         throw new ValidationError('Restaurant name and owner name are required');

@@ -8,6 +8,15 @@ const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
+const formatTime12Hour = (timeStr) => {
+  if (!timeStr || typeof timeStr !== "string" || !timeStr.includes(":")) return "--:-- --"
+  const [h, m] = timeStr.split(":").map(Number)
+  if (Number.isNaN(h) || Number.isNaN(m)) return timeStr
+  const period = h >= 12 ? "PM" : "AM"
+  const hour = h % 12 || 12
+  return `${String(hour).padStart(2, "0")}:${String(m).padStart(2, "0")} ${period}`
+}
+
 
 export default function JoiningRequest() {
   const [activeTab, setActiveTab] = useState("pending")
@@ -394,7 +403,10 @@ export default function JoiningRequest() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 flex items-center justify-center shrink-0">
+                          <div 
+                            className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 flex items-center justify-center shrink-0 cursor-pointer hover:opacity-80 transition-all"
+                            onClick={() => handleViewDetails(request)}
+                          >
                             <img
                               src={
                                 typeof request.profileImage === "string"
@@ -408,7 +420,12 @@ export default function JoiningRequest() {
                               }}
                             />
                           </div>
-                          <span className="text-sm font-medium text-slate-900">{request.restaurantName}</span>
+                          <span 
+                            className="text-sm font-medium text-slate-900 cursor-pointer hover:text-blue-600 transition-colors"
+                            onClick={() => handleViewDetails(request)}
+                          >
+                            {request.restaurantName}
+                          </span>
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -471,7 +488,7 @@ export default function JoiningRequest() {
 
       {/* Filter Dialog */}
       {showFilterDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={() => setShowFilterDialog(false)}>
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowFilterDialog(false)}>
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
@@ -562,7 +579,7 @@ export default function JoiningRequest() {
 
       {/* Reject Confirmation Dialog */}
       {showRejectDialog && selectedRequest && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={() => setShowRejectDialog(false)}>
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowRejectDialog(false)}>
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
             <div className="p-6">
               <div className="flex items-center gap-4 mb-4">
@@ -624,18 +641,28 @@ export default function JoiningRequest() {
         </div>
       )}
 
-      {/* Restaurant Details Modal */}
+      {/* Restaurant Details Side Panel */}
       {showDetailsModal && selectedRequest && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={closeDetailsModal}>
-          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            {/* Modal Header */}
-            <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between z-10">
-              <h2 className="text-2xl font-bold text-slate-900">Restaurant Details - {selectedRequest.restaurantName || "N/A"}</h2>
+        <div className="fixed inset-0 z-[60] flex justify-end">
+          <div className="fixed inset-0 bg-slate-900/10 backdrop-blur-sm transition-opacity" onClick={closeDetailsModal} />
+          
+          <div 
+            className="relative w-full max-w-4xl bg-white h-full shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Panel Header */}
+            <div className="sticky top-0 bg-white border-b border-slate-100 px-6 py-5 flex items-center justify-between z-10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                  <UtensilsCrossed className="w-5 h-5 text-blue-600" />
+                </div>
+                <h2 className="text-xl font-bold text-slate-900">Restaurant Details - {selectedRequest.restaurantName || "N/A"}</h2>
+              </div>
               <button
                 onClick={closeDetailsModal}
-                className="p-2 rounded-lg hover:bg-slate-100 transition-colors"
+                className="p-2 rounded-xl hover:bg-slate-100 transition-all text-slate-400 hover:text-slate-600 border border-transparent hover:border-slate-200"
               >
-                <X className="w-5 h-5 text-slate-600" />
+                <X className="w-6 h-6" />
               </button>
             </div>
 
@@ -796,7 +823,7 @@ export default function JoiningRequest() {
                             <div>
                               <p className="text-xs text-slate-500">Opening / Closing</p>
                               <p className="text-sm font-medium text-slate-900">
-                                {openingTime || "—"} – {closingTime || "—"}
+                                {formatTime12Hour(openingTime)} – {formatTime12Hour(closingTime)}
                               </p>
                             </div>
                           </div>

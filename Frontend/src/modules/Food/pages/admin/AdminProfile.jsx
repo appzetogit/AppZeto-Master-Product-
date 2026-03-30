@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from "@food/components/ui/card";
 import { toast } from "sonner";
-import { User, Mail, Phone, Save, Loader2, Upload, X, Pencil } from "lucide-react";
+import { User, Mail, Phone, Save, Loader2, Upload, X, Pencil, Eye, EyeOff } from "lucide-react";
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -31,6 +31,16 @@ export default function AdminProfile() {
     email: "",
     phone: "",
     profileImage: "",
+  });
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [showPasswords, setShowPasswords] = useState({
+    currentPassword: false,
+    newPassword: false,
+    confirmPassword: false,
   });
 
   useEffect(() => {
@@ -130,10 +140,44 @@ export default function AdminProfile() {
     }
   };
 
+  const resetPasswordFields = () => {
+    setPasswordData({
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    });
+    setShowPasswords({
+      currentPassword: false,
+      newPassword: false,
+      confirmPassword: false,
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     try {
+      const currentPassword = String(passwordData.currentPassword || "").trim();
+      const newPassword = String(passwordData.newPassword || "").trim();
+      const confirmPassword = String(passwordData.confirmPassword || "").trim();
+      const wantsPasswordChange =
+        !!currentPassword || !!newPassword || !!confirmPassword;
+
+      if (wantsPasswordChange) {
+        if (!currentPassword || !newPassword || !confirmPassword) {
+          toast.error("Please fill Old, New, and Confirm password fields.");
+          return;
+        }
+        if (newPassword.length < 6) {
+          toast.error("New password must be at least 6 characters.");
+          return;
+        }
+        if (newPassword !== confirmPassword) {
+          toast.error("New password and Confirm password do not match.");
+          return;
+        }
+      }
+
       setSaving(true);
       let profileImageUrl = formData.profileImage;
 
@@ -165,6 +209,7 @@ export default function AdminProfile() {
       // Update profile with uploaded image URL
       const response = await adminAPI.updateAdminProfile({
         name: formData.name,
+        email: formData.email || undefined,
         phone: formData.phone || undefined,
         profileImage: profileImageUrl || undefined,
       });
@@ -173,10 +218,12 @@ export default function AdminProfile() {
       
       if (updatedAdmin) {
         setProfile(updatedAdmin);
-        setFormData((prev) => ({
-          ...prev,
+        setFormData({
+          name: updatedAdmin.name || "",
+          email: updatedAdmin.email || "",
+          phone: updatedAdmin.phone || "",
           profileImage: updatedAdmin.profileImage || "",
-        }));
+        });
         // Clear selected file and preview
         setSelectedFile(null);
         setImagePreview(null);
@@ -187,8 +234,25 @@ export default function AdminProfile() {
         localStorage.setItem('admin_user', JSON.stringify(updatedAdmin));
         // Dispatch event to notify other components
         window.dispatchEvent(new Event('adminAuthChanged'));
-        toast.success("Profile updated successfully");
-        setIsEditMode(false);
+
+        if (wantsPasswordChange) {
+          try {
+            await adminAPI.changePassword(currentPassword, newPassword);
+            resetPasswordFields();
+            toast.success("Profile and password updated successfully");
+            setIsEditMode(false);
+          } catch (passwordError) {
+            debugError("Error updating admin password:", passwordError);
+            toast.error(
+              passwordError?.response?.data?.message || "Profile updated, but password change failed"
+            );
+            return;
+          }
+        } else {
+          resetPasswordFields();
+          toast.success("Profile updated successfully");
+          setIsEditMode(false);
+        }
       }
     } catch (error) {
       debugError("Error updating profile:", error);
@@ -212,6 +276,7 @@ export default function AdminProfile() {
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
+    resetPasswordFields();
     setIsEditMode(true);
   };
 
@@ -227,6 +292,7 @@ export default function AdminProfile() {
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
+    resetPasswordFields();
     setIsEditMode(false);
   };
 
@@ -386,10 +452,13 @@ export default function AdminProfile() {
                   id="email"
                   type="email"
                   value={formData.email}
-                  disabled
-                  className="h-11 bg-neutral-50 cursor-not-allowed"
+                  onChange={(e) => handleInputChange("email", e.target.value)}
+                  placeholder="Enter your email address"
+                  required
+                  disabled={!isEditMode || saving || uploading}
+                  className={`h-11 ${!isEditMode ? "bg-neutral-50 cursor-not-allowed" : ""}`}
                 />
-                <p className="text-xs text-neutral-500">Email cannot be changed</p>
+                <p className="text-xs text-neutral-500">Email can be changed</p>
               </div>
 
               <div className="space-y-2">
@@ -471,6 +540,120 @@ export default function AdminProfile() {
                     Hover over the image to change it
                   </p>
                 )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="currentPassword">Old Password</Label>
+                <div className="relative">
+                  <Input
+                    id="currentPassword"
+                    type={showPasswords.currentPassword ? "text" : "password"}
+                    value={passwordData.currentPassword}
+                    onChange={(e) =>
+                      setPasswordData((prev) => ({
+                        ...prev,
+                        currentPassword: e.target.value,
+                      }))
+                    }
+                    placeholder="Enter old password"
+                    disabled={!isEditMode || saving || uploading}
+                    className={`h-11 pr-11 ${!isEditMode ? "bg-neutral-50 cursor-not-allowed" : ""}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShowPasswords((prev) => ({
+                        ...prev,
+                        currentPassword: !prev.currentPassword,
+                      }))
+                    }
+                    disabled={!isEditMode || saving || uploading}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-700 disabled:opacity-50"
+                    aria-label={showPasswords.currentPassword ? "Hide old password" : "Show old password"}
+                  >
+                    {showPasswords.currentPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="newPassword">New Password</Label>
+                <div className="relative">
+                  <Input
+                    id="newPassword"
+                    type={showPasswords.newPassword ? "text" : "password"}
+                    value={passwordData.newPassword}
+                    onChange={(e) =>
+                      setPasswordData((prev) => ({
+                        ...prev,
+                        newPassword: e.target.value,
+                      }))
+                    }
+                    placeholder="Enter new password"
+                    disabled={!isEditMode || saving || uploading}
+                    className={`h-11 pr-11 ${!isEditMode ? "bg-neutral-50 cursor-not-allowed" : ""}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShowPasswords((prev) => ({
+                        ...prev,
+                        newPassword: !prev.newPassword,
+                      }))
+                    }
+                    disabled={!isEditMode || saving || uploading}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-700 disabled:opacity-50"
+                    aria-label={showPasswords.newPassword ? "Hide new password" : "Show new password"}
+                  >
+                    {showPasswords.newPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <div className="relative">
+                  <Input
+                    id="confirmPassword"
+                    type={showPasswords.confirmPassword ? "text" : "password"}
+                    value={passwordData.confirmPassword}
+                    onChange={(e) =>
+                      setPasswordData((prev) => ({
+                        ...prev,
+                        confirmPassword: e.target.value,
+                      }))
+                    }
+                    placeholder="Confirm new password"
+                    disabled={!isEditMode || saving || uploading}
+                    className={`h-11 pr-11 ${!isEditMode ? "bg-neutral-50 cursor-not-allowed" : ""}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShowPasswords((prev) => ({
+                        ...prev,
+                        confirmPassword: !prev.confirmPassword,
+                      }))
+                    }
+                    disabled={!isEditMode || saving || uploading}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-700 disabled:opacity-50"
+                    aria-label={showPasswords.confirmPassword ? "Hide confirm password" : "Show confirm password"}
+                  >
+                    {showPasswords.confirmPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
 

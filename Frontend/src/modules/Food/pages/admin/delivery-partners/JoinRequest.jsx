@@ -393,7 +393,10 @@ export default function JoinRequest() {
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center shrink-0 overflow-hidden">
+                            <div 
+                              className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center shrink-0 overflow-hidden cursor-pointer hover:opacity-80 transition-all border border-slate-100"
+                              onClick={() => handleView(request)}
+                            >
                               {(request.profileImage?.url || request.profilePhoto) ? (
                                 <img
                                   src={request.profileImage?.url || request.profilePhoto}
@@ -406,7 +409,12 @@ export default function JoinRequest() {
                                 </span>
                               )}
                             </div>
-                            <span className="text-sm font-medium text-slate-900">{request.name}</span>
+                            <span 
+                              className="text-sm font-medium text-slate-900 cursor-pointer hover:text-blue-600 transition-colors"
+                              onClick={() => handleView(request)}
+                            >
+                              {request.name}
+                            </span>
                           </div>
                         </td>
                         <td className="px-6 py-4">

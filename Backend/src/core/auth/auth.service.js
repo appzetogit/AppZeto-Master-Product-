@@ -621,7 +621,7 @@ export const getProfile = async (userId, role) => {
 
 const ADMIN_SERVICES_ALLOWED = ["food", "quickCommerce", "taxi"];
 
-/** Update admin profile (name, phone, profileImage). Only for ADMIN role. */
+/** Update admin profile (name, email, phone, profileImage). Only for ADMIN role. */
 export const updateAdminProfile = async (userId, body) => {
   if (!userId) {
     throw new AuthError("Invalid token payload");
@@ -631,6 +631,26 @@ export const updateAdminProfile = async (userId, body) => {
     throw new AuthError("Profile not found");
   }
   if (body.name !== undefined) admin.name = String(body.name || "").trim();
+  if (body.email !== undefined) {
+    const normalizedEmail = String(body.email || "")
+      .trim()
+      .toLowerCase();
+    if (!normalizedEmail) {
+      throw new ValidationError("Email is required");
+    }
+    if (normalizedEmail !== admin.email) {
+      const duplicateAdmin = await FoodAdmin.findOne({
+        _id: { $ne: admin._id },
+        email: normalizedEmail,
+      })
+        .select("_id")
+        .lean();
+      if (duplicateAdmin) {
+        throw new ValidationError("Email is already in use");
+      }
+    }
+    admin.email = normalizedEmail;
+  }
   if (body.phone !== undefined) admin.phone = String(body.phone || "").trim();
   if (body.profileImage !== undefined)
     admin.profileImage = String(body.profileImage || "").trim();

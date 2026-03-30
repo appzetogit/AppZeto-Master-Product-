@@ -1581,57 +1581,8 @@ export default function RestaurantsList() {
                     </div>
                   </div>
 
-                  {/* Cuisine & Timings */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <h4 className="text-lg font-semibold text-slate-900 mb-4">Cuisine & Details</h4>
-                      <div className="space-y-3">
-                        <div>
-                          <p className="text-xs text-slate-500 mb-1">Cuisines</p>
-                          <div className="flex flex-wrap gap-2">
-                            {cuisinesList ? (
-                              cuisinesList.map((cuisine, idx) => (
-                                <span key={idx} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
-                                  {cuisine}
-                                </span>
-                              ))
-                            ) : (
-                              <span className="text-sm text-slate-500">{r?.cuisine || "N/A"}</span>
-                            )}
-                          </div>
-                        </div>
-                        {(featuredDishVal || featuredPriceVal != null) && (
-                          <div>
-                            <p className="text-xs text-slate-500 mb-1">Featured Dish</p>
-                            <p className="text-sm font-medium text-slate-900">
-                              {featuredDishVal || "—"}
-                              {featuredPriceVal != null && featuredPriceVal !== "" && (
-                                <span className="text-slate-600 ml-1">(₹{featuredPriceVal})</span>
-                              )}
-                            </p>
-                          </div>
-                        )}
-                        {offerVal && (
-                          <div>
-                            <p className="text-xs text-slate-500 mb-1">Current Offer</p>
-                            <p className="text-sm font-medium text-green-600">{offerVal}</p>
-                          </div>
-                        )}
-                        {diningSettingsVal && (
-                          <div>
-                            <p className="text-xs text-slate-500 mb-1">Dining</p>
-                            <p className="text-sm font-medium text-slate-900">
-                              {diningSettingsVal?.isEnabled ? "Enabled" : "Disabled"}
-                              {diningSettingsVal?.isEnabled && (
-                                <span className="text-slate-600 ml-1">
-                                  (max {diningSettingsVal?.maxGuests ?? 6}, {diningSettingsVal?.diningType || "family-dining"})
-                                </span>
-                              )}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                  {/* Timings */}
+                  <div className="grid grid-cols-1 gap-6">
 
                     <div>
                       <h4 className="text-lg font-semibold text-slate-900 mb-4">Timings & Status</h4>

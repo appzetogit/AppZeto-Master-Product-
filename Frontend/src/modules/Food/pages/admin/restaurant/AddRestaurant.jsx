@@ -1,15 +1,16 @@
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
+import { getGoogleMapsApiKey } from "@food/utils/googleMapsApiKey"
 import { useNavigate } from "react-router-dom"
 import { Building2, Info, Tag, Upload, Calendar, FileText, MapPin, CheckCircle2, X, Image as ImageIcon, Clock, Loader2 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@food/components/ui/dialog"
 import { Input } from "@food/components/ui/input"
 import { Label } from "@food/components/ui/label"
 import { Button } from "@food/components/ui/button"
-import { adminAPI, uploadAPI } from "@food/api"
+import { adminAPI, uploadAPI, zoneAPI } from "@food/api"
 import { toast } from "sonner"
 const debugLog = (...args) => {}
-const debugWarn = (...args) => {}
-const debugError = (...args) => {}
+const debugWarn = (...args) => { console.warn(...args) }
+const debugError = (...args) => { console.error(...args) }
 
 
 const cuisinesOptions = [
@@ -31,7 +32,6 @@ const ACCOUNT_NUMBER_REGEX = /^\d{9,18}$/
 const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/
 const GST_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/
 const NAME_REGEX = /^[A-Za-z][A-Za-z\s.'-]*$/
-const FEATURED_DISH_NAME_REGEX = /^[A-Za-z ]+$/
 const sanitizeDigits = (value = "") => value.replace(/\D/g, "")
 const sanitizePan = (value = "") => value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10)
 const sanitizeFssai = (value = "") => value.replace(/\D/g, "").slice(0, 14)
@@ -40,6 +40,14 @@ const sanitizeGst = (value = "") => value.toUpperCase().replace(/[^A-Z0-9]/g, ""
 const normalizeName = (value = "") => value.replace(/\s+/g, " ").trimStart()
 const hasLetters = (value = "") => /[A-Za-z]/.test(value)
 const getTodayLocalYMD = () => new Date().toISOString().split("T")[0]
+const timeStringToMinutes = (value = "") => {
+  const raw = String(value || "").trim()
+  if (!/^\d{2}:\d{2}$/.test(raw)) return null
+  const [hours, minutes] = raw.split(":").map(Number)
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null
+  return hours * 60 + minutes
+}
 const getStoredFileLabel = (value) => {
   if (!value) return ""
   if (value instanceof File) return value.name
@@ -54,6 +62,97 @@ const getStoredImageSrc = (value) => {
   if (value?.url) return value.url
   return ""
 }
+const isUploadableFile = (value) => {
+  if (!value || typeof value !== "object") return false
+  if (typeof File !== "undefined" && value instanceof File) return true
+  if (typeof Blob !== "undefined" && value instanceof Blob) return true
+  return (
+    typeof value.size === "number" &&
+    (typeof value.slice === "function" || typeof value.arrayBuffer === "function")
+  )
+}
+
+const ADMIN_ADD_STORAGE_KEY = "admin_add_restaurant_form_data"
+const ADMIN_ADD_FILES_DB = "AdminAddRestaurantFiles"
+const ADMIN_ADD_FILES_STORE = "files"
+const MAX_MENU_FILES = 10
+
+const openAdminAddFilesDB = () =>
+  new Promise((resolve, reject) => {
+    try {
+      const request = indexedDB.open(ADMIN_ADD_FILES_DB, 1)
+      request.onupgradeneeded = (e) => {
+        const db = e.target.result
+        if (!db.objectStoreNames.contains(ADMIN_ADD_FILES_STORE)) {
+          db.createObjectStore(ADMIN_ADD_FILES_STORE)
+        }
+      }
+      request.onsuccess = (e) => resolve(e.target.result)
+      request.onerror = (e) => reject(e.target.error)
+    } catch (err) {
+      reject(err)
+    }
+  })
+
+const saveFileToDB = async (key, file) => {
+  if (!isUploadableFile(file)) return
+  try {
+    const db = await openAdminAddFilesDB()
+    const tx = db.transaction(ADMIN_ADD_FILES_STORE, "readwrite")
+    tx.objectStore(ADMIN_ADD_FILES_STORE).put(file, key)
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve(true)
+      tx.onerror = () => reject(tx.error || new Error("IndexedDB write failed"))
+      tx.onabort = () => reject(tx.error || new Error("IndexedDB write aborted"))
+    })
+  } catch (err) {
+    debugError("Failed to persist file in IndexedDB:", err)
+  }
+}
+
+const getFileFromDB = async (key) => {
+  try {
+    const db = await openAdminAddFilesDB()
+    const tx = db.transaction(ADMIN_ADD_FILES_STORE, "readonly")
+    const request = tx.objectStore(ADMIN_ADD_FILES_STORE).get(key)
+    return new Promise((resolve) => {
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => resolve(null)
+    })
+  } catch {
+    return null
+  }
+}
+
+const deleteFileFromDB = async (key) => {
+  try {
+    const db = await openAdminAddFilesDB()
+    const tx = db.transaction(ADMIN_ADD_FILES_STORE, "readwrite")
+    tx.objectStore(ADMIN_ADD_FILES_STORE).delete(key)
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve(true)
+      tx.onerror = () => reject(tx.error || new Error("IndexedDB delete failed"))
+      tx.onabort = () => reject(tx.error || new Error("IndexedDB delete aborted"))
+    })
+  } catch (err) {
+    debugError("Failed to delete file from IndexedDB:", err)
+  }
+}
+
+const clearAllFilesFromDB = async () => {
+  try {
+    const db = await openAdminAddFilesDB()
+    const tx = db.transaction(ADMIN_ADD_FILES_STORE, "readwrite")
+    tx.objectStore(ADMIN_ADD_FILES_STORE).clear()
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve(true)
+      tx.onerror = () => reject(tx.error || new Error("IndexedDB clear failed"))
+      tx.onabort = () => reject(tx.error || new Error("IndexedDB clear aborted"))
+    })
+  } catch (err) {
+    debugError("Failed to clear IndexedDB files:", err)
+  }
+}
 
 export default function AddRestaurant() {
   const navigate = useNavigate()
@@ -61,14 +160,19 @@ export default function AddRestaurant() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showSuccessDialog, setShowSuccessDialog] = useState(false)
   const [formErrors, setFormErrors] = useState({})
+  const [zones, setZones] = useState([])
+  const [zonesLoading, setZonesLoading] = useState(false)
+  const [isHydrated, setIsHydrated] = useState(false)
 
   // Step 1: Basic Info
   const [step1, setStep1] = useState({
     restaurantName: "",
+    pureVegRestaurant: null,
     ownerName: "",
     ownerEmail: "",
     ownerPhone: "",
     primaryContactNumber: "",
+    zoneId: "",
     location: {
       addressLine1: "",
       addressLine2: "",
@@ -77,6 +181,9 @@ export default function AddRestaurant() {
       state: "",
       pincode: "",
       landmark: "",
+      formattedAddress: "",
+      latitude: "",
+      longitude: "",
     },
   })
 
@@ -85,9 +192,10 @@ export default function AddRestaurant() {
     menuImages: [],
     profileImage: null,
     cuisines: [],
-    openingTime: "09:00",
-    closingTime: "22:00",
-    openDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+    estimatedDeliveryTime: "",
+    openingTime: "",
+    closingTime: "",
+    openDays: [],
   })
 
   // Step 3: Documents
@@ -110,26 +218,184 @@ export default function AddRestaurant() {
     accountType: "",
   })
 
-  // Step 4: Display Info
-  const [step4, setStep4] = useState({
-    estimatedDeliveryTime: "25-30 mins",
-    featuredDish: "",
-    featuredPrice: "249",
-    offer: "",
-    diningSettings: {
-      isEnabled: false,
-      maxGuests: 6,
-      diningType: "family-dining"
-    }
-  })
-
   const languageTabs = [
     { key: "default", label: "Default" },
     { key: "en", label: "English(EN)" },
     { key: "bn", label: "Bengali - ?????(BN)" },
     { key: "ar", label: "Arabic - ??????? (AR)" },
-    { key: "es", label: "Spanish - espaol(ES)" },
+    { key: "es", label: "Spanish - espaï¿½ol(ES)" },
   ]
+
+  const mainContentRef = useRef(null)
+
+  const clearPersistedFormData = async () => {
+    try {
+      localStorage.removeItem(ADMIN_ADD_STORAGE_KEY)
+    } catch (err) {
+      debugError("Failed to clear localStorage form cache:", err)
+    }
+    await clearAllFilesFromDB()
+  }
+
+  useEffect(() => {
+    let cancelled = false
+
+    const restoreFormData = async () => {
+      try {
+        const storedRaw = localStorage.getItem(ADMIN_ADD_STORAGE_KEY)
+        if (storedRaw) {
+          const parsed = JSON.parse(storedRaw)
+          const safeStep = Math.min(Math.max(Number(parsed?.step) || 1, 1), 3)
+          if (!cancelled) setStep(safeStep)
+          if (parsed?.step1 && !cancelled) {
+            setStep1((prev) => ({ ...prev, ...parsed.step1, location: { ...prev.location, ...(parsed.step1.location || {}) } }))
+          }
+          if (parsed?.step2 && !cancelled) {
+            setStep2((prev) => ({ ...prev, ...parsed.step2 }))
+          }
+          if (parsed?.step3 && !cancelled) {
+            setStep3((prev) => ({ ...prev, ...parsed.step3 }))
+          }
+        }
+
+        const [profileImage, panImage, gstImage, fssaiImage] = await Promise.all([
+          getFileFromDB("profileImage"),
+          getFileFromDB("panImage"),
+          getFileFromDB("gstImage"),
+          getFileFromDB("fssaiImage"),
+        ])
+        const menuFilePromises = Array.from({ length: MAX_MENU_FILES }, (_, i) => getFileFromDB(`menuImage_${i}`))
+        const menuFilesFromDB = (await Promise.all(menuFilePromises)).filter(Boolean)
+
+        if (!cancelled) {
+          if (profileImage) setStep2((prev) => ({ ...prev, profileImage }))
+          if (menuFilesFromDB.length) {
+            setStep2((prev) => ({ ...prev, menuImages: [...(prev.menuImages || []), ...menuFilesFromDB] }))
+          }
+          if (panImage) setStep3((prev) => ({ ...prev, panImage }))
+          if (gstImage) setStep3((prev) => ({ ...prev, gstImage }))
+          if (fssaiImage) setStep3((prev) => ({ ...prev, fssaiImage }))
+        }
+      } catch (err) {
+        debugError("Failed to restore admin add form data:", err)
+      } finally {
+        if (!cancelled) setIsHydrated(true)
+      }
+    }
+
+    restoreFormData()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isHydrated) return
+    try {
+      const serializableStep2 = {
+        ...step2,
+        menuImages: (step2.menuImages || []).filter(
+          (img) => !isUploadableFile(img) && (img?.url || (typeof img === "string" && img.trim()))
+        ),
+        profileImage:
+          !isUploadableFile(step2.profileImage) &&
+          (step2.profileImage?.url || (typeof step2.profileImage === "string" && step2.profileImage.trim()))
+            ? step2.profileImage
+            : null,
+      }
+
+      const serializableStep3 = {
+        ...step3,
+        panImage:
+          !isUploadableFile(step3.panImage) &&
+          (step3.panImage?.url || (typeof step3.panImage === "string" && step3.panImage.trim()))
+            ? step3.panImage
+            : null,
+        gstImage:
+          !isUploadableFile(step3.gstImage) &&
+          (step3.gstImage?.url || (typeof step3.gstImage === "string" && step3.gstImage.trim()))
+            ? step3.gstImage
+            : null,
+        fssaiImage:
+          !isUploadableFile(step3.fssaiImage) &&
+          (step3.fssaiImage?.url || (typeof step3.fssaiImage === "string" && step3.fssaiImage.trim()))
+            ? step3.fssaiImage
+            : null,
+      }
+
+      localStorage.setItem(
+        ADMIN_ADD_STORAGE_KEY,
+        JSON.stringify({
+          step,
+          step1,
+          step2: serializableStep2,
+          step3: serializableStep3,
+          timestamp: Date.now(),
+        })
+      )
+    } catch (err) {
+      debugError("Failed to persist admin add form data:", err)
+    }
+  }, [isHydrated, step, step1, step2, step3])
+
+  useEffect(() => {
+    if (!isHydrated) return
+    const uploadableMenuFiles = (step2.menuImages || []).filter((img) => isUploadableFile(img)).slice(0, MAX_MENU_FILES)
+    uploadableMenuFiles.forEach((file, idx) => {
+      void saveFileToDB(`menuImage_${idx}`, file)
+    })
+    for (let i = uploadableMenuFiles.length; i < MAX_MENU_FILES; i += 1) {
+      void deleteFileFromDB(`menuImage_${i}`)
+    }
+  }, [isHydrated, step2.menuImages])
+
+  useEffect(() => {
+    if (!isHydrated) return
+    if (isUploadableFile(step2.profileImage)) {
+      void saveFileToDB("profileImage", step2.profileImage)
+    } else {
+      void deleteFileFromDB("profileImage")
+    }
+  }, [isHydrated, step2.profileImage])
+
+  useEffect(() => {
+    if (!isHydrated) return
+    if (isUploadableFile(step3.panImage)) {
+      void saveFileToDB("panImage", step3.panImage)
+    } else {
+      void deleteFileFromDB("panImage")
+    }
+  }, [isHydrated, step3.panImage])
+
+  useEffect(() => {
+    if (!isHydrated) return
+    if (isUploadableFile(step3.gstImage)) {
+      void saveFileToDB("gstImage", step3.gstImage)
+    } else {
+      void deleteFileFromDB("gstImage")
+    }
+  }, [isHydrated, step3.gstImage])
+
+  useEffect(() => {
+    if (!isHydrated) return
+    if (isUploadableFile(step3.fssaiImage)) {
+      void saveFileToDB("fssaiImage", step3.fssaiImage)
+    } else {
+      void deleteFileFromDB("fssaiImage")
+    }
+  }, [isHydrated, step3.fssaiImage])
+
+  // Keep UX consistent: each step opens from top after Next/Back.
+  useEffect(() => {
+    const contentEl = mainContentRef.current
+    if (contentEl?.scrollTo) contentEl.scrollTo({ top: 0, behavior: "auto" })
+    if (typeof window !== "undefined" && window.scrollTo) window.scrollTo({ top: 0, behavior: "auto" })
+    if (typeof document !== "undefined") {
+      if (document.documentElement) document.documentElement.scrollTop = 0
+      if (document.body) document.body.scrollTop = 0
+    }
+  }, [step])
 
   // Upload handler for images
   const handleUpload = async (file, folder) => {
@@ -148,6 +414,7 @@ export default function AddRestaurant() {
   const validateStep1 = () => {
     const errors = []
     if (!step1.restaurantName?.trim()) errors.push("Restaurant name is required")
+    if (typeof step1.pureVegRestaurant !== "boolean") errors.push("Please select whether restaurant is pure veg")
     if (!step1.ownerName?.trim()) errors.push("Owner name is required")
     if (step1.ownerName?.trim() && (!NAME_REGEX.test(step1.ownerName.trim()) || !hasLetters(step1.ownerName))) {
       errors.push("Owner name must contain valid characters")
@@ -158,6 +425,7 @@ export default function AddRestaurant() {
     if (step1.ownerPhone?.trim() && !PHONE_REGEX.test(step1.ownerPhone.trim())) errors.push("Owner phone number must be 10 digits")
     if (!step1.primaryContactNumber?.trim()) errors.push("Primary contact number is required")
     if (step1.primaryContactNumber?.trim() && !PHONE_REGEX.test(step1.primaryContactNumber.trim())) errors.push("Primary contact number must be 10 digits")
+    if (!step1.zoneId?.trim()) errors.push("Service zone is required")
     if (!step1.location?.area?.trim()) errors.push("Area/Sector/Locality is required")
     if (!step1.location?.city?.trim()) errors.push("City is required")
     return errors
@@ -168,8 +436,18 @@ export default function AddRestaurant() {
     if (!step2.menuImages || step2.menuImages.length === 0) errors.push("At least one menu image is required")
     if (!step2.profileImage) errors.push("Restaurant profile image is required")
     if (!step2.cuisines || step2.cuisines.length === 0) errors.push("Please select at least one cuisine")
+    if (!step2.estimatedDeliveryTime?.trim()) errors.push("Estimated delivery time is required")
     if (!step2.openingTime?.trim()) errors.push("Opening time is required")
     if (!step2.closingTime?.trim()) errors.push("Closing time is required")
+    const openingMinutes = timeStringToMinutes(step2.openingTime)
+    const closingMinutes = timeStringToMinutes(step2.closingTime)
+    if (openingMinutes !== null && closingMinutes !== null) {
+      if (openingMinutes === closingMinutes) {
+        errors.push("Opening time and closing time cannot be same")
+      } else if (closingMinutes < openingMinutes) {
+        errors.push("Closing time cannot be less than opening time")
+      }
+    }
     if (!step2.openDays || step2.openDays.length === 0) errors.push("Please select at least one open day")
     return errors
   }
@@ -217,18 +495,6 @@ export default function AddRestaurant() {
     return errors
   }
 
-  const validateStep4 = () => {
-    const errors = []
-    if (!step4.estimatedDeliveryTime?.trim()) errors.push("Estimated delivery time is required")
-    if (!step4.featuredDish?.trim()) errors.push("Featured dish name is required")
-    if (step4.featuredDish?.trim() && !FEATURED_DISH_NAME_REGEX.test(step4.featuredDish.trim())) errors.push("Featured dish name must contain only letters")
-    if (!step4.featuredPrice || !/^\d+$/.test(String(step4.featuredPrice)) || Number(step4.featuredPrice) <= 0) {
-      errors.push("Featured dish price is required and must be greater than 0")
-    }
-    if (!step4.offer?.trim()) errors.push("Special offer/promotion is required")
-    return errors
-  }
-
   const handleNext = () => {
     setFormErrors({})
     let validationErrors = []
@@ -239,8 +505,6 @@ export default function AddRestaurant() {
       validationErrors = validateStep2()
     } else if (step === 3) {
       validationErrors = validateStep3()
-    } else if (step === 4) {
-      validationErrors = validateStep4()
     }
 
     if (validationErrors.length > 0) {
@@ -250,7 +514,7 @@ export default function AddRestaurant() {
       return
     }
 
-    if (step < 4) {
+    if (step < 3) {
       setStep(step + 1)
     } else {
       handleSubmit()
@@ -305,15 +569,18 @@ export default function AddRestaurant() {
       const payload = {
         // Step 1
         restaurantName: step1.restaurantName,
+        pureVegRestaurant: step1.pureVegRestaurant,
         ownerName: step1.ownerName,
         ownerEmail: step1.ownerEmail,
         ownerPhone: step1.ownerPhone,
         primaryContactNumber: step1.primaryContactNumber,
+        zoneId: step1.zoneId,
         location: step1.location,
         // Step 2
         menuImages: menuImagesData,
         profileImage: profileImageData,
         cuisines: step2.cuisines,
+        estimatedDeliveryTime: step2.estimatedDeliveryTime,
         openingTime: step2.openingTime,
         closingTime: step2.closingTime,
         openDays: step2.openDays,
@@ -333,12 +600,6 @@ export default function AddRestaurant() {
         ifscCode: step3.ifscCode,
         accountHolderName: step3.accountHolderName,
         accountType: step3.accountType,
-        // Step 4
-        estimatedDeliveryTime: step4.estimatedDeliveryTime,
-        featuredDish: step4.featuredDish,
-        featuredPrice: parseFloat(step4.featuredPrice) || 249,
-        offer: step4.offer,
-        diningSettings: step4.diningSettings,
       }
 
       // Call backend API
@@ -346,6 +607,7 @@ export default function AddRestaurant() {
 
       const data = response?.data?.data ?? response?.data
       if (response?.data?.success !== false && data) {
+        await clearPersistedFormData()
         toast.success("Restaurant created successfully!")
         setShowSuccessDialog(true)
         setTimeout(() => {
@@ -364,12 +626,201 @@ export default function AddRestaurant() {
     }
   }
 
+  const locationSearchInputRef = useRef(null)
+  const placesAutocompleteRef = useRef(null)
+  const mapsScriptLoadedRef = useRef(false)
+
+  useEffect(() => {
+    if (step !== 1) return
+    let cancelled = false
+    setZonesLoading(true)
+    zoneAPI
+      .getPublicZones()
+      .then((res) => {
+        const list = res?.data?.data?.zones || res?.data?.zones || []
+        if (!cancelled) setZones(Array.isArray(list) ? list : [])
+      })
+      .catch(() => {
+        if (!cancelled) setZones([])
+      })
+      .finally(() => {
+        if (!cancelled) setZonesLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [step])
+
+  // Initialize Google Places Autocomplete for Step 1 location search.
+  useEffect(() => {
+    if (step !== 1) return
+
+    let cancelled = false
+    let autocomplete = null
+
+    const init = async () => {
+      // Wait for the input ref to be attached (up to 2 seconds)
+      let inputElement = null
+      for (let i = 0; i < 40; i++) {
+        if (locationSearchInputRef.current) {
+          inputElement = locationSearchInputRef.current
+          break
+        }
+        await new Promise((r) => setTimeout(r, 50))
+      }
+      
+      if (!inputElement || cancelled) return
+      const loadMaps = async () => {
+        // If already fully loaded and available
+        if (window.google?.maps?.places?.Autocomplete) {
+          mapsScriptLoadedRef.current = true
+          return true
+        }
+
+        const apiKey = await getGoogleMapsApiKey()
+        if (!apiKey) {
+          debugError("Google Maps API Key missing")
+          return false
+        }
+
+        // Catch Google Maps authentication failures
+        window.gm_authFailure = () => {
+          debugError("Google Maps authentication failed. Check API Key restrictions/billing.")
+          toast.error("Location service authentication failed. Please contact support.")
+        }
+
+        // Check for any existing script tagging maps.googleapis.com
+        const existing = document.getElementById("google-maps-sdk") || 
+                         Array.from(document.getElementsByTagName("script")).find(s => s.src?.includes("maps.googleapis.com/maps/api/js"))
+        
+        if (existing) {
+          if (!existing.id) existing.id = "google-maps-sdk"
+          for (let i = 0; i < 60; i++) {
+            if (window.google?.maps?.places?.Autocomplete) {
+              mapsScriptLoadedRef.current = true
+              return true
+            }
+            await new Promise((r) => setTimeout(r, 100))
+          }
+          return false
+        }
+
+        return new Promise((resolve) => {
+          const script = document.createElement("script")
+          script.id = "google-maps-sdk"
+          script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&v=weekly`
+          script.async = true
+          script.defer = true
+          script.onload = () => {
+            mapsScriptLoadedRef.current = true
+            resolve(!!window.google?.maps?.places?.Autocomplete)
+          }
+          script.onerror = () => resolve(false)
+          document.head.appendChild(script)
+        })
+      }
+
+      const parsePlace = (place) => {
+        const formattedAddress = place?.formatted_address || ""
+        const comps = Array.isArray(place?.address_components) ? place.address_components : []
+        const get = (types) => comps.find((c) => types.some((t) => c.types?.includes(t)))?.long_name || ""
+        
+        const area = get(["sublocality_level_1", "sublocality", "neighborhood"]) || get(["locality"])
+        const city = get(["locality"]) || get(["administrative_area_level_2"])
+        const state = get(["administrative_area_level_1"]) || get(["administrative_area_level_2"])
+        const pincode = get(["postal_code"])
+        const lat = place?.geometry?.location?.lat?.()
+        const lng = place?.geometry?.location?.lng?.()
+        
+        return {
+          formattedAddress,
+          area,
+          city,
+          state,
+          pincode,
+          latitude: typeof lat === 'number' ? Number(lat.toFixed(6)) : "",
+          longitude: typeof lng === 'number' ? Number(lng.toFixed(6)) : "",
+        }
+      }
+
+      const ok = await loadMaps()
+      if (!ok || cancelled || !inputElement) return
+
+      if (inputElement.hasAttribute('data-google-places-initialized')) return
+
+      try {
+        autocomplete = new window.google.maps.places.Autocomplete(
+          inputElement,
+          {
+            fields: ["formatted_address", "address_components", "geometry"],
+            componentRestrictions: { country: "in" },
+          }
+        )
+        
+        inputElement.setAttribute('data-google-places-initialized', 'true')
+        placesAutocompleteRef.current = autocomplete
+
+        autocomplete.addListener("place_changed", () => {
+          const place = autocomplete.getPlace()
+          if (!place?.geometry) return
+          
+          const parsed = parsePlace(place)
+          setStep1((prev) => ({
+            ...prev,
+            location: {
+              ...prev.location,
+              formattedAddress: parsed.formattedAddress || prev.location.formattedAddress,
+              addressLine1: parsed.formattedAddress || prev.location.addressLine1 || "",
+              area: parsed.area || prev.location.area,
+              city: parsed.city || prev.location.city,
+              state: parsed.state || prev.location.state,
+              pincode: parsed.pincode || prev.location.pincode,
+              latitude: parsed.latitude !== "" ? parsed.latitude : prev.location.latitude,
+              longitude: parsed.longitude !== "" ? parsed.longitude : prev.location.longitude,
+            },
+          }))
+        })
+        
+        const pacContainerFix = () => {
+          setTimeout(() => {
+            const containers = document.querySelectorAll('.pac-container');
+            containers.forEach(container => {
+              container.style.zIndex = '999999';
+              container.style.pointerEvents = 'auto';
+            });
+          }, 200);
+        };
+        inputElement.addEventListener('focus', pacContainerFix);
+        inputElement.addEventListener('input', pacContainerFix);
+      } catch (e) {
+        debugWarn("Autocomplete initialization error:", e)
+      }
+    }
+
+    init().catch((err) => {
+      debugWarn("Failed to initialize location search:", err)
+    })
+
+    return () => {
+      cancelled = true
+      if (autocomplete) {
+        try { window.google?.maps?.event?.clearInstanceListeners(autocomplete) } catch {}
+      }
+      if (locationSearchInputRef.current) {
+        locationSearchInputRef.current.removeAttribute('data-google-places-initialized')
+      }
+      placesAutocompleteRef.current = null
+    }
+  }, [step])
+
+
   // Render functions for each step
   const renderStep1 = () => (
     <div className="space-y-6">
       <section className="bg-white p-4 sm:p-6 rounded-md">
         <h2 className="text-lg font-semibold text-black mb-4">Restaurant information</h2>
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div>
             <Label className="text-xs text-gray-700">Restaurant name*</Label>
             <Input
@@ -378,6 +829,36 @@ export default function AddRestaurant() {
               className="mt-1 bg-white text-sm text-black placeholder-black"
               placeholder="Customers will see this name"
             />
+          </div>
+          <div>
+            <Label className="text-xs text-gray-700">Pure veg restaurant?*</Label>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setStep1({ ...step1, pureVegRestaurant: true })}
+                className={`px-3 py-1.5 text-xs rounded-full border ${
+                  step1.pureVegRestaurant === true
+                    ? "bg-green-600 text-white border-green-600"
+                    : "bg-white text-gray-700 border-gray-200"
+                }`}
+              >
+                Yes, Pure Veg
+              </button>
+              <button
+                type="button"
+                onClick={() => setStep1({ ...step1, pureVegRestaurant: false })}
+                className={`px-3 py-1.5 text-xs rounded-full border ${
+                  step1.pureVegRestaurant === false
+                    ? "bg-gray-900 text-white border-gray-900"
+                    : "bg-white text-gray-700 border-gray-200"
+                }`}
+              >
+                No, Mixed Menu
+              </button>
+            </div>
+            <p className="text-[11px] text-gray-500 mt-1">
+              This helps users filter restaurants by dietary preference.
+            </p>
           </div>
         </div>
       </section>
@@ -420,6 +901,40 @@ export default function AddRestaurant() {
 
       <section className="bg-white p-4 sm:p-6 rounded-md space-y-4">
         <h2 className="text-lg font-semibold text-black">Restaurant contact & location</h2>
+        <div>
+          <Label className="text-xs text-gray-700">Search location</Label>
+          <Input
+            ref={locationSearchInputRef}
+            className="mt-1 bg-white text-sm"
+            placeholder="Search and select restaurant address..."
+          />
+          <p className="text-[11px] text-gray-500 mt-1">
+            Search to auto-fill Area, City, State, Pincode and coordinates.
+          </p>
+        </div>
+        <div>
+          <Label className="text-xs text-gray-700">Service zone*</Label>
+          <select
+            value={step1.zoneId || ""}
+            onChange={(e) => setStep1({ ...step1, zoneId: e.target.value })}
+            className="mt-1 w-full h-9 rounded-md border border-input bg-white px-3 text-sm"
+            disabled={zonesLoading}
+          >
+            <option value="">{zonesLoading ? "Loading zones..." : "Select a zone"}</option>
+            {zones.map((z) => {
+              const id = String(z?._id || z?.id || "")
+              const label = z?.name || z?.zoneName || z?.serviceLocation || id
+              return (
+                <option key={id} value={id}>
+                  {label}
+                </option>
+              )
+            })}
+          </select>
+          <p className="text-[11px] text-gray-500 mt-1">
+            Choose the service zone where your restaurant will be available.
+          </p>
+        </div>
         <div>
           <Label className="text-xs text-gray-700">Primary contact number*</Label>
           <Input
@@ -594,6 +1109,7 @@ export default function AddRestaurant() {
                 type="time"
                 value={step2.openingTime || ""}
                 onChange={(e) => setStep2({ ...step2, openingTime: e.target.value })}
+                autoComplete="off"
                 className="bg-white text-sm"
               />
             </div>
@@ -603,10 +1119,22 @@ export default function AddRestaurant() {
                 type="time"
                 value={step2.closingTime || ""}
                 onChange={(e) => setStep2({ ...step2, closingTime: e.target.value })}
+                autoComplete="off"
                 className="bg-white text-sm"
               />
             </div>
           </div>
+        </div>
+
+        <div>
+          <Label className="text-xs text-gray-700">Estimated delivery time*</Label>
+          <Input
+            value={step2.estimatedDeliveryTime || ""}
+            onChange={(e) => setStep2({ ...step2, estimatedDeliveryTime: e.target.value })}
+            autoComplete="off"
+            className="mt-1 bg-white text-sm"
+            placeholder="e.g., 25-30 mins"
+          />
         </div>
 
         <div className="space-y-2">
@@ -731,6 +1259,7 @@ export default function AddRestaurant() {
               value={step3.fssaiExpiry || ""}
               onChange={(e) => setStep3({ ...step3, fssaiExpiry: e.target.value })}
               min={getTodayLocalYMD()}
+              autoComplete="off"
               className="bg-white text-sm"
             />
           </div>
@@ -765,36 +1294,10 @@ export default function AddRestaurant() {
     </div>
   )
 
-  const renderStep4 = () => (
-    <div className="space-y-6">
-      <section className="bg-white p-4 sm:p-6 rounded-md space-y-4">
-        <h2 className="text-lg font-semibold text-black">Restaurant Display Information</h2>
-        <div>
-          <Label className="text-xs text-gray-700">Estimated Delivery Time*</Label>
-          <Input value={step4.estimatedDeliveryTime || ""} onChange={(e) => setStep4({ ...step4, estimatedDeliveryTime: e.target.value })} className="mt-1 bg-white text-sm" placeholder="e.g., 25-30 mins" />
-        </div>
-        <div>
-          <Label className="text-xs text-gray-700">Featured Dish Name*</Label>
-          <Input value={step4.featuredDish || ""} onChange={(e) => setStep4({ ...step4, featuredDish: e.target.value.replace(/[^A-Za-z ]/g, "") })} className="mt-1 bg-white text-sm" placeholder="e.g., Butter Chicken Special" />
-        </div>
-        <div>
-          <Label className="text-xs text-gray-700">Featured Dish Price (â‚¹)*</Label>
-          <Input type="text" inputMode="numeric" value={step4.featuredPrice || ""} onChange={(e) => setStep4({ ...step4, featuredPrice: e.target.value.replace(/\D/g, "") })} className="mt-1 bg-white text-sm" placeholder="e.g., 249" />
-        </div>
-        <div>
-          <Label className="text-xs text-gray-700">Special Offer/Promotion*</Label>
-          <Input value={step4.offer || ""} onChange={(e) => setStep4({ ...step4, offer: e.target.value })} className="mt-1 bg-white text-sm" placeholder="e.g., Flat 50 Rs. OFF on Order Above Rs.199" />
-        </div>
-      </section>
-
-    </div>
-  )
-
   const renderStep = () => {
     if (step === 1) return renderStep1()
     if (step === 2) return renderStep2()
-    if (step === 3) return renderStep3()
-    return renderStep4()
+    return renderStep3()
   }
 
   return (
@@ -804,10 +1307,10 @@ export default function AddRestaurant() {
           <Building2 className="w-5 h-5 text-blue-600" />
           <div className="text-sm font-semibold text-black">Add New Restaurant</div>
         </div>
-        <div className="text-xs text-gray-600">Step {step} of 4</div>
+        <div className="text-xs text-gray-600">Step {step} of 3</div>
       </header>
 
-      <main className="flex-1 px-4 sm:px-6 py-4 space-y-4">
+      <main ref={mainContentRef} className="flex-1 px-4 sm:px-6 py-4 space-y-4">
         {renderStep()}
       </main>
 
@@ -830,7 +1333,7 @@ export default function AddRestaurant() {
             disabled={isSubmitting}
             className="text-sm bg-black text-white px-6"
           >
-            {step === 4 ? (isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Creating... </> : "Create Restaurant") : isSubmitting ? "Saving..." : "Continue"}
+            {step === 3 ? (isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Creating... </> : "Create Restaurant") : isSubmitting ? "Saving..." : "Continue"}
           </Button>
         </div>
       </footer>
@@ -859,4 +1362,6 @@ export default function AddRestaurant() {
     </div>
   )
 }
+
+
 

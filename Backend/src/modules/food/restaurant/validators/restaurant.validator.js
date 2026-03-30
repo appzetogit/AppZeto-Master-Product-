@@ -43,6 +43,7 @@ const restaurantRegisterSchema = z.object({
         .transform((val) => (val ? val.split(',').map((c) => c.trim()).filter(Boolean) : [])),
     openingTime: z.string().optional(),
     closingTime: z.string().optional(),
+    estimatedDeliveryTime: z.string().optional(),
     openDays: z
         .string()
         .optional()

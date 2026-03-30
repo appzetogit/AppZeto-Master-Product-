@@ -2633,6 +2633,11 @@ export async function createRestaurantByAdmin(body) {
     const loc = body.location || {};
     const toStr = (v) => (v != null && v !== undefined ? String(v).trim() : '');
     const toUrl = (v) => (v && (typeof v === 'string' ? v : v.url)) ? (typeof v === 'string' ? v : v.url) : undefined;
+    const coordinates = Array.isArray(loc.coordinates) ? loc.coordinates : [];
+    const lngFromCoordinates = toFiniteNumber(coordinates[0]);
+    const latFromCoordinates = toFiniteNumber(coordinates[1]);
+    const latitude = toFiniteNumber(loc.latitude ?? latFromCoordinates);
+    const longitude = toFiniteNumber(loc.longitude ?? lngFromCoordinates);
     const menuUrls = Array.isArray(body.menuImages)
         ? body.menuImages.map((m) => toUrl(m)).filter(Boolean)
         : [];
@@ -2643,6 +2648,9 @@ export async function createRestaurantByAdmin(body) {
         ownerEmail: toStr(body.ownerEmail),
         ownerPhone: toStr(body.ownerPhone),
         primaryContactNumber: toStr(body.primaryContactNumber) || toStr(body.ownerPhone),
+        pureVegRestaurant: body.pureVegRestaurant !== undefined
+            ? parseBooleanLike(body.pureVegRestaurant, 'pureVegRestaurant')
+            : false,
         addressLine1: toStr(loc.addressLine1),
         addressLine2: toStr(loc.addressLine2),
         area: toStr(loc.area),
@@ -2685,6 +2693,35 @@ export async function createRestaurantByAdmin(body) {
         status: 'approved',
         approvedAt: new Date()
     };
+
+    if (body.zoneId !== undefined) {
+        const zoneId = String(body.zoneId || '').trim();
+        if (!zoneId) {
+            doc.zoneId = undefined;
+        } else if (!mongoose.Types.ObjectId.isValid(zoneId)) {
+            throw new ValidationError('Invalid zoneId');
+        } else {
+            doc.zoneId = new mongoose.Types.ObjectId(zoneId);
+        }
+    }
+
+    if (latitude !== null && longitude !== null) {
+        doc.location = {
+            type: 'Point',
+            coordinates: [longitude, latitude],
+            latitude,
+            longitude,
+            formattedAddress: toStr(loc.formattedAddress || loc.address || loc.addressLine1),
+            address: toStr(loc.address || loc.formattedAddress || loc.addressLine1),
+            addressLine1: toStr(loc.addressLine1 || loc.formattedAddress || loc.address),
+            addressLine2: toStr(loc.addressLine2),
+            area: toStr(loc.area),
+            city: toStr(loc.city),
+            state: toStr(loc.state),
+            pincode: toStr(loc.pincode || loc.zipCode || loc.postalCode),
+            landmark: toStr(loc.landmark),
+        };
+    }
 
     if (!doc.restaurantName || !doc.ownerName) {
         throw new ValidationError('Restaurant name and owner name are required');

@@ -34,6 +34,53 @@ const normalizeTotalRatingsValue = (value) => {
 
 const toUrl = (v) => (v && (typeof v === 'string' ? v : v.url)) ? (typeof v === 'string' ? v : v.url) : '';
 
+const normalizeRestaurantTime = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+
+    const toHHMM = (hour, minute) => {
+        const h = Number(hour);
+        const m = Number(minute);
+        if (!Number.isFinite(h) || !Number.isFinite(m)) return '';
+        if (h < 0 || h > 23 || m < 0 || m > 59) return '';
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    };
+
+    // HH:mm / H:mm
+    const hhmm = raw.match(/^(\d{1,2}):(\d{2})$/);
+    if (hhmm) return toHHMM(hhmm[1], hhmm[2]);
+
+    // hh:mm AM/PM
+    const ampm = raw.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/);
+    if (ampm) {
+        let hour = Number(ampm[1]);
+        const minute = Number(ampm[2]);
+        const period = ampm[3].toUpperCase();
+        if (!Number.isFinite(hour) || !Number.isFinite(minute)) return '';
+        if (hour < 1 || hour > 12 || minute < 0 || minute > 59) return '';
+        if (period === 'AM') hour = hour === 12 ? 0 : hour;
+        if (period === 'PM') hour = hour === 12 ? 12 : hour + 12;
+        return toHHMM(hour, minute);
+    }
+
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+        return toHHMM(parsed.getHours(), parsed.getMinutes());
+    }
+
+    return '';
+};
+
+const parseEstimatedDeliveryMinutes = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return null;
+    const matches = raw.match(/\d+/g);
+    if (!matches || !matches.length) return null;
+    const numbers = matches.map((n) => Number(n)).filter((n) => Number.isFinite(n) && n >= 0);
+    if (!numbers.length) return null;
+    return Math.round(numbers[numbers.length - 1]);
+};
+
 const toRestaurantProfile = (doc) => {
     if (!doc) return null;
     const loc = doc.location && typeof doc.location === 'object' ? doc.location : null;
@@ -97,9 +144,14 @@ const toRestaurantProfile = (doc) => {
         profileImage: doc.profileImage ? { url: doc.profileImage } : null,
         menuImages,
         coverImages: [],
-        openingTime: doc.openingTime || null,
-        closingTime: doc.closingTime || null,
+        openingTime: normalizeRestaurantTime(doc.openingTime) || null,
+        closingTime: normalizeRestaurantTime(doc.closingTime) || null,
         openDays: Array.isArray(doc.openDays) ? doc.openDays : [],
+        estimatedDeliveryTime: doc.estimatedDeliveryTime || '',
+        estimatedDeliveryTimeMinutes:
+            Number.isFinite(Number(doc.estimatedDeliveryTimeMinutes))
+                ? Number(doc.estimatedDeliveryTimeMinutes)
+                : null,
         isAcceptingOrders: doc.isAcceptingOrders !== false,
         status: doc.status || null,
         createdAt: doc.createdAt,
@@ -160,6 +212,7 @@ export const registerRestaurant = async (payload, files) => {
         openingTime,
         closingTime,
         openDays,
+        estimatedDeliveryTime,
         panNumber,
         nameOnPan,
         gstRegistered,
@@ -210,6 +263,11 @@ export const registerRestaurant = async (payload, files) => {
         );
     }
 
+    const normalizedOpeningTime = normalizeRestaurantTime(openingTime);
+    const normalizedClosingTime = normalizeRestaurantTime(closingTime);
+    const estimatedDeliveryTimeText = String(estimatedDeliveryTime || '').trim();
+    const estimatedDeliveryTimeMinutes = parseEstimatedDeliveryMinutes(estimatedDeliveryTimeText);
+
     try {
         const latNum = toFiniteNumber(latitude);
         const lngNum = toFiniteNumber(longitude);
@@ -244,9 +302,11 @@ export const registerRestaurant = async (payload, files) => {
                 landmark: landmark || ''
             },
             cuisines: cuisines || [],
-            openingTime,
-            closingTime,
+            openingTime: normalizedOpeningTime || undefined,
+            closingTime: normalizedClosingTime || undefined,
             openDays: openDays || [],
+            estimatedDeliveryTime: estimatedDeliveryTimeText || undefined,
+            estimatedDeliveryTimeMinutes: estimatedDeliveryTimeMinutes ?? undefined,
             panNumber,
             nameOnPan,
             gstRegistered,
@@ -319,6 +379,8 @@ export const getCurrentRestaurantProfile = async (restaurantId) => {
                 'openingTime',
                 'closingTime',
                 'openDays',
+                'estimatedDeliveryTime',
+                'estimatedDeliveryTimeMinutes',
                 'isAcceptingOrders',
                 'status',
                 'createdAt',
@@ -573,9 +635,7 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
                     'upiId',
                     'upiQrImage',
                     'estimatedDeliveryTime',
-                    'featuredDish',
-                    'featuredPrice',
-                    'offer',
+                    'estimatedDeliveryTimeMinutes',
                     'zoneId'
                 ].join(' ')
             }

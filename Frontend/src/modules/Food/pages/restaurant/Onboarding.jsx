@@ -39,7 +39,6 @@ const BANK_ACCOUNT_NUMBER_REGEX = /^\d{9,18}$/
 const IFSC_CODE_REGEX = /^[A-Z0-9]{11}$/
 const ACCOUNT_HOLDER_NAME_REGEX = /^[A-Za-z ]+$/
 const GST_LEGAL_NAME_REGEX = /^[A-Za-z ]+$/
-const FEATURED_DISH_NAME_REGEX = /^[A-Za-z ]+$/
 const LOCAL_IMAGE_FILE_ACCEPT = ".jpg,.jpeg,.png,.webp,.heic,.heif"
 const GALLERY_IMAGE_ACCEPT =
   ".jpg,.jpeg,.png,.webp,.heic,.heif,image/jpeg,image/png,image/webp,image/heic,image/heif"
@@ -83,6 +82,11 @@ const saveFileToDB = async (key, file) => {
     const db = await openOnboardingFilesDB()
     const tx = db.transaction(FILES_STORE, "readwrite")
     tx.objectStore(FILES_STORE).put(file, key)
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve(true)
+      tx.onerror = () => reject(tx.error || new Error("IndexedDB write transaction failed"))
+      tx.onabort = () => reject(tx.error || new Error("IndexedDB write transaction aborted"))
+    })
   } catch (err) {
     debugError("IndexedDB save failed:", err)
   }
@@ -108,6 +112,11 @@ const deleteFileFromDB = async (key) => {
     const db = await openOnboardingFilesDB()
     const tx = db.transaction(FILES_STORE, "readwrite")
     tx.objectStore(FILES_STORE).delete(key)
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve(true)
+      tx.onerror = () => reject(tx.error || new Error("IndexedDB delete transaction failed"))
+      tx.onabort = () => reject(tx.error || new Error("IndexedDB delete transaction aborted"))
+    })
   } catch (err) {
     debugError("IndexedDB delete failed:", err)
   }
@@ -118,8 +127,30 @@ const clearAllFilesFromDB = async () => {
     const db = await openOnboardingFilesDB()
     const tx = db.transaction(FILES_STORE, "readwrite")
     tx.objectStore(FILES_STORE).clear()
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve(true)
+      tx.onerror = () => reject(tx.error || new Error("IndexedDB clear transaction failed"))
+      tx.onabort = () => reject(tx.error || new Error("IndexedDB clear transaction aborted"))
+    })
   } catch (err) {
     debugError("IndexedDB clear failed:", err)
+  }
+}
+
+const getUploadableMenuFiles = (menuImages = []) =>
+  (Array.isArray(menuImages) ? menuImages : [])
+    .filter((img) => isUploadableFile(img))
+    .slice(0, 10)
+
+const persistMenuImagesToDB = async (menuImages = []) => {
+  const uploadableMenuFiles = getUploadableMenuFiles(menuImages)
+  for (let i = 0; i < 10; i++) {
+    const file = uploadableMenuFiles[i]
+    if (file) {
+      await saveFileToDB(`menuImage_${i}`, file)
+    } else {
+      await deleteFileFromDB(`menuImage_${i}`)
+    }
   }
 }
 
@@ -175,18 +206,18 @@ const normalizeAccountTypeValue = (value) => {
 const getTodayLocalYMD = () => formatDateToLocalYMD(new Date())
 
 // Helper functions for localStorage
-const saveOnboardingToLocalStorage = (step1, step2, step3, step4, currentStep) => {
+const saveOnboardingToLocalStorage = (step1, step2, step3, currentStep) => {
   try {
     // Persist only stable URL-based values. File/Blob objects are not serializable and
     // restoring metadata-only placeholders breaks preview/upload flows.
     const serializableStep2 = {
       ...step2,
       menuImages: (step2.menuImages || []).filter(
-        (img) => !isUploadableFile(img) && (img?.url || (typeof img === "string" && img.startsWith("http")))
+        (img) => !isUploadableFile(img) && (img?.url || (typeof img === "string" && img.trim()))
       ),
       profileImage:
         !isUploadableFile(step2.profileImage) &&
-        (step2.profileImage?.url || (typeof step2.profileImage === "string" && step2.profileImage.startsWith("http")))
+        (step2.profileImage?.url || (typeof step2.profileImage === "string" && step2.profileImage.trim()))
           ? step2.profileImage
           : null,
     }
@@ -195,17 +226,17 @@ const saveOnboardingToLocalStorage = (step1, step2, step3, step4, currentStep) =
       ...step3,
       panImage:
         !isUploadableFile(step3.panImage) &&
-        (step3.panImage?.url || (typeof step3.panImage === "string" && step3.panImage.startsWith("http")))
+        (step3.panImage?.url || (typeof step3.panImage === "string" && step3.panImage.trim()))
           ? step3.panImage
           : null,
       gstImage:
         !isUploadableFile(step3.gstImage) &&
-        (step3.gstImage?.url || (typeof step3.gstImage === "string" && step3.gstImage.startsWith("http")))
+        (step3.gstImage?.url || (typeof step3.gstImage === "string" && step3.gstImage.trim()))
           ? step3.gstImage
           : null,
       fssaiImage:
         !isUploadableFile(step3.fssaiImage) &&
-        (step3.fssaiImage?.url || (typeof step3.fssaiImage === "string" && step3.fssaiImage.startsWith("http")))
+        (step3.fssaiImage?.url || (typeof step3.fssaiImage === "string" && step3.fssaiImage.trim()))
           ? step3.fssaiImage
           : null,
     }
@@ -214,7 +245,6 @@ const saveOnboardingToLocalStorage = (step1, step2, step3, step4, currentStep) =
       step1,
       step2: serializableStep2,
       step3: serializableStep3,
-      step4: step4 || {},
       currentStep,
       timestamp: Date.now(),
     }
@@ -296,15 +326,40 @@ const normalizeTimeValue = (value) => {
   const raw = String(value).trim()
   if (!raw) return ""
 
+  const to24Hour = (h, m, period) => {
+    let hours = Number(h)
+    const minutes = Number(m)
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return ""
+    if (minutes < 0 || minutes > 59) return ""
+    const p = String(period || "").toUpperCase()
+    if (p === "AM") {
+      if (hours === 12) hours = 0
+    } else if (p === "PM") {
+      if (hours !== 12) hours += 12
+    }
+    if (hours < 0 || hours > 23) return ""
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`
+  }
+
   // Already in HH:mm format
   if (/^\d{2}:\d{2}$/.test(raw)) {
-    return raw
+    const [h, m] = raw.split(":").map(Number)
+    if (!Number.isFinite(h) || !Number.isFinite(m) || h < 0 || h > 23 || m < 0 || m > 59) {
+      return ""
+    }
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
   }
 
   // Handle H:mm by zero-padding hour
   if (/^\d{1}:\d{2}$/.test(raw)) {
     const [h, m] = raw.split(":")
-    return `${h.padStart(2, "0")}:${m}`
+    return to24Hour(h, m, "")
+  }
+
+  // Handle 12-hour format (e.g. "10:00 AM", "9:30pm")
+  const ampm = raw.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/)
+  if (ampm) {
+    return to24Hour(ampm[1], ampm[2], ampm[3])
   }
 
   // Fallback for ISO / Date-like strings
@@ -314,6 +369,15 @@ const normalizeTimeValue = (value) => {
   }
 
   return ""
+}
+
+const timeStringToMinutes = (value) => {
+  const normalized = normalizeTimeValue(value)
+  if (!normalized || !/^\d{2}:\d{2}$/.test(normalized)) return null
+  const [hours, minutes] = normalized.split(":").map(Number)
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null
+  return hours * 60 + minutes
 }
 
 const formatDateToLocalYMD = (date) => {
@@ -431,6 +495,7 @@ export default function RestaurantOnboarding() {
   const [isFssaiCalendarOpen, setIsFssaiCalendarOpen] = useState(false)
   const [zones, setZones] = useState([])
   const [zonesLoading, setZonesLoading] = useState(false)
+  const [isOnboardingHydrated, setIsOnboardingHydrated] = useState(false)
 
   const [step1, setStep1] = useState({
     restaurantName: "",
@@ -458,6 +523,7 @@ export default function RestaurantOnboarding() {
     menuImages: [],
     profileImage: null,
     cuisines: [],
+    estimatedDeliveryTime: "",
     openingTime: "",
     closingTime: "",
     openDays: [],
@@ -482,12 +548,6 @@ export default function RestaurantOnboarding() {
     accountType: "",
   })
 
-  const [step4, setStep4] = useState({
-    estimatedDeliveryTime: "",
-    featuredDish: "",
-    featuredPrice: "",
-    offer: "",
-  })
   const previewUrlCacheRef = useRef(new Map())
   const locationSearchInputRef = useRef(null)
   const placesAutocompleteRef = useRef(null)
@@ -586,114 +646,114 @@ export default function RestaurantOnboarding() {
     }
 
     const loadData = async () => {
-      const currentPhone = getVerifiedPhoneFromStoredRestaurant()
-      const localData = loadOnboardingFromLocalStorage()
-      
-      if (localData) {
-        // SECURITY CHECK: If the saved data's phone number doesn't match current login, clear it.
-        // This prevents data leakage when logging in with a different account on the same device.
-        const savedPhone = normalizePhoneDigits(localData.step1?.ownerPhone || "")
-        const normalizedCurrent = normalizePhoneDigits(currentPhone)
+      try {
+        const currentPhone = getVerifiedPhoneFromStoredRestaurant()
+        const localData = loadOnboardingFromLocalStorage()
         
-        if (savedPhone && normalizedCurrent && savedPhone !== normalizedCurrent) {
-           debugLog("? Phone mismatch, data belongs to different user. Clearing.")
-           clearOnboardingFromLocalStorage()
-           await clearAllFilesFromDB()
-           return
-        }
-
-        if (localData.step1) {
-          setStep1((prev) => ({
-            ...prev,
-            restaurantName: localData.step1.restaurantName || "",
-            pureVegRestaurant:
-              typeof localData.step1.pureVegRestaurant === "boolean"
-                ? localData.step1.pureVegRestaurant
-                : null,
-            ownerName: localData.step1.ownerName || "",
-            ownerEmail: localData.step1.ownerEmail || "",
-            ownerPhone: localData.step1.ownerPhone || "",
-            primaryContactNumber: localData.step1.primaryContactNumber || "",
-            zoneId: localData.step1.zoneId || "",
-            location: {
-              formattedAddress: localData.step1.location?.formattedAddress || "",
-              addressLine1: localData.step1.location?.addressLine1 || "",
-              addressLine2: localData.step1.location?.addressLine2 || "",
-              area: localData.step1.location?.area || "",
-              city: localData.step1.location?.city || "",
-              state: localData.step1.location?.state || "",
-              pincode: localData.step1.location?.pincode || "",
-              landmark: localData.step1.location?.landmark || "",
-              latitude: localData.step1.location?.latitude ?? "",
-              longitude: localData.step1.location?.longitude ?? "",
-            },
-          }))
-        }
-
-        // Restore Images from IndexedDB
-        const restoredProfileImage = await getFileFromDB("profileImage")
-        const restoredPanImage = await getFileFromDB("panImage")
-        const restoredGstImage = await getFileFromDB("gstImage")
-        const restoredFssaiImage = await getFileFromDB("fssaiImage")
-        
-        const restoredMenuImages = []
-        for (let i = 0; i < 10; i++) {
-          const img = await getFileFromDB(`menuImage_${i}`)
-          if (img) restoredMenuImages.push(img)
-          else break
-        }
-
-        if (localData.step2) {
-          const urlMenuImages = (localData.step2.menuImages || []).filter(
-            (img) => img?.url || (typeof img === "string" && img.startsWith("http"))
-          )
+        if (localData) {
+          // SECURITY CHECK: If the saved data's phone number doesn't match current login, clear it.
+          // This prevents data leakage when logging in with a different account on the same device.
+          const savedPhone = normalizePhoneDigits(localData.step1?.ownerPhone || "")
+          const normalizedCurrent = normalizePhoneDigits(currentPhone)
           
-          setStep2((prev) => ({
-            ...prev,
-            menuImages: [...urlMenuImages, ...restoredMenuImages],
-            profileImage: restoredProfileImage || (localData.step2.profileImage?.url ? localData.step2.profileImage : null),
-            cuisines: localData.step2.cuisines || [],
-            openingTime: normalizeTimeValue(localData.step2.openingTime),
-            closingTime: normalizeTimeValue(localData.step2.closingTime),
-            openDays: localData.step2.openDays || [],
-          }))
-        }
+          if (savedPhone && normalizedCurrent && savedPhone !== normalizedCurrent) {
+             debugLog("? Phone mismatch, data belongs to different user. Clearing.")
+             clearOnboardingFromLocalStorage()
+             await clearAllFilesFromDB()
+             return
+          }
 
-        if (localData.step3) {
-          setStep3((prev) => ({
-            ...prev,
-            panNumber: localData.step3.panNumber || "",
-            nameOnPan: localData.step3.nameOnPan || "",
-            panImage: restoredPanImage || localData.step3.panImage || null,
-            gstRegistered: localData.step3.gstRegistered || false,
-            gstNumber: localData.step3.gstNumber || "",
-            gstLegalName: localData.step3.gstLegalName || "",
-            gstAddress: localData.step3.gstAddress || "",
-            gstImage: restoredGstImage || localData.step3.gstImage || null,
-            fssaiNumber: localData.step3.fssaiNumber || "",
-            fssaiExpiry: localData.step3.fssaiExpiry || "",
-            fssaiImage: restoredFssaiImage || localData.step3.fssaiImage || null,
-            accountNumber: localData.step3.accountNumber || "",
-            confirmAccountNumber: localData.step3.confirmAccountNumber || "",
-            ifscCode: (localData.step3.ifscCode || "").toUpperCase(),
-            accountHolderName: localData.step3.accountHolderName || "",
-            accountType: normalizeAccountTypeValue(localData.step3.accountType || ""),
-          }))
-        }
+          if (localData.step1) {
+            setStep1((prev) => ({
+              ...prev,
+              restaurantName: localData.step1.restaurantName || "",
+              pureVegRestaurant:
+                typeof localData.step1.pureVegRestaurant === "boolean"
+                  ? localData.step1.pureVegRestaurant
+                  : null,
+              ownerName: localData.step1.ownerName || "",
+              ownerEmail: localData.step1.ownerEmail || "",
+              ownerPhone: localData.step1.ownerPhone || "",
+              primaryContactNumber: localData.step1.primaryContactNumber || "",
+              zoneId: localData.step1.zoneId || "",
+              location: {
+                formattedAddress: localData.step1.location?.formattedAddress || "",
+                addressLine1: localData.step1.location?.addressLine1 || "",
+                addressLine2: localData.step1.location?.addressLine2 || "",
+                area: localData.step1.location?.area || "",
+                city: localData.step1.location?.city || "",
+                state: localData.step1.location?.state || "",
+                pincode: localData.step1.location?.pincode || "",
+                landmark: localData.step1.location?.landmark || "",
+                latitude: localData.step1.location?.latitude ?? "",
+                longitude: localData.step1.location?.longitude ?? "",
+              },
+            }))
+          }
 
-        if (localData.step4) {
-          setStep4({
-            estimatedDeliveryTime: localData.step4.estimatedDeliveryTime || "",
-            featuredDish: localData.step4.featuredDish || "",
-            featuredPrice: localData.step4.featuredPrice || "",
-            offer: localData.step4.offer || "",
-          })
-        }
+          // Restore Images from IndexedDB
+          const restoredProfileImage = await getFileFromDB("profileImage")
+          const restoredPanImage = await getFileFromDB("panImage")
+          const restoredGstImage = await getFileFromDB("gstImage")
+          const restoredFssaiImage = await getFileFromDB("fssaiImage")
+          
+          const restoredMenuImages = []
+          for (let i = 0; i < 10; i++) {
+            const img = await getFileFromDB(`menuImage_${i}`)
+            if (img) restoredMenuImages.push(img)
+          }
 
-        // Only set step from localStorage if URL doesn't have a step parameter
-        if (localData.currentStep && !stepParam) {
-          setStep(localData.currentStep)
+          if (localData.step2) {
+            const urlMenuImages = (localData.step2.menuImages || []).filter(
+              (img) => img?.url || typeof img === "string"
+            )
+            
+            setStep2((prev) => ({
+              ...prev,
+              menuImages: [...urlMenuImages, ...restoredMenuImages],
+              profileImage:
+                restoredProfileImage ||
+                (typeof localData.step2.profileImage === "string" || localData.step2.profileImage?.url
+                  ? localData.step2.profileImage
+                  : null),
+              cuisines: localData.step2.cuisines || [],
+              estimatedDeliveryTime: localData.step2.estimatedDeliveryTime || "",
+              openingTime: normalizeTimeValue(localData.step2.openingTime),
+              closingTime: normalizeTimeValue(localData.step2.closingTime),
+              openDays: localData.step2.openDays || [],
+            }))
+          }
+
+          if (localData.step3) {
+            setStep3((prev) => ({
+              ...prev,
+              panNumber: localData.step3.panNumber || "",
+              nameOnPan: localData.step3.nameOnPan || "",
+              panImage: restoredPanImage || localData.step3.panImage || null,
+              gstRegistered: localData.step3.gstRegistered || false,
+              gstNumber: localData.step3.gstNumber || "",
+              gstLegalName: localData.step3.gstLegalName || "",
+              gstAddress: localData.step3.gstAddress || "",
+              gstImage: restoredGstImage || localData.step3.gstImage || null,
+              fssaiNumber: localData.step3.fssaiNumber || "",
+              fssaiExpiry: localData.step3.fssaiExpiry || "",
+              fssaiImage: restoredFssaiImage || localData.step3.fssaiImage || null,
+              accountNumber: localData.step3.accountNumber || "",
+              confirmAccountNumber: localData.step3.confirmAccountNumber || "",
+              ifscCode: (localData.step3.ifscCode || "").toUpperCase(),
+              accountHolderName: localData.step3.accountHolderName || "",
+              accountType: normalizeAccountTypeValue(localData.step3.accountType || ""),
+            }))
+          }
+
+          // Only set step from localStorage if URL doesn't have a step parameter
+          if (localData.currentStep && !stepParam) {
+            const restoredStep = Number(localData.currentStep) || 1
+            setStep(Math.min(3, Math.max(1, restoredStep)))
+          }
         }
+      } finally {
+        setIsOnboardingHydrated(true)
       }
     }
 
@@ -728,12 +788,15 @@ export default function RestaurantOnboarding() {
 
   // Save to localStorage whenever step data changes
   useEffect(() => {
-    saveOnboardingToLocalStorage(step1, step2, step3, step4, step)
+    if (!isOnboardingHydrated) return
+    saveOnboardingToLocalStorage(step1, step2, step3, step)
     
     // Save images to IndexedDB
     const saveFiles = async () => {
       if (step2.profileImage && isUploadableFile(step2.profileImage)) {
         await saveFileToDB("profileImage", step2.profileImage)
+      } else if (!step2.profileImage) {
+        await deleteFileFromDB("profileImage")
       }
       if (step3.panImage && isUploadableFile(step3.panImage)) {
         await saveFileToDB("panImage", step3.panImage)
@@ -745,19 +808,10 @@ export default function RestaurantOnboarding() {
         await saveFileToDB("fssaiImage", step3.fssaiImage)
       }
       
-      const menuImages = step2.menuImages || []
-      for (let i = 0; i < 10; i++) {
-        const img = menuImages[i]
-        if (img && isUploadableFile(img)) {
-          await saveFileToDB(`menuImage_${i}`, img)
-        } else if (!img) {
-          // Clear remaining slots
-          await deleteFileFromDB(`menuImage_${i}`)
-        }
-      }
+      await persistMenuImagesToDB(step2.menuImages || [])
     }
     saveFiles()
-  }, [step1, step2, step3, step4, step])
+  }, [isOnboardingHydrated, step1, step2, step3, step])
 
   useEffect(() => {
     syncOnboardingFileCache(step2, step3)
@@ -817,6 +871,7 @@ export default function RestaurantOnboarding() {
               menuImages: (data.menuImages && data.menuImages.length > 0) ? data.menuImages : prev.menuImages,
               profileImage: data.profileImage || prev.profileImage,
               cuisines: (data.cuisines && data.cuisines.length > 0) ? data.cuisines : prev.cuisines,
+              estimatedDeliveryTime: data.estimatedDeliveryTime || prev.estimatedDeliveryTime || "",
               openingTime: normalizeTimeValue(data.openingTime) || prev.openingTime,
               closingTime: normalizeTimeValue(data.closingTime) || prev.closingTime,
               openDays: (data.openDays && data.openDays.length > 0) ? data.openDays : prev.openDays,
@@ -843,15 +898,6 @@ export default function RestaurantOnboarding() {
               accountType: normalizeAccountTypeValue(data.accountType || prev.accountType || ""),
             }))
 
-            // Map Step 4
-            setStep4((prev) => ({
-              ...prev,
-              estimatedDeliveryTime: data.estimatedDeliveryTime || prev.estimatedDeliveryTime || "",
-              featuredDish: data.featuredDish || prev.featuredDish || "",
-              featuredPrice: data.featuredPrice || prev.featuredPrice || "",
-              offer: data.offer || prev.offer || "",
-            }))
-
           // Only determine step automatically if not specified in URL
           const stepParam = searchParams.get("step")
           if (!stepParam) {
@@ -859,7 +905,7 @@ export default function RestaurantOnboarding() {
             if (data.status === "approved" || data.status === "pending") {
                setStep(1)
             } else {
-               const stepToShow = determineStepToShow({ step1: data, step2: data, step3: data, step4: data })
+               const stepToShow = determineStepToShow({ step1: data, step2: data, step3: data })
                // Only overwrite if backend says we are further along (step > 1) 
                // or if we are currently at step 1 and backend has data
                if (stepToShow > 1) {
@@ -947,7 +993,7 @@ export default function RestaurantOnboarding() {
       const validMenuImages = step2.menuImages.filter(img => {
         if (isUploadableFile(img)) return true
         if (img?.url && typeof img.url === 'string') return true
-        if (typeof img === 'string' && img.startsWith('http')) return true
+        if (typeof img === 'string' && img.trim()) return true
         return false
       })
       if (validMenuImages.length === 0) {
@@ -963,7 +1009,7 @@ export default function RestaurantOnboarding() {
       const isValidProfileImage =
         isUploadableFile(step2.profileImage) ||
         (step2.profileImage?.url && typeof step2.profileImage.url === 'string') ||
-        (typeof step2.profileImage === 'string' && step2.profileImage.startsWith('http'))
+        (typeof step2.profileImage === 'string' && step2.profileImage.trim())
       if (!isValidProfileImage) {
         errors.push("Please upload a valid restaurant profile image")
       }
@@ -975,29 +1021,22 @@ export default function RestaurantOnboarding() {
     if (!step2.closingTime?.trim()) {
       errors.push("Closing time is required")
     }
+    const openingMinutes = timeStringToMinutes(step2.openingTime)
+    const closingMinutes = timeStringToMinutes(step2.closingTime)
+    if (openingMinutes !== null && closingMinutes !== null) {
+      if (openingMinutes === closingMinutes) {
+        errors.push("Opening time and closing time cannot be same")
+      } else if (closingMinutes < openingMinutes) {
+        errors.push("Closing time cannot be less than opening time")
+      }
+    }
     if (!step2.openDays || step2.openDays.length === 0) {
       errors.push("Please select at least one open day")
     }
-
-    return errors
-  }
-
-  const validateStep4 = () => {
-    const errors = []
-    if (!step4.estimatedDeliveryTime || !step4.estimatedDeliveryTime.trim()) {
+    if (!step2.estimatedDeliveryTime?.trim()) {
       errors.push("Estimated delivery time is required")
     }
-    if (!step4.featuredDish || !step4.featuredDish.trim()) {
-      errors.push("Featured dish name is required")
-    } else if (!FEATURED_DISH_NAME_REGEX.test(step4.featuredDish.trim())) {
-      errors.push("Featured dish name must contain only letters")
-    }
-    if (!step4.featuredPrice || !/^\d+$/.test(String(step4.featuredPrice)) || Number(step4.featuredPrice) <= 0) {
-      errors.push("Featured dish price is required and must be greater than 0")
-    }
-    if (!step4.offer || !step4.offer.trim()) {
-      errors.push("Special offer/promotion is required")
-    }
+
     return errors
   }
 
@@ -1019,7 +1058,7 @@ export default function RestaurantOnboarding() {
       const isValidPanImage =
         isUploadableFile(step3.panImage) ||
         (step3.panImage?.url && typeof step3.panImage.url === 'string') ||
-        (typeof step3.panImage === 'string' && step3.panImage.startsWith('http'))
+        (typeof step3.panImage === 'string' && step3.panImage.trim())
       if (!isValidPanImage) {
         errors.push("Please upload a valid PAN image")
       }
@@ -1042,7 +1081,7 @@ export default function RestaurantOnboarding() {
       const isValidFssaiImage =
         isUploadableFile(step3.fssaiImage) ||
         (step3.fssaiImage?.url && typeof step3.fssaiImage.url === 'string') ||
-        (typeof step3.fssaiImage === 'string' && step3.fssaiImage.startsWith('http'))
+        (typeof step3.fssaiImage === 'string' && step3.fssaiImage.trim())
       if (!isValidFssaiImage) {
         errors.push("Please upload a valid FSSAI image")
       }
@@ -1070,7 +1109,7 @@ export default function RestaurantOnboarding() {
         const isValidGstImage =
           isUploadableFile(step3.gstImage) ||
           (step3.gstImage?.url && typeof step3.gstImage.url === 'string') ||
-          (typeof step3.gstImage === 'string' && step3.gstImage.startsWith('http'))
+          (typeof step3.gstImage === 'string' && step3.gstImage.trim())
         if (!isValidGstImage) {
           errors.push("Please upload a valid GST image")
         }
@@ -1125,16 +1164,6 @@ export default function RestaurantOnboarding() {
       validationErrors = validateStep2()
     } else if (step === 3) {
       validationErrors = validateStep3()
-    } else if (step === 4) {
-      validationErrors = validateStep4()
-      debugLog('?? Step 4 validation:', {
-        step4,
-        errors: validationErrors,
-        estimatedDeliveryTime: step4.estimatedDeliveryTime,
-        featuredDish: step4.featuredDish,
-        featuredPrice: step4.featuredPrice,
-        offer: step4.offer
-      })
     }
 
     if (validationErrors.length > 0) {
@@ -1159,9 +1188,6 @@ export default function RestaurantOnboarding() {
         setStep(3)
         window.scrollTo({ top: 0, behavior: "instant" })
       } else if (step === 3) {
-        setStep(4)
-        window.scrollTo({ top: 0, behavior: "instant" })
-      } else if (step === 4) {
         // Final submit: create restaurant in DB using backend multipart endpoint.
         const formData = new FormData()
 
@@ -1189,6 +1215,7 @@ export default function RestaurantOnboarding() {
 
         // Step 2
         formData.append("cuisines", (step2.cuisines || []).join(","))
+        formData.append("estimatedDeliveryTime", (step2.estimatedDeliveryTime || "").trim())
         formData.append("openingTime", normalizeTimeValue(step2.openingTime) || "")
         formData.append("closingTime", normalizeTimeValue(step2.closingTime) || "")
         formData.append("openDays", (step2.openDays || []).join(","))
@@ -1521,32 +1548,53 @@ export default function RestaurantOnboarding() {
     </div>
   )
 
+
   // Initialize Google Places Autocomplete for Step 1 location search.
   useEffect(() => {
     if (step !== 1) return
 
     let cancelled = false
+    let autocomplete = null
 
     const init = async () => {
-      // Wait for the ref to be attached (up to 1s)
-      for (let i = 0; i < 20; i++) {
-        if (locationSearchInputRef.current) break
+      // Wait for the input ref to be attached (up to 2 seconds)
+      let inputElement = null
+      for (let i = 0; i < 40; i++) {
+        if (locationSearchInputRef.current) {
+          inputElement = locationSearchInputRef.current
+          break
+        }
         await new Promise((r) => setTimeout(r, 50))
       }
-      if (!locationSearchInputRef.current || cancelled) return
+
+      if (!inputElement || cancelled) return
 
       const loadMaps = async () => {
-        if (mapsScriptLoadedRef.current && window.google?.maps?.places?.Autocomplete) return true
         if (window.google?.maps?.places?.Autocomplete) {
           mapsScriptLoadedRef.current = true
           return true
         }
-        const apiKey = await getGoogleMapsApiKey()
-        if (!apiKey) return false
 
-        const existing = document.getElementById("restaurant-onboarding-maps-script")
-        if (existing) {
-          for (let i = 0; i < 30; i += 1) {
+        const apiKey = await getGoogleMapsApiKey()
+        if (!apiKey) {
+          debugError("Google Maps API Key missing")
+          return false
+        }
+
+        window.gm_authFailure = () => {
+          debugError("Google Maps authentication failed. Check API Key restrictions/billing.")
+          toast.error("Location service authentication failed. Please contact support.")
+        }
+
+        // Reuse only a Places-enabled script when Autocomplete is unavailable.
+        const scripts = Array.from(document.getElementsByTagName("script"))
+        const placesScript = scripts.find(
+          (s) => s.src?.includes("maps.googleapis.com/maps/api/js") && s.src.includes("libraries=places")
+        )
+
+        if (placesScript) {
+          if (!placesScript.id) placesScript.id = "google-maps-sdk"
+          for (let i = 0; i < 60; i++) {
             if (window.google?.maps?.places?.Autocomplete) {
               mapsScriptLoadedRef.current = true
               return true
@@ -1556,83 +1604,108 @@ export default function RestaurantOnboarding() {
           return false
         }
 
-        await new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
           const script = document.createElement("script")
-          script.id = "restaurant-onboarding-maps-script"
+          script.id = "google-maps-sdk"
           script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&v=weekly`
           script.async = true
           script.defer = true
-          script.onload = resolve
-          script.onerror = reject
+          script.onload = () => {
+            mapsScriptLoadedRef.current = true
+            resolve(!!window.google?.maps?.places?.Autocomplete)
+          }
+          script.onerror = () => resolve(false)
           document.head.appendChild(script)
         })
-        mapsScriptLoadedRef.current = true
-        return !!window.google?.maps?.places?.Autocomplete
       }
 
       const parsePlace = (place) => {
         const formattedAddress = place?.formatted_address || ""
         const comps = Array.isArray(place?.address_components) ? place.address_components : []
         const get = (types) => comps.find((c) => types.some((t) => c.types?.includes(t)))?.long_name || ""
-        const area =
-          get(["sublocality_level_1", "sublocality", "neighborhood"]) ||
-          get(["locality"])
-        const city =
-          get(["locality"]) ||
-          get(["administrative_area_level_2"])
-        const state = get(["administrative_area_level_1"])
+
+        const area = get(["sublocality_level_1", "sublocality", "neighborhood"]) || get(["locality"])
+        const city = get(["locality"]) || get(["administrative_area_level_2"])
+        const state = get(["administrative_area_level_1"]) || get(["administrative_area_level_2"])
         const pincode = get(["postal_code"])
         const lat = place?.geometry?.location?.lat?.()
         const lng = place?.geometry?.location?.lng?.()
+
         return {
           formattedAddress,
           area,
           city,
           state,
           pincode,
-          latitude: Number.isFinite(lat) ? Number(lat.toFixed(6)) : "",
-          longitude: Number.isFinite(lng) ? Number(lng.toFixed(6)) : "",
+          latitude: typeof lat === "number" ? Number(lat.toFixed(6)) : "",
+          longitude: typeof lng === "number" ? Number(lng.toFixed(6)) : "",
         }
       }
 
       const ok = await loadMaps()
-      if (!ok || cancelled || !locationSearchInputRef.current) return
-      if (placesAutocompleteRef.current) return
+      if (!ok || cancelled || !inputElement) return
+      if (inputElement.hasAttribute("data-google-places-initialized")) return
 
-      placesAutocompleteRef.current = new window.google.maps.places.Autocomplete(
-        locationSearchInputRef.current,
-        {
+      try {
+        autocomplete = new window.google.maps.places.Autocomplete(inputElement, {
           fields: ["formatted_address", "address_components", "geometry"],
           componentRestrictions: { country: "in" },
-        }
-      )
+        })
 
-      placesAutocompleteRef.current.addListener("place_changed", () => {
-        const place = placesAutocompleteRef.current.getPlace()
-        const parsed = parsePlace(place)
-        setStep1((prev) => ({
-          ...prev,
-          location: {
-            ...prev.location,
-            formattedAddress: parsed.formattedAddress || prev.location.formattedAddress,
-            addressLine1: prev.location.addressLine1 || parsed.formattedAddress || "",
-            area: parsed.area || prev.location.area,
-            city: parsed.city || prev.location.city,
-            state: parsed.state || prev.location.state,
-            pincode: parsed.pincode || prev.location.pincode,
-            latitude: parsed.latitude !== "" ? parsed.latitude : prev.location.latitude,
-            longitude: parsed.longitude !== "" ? parsed.longitude : prev.location.longitude,
-          },
-        }))
-      })
+        inputElement.setAttribute("data-google-places-initialized", "true")
+        placesAutocompleteRef.current = autocomplete
+
+        autocomplete.addListener("place_changed", () => {
+          const place = autocomplete.getPlace()
+          if (!place?.geometry) return
+
+          const parsed = parsePlace(place)
+          setStep1((prev) => ({
+            ...prev,
+            location: {
+              ...prev.location,
+              formattedAddress: parsed.formattedAddress || prev.location.formattedAddress,
+              addressLine1: parsed.formattedAddress || prev.location.addressLine1 || "",
+              area: parsed.area || prev.location.area,
+              city: parsed.city || prev.location.city,
+              state: parsed.state || prev.location.state,
+              pincode: parsed.pincode || prev.location.pincode,
+              latitude: parsed.latitude !== "" ? parsed.latitude : prev.location.latitude,
+              longitude: parsed.longitude !== "" ? parsed.longitude : prev.location.longitude,
+            },
+          }))
+        })
+
+        const pacContainerFix = () => {
+          setTimeout(() => {
+            const containers = document.querySelectorAll(".pac-container")
+            containers.forEach((container) => {
+              container.style.zIndex = "999999"
+              container.style.pointerEvents = "auto"
+            })
+          }, 200)
+        }
+        inputElement.addEventListener("focus", pacContainerFix)
+        inputElement.addEventListener("input", pacContainerFix)
+      } catch (e) {
+        debugWarn("Autocomplete initialization error:", e)
+      }
     }
 
     init().catch((err) => {
-      debugWarn("Failed to load Google Places for onboarding:", err)
+      debugWarn("Failed to initialize location search:", err)
     })
 
     return () => {
       cancelled = true
+      if (autocomplete) {
+        try {
+          window.google?.maps?.event?.clearInstanceListeners(autocomplete)
+        } catch {}
+      }
+      if (locationSearchInputRef.current) {
+        locationSearchInputRef.current.removeAttribute("data-google-places-initialized")
+      }
       placesAutocompleteRef.current = null
     }
   }, [step])
@@ -1655,6 +1728,7 @@ export default function RestaurantOnboarding() {
       })
     return () => { cancelled = true }
   }, [step])
+
 
   const renderStep2 = () => (
     <div className="space-y-6">
@@ -1701,10 +1775,12 @@ export default function RestaurantOnboarding() {
                 const files = Array.from(e.target.files || [])
                 if (!files.length) return
                 debugLog('?? Menu images selected:', files.length, 'files')
+                const nextMenuImages = [...(step2.menuImages || []), ...files]
                 setStep2((prev) => ({
                   ...prev,
-                  menuImages: [...(prev.menuImages || []), ...files], // Append new files to existing ones
+                  menuImages: nextMenuImages, // Append new files to existing ones
                 }))
+                void persistMenuImagesToDB(nextMenuImages)
                 // Reset input to allow selecting same file again
                 e.target.value = ''
               }}
@@ -1742,10 +1818,12 @@ export default function RestaurantOnboarding() {
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
+                          const nextMenuImages = (step2.menuImages || []).filter((_, i) => i !== idx)
                           setStep2((prev) => ({
                             ...prev,
-                            menuImages: prev.menuImages.filter((_, i) => i !== idx),
+                            menuImages: nextMenuImages,
                           }));
+                          void persistMenuImagesToDB(nextMenuImages)
                         }}
                         className="bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-colors"
                       >
@@ -1850,6 +1928,7 @@ export default function RestaurantOnboarding() {
                   ...prev,
                   profileImage: file,
                 }))
+                void saveFileToDB("profileImage", file)
               }
               // Reset input to allow selecting same file again
               e.target.value = ''
@@ -1877,6 +1956,17 @@ export default function RestaurantOnboarding() {
               onChange={(val) =>
                 setStep2((prev) => ({ ...prev, closingTime: normalizeTimeValue(val) || "" }))
               }
+            />
+          </div>
+          <div>
+            <Label className="text-xs text-gray-700">Estimated delivery time*</Label>
+            <Input
+              value={step2.estimatedDeliveryTime || ""}
+              onChange={(e) =>
+                setStep2((prev) => ({ ...prev, estimatedDeliveryTime: e.target.value }))
+              }
+              className="mt-1 bg-white text-sm"
+              placeholder="e.g., 25-30 mins"
             />
           </div>
         </div>
@@ -2257,74 +2347,10 @@ export default function RestaurantOnboarding() {
     </div>
   )
 
-  const renderStep4 = () => (
-    <div className="space-y-6">
-      <section className="bg-white p-4 sm:p-6 rounded-md space-y-4">
-        <h2 className="text-lg font-semibold text-black">Restaurant Display Information</h2>
-        <p className="text-sm text-gray-600">
-          Add information that will be displayed to customers on the home page
-        </p>
-
-        <div>
-          <Label className="text-xs text-gray-700">Estimated Delivery Time*</Label>
-          <Input
-            value={step4.estimatedDeliveryTime || ""}
-            onChange={(e) => setStep4({ ...step4, estimatedDeliveryTime: e.target.value })}
-            className="mt-1 bg-white text-sm"
-            placeholder="e.g., 25-30 mins"
-          />
-        </div>
-
-        <div>
-          <Label className="text-xs text-gray-700">Featured Dish Name*</Label>
-          <Input
-            value={step4.featuredDish || ""}
-            onChange={(e) =>
-              setStep4({
-                ...step4,
-                featuredDish: e.target.value.replace(/[^A-Za-z ]/g, ""),
-              })
-            }
-            className="mt-1 bg-white text-sm"
-            placeholder="e.g., Butter Chicken Special"
-          />
-        </div>
-
-        <div>
-          <Label className="text-xs text-gray-700">Featured Dish Price (?)*</Label>
-          <Input
-            type="text"
-            inputMode="numeric"
-            value={step4.featuredPrice || ""}
-            onChange={(e) =>
-              setStep4({
-                ...step4,
-                featuredPrice: e.target.value.replace(/\D/g, ""),
-              })
-            }
-            className="mt-1 bg-white text-sm"
-            placeholder="e.g., 249"
-          />
-        </div>
-
-        <div>
-          <Label className="text-xs text-gray-700">Special Offer/Promotion*</Label>
-          <Input
-            value={step4.offer || ""}
-            onChange={(e) => setStep4({ ...step4, offer: e.target.value })}
-            className="mt-1 bg-white text-sm"
-            placeholder="e.g., Flat 50 Rs. OFF on Order Above Rs.199"
-          />
-        </div>
-      </section>
-    </div>
-  )
-
   const renderStep = () => {
     if (step === 1) return renderStep1()
     if (step === 2) return renderStep2()
-    if (step === 3) return renderStep3()
-    return renderStep4()
+    return renderStep3()
   }
 
   return (
@@ -2356,7 +2382,7 @@ export default function RestaurantOnboarding() {
             )}
             <div className="flex items-center gap-3">
               <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider text-right">
-                Step {step} of 4
+                Step {step} of 3
               </div>
               <Button
                 onClick={handleLogout}
@@ -2421,10 +2447,10 @@ export default function RestaurantOnboarding() {
             </Button>
             <Button
               onClick={handleNext}
-              disabled={saving || (step === 4 && !isEditing)}
-              className={`text-sm bg-black text-white px-6 ${(step === 4 && !isEditing) ? "opacity-50 cursor-not-allowed" : ""}`}
+              disabled={saving || (step === 3 && !isEditing)}
+              className={`text-sm bg-black text-white px-6 ${(step === 3 && !isEditing) ? "opacity-50 cursor-not-allowed" : ""}`}
             >
-              {step === 4 ? (saving ? "Saving..." : "Finish") : saving ? "Saving..." : "Continue"}
+              {step === 3 ? (saving ? "Saving..." : "Finish") : saving ? "Saving..." : "Continue"}
             </Button>
           </div>
         </footer>

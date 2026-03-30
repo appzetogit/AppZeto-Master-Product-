@@ -61,28 +61,7 @@ export function ProfileProvider({ children }) {
 
   const [paymentMethods, setPaymentMethods] = useState(() => {
     const saved = localStorage.getItem("userPaymentMethods")
-    return saved ? JSON.parse(saved) : [
-      {
-        id: "1",
-        cardNumber: "1234",
-        cardHolder: "John Doe",
-        expiryMonth: "12",
-        expiryYear: "2025",
-        cvv: "123",
-        isDefault: true,
-        type: "visa",
-      },
-      {
-        id: "2",
-        cardNumber: "5678",
-        cardHolder: "John Doe",
-        expiryMonth: "12",
-        expiryYear: "2026",
-        cvv: "456",
-        isDefault: false,
-        type: "mastercard",
-      },
-    ]
+    return saved ? JSON.parse(saved) : []
   })
 
   const [favorites, setFavorites] = useState(() => {
@@ -103,30 +82,47 @@ export function ProfileProvider({ children }) {
     return saved !== null ? saved === "true" : false
   })
 
-  // Save to localStorage whenever userProfile, addresses or paymentMethods change
-  useEffect(() => {
-    localStorage.setItem("userProfile", JSON.stringify(userProfile))
+  // Helper to check if authenticated
+  const isAuthenticated = useMemo(() => {
+    return localStorage.getItem("user_authenticated") === "true" || !!localStorage.getItem("user_accessToken")
   }, [userProfile])
 
+  // Save to localStorage whenever userProfile, addresses or paymentMethods change
   useEffect(() => {
-    localStorage.setItem("userAddresses", JSON.stringify(addresses))
-  }, [addresses])
+    if (userProfile || isAuthenticated) {
+      localStorage.setItem("userProfile", JSON.stringify(userProfile))
+    }
+  }, [userProfile, isAuthenticated])
 
   useEffect(() => {
-    localStorage.setItem("userPaymentMethods", JSON.stringify(paymentMethods))
-  }, [paymentMethods])
+    if (addresses.length > 0 || isAuthenticated) {
+      localStorage.setItem("userAddresses", JSON.stringify(addresses))
+    }
+  }, [addresses, isAuthenticated])
 
   useEffect(() => {
-    localStorage.setItem("userFavorites", JSON.stringify(favorites))
-  }, [favorites])
+    if (paymentMethods.length > 0 || isAuthenticated) {
+      localStorage.setItem("userPaymentMethods", JSON.stringify(paymentMethods))
+    }
+  }, [paymentMethods, isAuthenticated])
 
   useEffect(() => {
-    localStorage.setItem("userDishFavorites", JSON.stringify(dishFavorites))
-  }, [dishFavorites])
+    if (favorites.length > 0 || isAuthenticated) {
+      localStorage.setItem("userFavorites", JSON.stringify(favorites))
+    }
+  }, [favorites, isAuthenticated])
 
   useEffect(() => {
-    localStorage.setItem("userVegMode", vegMode.toString())
-  }, [vegMode])
+    if (dishFavorites.length > 0 || isAuthenticated) {
+      localStorage.setItem("userDishFavorites", JSON.stringify(dishFavorites))
+    }
+  }, [dishFavorites, isAuthenticated])
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      localStorage.setItem("userVegMode", vegMode.toString())
+    }
+  }, [vegMode, isAuthenticated])
 
   // Fetch user profile and addresses from API on mount and when authentication changes
   useEffect(() => {

@@ -1,4 +1,4 @@
-﻿// src/context/cart-context.jsx
+// src/context/cart-context.jsx
 import { createContext, useContext, useEffect, useMemo, useState } from "react"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -103,7 +103,11 @@ export function CartProvider({ children }) {
   // Persist to localStorage whenever cart changes
   useEffect(() => {
     try {
-      localStorage.setItem("cart", JSON.stringify(normalizeCartData(cart)))
+      // Only save if we have items or user is authenticated to avoid cluttering localStorage for every guest visitor
+      const isAuthenticated = localStorage.getItem("user_authenticated") === "true" || !!localStorage.getItem("user_accessToken");
+      if (cart.length > 0 || isAuthenticated) {
+        localStorage.setItem("cart", JSON.stringify(normalizeCartData(cart)))
+      }
     } catch {
       // ignore storage errors (private mode, quota, etc.)
     }

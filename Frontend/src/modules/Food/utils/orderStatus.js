@@ -18,35 +18,21 @@ export const ORDER_STATUS = {
 }
 
 /**
- * Get order status from localStorage
+ * Get order status from backend (No longer uses localStorage)
  * @param {string|number} orderId - The order ID
  * @returns {string} - The order status, defaults to "Pending"
  */
 export const getOrderStatus = (orderId) => {
-  if (!orderId) return ORDER_STATUS.PENDING
-  
-  try {
-    const savedStatus = localStorage.getItem(`order_status_${orderId}`)
-    return savedStatus || ORDER_STATUS.PENDING
-  } catch (error) {
-    debugError('Error reading order status from localStorage:', error)
-    return ORDER_STATUS.PENDING
-  }
+  return ORDER_STATUS.PENDING
 }
 
 /**
- * Save order status to localStorage
+ * Save order status (No-op, handle via backend real-time tracking)
  * @param {string|number} orderId - The order ID
  * @param {string} status - The order status to save
  */
 export const saveOrderStatus = (orderId, status) => {
-  if (!orderId || !status) return
-  
-  try {
-    localStorage.setItem(`order_status_${orderId}`, status)
-  } catch (error) {
-    debugError('Error saving order status to localStorage:', error)
-  }
+  // Legacy function: No longer saves to localStorage
 }
 
 /**

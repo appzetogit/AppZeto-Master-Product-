@@ -630,6 +630,11 @@ export default function AddRestaurant() {
   const placesAutocompleteRef = useRef(null)
   const mapsScriptLoadedRef = useRef(false)
 
+  // Manual search states for fallback
+  const [locationSearchValue, setLocationSearchValue] = useState("")
+  const [locationSuggestions, setLocationSuggestions] = useState([])
+  const [isSearchingLocation, setIsSearchingLocation] = useState(false)
+
   useEffect(() => {
     if (step !== 1) return
     let cancelled = false
@@ -660,52 +665,52 @@ export default function AddRestaurant() {
     let autocomplete = null
 
     const init = async () => {
-      // Wait for the input ref to be attached (up to 2 seconds)
+      // Wait for the input ref to be attached
       let inputElement = null
-      for (let i = 0; i < 40; i++) {
+      for (let i = 0; i < 50; i++) {
         if (locationSearchInputRef.current) {
           inputElement = locationSearchInputRef.current
           break
         }
-        await new Promise((r) => setTimeout(r, 50))
+        await new Promise((r) => setTimeout(r, 100))
       }
       
       if (!inputElement || cancelled) return
+
       const loadMaps = async () => {
-        // If already fully loaded and available
+        // 1. If already fully loaded and available
         if (window.google?.maps?.places?.Autocomplete) {
           mapsScriptLoadedRef.current = true
           return true
         }
 
+        // 2. Load API Key
         const apiKey = await getGoogleMapsApiKey()
         if (!apiKey) {
-          debugError("Google Maps API Key missing")
+          debugError("Google Maps API Key missing or invalid")
           return false
         }
 
-        // Catch Google Maps authentication failures
+        // 3. Catch Google Maps authentication failures
         window.gm_authFailure = () => {
-          debugError("Google Maps authentication failed. Check API Key restrictions/billing.")
-          toast.error("Location service authentication failed. Please contact support.")
+          debugError("Google Maps authentication failed.")
         }
 
-        // Check for any existing script tagging maps.googleapis.com
-        const existing = document.getElementById("google-maps-sdk") || 
-                         Array.from(document.getElementsByTagName("script")).find(s => s.src?.includes("maps.googleapis.com/maps/api/js"))
+        // 4. Check for any existing script and force libraries=places
+        const scripts = Array.from(document.getElementsByTagName("script"))
+        const mapsScript = scripts.find(s => s.src?.includes("maps.googleapis.com/maps/api/js"))
         
-        if (existing) {
-          if (!existing.id) existing.id = "google-maps-sdk"
-          for (let i = 0; i < 60; i++) {
-            if (window.google?.maps?.places?.Autocomplete) {
-              mapsScriptLoadedRef.current = true
-              return true
-            }
-            await new Promise((r) => setTimeout(r, 100))
-          }
-          return false
+        if (mapsScript && !mapsScript.src.includes("libraries=places")) {
+          mapsScript.remove()
+        } else if (mapsScript && mapsScript.src.includes("libraries=places")) {
+           for (let i = 0; i < 60; i++) {
+              if (window.google?.maps?.places?.Autocomplete) return true
+              if (cancelled) return false
+              await new Promise(r => setTimeout(r, 100))
+           }
         }
 
+        // 5. Create and append new script
         return new Promise((resolve) => {
           const script = document.createElement("script")
           script.id = "google-maps-sdk"
@@ -713,8 +718,11 @@ export default function AddRestaurant() {
           script.async = true
           script.defer = true
           script.onload = () => {
-            mapsScriptLoadedRef.current = true
-            resolve(!!window.google?.maps?.places?.Autocomplete)
+            setTimeout(() => {
+              const ok = !!window.google?.maps?.places?.Autocomplete
+              mapsScriptLoadedRef.current = ok
+              resolve(ok)
+            }, 200)
           }
           script.onerror = () => resolve(false)
           document.head.appendChild(script)
@@ -755,6 +763,7 @@ export default function AddRestaurant() {
           {
             fields: ["formatted_address", "address_components", "geometry"],
             componentRestrictions: { country: "in" },
+            types: ["geocode", "establishment"]
           }
         )
         
@@ -780,27 +789,36 @@ export default function AddRestaurant() {
               longitude: parsed.longitude !== "" ? parsed.longitude : prev.location.longitude,
             },
           }))
+          
+          setLocationSearchValue(parsed.formattedAddress)
+          inputElement.blur()
         })
         
         const pacContainerFix = () => {
-          setTimeout(() => {
+          const applyFix = () => {
             const containers = document.querySelectorAll('.pac-container');
-            containers.forEach(container => {
-              container.style.zIndex = '999999';
-              container.style.pointerEvents = 'auto';
-            });
-          }, 200);
+            if (containers.length > 0) {
+              containers.forEach(container => {
+                container.style.zIndex = '999999';
+                container.style.pointerEvents = 'auto';
+                container.style.visibility = 'visible';
+                container.style.display = 'block';
+              });
+            }
+          };
+          applyFix();
+          setTimeout(applyFix, 100);
+          setTimeout(applyFix, 300);
         };
+        
         inputElement.addEventListener('focus', pacContainerFix);
         inputElement.addEventListener('input', pacContainerFix);
       } catch (e) {
-        debugWarn("Autocomplete initialization error:", e)
+        debugError("Autocomplete error:", e)
       }
     }
 
-    init().catch((err) => {
-      debugWarn("Failed to initialize location search:", err)
-    })
+    init().catch(() => {})
 
     return () => {
       cancelled = true
@@ -813,6 +831,40 @@ export default function AddRestaurant() {
       placesAutocompleteRef.current = null
     }
   }, [step])
+
+  // Hybrid Search Fallback (Nominatim)
+  useEffect(() => {
+    if (step !== 1) return
+    const q = String(locationSearchValue || "").trim()
+    if (q.length < 3) {
+      setLocationSuggestions([])
+      setIsSearchingLocation(false)
+      return
+    }
+
+    const t = setTimeout(async () => {
+      try {
+        setIsSearchingLocation(true)
+        const url = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=4&q=${encodeURIComponent(q)}&countrycodes=in`
+        const res = await fetch(url, { headers: { Accept: "application/json" } })
+        const json = await res.json()
+        const mapped = (Array.isArray(json) ? json : []).map(r => ({
+          id: r.place_id,
+          display: r.display_name || "",
+          lat: Number(r.lat),
+          lng: Number(r.lon),
+          addr: r.address || {},
+        }))
+        setLocationSuggestions(mapped)
+      } catch (e) {
+        debugError("Nominatim search failed:", e)
+      } finally {
+        setIsSearchingLocation(false)
+      }
+    }, 400)
+
+    return () => clearTimeout(t)
+  }, [locationSearchValue, step])
 
 
   // Render functions for each step
@@ -901,13 +953,61 @@ export default function AddRestaurant() {
 
       <section className="bg-white p-4 sm:p-6 rounded-md space-y-4">
         <h2 className="text-lg font-semibold text-black">Restaurant contact & location</h2>
-        <div>
+        <div className="relative">
           <Label className="text-xs text-gray-700">Search location</Label>
-          <Input
-            ref={locationSearchInputRef}
-            className="mt-1 bg-white text-sm"
-            placeholder="Search and select restaurant address..."
-          />
+          <div className="relative">
+            <Input
+              ref={locationSearchInputRef}
+              value={locationSearchValue}
+              onChange={(e) => setLocationSearchValue(e.target.value)}
+              className="mt-1 bg-white text-sm"
+              placeholder="Search and select restaurant address..."
+            />
+            {isSearchingLocation && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                <Loader2 className="h-4 w-4 animate-spin text-orange-500" />
+              </div>
+            )}
+          </div>
+
+          {locationSuggestions.length > 0 && (
+            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-xl z-50 overflow-hidden max-h-60 overflow-y-auto">
+              {locationSuggestions.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => {
+                    const { lat, lng, display, addr } = s
+                    const area = addr.suburb || addr.neighbourhood || addr.city_district || addr.locality || ""
+                    const city = addr.city || addr.town || addr.village || ""
+                    const state = addr.state || ""
+                    const pincode = addr.postcode || ""
+
+                    setStep1((prev) => ({
+                      ...prev,
+                      location: {
+                        ...prev.location,
+                        formattedAddress: display,
+                        addressLine1: display,
+                        area: area || prev.location.area,
+                        city: city || prev.location.city,
+                        state: state || prev.location.state,
+                        pincode: pincode || prev.location.pincode,
+                        latitude: lat,
+                        longitude: lng,
+                      },
+                    }))
+                    setLocationSearchValue(display)
+                    setLocationSuggestions([])
+                  }}
+                  className="w-full px-4 py-2 text-left text-[13px] font-medium text-gray-700 hover:bg-orange-50 border-b border-gray-100 last:border-none"
+                >
+                  <span className="truncate">{s.display}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          
           <p className="text-[11px] text-gray-500 mt-1">
             Search to auto-fill Area, City, State, Pincode and coordinates.
           </p>

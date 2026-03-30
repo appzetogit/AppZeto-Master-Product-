@@ -203,25 +203,46 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
     }
   }, [])
 
-  // Get initial collapsed state from localStorage
-  const getInitialCollapsedState = () => {
+  // Get initial states from consolidated admin_sidebar_state
+  const getInitialStates = () => {
     try {
-      const saved = localStorage.getItem('adminSidebarCollapsed')
-      if (saved !== null) {
+      const saved = localStorage.getItem('admin_sidebar_state')
+      if (saved) {
         return JSON.parse(saved)
       }
     } catch (e) {
-      debugError('Error loading sidebar collapsed state:', e)
+      debugError('Error loading sidebar state:', e)
     }
-    return false
+    return { isCollapsed: false, expandedSections: {} }
   }
 
-  const [isCollapsed, setIsCollapsed] = useState(getInitialCollapsedState)
+  const [isCollapsed, setIsCollapsed] = useState(() => getInitialStates().isCollapsed)
+  const [expandedSections, setExpandedSections] = useState(() => {
+    const initialState = getInitialStates().expandedSections
+    if (Object.keys(initialState || {}).length > 0) return initialState
 
-  // Save collapsed state to localStorage and notify parent
+    // Generate defaults if empty
+    const state = {}
+    adminSidebarMenu.forEach((item) => {
+      if (item.type === "section") {
+        item.items.forEach((subItem) => {
+          if (subItem.type === "expandable") {
+            state[subItem.label.toLowerCase().replace(/\s+/g, "")] = false
+          }
+        })
+      }
+    })
+    return state
+  })
+
+  // Save states to consolidated localStorage and notify parent
   useEffect(() => {
     try {
-      localStorage.setItem('adminSidebarCollapsed', JSON.stringify(isCollapsed))
+      const currentState = JSON.parse(localStorage.getItem('admin_sidebar_state') || '{}')
+      localStorage.setItem('admin_sidebar_state', JSON.stringify({
+        ...currentState,
+        isCollapsed
+      }))
       if (onCollapseChange) {
         onCollapseChange(isCollapsed)
       }
@@ -241,30 +262,8 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
     setIsCollapsed(prev => !prev)
   }
 
-  // Generate initial expanded state from menu data
-  const getInitialExpandedState = () => {
-    try {
-      const saved = localStorage.getItem('adminSidebarExpanded')
-      if (saved) {
-        return JSON.parse(saved)
-      }
-    } catch (e) {
-      debugError('Error loading sidebar state:', e)
-    }
-    const state = {}
-    adminSidebarMenu.forEach((item) => {
-      if (item.type === "section") {
-        item.items.forEach((subItem) => {
-          if (subItem.type === "expandable") {
-            state[subItem.label.toLowerCase().replace(/\s+/g, "")] = false
-          }
-        })
-      }
-    })
-    return state
-  }
+  // expandedSections state is initialized above in getInitialStates consolidation
 
-  const [expandedSections, setExpandedSections] = useState(getInitialExpandedState)
 
   // Filter menu items based on search query
   const filteredMenuData = useMemo(() => {
@@ -364,7 +363,11 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
 
   useEffect(() => {
     try {
-      localStorage.setItem('adminSidebarExpanded', JSON.stringify(expandedSections))
+      const currentState = JSON.parse(localStorage.getItem('admin_sidebar_state') || '{}')
+      localStorage.setItem('admin_sidebar_state', JSON.stringify({
+        ...currentState,
+        expandedSections
+      }))
     } catch (e) {
       debugError('Error saving sidebar state:', e)
     }

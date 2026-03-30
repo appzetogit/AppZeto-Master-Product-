@@ -214,11 +214,13 @@ export default function AdminNavbar({ onMenuClick }) {
         debugWarn("Logout API call failed, continuing with local cleanup:", apiError);
       }
 
-      // Clear admin authentication data from localStorage
+      // Clear admin authentication and preference data from localStorage
       clearModuleAuth('admin');
       localStorage.removeItem('admin_accessToken');
       localStorage.removeItem('admin_authenticated');
       localStorage.removeItem('admin_user');
+      localStorage.removeItem('admin_sidebar_state');
+      localStorage.removeItem('admin_recent_searches');
 
       // Clear sessionStorage if any
       sessionStorage.removeItem('adminAuthData');
@@ -237,6 +239,8 @@ export default function AdminNavbar({ onMenuClick }) {
       localStorage.removeItem('admin_accessToken');
       localStorage.removeItem('admin_authenticated');
       localStorage.removeItem('admin_user');
+      localStorage.removeItem('admin_sidebar_state');
+      localStorage.removeItem('admin_recent_searches');
       sessionStorage.removeItem('adminAuthData');
       window.dispatchEvent(new Event('adminAuthChanged'));
 

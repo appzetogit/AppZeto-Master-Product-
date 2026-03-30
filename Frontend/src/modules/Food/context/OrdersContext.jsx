@@ -15,7 +15,11 @@ export function OrdersProvider({ children }) {
 
   useEffect(() => {
     try {
-      localStorage.setItem("userOrders", JSON.stringify(orders))
+      // Only items that exist or are linked to an authenticated user
+      const isAuthenticated = localStorage.getItem("user_authenticated") === "true" || !!localStorage.getItem("user_accessToken");
+      if (orders.length > 0 || isAuthenticated) {
+        localStorage.setItem("userOrders", JSON.stringify(orders))
+      }
     } catch {
       // ignore storage errors
     }

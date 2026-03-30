@@ -1101,14 +1101,29 @@ export default function AddRestaurant() {
         </div>
 
         <div className="space-y-3">
-          <Label className="text-xs text-gray-700">Delivery timings*</Label>
+          <Label className="text-xs text-gray-700">Outlet timings*</Label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label className="text-xs text-gray-700 mb-1 block">Opening time</Label>
               <Input
                 type="time"
                 value={step2.openingTime || ""}
-                onChange={(e) => setStep2({ ...step2, openingTime: e.target.value })}
+                onChange={(e) => {
+                  const nextOpening = e.target.value
+                  const closingMinutes = timeStringToMinutes(step2.closingTime)
+                  const openingMinutes = timeStringToMinutes(nextOpening)
+                  if (openingMinutes !== null && closingMinutes !== null) {
+                    if (openingMinutes === closingMinutes) {
+                      toast.error("Opening time and closing time cannot be same")
+                      return
+                    }
+                    if (closingMinutes < openingMinutes) {
+                      toast.error("Closing time cannot be less than opening time")
+                      return
+                    }
+                  }
+                  setStep2({ ...step2, openingTime: nextOpening })
+                }}
                 autoComplete="off"
                 className="bg-white text-sm"
               />
@@ -1118,7 +1133,22 @@ export default function AddRestaurant() {
               <Input
                 type="time"
                 value={step2.closingTime || ""}
-                onChange={(e) => setStep2({ ...step2, closingTime: e.target.value })}
+                onChange={(e) => {
+                  const nextClosing = e.target.value
+                  const openingMinutes = timeStringToMinutes(step2.openingTime)
+                  const closingMinutes = timeStringToMinutes(nextClosing)
+                  if (openingMinutes !== null && closingMinutes !== null) {
+                    if (openingMinutes === closingMinutes) {
+                      toast.error("Opening time and closing time cannot be same")
+                      return
+                    }
+                    if (closingMinutes < openingMinutes) {
+                      toast.error("Closing time cannot be less than opening time")
+                      return
+                    }
+                  }
+                  setStep2({ ...step2, closingTime: nextClosing })
+                }}
                 autoComplete="off"
                 className="bg-white text-sm"
               />

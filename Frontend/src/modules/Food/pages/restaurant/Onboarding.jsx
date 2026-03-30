@@ -380,6 +380,15 @@ const timeStringToMinutes = (value) => {
   return hours * 60 + minutes
 }
 
+const formatTime12Hour = (timeStr) => {
+  if (!timeStr || typeof timeStr !== "string" || !timeStr.includes(":")) return "--:-- --"
+  const [h, m] = timeStr.split(":").map(Number)
+  if (Number.isNaN(h) || Number.isNaN(m)) return timeStr
+  const period = h >= 12 ? "PM" : "AM"
+  const hour = h % 12 || 12
+  return `${hour}:${String(m).padStart(2, "0")} ${period}`
+}
+
 const formatDateToLocalYMD = (date) => {
   if (!date || Number.isNaN(date.getTime?.())) return ""
   const year = date.getFullYear()
@@ -414,7 +423,7 @@ function TimeSelector({ label, value, onChange }) {
         <Clock className="w-4 h-4 text-gray-800" />
         <span className="text-xs font-medium text-gray-900">{label}</span>
       </div>
-      <MobileTimePicker
+      <MobileTimePicker ampm={true}
         value={timeValue}
         onChange={handleTimeChange}
         onAccept={handleTimeChange}
@@ -1941,21 +1950,47 @@ export default function RestaurantOnboarding() {
       <section className="bg-white p-4 sm:p-6 rounded-md space-y-5">
         {/* Timings with popover time selectors */}
         <div className="space-y-3">
-          <Label className="text-xs text-gray-700">Delivery timings</Label>
+          <Label className="text-xs text-gray-700">Outlet timings</Label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <TimeSelector
               label="Opening time"
               value={step2.openingTime || ""}
-              onChange={(val) =>
-                setStep2((prev) => ({ ...prev, openingTime: normalizeTimeValue(val) || "" }))
-              }
+              onChange={(val) => {
+                const nextOpening = normalizeTimeValue(val) || ""
+                const openingMinutes = timeStringToMinutes(nextOpening)
+                const closingMinutes = timeStringToMinutes(step2.closingTime)
+                if (openingMinutes !== null && closingMinutes !== null) {
+                  if (openingMinutes === closingMinutes) {
+                    toast.error("Opening time and closing time cannot be same")
+                    return
+                  }
+                  if (closingMinutes < openingMinutes) {
+                    toast.error("Closing time cannot be less than opening time")
+                    return
+                  }
+                }
+                setStep2((prev) => ({ ...prev, openingTime: nextOpening }))
+              }}
             />
             <TimeSelector
               label="Closing time"
               value={step2.closingTime || ""}
-              onChange={(val) =>
-                setStep2((prev) => ({ ...prev, closingTime: normalizeTimeValue(val) || "" }))
-              }
+              onChange={(val) => {
+                const nextClosing = normalizeTimeValue(val) || ""
+                const openingMinutes = timeStringToMinutes(step2.openingTime)
+                const closingMinutes = timeStringToMinutes(nextClosing)
+                if (openingMinutes !== null && closingMinutes !== null) {
+                  if (openingMinutes === closingMinutes) {
+                    toast.error("Opening time and closing time cannot be same")
+                    return
+                  }
+                  if (closingMinutes < openingMinutes) {
+                    toast.error("Closing time cannot be less than opening time")
+                    return
+                  }
+                }
+                setStep2((prev) => ({ ...prev, closingTime: nextClosing }))
+              }}
             />
           </div>
           <div>

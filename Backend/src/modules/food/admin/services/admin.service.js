@@ -48,6 +48,61 @@ const toFiniteNumber = (value) => {
     return Number.isFinite(num) ? num : null;
 };
 
+const normalizeRestaurantTime = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+
+    const toHHMM = (hour, minute) => {
+        const h = Number(hour);
+        const m = Number(minute);
+        if (!Number.isFinite(h) || !Number.isFinite(m)) return '';
+        if (h < 0 || h > 23 || m < 0 || m > 59) return '';
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    };
+
+    const hhmm = raw.match(/^(\d{1,2}):(\d{2})$/);
+    if (hhmm) return toHHMM(hhmm[1], hhmm[2]);
+
+    const ampm = raw.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/);
+    if (ampm) {
+        let hour = Number(ampm[1]);
+        const minute = Number(ampm[2]);
+        const period = ampm[3].toUpperCase();
+        if (!Number.isFinite(hour) || !Number.isFinite(minute)) return '';
+        if (hour < 1 || hour > 12 || minute < 0 || minute > 59) return '';
+        if (period === 'AM') hour = hour === 12 ? 0 : hour;
+        if (period === 'PM') hour = hour === 12 ? 12 : hour + 12;
+        return toHHMM(hour, minute);
+    }
+
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+        return toHHMM(parsed.getHours(), parsed.getMinutes());
+    }
+
+    return '';
+};
+
+const timeToMinutes = (value) => {
+    const normalized = normalizeRestaurantTime(value);
+    if (!normalized) return null;
+    const [h, m] = normalized.split(':').map(Number);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+    return h * 60 + m;
+};
+
+const validateOpeningClosingTimes = (openingTime, closingTime) => {
+    const open = timeToMinutes(openingTime);
+    const close = timeToMinutes(closingTime);
+    if (open === null || close === null) return;
+    if (open === close) {
+        throw new ValidationError('Opening time and closing time cannot be same');
+    }
+    if (close < open) {
+        throw new ValidationError('Closing time cannot be less than opening time');
+    }
+};
+
 export async function getRestaurantComplaints(query = {}) {
     const limit = Math.min(Math.max(parseInt(query.limit, 10) || 50, 1), 500);
     const page = Math.max(parseInt(query.page, 10) || 1, 1);
@@ -2067,8 +2122,9 @@ export async function updateRestaurantById(id, body = {}) {
         }
     }
 
-    if (body.openingTime !== undefined) doc.openingTime = toStr(body.openingTime);
-    if (body.closingTime !== undefined) doc.closingTime = toStr(body.closingTime);
+    if (body.openingTime !== undefined) doc.openingTime = normalizeRestaurantTime(body.openingTime) || '';
+    if (body.closingTime !== undefined) doc.closingTime = normalizeRestaurantTime(body.closingTime) || '';
+    validateOpeningClosingTimes(doc.openingTime, doc.closingTime);
     if (body.openDays !== undefined && Array.isArray(body.openDays)) {
         doc.openDays = body.openDays.map(d => toStr(d)).filter(Boolean);
     }
@@ -2642,6 +2698,10 @@ export async function createRestaurantByAdmin(body) {
         ? body.menuImages.map((m) => toUrl(m)).filter(Boolean)
         : [];
 
+    const normalizedOpeningTime = normalizeRestaurantTime(body.openingTime) || '09:00';
+    const normalizedClosingTime = normalizeRestaurantTime(body.closingTime) || '22:00';
+    validateOpeningClosingTimes(normalizedOpeningTime, normalizedClosingTime);
+
     const doc = {
         restaurantName: toStr(body.restaurantName) || toStr(body.name),
         ownerName: toStr(body.ownerName),
@@ -2659,8 +2719,8 @@ export async function createRestaurantByAdmin(body) {
         pincode: toStr(loc.pincode),
         landmark: toStr(loc.landmark),
         cuisines: Array.isArray(body.cuisines) ? body.cuisines : [],
-        openingTime: toStr(body.openingTime) || '09:00',
-        closingTime: toStr(body.closingTime) || '22:00',
+        openingTime: normalizedOpeningTime,
+        closingTime: normalizedClosingTime,
         openDays: Array.isArray(body.openDays) ? body.openDays : [],
         panNumber: toStr(body.panNumber),
         nameOnPan: toStr(body.nameOnPan),

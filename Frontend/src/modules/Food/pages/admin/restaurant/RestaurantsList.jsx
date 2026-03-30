@@ -37,6 +37,47 @@ const approvalStatusBadgeClass = (status) => {
   return "bg-amber-100 text-amber-700"
 }
 
+const normalizeTimeValue = (value) => {
+  const raw = String(value || "").trim()
+  if (!raw) return ""
+  const hhmm = raw.match(/^(\d{1,2}):(\d{2})$/)
+  if (hhmm) {
+    const h = Number(hhmm[1]); const m = Number(hhmm[2])
+    if (!Number.isFinite(h) || !Number.isFinite(m) || h < 0 || h > 23 || m < 0 || m > 59) return ""
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
+  }
+  const ampm = raw.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/)
+  if (ampm) {
+    let h = Number(ampm[1]); const m = Number(ampm[2]); const p = ampm[3].toUpperCase()
+    if (!Number.isFinite(h) || !Number.isFinite(m) || h < 1 || h > 12 || m < 0 || m > 59) return ""
+    if (p === "AM") h = h === 12 ? 0 : h
+    if (p === "PM") h = h === 12 ? 12 : h + 12
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
+  }
+  const parsed = new Date(raw)
+  if (!Number.isNaN(parsed.getTime())) {
+    return `${String(parsed.getHours()).padStart(2, "0")}:${String(parsed.getMinutes()).padStart(2, "0")}`
+  }
+  return ""
+}
+
+const timeToMinutes = (value) => {
+  const normalized = normalizeTimeValue(value)
+  if (!normalized) return null
+  const [h, m] = normalized.split(":").map(Number)
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null
+  return h * 60 + m
+}
+
+const formatTime12Hour = (value) => {
+  const normalized = normalizeTimeValue(value)
+  if (!normalized) return value || "N/A"
+  const [h, m] = normalized.split(":").map(Number)
+  const hour12 = h % 12 === 0 ? 12 : h % 12
+  const period = h >= 12 ? "PM" : "AM"
+  return `${String(hour12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${period}`
+}
+
 
 export default function RestaurantsList() {
   const navigate = useNavigate()
@@ -735,6 +776,21 @@ export default function RestaurantsList() {
         }
       }
 
+      const normalizedOpeningTime = normalizeTimeValue(detailsForm.openingTime.trim())
+      const normalizedClosingTime = normalizeTimeValue(detailsForm.closingTime.trim())
+      const openingMinutes = timeToMinutes(normalizedOpeningTime)
+      const closingMinutes = timeToMinutes(normalizedClosingTime)
+      if (openingMinutes !== null && closingMinutes !== null) {
+        if (openingMinutes === closingMinutes) {
+          alert("Opening time and closing time cannot be same")
+          return
+        }
+        if (closingMinutes < openingMinutes) {
+          alert("Closing time cannot be less than opening time")
+          return
+        }
+      }
+
       const payload = {
         name: detailsForm.name.trim(),
         pureVegRestaurant: detailsForm.pureVegRestaurant === true,
@@ -749,8 +805,8 @@ export default function RestaurantsList() {
           .filter(Boolean),
         estimatedDeliveryTime: detailsForm.estimatedDeliveryTime.trim(),
         offer: detailsForm.offer.trim(),
-        openingTime: detailsForm.openingTime.trim(),
-        closingTime: detailsForm.closingTime.trim(),
+        openingTime: normalizedOpeningTime,
+        closingTime: normalizedClosingTime,
         isActive: detailsForm.isActive,
       }
 
@@ -1593,7 +1649,7 @@ export default function RestaurantsList() {
                             <div>
                               <p className="text-xs text-slate-500">Opening / Closing</p>
                               <p className="text-sm font-medium text-slate-900">
-                                {openingTimeVal || "N/A"} – {closingTimeVal || "N/A"}
+                                {formatTime12Hour(openingTimeVal)} – {formatTime12Hour(closingTimeVal)}
                               </p>
                             </div>
                           </div>
@@ -1985,11 +2041,11 @@ export default function RestaurantsList() {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                             <div>
                               <p className="text-xs text-slate-500 mb-1">Opening Time (at registration)</p>
-                              <p className="font-medium text-slate-900">{r.onboarding.step2.deliveryTimings.openingTime || "N/A"}</p>
+                              <p className="font-medium text-slate-900">{formatTime12Hour(r.onboarding.step2.deliveryTimings.openingTime)}</p>
                             </div>
                             <div>
                               <p className="text-xs text-slate-500 mb-1">Closing Time (at registration)</p>
-                              <p className="font-medium text-slate-900">{r.onboarding.step2.deliveryTimings.closingTime || "N/A"}</p>
+                              <p className="font-medium text-slate-900">{formatTime12Hour(r.onboarding.step2.deliveryTimings.closingTime)}</p>
                             </div>
                           </div>
                         )}

@@ -8,6 +8,15 @@ const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
+const formatTime12Hour = (timeStr) => {
+  if (!timeStr || typeof timeStr !== "string" || !timeStr.includes(":")) return "--:-- --"
+  const [h, m] = timeStr.split(":").map(Number)
+  if (Number.isNaN(h) || Number.isNaN(m)) return timeStr
+  const period = h >= 12 ? "PM" : "AM"
+  const hour = h % 12 || 12
+  return `${String(hour).padStart(2, "0")}:${String(m).padStart(2, "0")} ${period}`
+}
+
 
 export default function JoiningRequest() {
   const [activeTab, setActiveTab] = useState("pending")
@@ -634,8 +643,8 @@ export default function JoiningRequest() {
 
       {/* Restaurant Details Side Panel */}
       {showDetailsModal && selectedRequest && (
-        <div className="fixed inset-0 z-[60] flex justify-end" onClick={closeDetailsModal}>
-          <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm transition-opacity" />
+        <div className="fixed inset-0 z-[60] flex justify-end">
+          <div className="fixed inset-0 bg-slate-900/10 backdrop-blur-sm transition-opacity" onClick={closeDetailsModal} />
           
           <div 
             className="relative w-full max-w-4xl bg-white h-full shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-300"
@@ -814,7 +823,7 @@ export default function JoiningRequest() {
                             <div>
                               <p className="text-xs text-slate-500">Opening / Closing</p>
                               <p className="text-sm font-medium text-slate-900">
-                                {openingTime || "—"} – {closingTime || "—"}
+                                {formatTime12Hour(openingTime)} – {formatTime12Hour(closingTime)}
                               </p>
                             </div>
                           </div>

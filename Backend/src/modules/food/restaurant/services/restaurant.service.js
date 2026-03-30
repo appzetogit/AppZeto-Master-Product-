@@ -71,6 +71,14 @@ const normalizeRestaurantTime = (value) => {
     return '';
 };
 
+const timeToMinutes = (value) => {
+    const normalized = normalizeRestaurantTime(value);
+    if (!normalized) return null;
+    const [h, m] = normalized.split(':').map(Number);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+    return h * 60 + m;
+};
+
 const parseEstimatedDeliveryMinutes = (value) => {
     const raw = String(value || '').trim();
     if (!raw) return null;
@@ -265,6 +273,16 @@ export const registerRestaurant = async (payload, files) => {
 
     const normalizedOpeningTime = normalizeRestaurantTime(openingTime);
     const normalizedClosingTime = normalizeRestaurantTime(closingTime);
+    const openingMinutes = timeToMinutes(normalizedOpeningTime);
+    const closingMinutes = timeToMinutes(normalizedClosingTime);
+    if (openingMinutes !== null && closingMinutes !== null) {
+        if (openingMinutes === closingMinutes) {
+            throw new ValidationError('Opening time and closing time cannot be same');
+        }
+        if (closingMinutes < openingMinutes) {
+            throw new ValidationError('Closing time cannot be less than opening time');
+        }
+    }
     const estimatedDeliveryTimeText = String(estimatedDeliveryTime || '').trim();
     const estimatedDeliveryTimeMinutes = parseEstimatedDeliveryMinutes(estimatedDeliveryTimeText);
 

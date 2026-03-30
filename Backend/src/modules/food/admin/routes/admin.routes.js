@@ -82,6 +82,7 @@ router.patch('/categories/:id/approve', adminController.approveCategory);
 
 // ----- Restaurant Add-ons Approval -----
 router.get('/addons', addonsApprovalController.getRestaurantAddons);
+router.patch('/addons/:id', addonsApprovalController.updateRestaurantAddon);
 router.patch('/addons/:id/approve', addonsApprovalController.approveRestaurantAddon);
 router.patch('/addons/:id/reject', addonsApprovalController.rejectRestaurantAddon);
 

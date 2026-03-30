@@ -100,25 +100,33 @@ export default function FoodApproval() {
 
   const totalRequests = filteredRequests.length
 
-  // Handle approve food item
+  // Handle approve food item or addon
   const handleApprove = async (request) => {
     if (!request?.isActionable) return
     try {
       setProcessing(true)
-      await adminAPI.approveFoodItem(request._id || request.id)
-      toast.success('Food item approved successfully')
+      const id = request._id || request.id
+      
+      if (request.entityType === 'addon') {
+        await adminAPI.approveRestaurantAddon(id)
+        toast.success('Add-on approved successfully')
+      } else {
+        await adminAPI.approveFoodItem(id)
+        toast.success('Food item approved successfully')
+      }
+      
       await fetchFoodRequests()
       setShowDetailModal(false)
       setSelectedRequest(null)
     } catch (error) {
-      debugError('Error approving food item:', error)
-      toast.error(error?.response?.data?.message || 'Failed to approve food item')
+      debugError('Error approving item:', error)
+      toast.error(error?.response?.data?.message || 'Failed to approve item')
     } finally {
       setProcessing(false)
     }
   }
 
-  // Handle reject food item
+  // Handle reject food item or addon
   const handleReject = async () => {
     if (!selectedRequest?.isActionable) {
       setShowRejectModal(false)
@@ -131,16 +139,24 @@ export default function FoodApproval() {
 
     try {
       setProcessing(true)
-      await adminAPI.rejectFoodItem(selectedRequest._id || selectedRequest.id, rejectReason)
-      toast.success('Food item rejected')
+      const id = selectedRequest._id || selectedRequest.id
+      
+      if (selectedRequest.entityType === 'addon') {
+        await adminAPI.rejectRestaurantAddon(id, rejectReason)
+        toast.success('Add-on rejected')
+      } else {
+        await adminAPI.rejectFoodItem(id, rejectReason)
+        toast.success('Food item rejected')
+      }
+      
       await fetchFoodRequests()
       setShowRejectModal(false)
       setShowDetailModal(false)
       setSelectedRequest(null)
       setRejectReason("")
     } catch (error) {
-      debugError('Error rejecting food item:', error)
-      toast.error(error?.response?.data?.message || 'Failed to reject food item')
+      debugError('Error rejecting item:', error)
+      toast.error(error?.response?.data?.message || 'Failed to reject item')
     } finally {
       setProcessing(false)
     }
@@ -148,15 +164,6 @@ export default function FoodApproval() {
 
   // View food item details
   const handleViewDetails = (request) => {
-    debugLog('Food item details:', {
-      images: request.images,
-      imagesLength: request.images?.length,
-      image: request.image,
-      item: request.item,
-      itemImages: request.item?.images,
-      itemImagesLength: request.item?.images?.length,
-      fullRequest: request
-    })
     setSelectedRequest(request)
     setShowDetailModal(true)
   }
@@ -186,7 +193,7 @@ export default function FoodApproval() {
           {/* Section Header */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
             <div className="flex items-center gap-2">
-              <h2 className="text-base font-semibold text-gray-900">Pending Food Approvals</h2>
+              <h2 className="text-base font-semibold text-gray-900">Pending Food & Add-on Approvals</h2>
               <span className="inline-flex items-center rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-600">
                 {totalRequests}
               </span>
@@ -201,7 +208,7 @@ export default function FoodApproval() {
               </span>
               <input
                 type="text"
-                placeholder="Search by food, category, restaurant or status"
+                placeholder="Search by name, category, restaurant or status"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full rounded-md border border-gray-300 bg-white py-1.5 pl-9 pr-3 text-sm focus:outline-none focus:border-[#006fbd] focus:ring-1 focus:ring-[#006fbd]"
@@ -230,7 +237,7 @@ export default function FoodApproval() {
                         Category
                       </th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                        Food Name
+                        Item Name
                       </th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                         Type
@@ -253,7 +260,7 @@ export default function FoodApproval() {
                     {filteredRequests.length === 0 ? (
                       <tr>
                         <td colSpan="9" className="px-3 py-8 text-center text-sm text-gray-500">
-                          {loading ? "Loading..." : "No food or category records found."}
+                          {loading ? "Loading..." : "No food or add-on records found."}
                         </td>
                       </tr>
                     ) : (
@@ -269,13 +276,15 @@ export default function FoodApproval() {
                             </div>
                           </td>
                           <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-700">
-                            {request.category || request.item?.category || '-'}
+                            {request.category || '-'}
                           </td>
                           <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-700 font-semibold">
                             {request.itemName || '-'}
                           </td>
-                          <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-700 capitalize">
-                            {request.entityType || request.type || 'food'}
+                          <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-700 capitalize text-center">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${request.entityType === 'addon' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                                {request.entityType || 'food'}
+                            </span>
                           </td>
                           <td className="px-3 py-3 whitespace-nowrap text-sm">
                             <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium capitalize ${
@@ -283,9 +292,7 @@ export default function FoodApproval() {
                                 ? 'bg-amber-100 text-amber-700'
                                 : String(request.approvalStatus || '').toLowerCase() === 'approved'
                                   ? 'bg-green-100 text-green-700'
-                                  : String(request.entityType || request.type) === 'category'
-                                    ? 'bg-slate-100 text-slate-700'
-                                    : 'bg-gray-100 text-gray-700'
+                                  : 'bg-gray-100 text-gray-700'
                             }`}>
                               {request.approvalStatus || (request.isActionable ? 'pending' : 'active')}
                             </span>
@@ -302,8 +309,6 @@ export default function FoodApproval() {
                                 onClick={() => handleViewDetails(request)}
                                 className="inline-flex h-7 w-7 items-center justify-center rounded-md text-white transition-colors"
                                 style={{ backgroundColor: "#006fbd" }}
-                                onMouseEnter={(e) => (e.target.style.backgroundColor = "#005a9e")}
-                                onMouseLeave={(e) => (e.target.style.backgroundColor = "#006fbd")}
                                 title="View Details"
                               >
                                 <Eye className="w-4 h-4" />
@@ -337,108 +342,96 @@ export default function FoodApproval() {
         </div>
       </Card>
 
-      {/* Food Details Modal */}
+      {/* Item Details Modal */}
       <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto p-0 bg-white">
-          <DialogHeader className="p-6 pb-4 border-b border-gray-200">
-            <DialogTitle className="text-xl font-semibold text-gray-900">
-              {selectedRequest?.entityType === 'category' ? 'Category Details' : 'Food Item Details'}
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto p-0 bg-white shadow-2xl rounded-2xl border-none">
+          <DialogHeader className="p-6 pb-4 border-b border-gray-100 bg-slate-50/50">
+            <DialogTitle className="text-xl font-bold text-gray-900">
+              {selectedRequest?.entityType === 'addon' ? 'Add-on Details' : 'Food Item Details'}
             </DialogTitle>
             <DialogDescription className="text-sm text-gray-500 mt-1">
-              Review the submitted details.
+              Review the submitted details before approval.
             </DialogDescription>
           </DialogHeader>
           {selectedRequest && (
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-6">
               {/* Restaurant Info */}
-              <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
-                <h3 className="font-semibold text-sm text-gray-900 mb-2">Restaurant Information</h3>
-                <p className="text-sm text-gray-700"><span className="font-medium">Name:</span> {selectedRequest.restaurantName || '-'}</p>
-                <p className="text-sm text-gray-700"><span className="font-medium">ID:</span> {selectedRequest.restaurantId || '-'}</p>
+              <div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100/50 flex items-center justify-between">
+                <div>
+                   <h3 className="font-bold text-xs text-blue-700 uppercase tracking-wider mb-1">Restaurant</h3>
+                   <p className="text-sm font-semibold text-gray-900">{selectedRequest.restaurantName || '-'}</p>
+                   <p className="text-xs text-gray-500">ID: {selectedRequest.restaurantId || '-'}</p>
+                </div>
+                <div className="px-3 py-1 bg-white rounded-full border border-blue-100 text-[10px] font-bold text-blue-600">
+                    {selectedRequest.entityType?.toUpperCase()}
+                </div>
               </div>
 
-              {/* Food Item Info */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{selectedRequest?.entityType === 'category' ? 'Category Name' : 'Food Name'}</label>
-                  <p className="text-sm text-gray-900">{selectedRequest.itemName || '-'}</p>
+              {/* Item Info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Item Name</label>
+                        <p className="text-sm font-semibold text-gray-900">{selectedRequest.itemName || '-'}</p>
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Category</label>
+                        <p className="text-sm text-gray-700">{selectedRequest.category || '-'}</p>
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Price</label>
+                        <p className="text-sm font-bold text-green-600">{selectedRequest.price !== null && selectedRequest.price !== undefined ? `₹${selectedRequest.price}` : '-'}</p>
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Status</label>
+                        <p className="text-sm text-gray-700 capitalize font-medium">{selectedRequest.approvalStatus || 'pending'}</p>
+                    </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                  <p className="text-sm text-gray-900 capitalize">{selectedRequest.entityType || selectedRequest.type || '-'}</p>
+
+                <div className="space-y-4">
+                    {selectedRequest.foodType && (
+                        <div>
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Food Type</label>
+                            <p className="text-sm text-gray-700">{selectedRequest.foodType}</p>
+                        </div>
+                    )}
+                    {selectedRequest.requestedAt && (
+                        <div>
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Requested On</label>
+                            <p className="text-sm text-gray-700">{new Date(selectedRequest.requestedAt).toLocaleString()}</p>
+                        </div>
+                    )}
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                  <p className="text-sm text-gray-900">{selectedRequest.category || selectedRequest.item?.category || '-'}</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
-                  <p className="text-sm text-gray-900 font-semibold">{selectedRequest.price !== null && selectedRequest.price !== undefined ? `Rs ${selectedRequest.price}` : '-'}</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Food Type</label>
-                  <p className="text-sm text-gray-900">{selectedRequest.foodType || '-'}</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                  <p className="text-sm text-gray-900 capitalize">{selectedRequest.approvalStatus || (selectedRequest.isActionable ? 'pending' : 'active')}</p>
-                </div>
+
                 {selectedRequest.description && (
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                    <p className="text-sm text-gray-900">{selectedRequest.description}</p>
+                  <div className="col-span-full">
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Description</label>
+                    <p className="text-sm text-gray-700 leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100">{selectedRequest.description}</p>
                   </div>
                 )}
+
+                {/* Images */}
                 {(() => {
-                  // Collect all images - from images array, single image field, and item.images as fallback
-                  const allImages = [];
-                  
-                  // First, try images array from request
-                  if (selectedRequest.images && Array.isArray(selectedRequest.images) && selectedRequest.images.length > 0) {
-                    const validImages = selectedRequest.images.filter(img => img && typeof img === 'string' && img.trim() !== '');
-                    allImages.push(...validImages);
-                    debugLog('Added images from request.images:', validImages.length, validImages);
+                  const allImages = (selectedRequest.images || []).filter(img => img && typeof img === 'string');
+                  if (selectedRequest.image && !allImages.includes(selectedRequest.image)) {
+                      allImages.unshift(selectedRequest.image);
                   }
-                  
-                  // Also check item.images (even if request.images exists, item.images might have more)
-                  if (selectedRequest.item?.images && Array.isArray(selectedRequest.item.images) && selectedRequest.item.images.length > 0) {
-                    const validItemImages = selectedRequest.item.images.filter(img => 
-                      img && typeof img === 'string' && img.trim() !== '' && !allImages.includes(img)
-                    );
-                    allImages.push(...validItemImages);
-                    debugLog('Added images from item.images:', validItemImages.length, validItemImages);
-                  }
-                  
-                  // Add single image if it exists and not already in array
-                  const singleImage = selectedRequest.image || selectedRequest.item?.image;
-                  if (singleImage && singleImage.trim() !== '' && !allImages.includes(singleImage)) {
-                    allImages.push(singleImage);
-                    debugLog('Added single image:', singleImage);
-                  }
-                  
-                  debugLog('Total images collected:', allImages.length, allImages);
                   
                   return allImages.length > 0 ? (
-                    <div className="col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <div className="col-span-full">
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
                         Images ({allImages.length})
                       </label>
                       <div className="flex flex-wrap gap-3">
                         {allImages.map((img, idx) => (
-                          img && img.trim() !== '' ? (
                             <img 
                               key={idx}
                               src={img} 
-                              alt={`${selectedRequest.itemName} - Image ${idx + 1}`}
-                              className="w-32 h-32 object-cover rounded-lg border border-gray-200 hover:border-blue-400 transition-colors cursor-pointer"
+                              alt="Item preview"
+                              className="w-24 h-24 object-cover rounded-xl border border-gray-100 shadow-sm hover:scale-105 transition-transform cursor-zoom-in"
                               onClick={() => window.open(img, '_blank')}
-                              title="Click to view full size"
-                              onError={(e) => {
-                                debugError('Image failed to load:', img);
-                                e.target.style.display = 'none';
-                              }}
+                              onError={(e) => { e.target.style.display = 'none'; }}
                             />
-                          ) : null
                         ))}
                       </div>
                     </div>
@@ -447,14 +440,11 @@ export default function FoodApproval() {
               </div>
             </div>
           )}
-          <DialogFooter className="p-6 pt-4 border-t border-gray-200 flex gap-2">
+          <DialogFooter className="p-6 pt-4 border-t border-gray-100 bg-slate-50/50 flex gap-2">
             <button
               type="button"
-              onClick={() => {
-                setShowDetailModal(false)
-                setSelectedRequest(null)
-              }}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              onClick={() => setShowDetailModal(false)}
+              className="px-6 py-2 text-sm font-semibold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
             >
               Close
             </button>
@@ -463,7 +453,7 @@ export default function FoodApproval() {
                 <button
                   type="button"
                   onClick={() => handleRejectClick(selectedRequest)}
-                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors"
+                  className="px-6 py-2 text-sm font-semibold text-white bg-red-500 rounded-xl hover:bg-red-600 shadow-lg shadow-red-200 transition-all active:scale-95"
                 >
                   Reject
                 </button>
@@ -471,9 +461,9 @@ export default function FoodApproval() {
                   type="button"
                   onClick={() => handleApprove(selectedRequest)}
                   disabled={processing}
-                  className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-6 py-2 text-sm font-semibold text-white bg-green-500 rounded-xl hover:bg-green-600 shadow-lg shadow-green-200 transition-all active:scale-95 disabled:opacity-50"
                 >
-                  {processing ? "Processing..." : "Approve"}
+                  {processing ? "Processing..." : "Approve Item"}
                 </button>
               </>
             )}
@@ -483,40 +473,38 @@ export default function FoodApproval() {
 
       {/* Reject Confirmation Modal */}
       <Dialog open={showRejectModal} onOpenChange={setShowRejectModal}>
-        <DialogContent className="max-w-md p-0 bg-white">
-          <DialogHeader className="p-6 pb-4 border-b border-gray-200">
-            <DialogTitle className="text-xl font-semibold text-gray-900">
-              Reject Food Item
+        <DialogContent className="max-w-md p-0 bg-white rounded-2xl border-none shadow-2xl">
+          <DialogHeader className="p-6 pb-4 border-b border-gray-100 bg-red-50/30">
+            <DialogTitle className="text-xl font-bold text-red-700 flex items-center gap-2">
+                <XCircle className="w-5 h-5" />
+                Reject Item
             </DialogTitle>
             <DialogDescription className="text-sm text-gray-500 mt-1">
-              Please provide a reason for rejecting this food item.
+              Please provide a clear reason for rejecting this {selectedRequest?.entityType || 'item'}.
             </DialogDescription>
           </DialogHeader>
           <div className="p-6">
             <div className="space-y-4">
               <div>
-                <label htmlFor="rejectReason" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="rejectReason" className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
                   Rejection Reason <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   id="rejectReason"
                   value={rejectReason}
                   onChange={(e) => setRejectReason(e.target.value)}
-                  placeholder="Enter reason for rejection..."
+                  placeholder="Tell the restaurant why this item was rejected..."
                   required
                   rows={4}
-                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-[#006fbd] focus:border-[#006fbd]"
+                  className="w-full rounded-xl border border-gray-200 bg-slate-50 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all"
                 />
               </div>
             </div>
             <DialogFooter className="mt-6 flex gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  setShowRejectModal(false)
-                  setRejectReason("")
-                }}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                onClick={() => setShowRejectModal(false)}
+                className="flex-1 px-4 py-2.5 text-sm font-bold text-gray-500 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all"
               >
                 Cancel
               </button>
@@ -524,9 +512,9 @@ export default function FoodApproval() {
                 type="button"
                 onClick={handleReject}
                 disabled={processing || !rejectReason.trim()}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-4 py-2.5 text-sm font-bold text-white bg-red-600 rounded-xl hover:bg-red-700 shadow-lg shadow-red-100 transition-all active:scale-95 disabled:opacity-50"
               >
-                {processing ? "Processing..." : "Reject"}
+                {processing ? "Processing..." : "Confirm Rejection"}
               </button>
             </DialogFooter>
           </div>
@@ -535,5 +523,3 @@ export default function FoodApproval() {
     </div>
   )
 }
-
-

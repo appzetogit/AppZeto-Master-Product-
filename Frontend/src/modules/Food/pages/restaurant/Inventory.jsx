@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, useMemo } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   Search,
@@ -18,7 +18,7 @@ import RestaurantNavbar from "@food/components/restaurant/RestaurantNavbar"
 import BottomNavOrders from "@food/components/restaurant/BottomNavOrders"
 import { Switch } from "@food/components/ui/switch"
 import { useNavigate } from "react-router-dom"
-import { restaurantAPI } from "@food/api"
+import { restaurantAPI, uploadAPI } from "@food/api"
 import { toast } from "sonner"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -27,6 +27,9 @@ const debugError = (...args) => {}
 
 const INVENTORY_STORAGE_KEY = "restaurant_inventory_state"
 const INVENTORY_RECOMMENDED_KEY = "restaurant_inventory_recommended_map"
+const ADDON_FORM_STORAGE_KEY = "restaurant_addon_form_data"
+const INVENTORY_ACTIVE_TAB_KEY = "restaurant_inventory_active_tab"
+const INVENTORY_ADDON_FORM_KEY = "restaurant_inventory_addon_form"
 
 // Time Picker Wheel Component (copied from DaySlots.jsx)
 function TimePickerWheel({
@@ -538,7 +541,15 @@ function SimpleCalendar({ selectedDate, onDateSelect, isOpen, onClose }) {
 
 export default function Inventory() {
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState("all-items")
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      if (typeof window === "undefined") return "all-items"
+      const saved = localStorage.getItem(INVENTORY_ACTIVE_TAB_KEY)
+      return saved || "all-items"
+    } catch {
+      return "all-items"
+    }
+  })
   const [searchQuery, setSearchQuery] = useState("")
   const [filterOpen, setFilterOpen] = useState(false)
   const [selectedFilter, setSelectedFilter] = useState(null)
@@ -586,6 +597,13 @@ export default function Inventory() {
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [addons, setAddons] = useState([])
   const [loadingAddons, setLoadingAddons] = useState(false)
+  const [isAddAddonOpen, setIsAddAddonOpen] = useState(false)
+  const [addonName, setAddonName] = useState("")
+  const [addonDescription, setAddonDescription] = useState("")
+  const [addonPrice, setAddonPrice] = useState("")
+  const [addonImageFile, setAddonImageFile] = useState(null)
+  const [addonImagePreview, setAddonImagePreview] = useState("")
+  const [savingAddon, setSavingAddon] = useState(false)
   const [recommendedMap, setRecommendedMap] = useState(() => {
     try {
       if (typeof window === "undefined") return {}
@@ -744,6 +762,117 @@ export default function Inventory() {
       fetchAddons(true)
     }
   }, [activeTab])
+
+  // Persist active tab
+  useEffect(() => {
+    try {
+      if (typeof window === "undefined") return
+      localStorage.setItem(INVENTORY_ACTIVE_TAB_KEY, activeTab)
+    } catch {}
+  }, [activeTab])
+
+  // Load persisted add-on form
+  useEffect(() => {
+    try {
+      if (typeof window === "undefined") return
+      const raw = localStorage.getItem(INVENTORY_ADDON_FORM_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        setAddonName(parsed?.name || "")
+        setAddonDescription(parsed?.description || "")
+        setAddonPrice(parsed?.price || "")
+        if (parsed?.isOpen) setIsAddAddonOpen(true)
+        if (parsed?.preview) {
+          setAddonImagePreview(parsed.preview)
+        }
+      }
+    } catch {}
+  }, [])
+
+  // Persist form state
+  useEffect(() => {
+    try {
+      if (typeof window === "undefined") return
+      const payload = {
+        name: addonName,
+        description: addonDescription,
+        price: addonPrice,
+        preview: addonImagePreview,
+        isOpen: isAddAddonOpen
+      }
+      localStorage.setItem(INVENTORY_ADDON_FORM_KEY, JSON.stringify(payload))
+    } catch {}
+  }, [addonName, addonDescription, addonPrice, addonImagePreview, isAddAddonOpen])
+
+  const resetAddonForm = () => {
+    if (addonImagePreview && addonImagePreview.startsWith("blob:")) {
+      URL.revokeObjectURL(addonImagePreview)
+    }
+    setAddonName("")
+    setAddonDescription("")
+    setAddonPrice("")
+    setAddonImageFile(null)
+    setAddonImagePreview("")
+    setIsAddAddonOpen(false)
+    localStorage.removeItem(INVENTORY_ADDON_FORM_KEY)
+  }
+
+  const handleAddonImageSelect = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/heic", "image/heif"]
+    if (!allowed.includes(file.type)) {
+      toast.error("Invalid image type. Please use PNG, JPG, JPEG, WEBP, HEIC, or HEIF.")
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image must be under 5MB.")
+      return
+    }
+    if (addonImagePreview && addonImagePreview.startsWith("blob:")) {
+      URL.revokeObjectURL(addonImagePreview)
+    }
+    const preview = URL.createObjectURL(file)
+    setAddonImageFile(file)
+    setAddonImagePreview(preview)
+  }
+
+  const handleSaveAddon = async () => {
+    if (!addonName.trim()) {
+      toast.error("Please enter add-on name")
+      return
+    }
+    const parsedPrice = parseFloat(addonPrice)
+    if (Number.isNaN(parsedPrice) || parsedPrice < 0) {
+      toast.error("Please enter a valid price")
+      return
+    }
+    setSavingAddon(true)
+    try {
+      let imageUrl = ""
+      if (addonImageFile) {
+        const uploadRes = await uploadAPI.uploadMedia(addonImageFile, { folder: "appzeto/restaurant/addons" })
+        imageUrl = uploadRes?.data?.data?.url || uploadRes?.data?.url || ""
+      }
+      const payload = {
+        name: addonName.trim(),
+        description: addonDescription.trim(),
+        price: parsedPrice,
+        image: imageUrl,
+        images: imageUrl ? [imageUrl] : [],
+      }
+      await restaurantAPI.addAddon(payload)
+      toast.success("Add-on submitted to admin for approval")
+      resetAddonForm()
+      setIsAddAddonOpen(false)
+      fetchAddons(true)
+    } catch (error) {
+      debugError("Error saving add-on:", error)
+      toast.error(error?.response?.data?.message || "Failed to save add-on")
+    } finally {
+      setSavingAddon(false)
+    }
+  }
 
   // Handle addon toggle
   const handleAddonToggle = async (addonId, isAvailable) => {
@@ -1269,15 +1398,17 @@ export default function Inventory() {
         }}
       >
         {/* Search and Filter */}
-        <div className="flex sticky top-[50px] gap-2 mb-4">
+        <div
+          className={`flex gap-2 mb-4 flex-wrap ${activeTab !== "add-ons" ? "sticky top-[50px]" : ""}`}
+        >
           {/* Search Bar */}
-          <div className="flex-1  z-40 bg-white rounded-sm border border-gray-200">
+          <div className="flex-1 relative z-40 bg-white rounded-sm border border-gray-200">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search menu"
+              placeholder={activeTab === "add-ons" ? "Search add-ons" : "Search menu"}
               className="w-full pl-10 pr-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none rounded-sm"
             />
           </div>
@@ -1293,12 +1424,101 @@ export default function Inventory() {
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-600 rounded-full" />
             )}
           </button>
+
+          {activeTab === "add-ons" && (
+            <button
+              onClick={() => setIsAddAddonOpen((v) => !v)}
+              className="px-4 py-2.5 bg-black text-white rounded-sm hover:bg-gray-900 transition-colors"
+              style={{ minWidth: "120px" }}
+            >
+              {isAddAddonOpen ? "Close" : "Add Add-on"}
+            </button>
+          )}
         </div>
 
         {/* Categories Accordions */}
         <div className="space-y-3 mb-6">
           {activeTab === "add-ons" && (
             <>
+              {isAddAddonOpen && (
+                <div className="bg-white border border-gray-200 rounded-lg p-4 mb-4 shadow-sm">
+                  <div className="grid grid-cols-1 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Add-on Name *</label>
+                      <input
+                        type="text"
+                        value={addonName}
+                        onChange={(e) => setAddonName(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-black focus:outline-none"
+                        placeholder="e.g., Coke, Chips"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                      <textarea
+                        value={addonDescription}
+                        onChange={(e) => setAddonDescription(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-black focus:outline-none resize-none"
+                        rows={3}
+                        placeholder="Describe the add-on..."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Price (₹) *</label>
+                      <input
+                        type="number"
+                        value={addonPrice}
+                        onChange={(e) => setAddonPrice(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-black focus:outline-none"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Image (1 only)</label>
+                      {addonImagePreview && (
+                        <div className="mb-2">
+                          <img
+                            src={addonImagePreview}
+                            alt="Preview"
+                            className="w-24 h-24 object-cover rounded border"
+                            onError={(e) => (e.target.style.display = "none")}
+                          />
+                        </div>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleAddonImageSelect}
+                        className="w-full text-sm"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">PNG, JPG, WEBP, HEIC up to 5MB.</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          resetAddonForm()
+                          setIsAddAddonOpen(false)
+                        }}
+                        className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveAddon}
+                        disabled={savingAddon}
+                        className="px-4 py-2 bg-black text-white rounded-md text-sm font-medium hover:bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {savingAddon && <Loader2 className="h-4 w-4 animate-spin" />}
+                        <span>{savingAddon ? "Saving..." : "Submit for approval"}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
               {loadingAddons ? (
                 <div className="flex items-center justify-center py-20">
                   <Loader2 className="h-8 w-8 animate-spin text-gray-400" />

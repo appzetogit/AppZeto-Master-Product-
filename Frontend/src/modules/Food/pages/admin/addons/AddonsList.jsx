@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
-import { CheckCircle2, Eye, Loader2, Search, XCircle } from "lucide-react"
-import { adminAPI } from "@food/api"
+import { Eye, Loader2, Search, Trash2, Pencil } from "lucide-react"
+import { Switch } from "@food/components/ui/switch"
+import { adminAPI, uploadAPI } from "@food/api"
 import { toast } from "sonner"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@food/components/ui/dialog"
 
@@ -31,7 +32,6 @@ const getAddonImage = (addon) =>
   "https://via.placeholder.com/40"
 
 export default function AddonsList() {
-  const [activeTab, setActiveTab] = useState("all") // all | pending | approved | rejected
   const [searchQuery, setSearchQuery] = useState("")
   const [addons, setAddons] = useState([])
   const [loading, setLoading] = useState(true)
@@ -39,22 +39,28 @@ export default function AddonsList() {
 
   const [selectedAddon, setSelectedAddon] = useState(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
-
-  const [rejectingAddon, setRejectingAddon] = useState(null)
-  const [rejectionReason, setRejectionReason] = useState("")
+  const [editingAddon, setEditingAddon] = useState(null)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editForm, setEditForm] = useState({ name: "", price: "", description: "", isAvailable: true })
+  const [editImagePreview, setEditImagePreview] = useState("")
+  const [editImageFile, setEditImageFile] = useState(null)
 
   useEffect(() => {
     const fetchAddons = async () => {
       try {
         setLoading(true)
         const response = await adminAPI.getRestaurantAddons({
-          approvalStatus: activeTab === "all" ? undefined : activeTab,
+          // only approved items should be visible in this list
+          approvalStatus: "approved",
           search: searchQuery?.trim() ? searchQuery.trim() : undefined,
           limit: 200,
           page: 1,
         })
         const data = response?.data?.data?.addons || response?.data?.addons || []
-        setAddons(Array.isArray(data) ? data : [])
+        const approvedOnly = Array.isArray(data)
+          ? data.filter((addon) => String(addon.approvalStatus || "").toLowerCase() === "approved")
+          : []
+        setAddons(approvedOnly)
       } catch (error) {
         debugError("Error fetching addons:", error)
         toast.error("Failed to load restaurant add-ons")
@@ -66,7 +72,7 @@ export default function AddonsList() {
 
     const t = setTimeout(fetchAddons, 250)
     return () => clearTimeout(t)
-  }, [activeTab, searchQuery])
+  }, [searchQuery])
 
   const filteredAddons = useMemo(() => {
     const result = Array.isArray(addons) ? [...addons] : []
@@ -81,59 +87,94 @@ export default function AddonsList() {
     setShowDetailModal(true)
   }
 
-  const handleApprove = async (addon) => {
-    const id = addon?.id || addon?._id
+  const handleEdit = (addon) => {
+    setEditingAddon(addon)
+    setEditForm({
+      name: addon?.draft?.name || addon?.name || "",
+      price: addon?.draft?.price ?? addon?.price ?? "",
+      description: addon?.draft?.description || addon?.description || "",
+      isAvailable: addon?.isAvailable !== false,
+    })
+    const img =
+      addon?.draft?.image ||
+      (Array.isArray(addon?.draft?.images) && addon.draft.images[0]) ||
+      addon?.image ||
+      (Array.isArray(addon?.images) && addon.images[0]) ||
+      ""
+    setEditImagePreview(img || "")
+    setEditImageFile(null)
+    setShowEditModal(true)
+  }
+
+  const handleSaveEdit = async () => {
+    const id = editingAddon?.id || editingAddon?._id
     if (!id) return
+    if (!editForm.name.trim()) {
+      toast.error("Name is required")
+      return
+    }
+    const priceNum = Number(editForm.price)
+    if (Number.isNaN(priceNum) || priceNum < 0) {
+      toast.error("Enter a valid price")
+      return
+    }
     try {
       setSubmittingAction(true)
-      await adminAPI.approveRestaurantAddon(String(id))
-      toast.success("Add-on approved")
-      if (activeTab === "all") {
-        setAddons((prev) =>
-          (prev || []).map((a) => (String(a.id || a._id) === String(id) ? { ...a, approvalStatus: "approved" } : a)),
-        )
-      } else {
-        setAddons((prev) => (prev || []).filter((a) => String(a.id || a._id) !== String(id)))
+      let imageUrl = editImagePreview || ""
+      // If a new file selected, upload it
+      if (editImageFile) {
+        const uploadRes = await uploadAPI.uploadMedia(editImageFile, { folder: "appzeto/admin/addons" })
+        imageUrl = uploadRes?.data?.data?.url || uploadRes?.data?.url || imageUrl
       }
+
+      await adminAPI.updateRestaurantAddon(String(id), {
+        name: editForm.name.trim(),
+        price: priceNum,
+        description: editForm.description.trim(),
+        isAvailable: editForm.isAvailable,
+        image: imageUrl,
+        images: imageUrl ? [imageUrl] : [],
+      })
+      setAddons((prev) =>
+        (prev || []).map((a) =>
+          String(a.id || a._id) === String(id)
+            ? {
+                ...a,
+                ...editForm,
+                price: priceNum,
+                name: editForm.name.trim(),
+                description: editForm.description.trim(),
+                image: imageUrl || a.image,
+                images: imageUrl ? [imageUrl] : a.images,
+              }
+            : a,
+        ),
+      )
+      toast.success("Add-on updated")
+      setShowEditModal(false)
+      setEditingAddon(null)
+      setEditImageFile(null)
     } catch (error) {
-      debugError("Approve add-on failed:", error)
-      toast.error(error?.response?.data?.message || "Failed to approve add-on")
+      debugError("Update add-on failed:", error)
+      toast.error(error?.response?.data?.message || "Failed to update add-on")
     } finally {
       setSubmittingAction(false)
     }
   }
 
-  const openReject = (addon) => {
-    setRejectingAddon(addon)
-    setRejectionReason("")
-  }
-
-  const submitReject = async () => {
-    const id = rejectingAddon?.id || rejectingAddon?._id
+  const handleDelete = async (addon) => {
+    const id = addon?.id || addon?._id
     if (!id) return
-    if (!rejectionReason.trim()) {
-      toast.error("Please enter a rejection reason")
-      return
-    }
+    const confirmed = window.confirm("Delete this add-on?")
+    if (!confirmed) return
     try {
       setSubmittingAction(true)
-      await adminAPI.rejectRestaurantAddon(String(id), rejectionReason.trim())
-      toast.success("Add-on rejected")
-      if (activeTab === "all") {
-        setAddons((prev) =>
-          (prev || []).map((a) =>
-            String(a.id || a._id) === String(id)
-              ? { ...a, approvalStatus: "rejected", rejectionReason: rejectionReason.trim() }
-              : a,
-          ),
-        )
-      } else {
-        setAddons((prev) => (prev || []).filter((a) => String(a.id || a._id) !== String(id)))
-      }
-      setRejectingAddon(null)
+      await adminAPI.rejectRestaurantAddon(String(id), "Deleted by admin")
+      setAddons((prev) => (prev || []).filter((a) => String(a.id || a._id) !== String(id)))
+      toast.success("Add-on deleted")
     } catch (error) {
-      debugError("Reject add-on failed:", error)
-      toast.error(error?.response?.data?.message || "Failed to reject add-on")
+      debugError("Delete add-on failed:", error)
+      toast.error(error?.response?.data?.message || "Failed to delete add-on")
     } finally {
       setSubmittingAction(false)
     }
@@ -145,55 +186,10 @@ export default function AddonsList() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Restaurant add-ons</h1>
-            <div className="text-sm text-slate-500 mt-1">Approve or reject restaurant add-ons (draft → published).</div>
+            <div className="text-sm text-slate-500 mt-1">Manage add-ons submitted by restaurants.</div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setActiveTab("all")}
-              className={`px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
-                activeTab === "all"
-                  ? "bg-slate-800 text-white border-slate-800"
-                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-              }`}
-            >
-              All
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("pending")}
-              className={`px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
-                activeTab === "pending"
-                  ? "bg-amber-600 text-white border-amber-600"
-                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-              }`}
-            >
-              Pending
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("approved")}
-              className={`px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
-                activeTab === "approved"
-                  ? "bg-green-600 text-white border-green-600"
-                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-              }`}
-            >
-              Approved
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("rejected")}
-              className={`px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
-                activeTab === "rejected"
-                  ? "bg-red-600 text-white border-red-600"
-                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-              }`}
-            >
-              Rejected
-            </button>
-          </div>
+          <div className="flex items-center gap-2" />
         </div>
 
         <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -279,12 +275,6 @@ export default function AddonsList() {
                       <div className="flex flex-col">
                         <span className="text-sm font-medium text-slate-900">{getAddonTitle(addon)}</span>
                         <span className="text-xs text-slate-500">ID #{formatAddonId(addon.id || addon._id)}</span>
-                        {addon?.approvalStatus ? (
-                          <span className="text-xs text-slate-400 mt-0.5 capitalize">{addon.approvalStatus}</span>
-                        ) : null}
-                        {addon?.rejectionReason ? (
-                          <span className="text-xs text-slate-500 mt-0.5 line-clamp-1">{addon.rejectionReason}</span>
-                        ) : null}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -309,36 +299,20 @@ export default function AddonsList() {
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        {addon?.approvalStatus === "pending" ? (
-                          <>
-                            <button
-                              onClick={() => handleApprove(addon)}
-                              disabled={submittingAction}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-600 text-white hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              <CheckCircle2 className="w-4 h-4" />
-                              Approve
-                            </button>
-                            <button
-                              onClick={() => openReject(addon)}
-                              disabled={submittingAction}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              <XCircle className="w-4 h-4" />
-                              Reject
-                            </button>
-                          </>
-                        ) : (
-                          <span
-                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                              addon?.approvalStatus === "approved"
-                                ? "bg-green-100 text-green-700 border border-green-200"
-                                : "bg-red-100 text-red-700 border border-red-200"
-                            }`}
-                          >
-                            {addon?.approvalStatus || "pending"}
-                          </span>
-                        )}
+                        <button
+                          onClick={() => handleEdit(addon)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                        >
+                          <Pencil className="w-4 h-4" />
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(addon)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Delete
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -386,10 +360,6 @@ export default function AddonsList() {
                   <span className="font-semibold text-slate-700">Available:</span>{" "}
                   <span className="text-slate-900">{selectedAddon?.isAvailable ? "Yes" : "No"}</span>
                 </p>
-                <p>
-                  <span className="font-semibold text-slate-700">Approval:</span>{" "}
-                  <span className="text-slate-900 capitalize">{selectedAddon?.approvalStatus || "-"}</span>
-                </p>
               </div>
 
               {selectedAddon?.draft?.description ? (
@@ -402,40 +372,99 @@ export default function AddonsList() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(rejectingAddon)} onOpenChange={(open) => !open && setRejectingAddon(null)}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Reject add-on</DialogTitle>
+      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+        <DialogContent className="max-w-md p-0 overflow-hidden">
+          <DialogHeader className="px-6 py-4 border-b border-slate-200 bg-slate-50">
+            <DialogTitle className="text-lg font-semibold text-slate-900">Edit Add-on</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
-            <div className="text-sm text-slate-700">Provide a clear reason (shown to restaurant).</div>
-            <textarea
-              value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.target.value)}
-              rows={4}
-              placeholder="e.g., Not allowed item, unclear name, price mismatch..."
-              className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400"
-            />
-            <div className="flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setRejectingAddon(null)}
-                className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={submitReject}
-                disabled={submittingAction}
-                className="px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {submittingAction ? "Submitting..." : "Reject"}
-              </button>
+          <div className="p-6 space-y-4">
+            <div className="flex items-start gap-3">
+              {editImagePreview ? (
+                <img
+                  src={editImagePreview}
+                  alt="Preview"
+                  className="w-16 h-16 rounded-md object-cover border"
+                  onError={(e) => (e.target.style.display = "none")}
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-md border border-dashed border-slate-300 flex items-center justify-center text-xs text-slate-500">
+                  No image
+                </div>
+              )}
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Change Image</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    const preview = URL.createObjectURL(file)
+                    setEditImageFile(file)
+                    setEditImagePreview(preview)
+                  }}
+                  className="text-sm"
+                />
+                <p className="text-xs text-slate-500">PNG, JPG, WEBP up to 5MB</p>
+              </div>
             </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+              <input
+                type="text"
+                value={editForm.name}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
+                className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Price</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={editForm.price}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, price: e.target.value }))}
+                className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+              <textarea
+                rows={3}
+                value={editForm.description}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, description: e.target.value }))}
+                className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={editForm.isAvailable}
+                onCheckedChange={(checked) => setEditForm((prev) => ({ ...prev, isAvailable: checked }))}
+              />
+              <span className="text-sm text-slate-700">Available</span>
+            </div>
+          </div>
+          <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setShowEditModal(false)}
+              className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveEdit}
+              disabled={submittingAction}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submittingAction ? "Saving..." : "Save"}
+            </button>
           </div>
         </DialogContent>
       </Dialog>
+
     </div>
   )
 }

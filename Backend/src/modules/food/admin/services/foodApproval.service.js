@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { ValidationError } from '../../../../core/auth/errors.js';
 import { FoodItem } from '../models/food.model.js';
+import { FoodAddon } from '../../restaurant/models/foodAddon.model.js';
 import { FoodRestaurant } from '../../restaurant/models/restaurant.model.js';
 import { syncMenuItemApprovalStatus } from '../../restaurant/services/restaurantMenu.service.js';
 
@@ -26,20 +27,30 @@ export async function listPendingFoodApprovals(query = {}) {
         ];
     }
 
-    const list = await FoodItem.find(filter)
+    const foodList = await FoodItem.find(filter)
         .sort({ requestedAt: -1, createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .select('restaurantId categoryName name price image foodType approvalStatus requestedAt createdAt')
         .lean();
 
-    const restaurantIds = Array.from(new Set(list.map((f) => String(f.restaurantId)).filter(Boolean)));
+    const addonList = await FoodAddon.find({ approvalStatus: 'pending' })
+        .sort({ requestedAt: -1, createdAt: -1 })
+        .limit(limit)
+        .select('restaurantId draft isAvailable requestedAt createdAt')
+        .lean();
+
+    const restaurantIds = Array.from(new Set([
+        ...foodList.map((f) => String(f.restaurantId)),
+        ...addonList.map((a) => String(a.restaurantId))
+    ].filter(Boolean)));
+
     const restaurants = restaurantIds.length
         ? await FoodRestaurant.find({ _id: { $in: restaurantIds } }).select('restaurantName').lean()
         : [];
     const restaurantMap = new Map(restaurants.map((r) => [String(r._id), r.restaurantName]));
 
-    const requests = list.map((f) => ({
+    const foodRequests = foodList.map((f) => ({
         _id: f._id,
         id: f._id,
         entityType: 'food',
@@ -59,7 +70,32 @@ export async function listPendingFoodApprovals(query = {}) {
         isActionable: (f.approvalStatus || 'pending') === 'pending'
     }));
 
-    return { requests, page, limit, total: requests.length };
+    const addonRequests = addonList.map((a) => ({
+        _id: a._id,
+        id: a._id,
+        entityType: 'addon',
+        type: 'addon',
+        restaurantName: restaurantMap.get(String(a.restaurantId)) || 'Unknown Restaurant',
+        restaurantId: toRestaurantDisplayId(a.restaurantId),
+        category: 'Add-on',
+        itemName: a.draft?.name || 'Unnamed Add-on',
+        foodType: 'Add-on',
+        sectionName: 'Add-on',
+        subsectionName: '',
+        approvalStatus: 'pending',
+        price: a.draft?.price ?? 0,
+        image: a.draft?.image || (a.draft?.images && a.draft.images[0]) || '',
+        images: a.draft?.images || (a.draft?.image ? [a.draft.image] : []),
+        requestedAt: a.requestedAt || a.createdAt,
+        isActionable: true,
+        description: a.draft?.description || ''
+    }));
+
+    const allRequests = [...foodRequests, ...addonRequests].sort((a, b) => 
+        new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime()
+    );
+
+    return { requests: allRequests, page, limit, total: allRequests.length };
 }
 
 export async function approveFoodItem(id) {

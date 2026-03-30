@@ -2466,6 +2466,52 @@ export async function getRestaurantAddonsAdmin(query = {}) {
     return { addons, total, page, limit };
 }
 
+export async function updateRestaurantAddonAdmin(addonId, body) {
+    if (!addonId || !mongoose.Types.ObjectId.isValid(String(addonId))) return null;
+    const _id = new mongoose.Types.ObjectId(String(addonId));
+    
+    const addon = await FoodAddon.findOne({ _id, isDeleted: { $ne: true } });
+    if (!addon) return null;
+
+    const updatePayload = {};
+    if (body.name !== undefined) updatePayload.name = String(body.name || '').trim();
+    if (body.description !== undefined) updatePayload.description = String(body.description || '').trim();
+    if (body.price !== undefined) {
+        const p = Number(body.price);
+        if (!Number.isFinite(p) || p < 0) throw new ValidationError('Price must be a valid positive number');
+        updatePayload.price = p;
+    }
+    if (body.image !== undefined) updatePayload.image = String(body.image || '').trim();
+    if (body.images !== undefined && Array.isArray(body.images)) {
+        updatePayload.images = body.images.map(img => typeof img === 'string' ? img : img?.url).filter(Boolean);
+    } else if (updatePayload.image) {
+        updatePayload.images = [updatePayload.image];
+    }
+
+    // Update draft fields
+    if (addon.draft) {
+        Object.assign(addon.draft, updatePayload);
+    } else {
+        addon.draft = updatePayload;
+    }
+
+    // If already approved, update published state as well
+    if (addon.approvalStatus === 'approved') {
+        if (addon.published) {
+            Object.assign(addon.published, updatePayload);
+        } else {
+            addon.published = updatePayload;
+        }
+    }
+
+    if (body.isAvailable !== undefined) {
+        addon.isAvailable = body.isAvailable === true;
+    }
+
+    await addon.save();
+    return addon.toObject();
+}
+
 export async function approveRestaurantAddon(addonId) {
     if (!addonId || !mongoose.Types.ObjectId.isValid(String(addonId))) return null;
     const _id = new mongoose.Types.ObjectId(String(addonId));

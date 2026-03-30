@@ -45,3 +45,18 @@ export async function rejectRestaurantAddon(req, res, next) {
     }
 }
 
+export async function updateRestaurantAddon(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid add-on id' });
+        }
+        const updated = await adminService.updateRestaurantAddonAdmin(id, req.body || {});
+        if (!updated) {
+            return res.status(404).json({ success: false, message: 'Add-on not found' });
+        }
+        res.status(200).json({ success: true, message: 'Add-on updated successfully', data: { addon: updated } });
+    } catch (error) {
+        next(error);
+    }
+}

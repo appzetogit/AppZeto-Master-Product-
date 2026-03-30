@@ -809,6 +809,12 @@ export const adminAPI = {
       params: params ?? {},
       contextModule: "admin",
     }),
+  updateRestaurantAddon: (id, body) =>
+    apiClient.patch(
+      `/food/admin/addons/${String(id)}`,
+      body ?? {},
+      { contextModule: "admin" },
+    ),
   approveRestaurantAddon: (id) =>
     apiClient.patch(
       `/food/admin/addons/${String(id)}/approve`,

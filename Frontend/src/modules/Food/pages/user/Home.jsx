@@ -1,4 +1,4 @@
-import { useSearchParams, Link, useNavigate } from "react-router-dom";
+import { useSearchParams, Link, useNavigate, useLocation as useRouterLocation } from "react-router-dom";
 import React, {
   useRef,
   useEffect,
@@ -93,9 +93,14 @@ import { API_BASE_URL } from "@food/api/config";
 import OptimizedImage from "@food/components/OptimizedImage";
 import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability";
 import HomeHeader from "@food/components/user/home/HomeHeader";
-import QuickSection from "@food/components/user/home/QuickSection";
+import QuickCommerceHomePage from "../../../quickCommerce/user/pages/Home";
+import { CartProvider as QuickCartProvider } from "../../../quickCommerce/user/context/CartContext";
+import { LocationProvider as QuickLocationProvider } from "../../../quickCommerce/user/context/LocationContext";
+import { ProductDetailProvider as QuickProductDetailProvider } from "../../../quickCommerce/user/context/ProductDetailContext";
+import { WishlistProvider as QuickWishlistProvider } from "../../../quickCommerce/user/context/WishlistContext";
+import { CartAnimationProvider as QuickCartAnimationProvider } from "../../../quickCommerce/user/context/CartAnimationContext";
 import PromoRow from "@food/components/user/home/PromoRow";
-import FestBanner from "@food/components/user/home/FestBanner";
+// import FestBanner from "@food/components/user/home/FestBanner";
 
 // Explore More Icons
 import exploreOffers from "@food/assets/explore more icons/offers.png";
@@ -481,7 +486,7 @@ export default function Home() {
           const parsed = new URL(normalizedInput, window.location.origin);
 
           // In mobile production, localhost/127.0.0.1 inside image URLs is unreachable.
-          // Use BACKEND_ORIGIN (API server) for image host, not frontend host�uploads are served by the backend.
+          // Use BACKEND_ORIGIN (API server) for image host, not frontend host - uploads are served by the backend.
           if (
             appHost &&
             appHost !== "localhost" &&
@@ -1052,7 +1057,7 @@ export default function Home() {
   const [activeFilterTab, setActiveFilterTab] = useState("sort");
   const categoryScrollRef = useRef(null);
   const gsapAnimationsRef = useRef([]);
-  // Show skeletons immediately while loading — delayed toggles caused visible layout swap (CLS).
+  // Show skeletons immediately while loading â€” delayed toggles caused visible layout swap (CLS).
   const showBannerSkeleton = loadingBanners;
   const showCategorySkeleton = loadingRealCategories || loadingMenuCategories;
   const showExploreSkeleton = loadingLandingConfig;
@@ -1261,7 +1266,31 @@ export default function Home() {
   const userPoints = 99;
 
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
-  const [activeTab, setActiveTab] = useState("food");
+  const routerLocation = useRouterLocation();
+  const currentTabFromPath = routerLocation.pathname.endsWith("/quick") ? "quick" : "food";
+  const [activeTab, setActiveTab] = useState(currentTabFromPath);
+  const [quickThemeColor, setQuickThemeColor] = useState("#67c6f5");
+
+  // Sync activeTab with URL changes (e.g. back/forward button)
+  useEffect(() => {
+    const isQuick = routerLocation.pathname.endsWith("/quick");
+    const targetTab = isQuick ? "quick" : "food";
+    if (activeTab !== targetTab) {
+      setActiveTab(targetTab);
+    }
+  }, [routerLocation.pathname]);
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    if (tab !== "quick") {
+      setQuickThemeColor("#67c6f5");
+    }
+    if (tab === "quick") {
+      navigate("/food/user/quick");
+    } else {
+      navigate("/food/user");
+    }
+  };
 
 
   // Simple filter toggle function
@@ -2581,16 +2610,18 @@ export default function Home() {
         <div className="md:hidden relative overflow-x-clip">
           <HomeHeader 
             activeTab={activeTab}
-            setActiveTab={setActiveTab}
+            setActiveTab={handleTabChange}
+            quickHeaderColor={quickThemeColor}
             location={location}
             handleLocationClick={handleLocationClick}
             handleSearchFocus={handleSearchFocus}
             placeholderIndex={placeholderIndex}
             placeholders={placeholders}
           />
+        </div>
 
-          <AnimatePresence mode="wait">
-            {activeTab === "food" ? (
+        <AnimatePresence mode="wait">
+          {activeTab === "food" ? (
               <motion.div
                 key="food-content"
                 initial={{ opacity: 0 }}
@@ -2600,10 +2631,10 @@ export default function Home() {
                 className="bg-white"
               >
                 {/* Flavour Fest Banner */}
-                <FestBanner />
+                {/* <FestBanner /> */}
 
                 {/* Promo Row */}
-                <div className="relative z-20 -mt-4">
+                <div className="relative">
                   <PromoRow 
                     handleVegModeChange={handleVegModeChange}
                     navigate={navigate}
@@ -2613,11 +2644,11 @@ export default function Home() {
                 </div>
 
                 {/* "What's on your mind today?" Section */}
-                <div className="px-4 py-6 space-y-6 bg-white">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <h2 className="text-lg sm:text-xl font-bold text-gray-900 min-w-0 flex-shrink leading-tight">What's on your mind today?</h2>
-                    <div className="h-[1px] bg-gray-100 flex-1"></div>
-                    <Link to="/user/categories" className="text-sm font-bold text-gray-400 flex items-center gap-0.5 whitespace-nowrap shrink-0">
+                <div className="relative z-10 px-4 py-6 space-y-6 bg-white">
+                  <div className="flex items-center justify-between gap-2 min-w-0">
+                    <h2 className="text-base sm:text-xl font-bold text-gray-900 leading-tight shrink-0">What's on your mind today?</h2>
+                    <div className="hidden sm:block h-[1px] bg-gray-100 flex-1"></div>
+                    <Link to="/user/categories" className="text-xs sm:text-sm font-bold text-gray-400 flex items-center gap-0.5 whitespace-nowrap shrink-0">
                       View All <ArrowDownUp className="h-3 w-3 rotate-90" />
                     </Link>
                   </div>
@@ -2662,20 +2693,6 @@ export default function Home() {
 
                 {/* Admin Hero Banners Section - Now below categories */}
                 {HeroBannerSection}
-              </motion.div>
-            ) : (
-              <motion.div
-                key="quick-content"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.3 }}
-              >
-                <QuickSection />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
 
 
           {/* Filters */}
@@ -3010,7 +3027,7 @@ export default function Home() {
                               {/* Featured Dish Badge - Top Left */}
                               <div className="absolute top-4 left-4 flex items-center z-10 transform transition-transform duration-300 group-hover:scale-105">
                                 <div className="bg-black/70 backdrop-blur-lg text-white px-4 py-1.5 rounded-full text-[11px] font-medium tracking-tight flex items-center shadow-2xl border border-white/20">
-                                  {restaurant.featuredDish} • ₹
+                                  {restaurant.featuredDish} â€¢ â‚¹
                                   {restaurant.featuredPrice}
                                 </div>
                               </div>
@@ -3134,7 +3151,45 @@ export default function Home() {
               />
             </div>
           </motion.section>
-        </div>
+        </motion.div>
+      ) : activeTab === "quick" ? (
+        <motion.div
+          key="quick-content"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.3 }}
+        >
+          <div className="min-h-screen bg-white">
+            <QuickLocationProvider>
+              <QuickWishlistProvider>
+                <QuickCartProvider>
+                  <QuickCartAnimationProvider>
+                    <QuickProductDetailProvider>
+                      <QuickCommerceHomePage
+                        embedded
+                        onThemeChange={({ color }) => {
+                          if (color) {
+                            setQuickThemeColor(color);
+                          }
+                        }}
+                      />
+                    </QuickProductDetailProvider>
+                  </QuickCartAnimationProvider>
+                </QuickCartProvider>
+              </QuickWishlistProvider>
+            </QuickLocationProvider>
+          </div>
+        </motion.div>
+      ) : (
+        <motion.div
+          key="other-content"
+          className="flex flex-col items-center justify-center min-h-[400px] text-gray-400"
+        >
+          <p className="text-sm font-bold uppercase tracking-widest">Coming Soon</p>
+        </motion.div>
+      )}
+    </AnimatePresence>
 
         {/* Filter Modal - Bottom Sheet */}
         <AnimatePresence>
@@ -3430,7 +3485,7 @@ export default function Home() {
                           }`}>
                           <span
                             className={`text-sm font-medium ${activeFilters.has("price-under-200") ? "text-[#EB590E]" : "text-gray-700 dark:text-gray-300"}`}>
-                            Under ₹200
+                            Under â‚¹200
                           </span>
                         </button>
                         <button
@@ -3442,7 +3497,7 @@ export default function Home() {
                           }`}>
                           <span
                             className={`text-sm font-medium ${activeFilters.has("price-under-500") ? "text-[#EB590E]" : "text-gray-700 dark:text-gray-300"}`}>
-                            Under ₹500
+                            Under â‚¹500
                           </span>
                         </button>
                       </div>
@@ -4285,6 +4340,7 @@ export default function Home() {
       <StickyCartCard />
       {/* Live order strip: only on homepage (not in UserLayout) */}
       <OrderTrackingCard hasBottomNav />
+      </div>
     </div>
   );
 }

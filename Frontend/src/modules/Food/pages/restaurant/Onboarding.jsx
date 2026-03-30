@@ -38,6 +38,17 @@ const cuisinesOptions = [
 ]
 
 const daysOfWeek = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+const ESTIMATED_DELIVERY_TIME_OPTIONS = [
+  "10-15 mins",
+  "15-20 mins",
+  "20-25 mins",
+  "25-30 mins",
+  "30-35 mins",
+  "35-40 mins",
+  "40-45 mins",
+  "45-50 mins",
+  "50-60 mins",
+]
 
 const ONBOARDING_STORAGE_KEY = "restaurant_onboarding_data"
 const PAN_NUMBER_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/
@@ -110,6 +121,12 @@ const normalizeAccountTypeValue = (value) => {
   if (normalized === "saving" || normalized === "savings") return "Saving"
   if (normalized === "current") return "Current"
   return ""
+}
+
+const normalizeZoneIdValue = (value) => {
+  if (!value) return ""
+  if (typeof value === "string") return value
+  return String(value?._id || value?.id || value || "")
 }
 
 const getTodayLocalYMD = () => formatDateToLocalYMD(new Date())
@@ -612,7 +629,7 @@ export default function RestaurantOnboarding() {
           ownerEmail: localData.step1.ownerEmail || "",
           ownerPhone: localData.step1.ownerPhone || "",
           primaryContactNumber: localData.step1.primaryContactNumber || "",
-          zoneId: localData.step1.zoneId || "",
+          zoneId: normalizeZoneIdValue(localData.step1.zoneId),
           location: {
             formattedAddress: localData.step1.location?.formattedAddress || "",
             addressLine1: localData.step1.location?.addressLine1 || "",
@@ -750,7 +767,7 @@ export default function RestaurantOnboarding() {
             ownerName: data.ownerName || "",
             ownerEmail: data.ownerEmail || "",
             ownerPhone: data.ownerPhone || "",
-            zoneId: data.zoneId || prev.zoneId || "",
+            zoneId: normalizeZoneIdValue(data.zoneId) || prev.zoneId || "",
             primaryContactNumber: data.primaryContactNumber || "",
             location: {
               formattedAddress: data.location?.formattedAddress || data.location?.address || "",
@@ -942,12 +959,6 @@ export default function RestaurantOnboarding() {
       errors.push("Featured dish name is required")
     } else if (!FEATURED_DISH_NAME_REGEX.test(step4.featuredDish.trim())) {
       errors.push("Featured dish name must contain only letters")
-    }
-    if (!step4.featuredPrice || !/^\d+$/.test(String(step4.featuredPrice)) || Number(step4.featuredPrice) <= 0) {
-      errors.push("Featured dish price is required and must be greater than 0")
-    }
-    if (!step4.offer || !step4.offer.trim()) {
-      errors.push("Special offer/promotion is required")
     }
     return errors
   }
@@ -1182,6 +1193,11 @@ export default function RestaurantOnboarding() {
         formData.append("ifscCode", (step3.ifscCode || "").toUpperCase())
         formData.append("accountHolderName", step3.accountHolderName || "")
         formData.append("accountType", step3.accountType || "")
+
+        // Step 4
+        formData.append("estimatedDeliveryTime", step4.estimatedDeliveryTime || "")
+        formData.append("featuredDish", step4.featuredDish || "")
+        formData.append("offer", step4.offer || "")
 
         await restaurantAPI.register(formData)
 
@@ -2285,12 +2301,27 @@ export default function RestaurantOnboarding() {
 
         <div>
           <Label className="text-xs text-gray-700">Estimated Delivery Time*</Label>
-          <Input
+          <Select
             value={step4.estimatedDeliveryTime || ""}
-            onChange={(e) => setStep4({ ...step4, estimatedDeliveryTime: e.target.value })}
-            className="mt-1 bg-white text-sm"
-            placeholder="e.g., 25-30 mins"
-          />
+            onValueChange={(value) => setStep4({ ...step4, estimatedDeliveryTime: value })}
+          >
+            <SelectTrigger className="mt-1 bg-white text-sm">
+              <SelectValue placeholder="Select estimated timing" />
+            </SelectTrigger>
+            <SelectContent>
+              {[
+                ...ESTIMATED_DELIVERY_TIME_OPTIONS,
+                ...(step4.estimatedDeliveryTime &&
+                !ESTIMATED_DELIVERY_TIME_OPTIONS.includes(step4.estimatedDeliveryTime)
+                  ? [step4.estimatedDeliveryTime]
+                  : []),
+              ].map((option) => (
+                <SelectItem key={option} value={option}>
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div>
@@ -2309,30 +2340,16 @@ export default function RestaurantOnboarding() {
         </div>
 
         <div>
-          <Label className="text-xs text-gray-700">Featured Dish Price (?)*</Label>
-          <Input
-            type="text"
-            inputMode="numeric"
-            value={step4.featuredPrice || ""}
-            onChange={(e) =>
-              setStep4({
-                ...step4,
-                featuredPrice: e.target.value.replace(/\D/g, ""),
-              })
-            }
-            className="mt-1 bg-white text-sm"
-            placeholder="e.g., 249"
-          />
-        </div>
-
-        <div>
-          <Label className="text-xs text-gray-700">Special Offer/Promotion*</Label>
+          <Label className="text-xs text-gray-700">Special Offer/Promotion</Label>
           <Input
             value={step4.offer || ""}
             onChange={(e) => setStep4({ ...step4, offer: e.target.value })}
             className="mt-1 bg-white text-sm"
             placeholder="e.g., Flat 50 Rs. OFF on Order Above Rs.199"
           />
+          <p className="text-[11px] text-gray-500 mt-1">
+            Optional. Leave this blank if you do not want to highlight an offer.
+          </p>
         </div>
       </section>
     </div>

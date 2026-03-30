@@ -8,6 +8,22 @@ const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
+const getZoneLabel = (request) =>
+  request?.zone ||
+  request?.zoneName ||
+  request?.zoneId?.name ||
+  request?.zoneId?.zoneName ||
+  request?.zoneId?.serviceLocation ||
+  "—"
+
+const normalizeRequestRecord = (request, index) => ({
+  ...request,
+  sl: index + 1,
+  zone: getZoneLabel(request),
+  businessModel: request?.businessModel || "",
+  fullData: request?.fullData || request,
+})
+
 
 export default function JoiningRequest() {
   const [activeTab, setActiveTab] = useState("pending")
@@ -55,7 +71,9 @@ export default function JoiningRequest() {
       setError(null)
 
       const response = await adminAPI.getPendingRestaurants()
-      const list = response?.data?.data || []
+      const list = (response?.data?.data || []).map((request, index) =>
+        normalizeRequestRecord(request, index),
+      )
       if (activeTab === "pending") {
         setPendingRequests(list.filter((r) => r.status === "pending"))
       } else {
@@ -400,10 +418,10 @@ export default function JoiningRequest() {
                     </td>
                   </tr>
                 ) : (
-                  filteredRequests.map((request) => (
-                    <tr key={request.sl} className="hover:bg-slate-50 transition-colors">
+                  filteredRequests.map((request, index) => (
+                    <tr key={request._id || request.id || `${request.restaurantName}-${index}`} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm font-medium text-slate-700">{request.sl}</span>
+                        <span className="text-sm font-medium text-slate-700">{index + 1}</span>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
@@ -434,7 +452,7 @@ export default function JoiningRequest() {
                         <span className="text-sm text-slate-700">{request.zone}</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm text-slate-700">{request.businessModel}</span>
+                        <span className="text-sm text-slate-700">{request.businessModel || "—"}</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${
@@ -829,6 +847,14 @@ export default function JoiningRequest() {
                             )}
                           </div>
                         </div>
+                        {typeof r?.pureVegRestaurant === "boolean" && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-1">Food Type</p>
+                            <p className="text-sm font-medium text-slate-900">
+                              {r.pureVegRestaurant ? "Pure Veg" : "Mixed"}
+                            </p>
+                          </div>
+                        )}
                         {r?.offer && (
                           <div>
                             <p className="text-xs text-slate-500 mb-1">Current Offer</p>

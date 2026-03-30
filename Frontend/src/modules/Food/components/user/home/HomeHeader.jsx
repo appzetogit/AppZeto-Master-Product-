@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, ChevronDown, Search, Mic, Bell, CheckCircle2, Tag, Gift, AlertCircle, Clock } from 'lucide-react';
 import { 
@@ -13,6 +13,21 @@ import foodIcon from "@food/assets/category-icons/food.png";
 import quickIcon from "@food/assets/category-icons/quick.png";
 import taxiIcon from "@food/assets/category-icons/taxi.png";
 import hotelIcon from "@food/assets/category-icons/hotel.png";
+
+const lightenHex = (hex, amount = 0.18) => {
+  const normalized = String(hex || "").replace("#", "");
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return hex;
+
+  const clamp = (value) => Math.max(0, Math.min(255, value));
+  const toHex = (value) => clamp(value).toString(16).padStart(2, "0");
+  const mix = (channel) => Math.round(channel + (255 - channel) * amount);
+
+  const r = parseInt(normalized.slice(0, 2), 16);
+  const g = parseInt(normalized.slice(2, 4), 16);
+  const b = parseInt(normalized.slice(4, 6), 16);
+
+  return `#${toHex(mix(r))}${toHex(mix(g))}${toHex(mix(b))}`;
+};
 
 // Mock notification data (synced with Notifications page style)
 const mockNotifications = [
@@ -54,6 +69,7 @@ const mockNotifications = [
 export default function HomeHeader({ 
   activeTab,
   setActiveTab,
+  quickHeaderColor,
   location, 
   savedAddressText, 
   handleLocationClick, 
@@ -61,6 +77,29 @@ export default function HomeHeader({
   placeholderIndex, 
   placeholders 
 }) {
+  const navigate = useNavigate();
+  const quickGradient = quickHeaderColor
+    ? `linear-gradient(180deg, ${quickHeaderColor} 0%, ${lightenHex(quickHeaderColor, 0.2)} 100%)`
+    : "linear-gradient(180deg, #67c6f5 0%, #8ed8fb 100%)";
+
+  const headerBackground =
+    activeTab === "quick"
+      ? quickGradient
+      : activeTab === "taxi"
+        ? "linear-gradient(180deg, #ffd54a 0%, #ffbf00 100%)"
+        : activeTab === "hotel"
+          ? "linear-gradient(180deg, #7f9cf5 0%, #5a67d8 100%)"
+          : "linear-gradient(180deg, #f36371 0%, #ef4f5f 100%)";
+
+  const glowTheme =
+    activeTab === "quick"
+      ? "rgba(255,255,255,0.22)"
+      : activeTab === "taxi"
+        ? "rgba(255,255,255,0.18)"
+        : activeTab === "hotel"
+          ? "rgba(255,255,255,0.14)"
+          : "rgba(255,255,255,0.20)";
+
   const festCategories = [
     { id: "food", name: "Food", icon: foodIcon, bgColor: "bg-white" },
     { id: "quick", name: "Quick", icon: quickIcon, bgColor: "bg-white" },
@@ -68,10 +107,17 @@ export default function HomeHeader({
     { id: "hotel", name: "Hotel", icon: hotelIcon, bgColor: "bg-white" },
   ];
 
+  const handleCategoryClick = (id) => {
+    setActiveTab(id);
+  };
+
   const unreadCount = mockNotifications.filter(n => !n.read).length;
 
   return (
-    <div className="relative bg-gradient-to-b from-[#f36371] to-[#ef4f5f] pt-5 pb-5 px-4 space-y-5 shadow-xl overflow-hidden">
+    <div
+      className="relative pt-5 pb-5 px-4 space-y-5 shadow-xl overflow-hidden transition-colors duration-300"
+      style={{ backgroundImage: headerBackground }}
+    >
       {/* Abstract Background Design */}
       <div className="absolute inset-0 opacity-10 pointer-events-none overflow-hidden">
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full">
@@ -84,7 +130,10 @@ export default function HomeHeader({
       </div>
 
       {/* Decorative Glows */}
-      <div className="absolute top-0 left-1/4 w-32 h-32 bg-white/20 blur-[60px] rounded-full pointer-events-none" />
+      <div
+        className="absolute top-0 left-1/4 w-32 h-32 blur-[60px] rounded-full pointer-events-none transition-colors duration-300"
+        style={{ backgroundColor: glowTheme }}
+      />
       <div className="absolute bottom-0 right-1/4 w-40 h-40 bg-yellow-400/10 blur-[80px] rounded-full pointer-events-none" />
 
       {/* Location & Notification Row - Clean Pixel Match Design */}
@@ -165,11 +214,11 @@ export default function HomeHeader({
       <div className="relative z-10 flex justify-center pb-1">
         <div className="grid grid-cols-4 gap-3 w-full max-w-[340px]">
           {festCategories.map((cat) => (
-            <div 
-              key={cat.id}
-              className={`flex flex-col items-center gap-2 cursor-pointer group relative`}
-              onClick={() => setActiveTab(cat.id)}
-            >
+              <div 
+                key={cat.id}
+                className={`flex flex-col items-center gap-2 cursor-pointer group relative`}
+                onClick={() => handleCategoryClick(cat.id)}
+              >
               <motion.div 
                 whileTap={{ scale: 0.9 }}
                 whileHover={{ scale: 1.05 }}

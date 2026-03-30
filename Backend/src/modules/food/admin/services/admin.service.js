@@ -1973,7 +1973,10 @@ export async function updateRestaurantMenuById(id, menu) {
 }
 
 export async function getPendingRestaurants() {
-    return FoodRestaurant.find({ status: 'pending' }).sort({ createdAt: -1 }).lean();
+    return FoodRestaurant.find({ status: 'pending' })
+        .populate('zoneId', 'name zoneName serviceLocation')
+        .sort({ createdAt: -1 })
+        .lean();
 }
 
 export async function updateRestaurantById(id, body = {}) {

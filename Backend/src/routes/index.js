@@ -15,6 +15,7 @@ import * as businessSettingsController from '../modules/food/admin/controllers/b
 import { requireRoles } from '../core/roles/role.middleware.js';
 import { getQueuesController } from '../controllers/admin.controller.js';
 import { getPublicEnvController } from '../modules/food/landing/controllers/publicEnv.controller.js';
+import quickCommerceRoutes from '../modules/quick-commerce/routes/quick-commerce.routes.js';
 
 const router = express.Router();
 
@@ -44,6 +45,7 @@ router.use('/v1/food/orders', authMiddleware, requireRoles('USER'), orderUserRou
 router.use('/v1/food/payments', authMiddleware, paymentRoutes);
 router.use('/v1/fcm-tokens', fcmRoutes);
 router.use('/fcm-tokens', fcmRoutes);
+router.use('/v1/quick-commerce', quickCommerceRoutes);
 
 // router.get('/v1/env/public', getPublicEnvController);
 // router.get('/env/public', getPublicEnvController);

@@ -36,6 +36,11 @@ import { useOrders } from "@food/context/OrdersContext";
 import { orderAPI } from "@food/api";
 
 const getOrderKey = (order) => order?.id || order?._id || order?.orderId || null;
+const getCustomerToken = () =>
+  localStorage.getItem("auth_customer") ||
+  localStorage.getItem("user_accessToken") ||
+  localStorage.getItem("accessToken") ||
+  null;
 
 const getOrderStatus = (order) =>
   String(order?.orderStatus || order?.status || order?.deliveryState?.status || "").toLowerCase();
@@ -107,6 +112,7 @@ function ordersFingerprint(orders) {
 function OrderTrackingCardInner({ hasBottomNav = true }) {
   const navigate = useNavigate();
   const { orders: contextOrders } = useOrders();
+  const hasCustomerAuth = !!getCustomerToken();
   const [timeRemaining, setTimeRemaining] = useState(null);
   const [apiOrders, setApiOrders] = useState([]);
   const [hasFetchedApi, setHasFetchedApi] = useState(false);
@@ -118,6 +124,14 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
   const [invalidOrderIds, setInvalidOrderIds] = useState(new Set());
 
   const fetchOrders = useCallback(async () => {
+    if (!getCustomerToken()) {
+      if (lastApiFingerprintRef.current !== "") {
+        lastApiFingerprintRef.current = "";
+        setApiOrders([]);
+      }
+      setHasFetchedApi(true);
+      return;
+    }
     try {
       const response = await orderAPI.getOrders({ limit: 10, page: 1 });
       let nextOrders = [];
@@ -141,10 +155,6 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
         setApiOrders(list);
       }
     } catch (error) {
-      if (error?.response?.status === 401) {
-        localStorage.removeItem("user_accessToken");
-        localStorage.removeItem("accessToken");
-      }
       if (lastApiFingerprintRef.current !== "") {
         lastApiFingerprintRef.current = "";
         setApiOrders([]);
@@ -155,10 +165,11 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
   }, []);
 
   useEffect(() => {
+    if (!hasCustomerAuth) return;
     fetchOrders();
     const interval = setInterval(fetchOrders, 30000);
     return () => clearInterval(interval);
-  }, [fetchOrders]);
+  }, [fetchOrders, hasCustomerAuth]);
 
   const uniqueOrders = useMemo(() => {
     const isMongoObjectId = (value) => /^[a-f0-9]{24}$/i.test(String(value || ""));
@@ -205,6 +216,7 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
   }, [activeOrder]);
 
   useEffect(() => {
+    if (!hasCustomerAuth) return;
     const handleOrderStatusNotification = async (event) => {
       const detail = event?.detail || {};
       const incomingKey = String(detail?.orderMongoId || detail?.orderId || "").trim();
@@ -253,7 +265,7 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
       window.removeEventListener("orderStatusNotification", handleOrderStatusNotification);
       window.removeEventListener("order-placed", handleOrderPlaced);
     };
-  }, [fetchOrders]);
+  }, [fetchOrders, hasCustomerAuth]);
 
   useEffect(() => {
     if (!activeOrder) {
@@ -274,6 +286,7 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
 
   // Proactive verification for active orders not found in recent API list
   useEffect(() => {
+    if (!hasCustomerAuth) return;
     const key = getOrderKey(activeOrder);
     if (!key || invalidOrderIds.has(key)) return;
 
@@ -296,9 +309,13 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
     };
 
     verifyOrderExists();
-  }, [activeOrder, apiOrders, invalidOrderIds]);
+  }, [activeOrder, apiOrders, invalidOrderIds, hasCustomerAuth]);
 
   const [dismissedKey, setDismissedKey] = useState(null);
+
+  if (!hasCustomerAuth) {
+    return null;
+  }
 
   if (!activeOrder) {
     return null;

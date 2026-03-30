@@ -5,6 +5,7 @@ import { AppShellSkeleton } from '@food/components/ui/loading-skeletons'
 // Lazy load the Food service module (Quick-spicy app)
 const FoodApp = lazy(() => import('../modules/Food/routes'))
 const AuthApp = lazy(() => import('../modules/auth/routes'))
+const QuickCommerceApp = lazy(() => import('../modules/quickCommerce/routes'))
 import ProtectedRoute from '@food/components/ProtectedRoute'
 
 const PageLoader = () => <AppShellSkeleton />
@@ -47,6 +48,17 @@ const AppRoutes = () => {
 
       {/* Food Module */}
       <Route path="/food/*" element={<FoodAppWrapper />} />
+
+      {/* Quick-commerce Module */}
+      <Route
+        path="/quick-commerce/*"
+        element={
+          <Suspense fallback={<PageLoader />}>
+            <QuickCommerceApp />
+          </Suspense>
+        }
+      />
+      <Route path="/qc/*" element={<Navigate to="/quick-commerce" replace />} />
 
       {/* Global Admin Portal - AdminRouter handles its own protection for sub-routes */}
       <Route path="/admin/*" element={<AdminRouter />} />

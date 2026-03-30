@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "leaflet/dist/leaflet.css";
+@import "./design-system.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -76,6 +77,19 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Blinkit Brand Colors */
+  --color-brand-50: #f0fdf4;
+  --color-brand-100: #dcfce7;
+  --color-brand-200: #bbf7d0;
+  --color-brand-300: #86efac;
+  --color-brand-400: #2e7d32;
+  --color-brand-500: #15803d;
+  --color-brand-600: #0c831f;
+  --color-brand-700: #0a6919;
+  --color-brand-800: #085013;
+  --color-brand-900: #06390e;
+  --color-brand-950: #021e07;
   
   --color-page-bg: #ffffff;
   --color-primary-orange: #dc2626;
@@ -122,11 +136,34 @@
 }
 
 @layer utilities {
-  .scrollbar-hide {
+  .mesh-gradient-light {
+    background-color: #fdfdfd;
+    background-image:
+      radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.05) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(244, 63, 94, 0.05) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.05) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, rgba(245, 158, 11, 0.05) 0px, transparent 50%);
+  }
+
+  .custom-scrollbar-dark::-webkit-scrollbar {
+    width: 5px;
+  }
+
+  .custom-scrollbar-dark::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  .custom-scrollbar-dark::-webkit-scrollbar-thumb {
+    @apply bg-white/10 rounded-full hover:bg-white/20 transition-colors;
+  }
+
+  .scrollbar-hide,
+  .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
-  .scrollbar-hide::-webkit-scrollbar {
+  .scrollbar-hide::-webkit-scrollbar,
+  .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
 
@@ -143,7 +180,16 @@
   .animate-scroll {
     animation: scroll 15s linear infinite;
   }
-}
+
+  .classic-marquee-track {
+    animation: hero-marquee 22s linear infinite;
+    will-change: transform;
+  }
+
+  @keyframes hero-marquee {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
 
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes fade-in-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
@@ -165,4 +211,5 @@
 .pac-container {
   z-index: 99999 !important;
   pointer-events: auto !important;
+}
 }

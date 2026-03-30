@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react"
-import { Link, useLocation } from "react-router-dom"
+import { Link, useLocation, useNavigate } from "react-router-dom"
 import {
   Search,
   FileText,
@@ -50,7 +50,9 @@ import {
 import { cn } from "@food/utils/utils"
 import { Input } from "@food/components/ui/input"
 import { adminSidebarMenu } from "@food/utils/adminSidebarMenu"
+import { quickAdminSidebarMenu } from "@food/utils/quickAdminSidebarMenu"
 import { getCachedSettings, loadBusinessSettings } from "@food/utils/businessSettings"
+import { adminAPI } from "@food/api"
 import quickSpicyLogo from "@food/assets/quicky-spicy-logo.png"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -104,6 +106,7 @@ const iconMap = {
 
 export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange }) {
   const location = useLocation()
+  const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState("")
   const [badges, setBadges] = useState({})
 
@@ -241,6 +244,20 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
     setIsCollapsed(prev => !prev)
   }
 
+  const getExpandableSectionKeys = (menuData = []) => {
+    const keys = []
+    menuData.forEach((item) => {
+      if (item.type === "section" && Array.isArray(item.items)) {
+        item.items.forEach((subItem) => {
+          if (subItem.type === "expandable" && subItem.label) {
+            keys.push(subItem.label.toLowerCase().replace(/\s+/g, ""))
+          }
+        })
+      }
+    })
+    return keys
+  }
+
   // Generate initial expanded state from menu data
   const getInitialExpandedState = () => {
     try {
@@ -252,30 +269,51 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
       debugError('Error loading sidebar state:', e)
     }
     const state = {}
-    adminSidebarMenu.forEach((item) => {
-      if (item.type === "section") {
-        item.items.forEach((subItem) => {
-          if (subItem.type === "expandable") {
-            state[subItem.label.toLowerCase().replace(/\s+/g, "")] = false
-          }
-        })
-      }
+    getExpandableSectionKeys(adminSidebarMenu).forEach((key) => {
+      state[key] = false
     })
     return state
   }
 
   const [expandedSections, setExpandedSections] = useState(getInitialExpandedState)
+  const isQuickAdmin = location.pathname.startsWith("/admin/quick-commerce")
+  const activeMenuData = isQuickAdmin ? quickAdminSidebarMenu : adminSidebarMenu
+
+  // Ensure expandable keys exist for whichever admin module is active (food/quick)
+  useEffect(() => {
+    const activeKeys = getExpandableSectionKeys(activeMenuData)
+    setExpandedSections((prev) => {
+      const next = { ...prev }
+      activeKeys.forEach((key) => {
+        if (typeof next[key] !== "boolean") {
+          next[key] = false
+        }
+      })
+      return next
+    })
+  }, [activeMenuData])
+
+  const switchAdminModule = (target) => {
+    if (target === "quick") {
+      navigate("/admin/quick-commerce")
+    } else {
+      navigate("/admin/food")
+    }
+    if (window.innerWidth < 1024 && onClose) {
+      onClose()
+    }
+  }
 
   // Filter menu items based on search query
   const filteredMenuData = useMemo(() => {
     if (!searchQuery.trim()) {
-      return adminSidebarMenu
+      return activeMenuData
     }
 
     const query = searchQuery.toLowerCase().trim()
     const filtered = []
 
-    adminSidebarMenu.forEach((item) => {
+    activeMenuData.forEach((item) => {
       if (item.type === "link") {
         if (item.label.toLowerCase().includes(query)) {
           filtered.push(item)
@@ -313,7 +351,7 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
     })
 
     return filtered
-  }, [searchQuery])
+  }, [searchQuery, activeMenuData])
 
   // Auto-expand sections with matches when searching
   useEffect(() => {
@@ -323,7 +361,7 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
       setExpandedSections((prev) => {
         const newExpandedState = { ...prev }
 
-        adminSidebarMenu.forEach((item) => {
+        activeMenuData.forEach((item) => {
           if (item.type === "section") {
             item.items.forEach((subItem) => {
               if (subItem.type === "expandable") {
@@ -344,7 +382,7 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
         return newExpandedState
       })
     }
-  }, [searchQuery])
+  }, [searchQuery, activeMenuData])
 
   const isActive = (path, allPaths = []) => {
     if (path === "/admin") {
@@ -373,6 +411,7 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
   const toggleSection = (sectionKey) => {
     setExpandedSections((prev) => {
       const isCurrentlyOpen = Boolean(prev[sectionKey])
+      const keys = Array.from(new Set([...Object.keys(prev), sectionKey]))
 
       // Accordion behavior:
       // 1) If current section is open -> close it.
@@ -385,7 +424,7 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
       }
 
       const next = {}
-      Object.keys(prev).forEach((key) => {
+      keys.forEach((key) => {
         next[key] = key === sectionKey
       })
       return next
@@ -686,6 +725,34 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
               <h2 className="text-sm font-semibold text-neutral-300 uppercase tracking-wider text-left">
                 Admin Panel
               </h2>
+              <div className="mt-2 rounded-xl border border-neutral-800 bg-neutral-900/80 p-1">
+                <div className="grid grid-cols-2 gap-1">
+                  <button
+                    type="button"
+                    onClick={() => switchAdminModule("food")}
+                    className={cn(
+                      "rounded-lg px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all",
+                      !isQuickAdmin
+                        ? "bg-white text-neutral-900 shadow"
+                        : "text-neutral-400 hover:text-white"
+                    )}
+                  >
+                    Food
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => switchAdminModule("quick")}
+                    className={cn(
+                      "rounded-lg px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all",
+                      isQuickAdmin
+                        ? "bg-[#0c831f] text-white shadow-[0_6px_20px_rgba(12,131,31,0.35)]"
+                        : "text-neutral-400 hover:text-white"
+                    )}
+                  >
+                    Quick
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 

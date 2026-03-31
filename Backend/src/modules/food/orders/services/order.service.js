@@ -1919,7 +1919,9 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId) {
     to: "accepted",
   });
   await order.save();
-  await order.populate('restaurantId'); // Need coordinates for Firebase initial write
+  await order.populate('restaurantId userId');
+  const responseOrder = sanitizeOrderForExternal(order);
+  void (async () => {
 
   // ─── Firebase Realtime Database Tracking Initialization (Cost Optimization) ───
   try {
@@ -1999,6 +2001,7 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId) {
       },
     );
   } catch {}
+  })();
 
   enqueueOrderEvent("delivery_accepted", {
     orderMongoId: order._id?.toString?.(),
@@ -2008,8 +2011,7 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId) {
     orderStatus: order.orderStatus,
   });
 
-  // Return full populated order so delivery app has restaurant coords for route polyline
-  return getOrderById(order._id, { deliveryPartnerId });
+  return responseOrder;
 }
 
 export async function rejectOrderDelivery(orderId, deliveryPartnerId) {

@@ -1,6 +1,13 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { ShieldCheck } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@food/components/ui/select"
 import { Button } from "@food/components/ui/button"
 import { restaurantAPI } from "@food/api"
 import { useCompanyName } from "@food/hooks/useCompanyName"
@@ -10,6 +17,8 @@ const DEFAULT_COUNTRY_CODE = "+91"
 export default function RestaurantLogin() {
   const companyName = useCompanyName()
   const navigate = useNavigate()
+  const DEFAULT_COUNTRY_CODE = "+91"
+  const phoneInputRef = useRef(null)
   const [formData, setFormData] = useState(() => {
     const saved = sessionStorage.getItem("restaurantLoginPhone")
     return {
@@ -18,8 +27,28 @@ export default function RestaurantLogin() {
   })
   const [error, setError] = useState("")
   const [isSending, setIsSending] = useState(false)
+  const [keyboardInset, setKeyboardInset] = useState(0)
 
-  const validatePhone = (phone) => {
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.visualViewport) return undefined
+
+    const updateKeyboardInset = () => {
+      const viewport = window.visualViewport
+      const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+      setKeyboardInset(inset > 0 ? inset : 0)
+    }
+
+    updateKeyboardInset()
+    window.visualViewport.addEventListener("resize", updateKeyboardInset)
+    window.visualViewport.addEventListener("scroll", updateKeyboardInset)
+
+    return () => {
+      window.visualViewport.removeEventListener("resize", updateKeyboardInset)
+      window.visualViewport.removeEventListener("scroll", updateKeyboardInset)
+    }
+  }, [])
+
+  const validatePhone = (phone, countryCode) => {
     if (!phone || phone.trim() === "") return "Phone number is required"
 
     const digitsOnly = phone.replace(/\D/g, "")
@@ -40,8 +69,24 @@ export default function RestaurantLogin() {
     sessionStorage.setItem("restaurantLoginPhone", value)
 
     if (error) {
-      setError(validatePhone(value))
+      setError(validatePhone(value, formData.countryCode))
     }
+  }
+
+  const handleCountryCodeChange = (value) => {
+    setFormData((prev) => ({ ...prev, countryCode: value }))
+    if (formData.phone) {
+      setError(validatePhone(formData.phone, value))
+    }
+  }
+
+  const ensurePhoneFieldVisible = () => {
+    window.setTimeout(() => {
+      phoneInputRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      })
+    }, 180)
   }
 
   const handleSendOTP = async () => {
@@ -77,8 +122,13 @@ export default function RestaurantLogin() {
   const isValidPhone = !validatePhone(formData.phone)
 
   return (
-    <div className="h-[100dvh] bg-white flex flex-col font-sans overflow-hidden">
-      <div className="relative h-[240px] sm:h-[300px] w-full bg-[#ef4f5f] overflow-hidden">
+    <div
+      className="min-h-[100dvh] bg-white flex flex-col overflow-y-auto overscroll-contain font-sans"
+      style={{ paddingBottom: keyboardInset ? `${keyboardInset + 24}px` : undefined }}
+    >
+      {/* Curved Header Background */}
+      <div className="relative h-[300px] w-full bg-[#ef4f5f] overflow-hidden">
+        {/* Abstract Circles like in the image */}
         <div className="absolute -top-10 -left-10 w-48 h-48 rounded-full bg-white/10" />
         <div className="absolute top-20 -right-10 w-64 h-64 rounded-full bg-white/10" />
         <div className="absolute -bottom-20 left-1/2 -translate-x-1/2 w-80 h-80 rounded-full bg-white/5" />
@@ -107,24 +157,39 @@ export default function RestaurantLogin() {
         <div className="w-full max-w-[400px] flex-1 flex flex-col justify-between animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="space-y-6">
             <div className="space-y-3">
-              <label className="block w-full text-[10px] font-black text-slate-400 uppercase tracking-[0.18em] sm:tracking-[0.3em] ml-1">
-                Registered Mobile Number
-              </label>
-
-              <div className="flex items-center gap-2 h-14 sm:h-16 bg-slate-50 border border-slate-100 rounded-[32px] px-2 focus-within:border-[#ef4f5f]/30 focus-within:ring-4 focus-within:ring-[#ef4f5f]/5 transition-all">
-                <div className="w-24 h-12 rounded-2xl flex items-center px-4">
-                  <span className="font-bold text-slate-900">{DEFAULT_COUNTRY_CODE}</span>
-                </div>
-
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] ml-1">Registered Mobile Number</label>
+              
+              <div className="flex items-center gap-2 h-16 bg-slate-50 border border-slate-100 rounded-[32px] px-2 focus-within:border-[#ef4f5f]/30 focus-within:ring-4 focus-within:ring-[#ef4f5f]/5 transition-all overflow-hidden">
+                <Select value={formData.countryCode} onValueChange={handleCountryCodeChange}>
+                  <SelectTrigger className="w-24 h-12 border-none bg-transparent shadow-none focus:ring-0">
+                    <SelectValue>
+                      <span className="font-bold text-slate-900">{formData.countryCode}</span>
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-slate-100">
+                    {countryCodes.map((c) => (
+                      <SelectItem key={c.code} value={c.code}>
+                        {c.flag} {c.code}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
                 <div className="w-[1px] h-6 bg-slate-200" />
 
                 <input
+                  ref={phoneInputRef}
                   type="tel"
                   maxLength={10}
+                  inputMode="numeric"
+                  autoComplete="tel-national"
+                  enterKeyHint="done"
                   placeholder="Mobile number"
                   value={formData.phone}
                   onChange={handlePhoneChange}
-                  className="flex-1 h-full bg-transparent border-0 outline-none ring-0 shadow-none focus:border-0 focus:outline-none focus:ring-0 focus:shadow-none text-lg font-bold text-slate-900 placeholder-slate-300 px-4"
+                  onFocus={ensurePhoneFieldVisible}
+                  className="min-w-0 flex-1 h-12 bg-transparent border-0 outline-none ring-0 shadow-none focus:border-0 focus:outline-none focus:ring-0 focus:shadow-none text-left text-lg font-bold leading-none tracking-[0.02em] text-slate-900 placeholder-slate-300 caret-[#ef4f5f] px-4"
+                  style={{ WebkitTextFillColor: "#0f172a", opacity: 1 }}
                 />
               </div>
 
@@ -171,10 +236,10 @@ export default function RestaurantLogin() {
         </div>
       </div>
 
-      <div className="py-3 text-center">
-        <p className="text-[10px] font-black text-slate-300 tracking-[0.2em] uppercase">
-          &copy; {new Date().getFullYear()} {companyName.toUpperCase()} PARTNER
-        </p>
+      <div className={`pb-8 text-center ${keyboardInset ? "hidden" : ""}`}>
+          <p className="text-[10px] font-black text-slate-300 tracking-[0.2em] uppercase">
+            &copy; {new Date().getFullYear()} {companyName.toUpperCase()} PARTNER
+          </p>
       </div>
     </div>
   )

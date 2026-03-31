@@ -1380,10 +1380,12 @@ export default function CategoryPage() {
                             {restaurant.name}
                           </p>
                         )}
-                        <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400 text-[10px] md:text-xs">
-                          <Clock className="h-2.5 w-2.5 md:h-3 md:w-3" />
-                          <span>{restaurant.deliveryTime || 'Not available'}</span>
-                        </div>
+                        {restaurant.deliveryTime && (
+                          <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400 text-[10px] md:text-xs">
+                            <Clock className="h-2.5 w-2.5 md:h-3 md:w-3" />
+                            <span>{restaurant.deliveryTime}</span>
+                          </div>
+                        )}
                       </div>
                     </Link>
                   )
@@ -1513,16 +1515,20 @@ export default function CategoryPage() {
                         </div>
 
                         {/* Delivery Time & Distance */}
-                        <div className="flex items-center gap-1 text-sm md:text-base lg:text-lg text-gray-500 dark:text-gray-400 mb-2 lg:mb-3">
-                          <Clock className="h-4 w-4 md:h-5 md:w-5 lg:h-6 lg:w-6" strokeWidth={1.5} />
-                          <span className="font-medium">{restaurant.deliveryTime || 'Not available'}</span>
-                          {restaurant.distance && (
-                            <>
-                              <span className="mx-1">|</span>
+                        {(restaurant.deliveryTime || restaurant.distance) && (
+                          <div className="flex items-center gap-1 text-sm md:text-base lg:text-lg text-gray-500 dark:text-gray-400 mb-2 lg:mb-3">
+                            {restaurant.deliveryTime && (
+                              <>
+                                <Clock className="h-4 w-4 md:h-5 md:w-5 lg:h-6 lg:w-6" strokeWidth={1.5} />
+                                <span className="font-medium">{restaurant.deliveryTime}</span>
+                              </>
+                            )}
+                            {restaurant.deliveryTime && restaurant.distance && <span className="mx-1">|</span>}
+                            {restaurant.distance && (
                               <span className="font-medium">{restaurant.distance}</span>
-                            </>
-                          )}
-                        </div>
+                            )}
+                          </div>
+                        )}
 
                         {/* Offer Badge */}
                         {restaurant.offer && (

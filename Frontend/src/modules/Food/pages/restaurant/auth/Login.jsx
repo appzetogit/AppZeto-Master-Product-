@@ -13,16 +13,19 @@ import { restaurantAPI } from "@food/api"
 import { useCompanyName } from "@food/hooks/useCompanyName"
 
 const DEFAULT_COUNTRY_CODE = "+91"
+const countryCodes = [
+  { code: "+91", country: "IN", flag: "🇮🇳" },
+]
 
 export default function RestaurantLogin() {
   const companyName = useCompanyName()
   const navigate = useNavigate()
-  const DEFAULT_COUNTRY_CODE = "+91"
   const phoneInputRef = useRef(null)
   const [formData, setFormData] = useState(() => {
     const saved = sessionStorage.getItem("restaurantLoginPhone")
     return {
       phone: saved || "",
+      countryCode: DEFAULT_COUNTRY_CODE,
     }
   })
   const [error, setError] = useState("")
@@ -94,7 +97,7 @@ export default function RestaurantLogin() {
     setError(phoneError)
     if (phoneError) return
 
-    const fullPhone = `${DEFAULT_COUNTRY_CODE} ${formData.phone}`.trim()
+    const fullPhone = `${formData.countryCode || DEFAULT_COUNTRY_CODE} ${formData.phone}`.trim()
 
     try {
       setIsSending(true)

@@ -1552,6 +1552,31 @@ function RestaurantDetailsContent() {
     return sorted
   }
 
+  const getSectionSortValue = (section) => {
+    const allItems = [
+      ...toRenderableArray(section?.items),
+      ...toRenderableArray(section?.subsections).flatMap((subsection) => toRenderableArray(subsection?.items)),
+    ]
+
+    if (allItems.length === 0) return null
+
+    const prices = allItems
+      .map((item) => getFinalPrice(item))
+      .filter((price) => Number.isFinite(price))
+
+    if (prices.length === 0) return null
+
+    if (filters.sortBy === "low-to-high") {
+      return Math.min(...prices)
+    }
+
+    if (filters.sortBy === "high-to-low") {
+      return Math.max(...prices)
+    }
+
+    return null
+  }
+
   // Helper function to check if a section has any items under Rs 250
   const sectionHasItemsUnder250 = (section) => {
     if (!showOnlyUnder250) return true; // If not filtering, show all sections
@@ -1588,7 +1613,7 @@ function RestaurantDetailsContent() {
   const getFilteredSections = () => {
     if (!restaurant?.menuSections) return []
 
-    return restaurant.menuSections
+    const visibleSections = restaurant.menuSections
       .map((section, index) => {
         const filteredItems = sortMenuItems(
           filterMenuItems(
@@ -1621,7 +1646,53 @@ function RestaurantDetailsContent() {
         const hasVisibleSubsections = toRenderableArray(section?.subsections).length > 0
         return hasVisibleItems || hasVisibleSubsections
       })
+
+    if (!filters.sortBy) {
+      return visibleSections
+    }
+
+    return [...visibleSections].sort((left, right) => {
+      const leftValue = getSectionSortValue(left.section)
+      const rightValue = getSectionSortValue(right.section)
+
+      if (leftValue == null && rightValue == null) return 0
+      if (leftValue == null) return 1
+      if (rightValue == null) return -1
+
+      return filters.sortBy === "low-to-high"
+        ? leftValue - rightValue
+        : rightValue - leftValue
+    })
   }
+
+  const hasActiveMenuFilters = Boolean(
+    showOnlyUnder250 ||
+    searchQuery.trim() ||
+    vegMode === true ||
+    filters.sortBy ||
+    filters.vegNonVeg ||
+    filters.highlyReordered ||
+    filters.spicy
+  )
+
+  const filteredSections = useMemo(
+    () => getFilteredSections(),
+    [restaurant?.menuSections, showOnlyUnder250, searchQuery, vegMode, filters]
+  )
+
+  useEffect(() => {
+    if (!hasActiveMenuFilters) return
+
+    const nextExpanded = new Set()
+    filteredSections.forEach(({ section, originalIndex }) => {
+      nextExpanded.add(originalIndex)
+      toRenderableArray(section?.subsections).forEach((_, subIndex) => {
+        nextExpanded.add(`${originalIndex}-${subIndex}`)
+      })
+    })
+
+    setExpandedSections(nextExpanded)
+  }, [filteredSections, hasActiveMenuFilters])
 
   useEffect(() => {
     if (!restaurant?.menuSections || !targetDishId) return
@@ -1681,7 +1752,7 @@ function RestaurantDetailsContent() {
     }
   }, [restaurant, targetDishId])
 
-  const toRenderableArray = (value) => {
+  function toRenderableArray(value) {
     if (Array.isArray(value)) return value
     if (!value || typeof value !== "object") return []
     return Object.values(value).filter((entry) => entry && typeof entry === "object")
@@ -1978,7 +2049,17 @@ function RestaurantDetailsContent() {
         {/* Menu Items Section */}
         {restaurant?.menuSections && Array.isArray(restaurant.menuSections) && restaurant.menuSections.length > 0 && (
           <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 py-6 sm:py-8 md:py-10 lg:py-12 space-y-6 md:space-y-8 lg:space-y-10">
-            {getFilteredSections().map(({ section, originalIndex }, sectionIndex) => {
+            {filteredSections.length === 0 && hasActiveMenuFilters && (
+              <div className="rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 bg-white dark:bg-[#1a1a1a] px-5 py-8 text-center">
+                <p className="text-sm md:text-base font-medium text-gray-700 dark:text-gray-300">
+                  No dishes match the selected filters.
+                </p>
+                <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 mt-2">
+                  Clear filters or try a different combination.
+                </p>
+              </div>
+            )}
+            {filteredSections.map(({ section, originalIndex }, sectionIndex) => {
               // Handle section name - check for valid non-empty string
               const isRecommended = isRecommendedSection(section)
               let sectionTitle = "Unnamed Section"

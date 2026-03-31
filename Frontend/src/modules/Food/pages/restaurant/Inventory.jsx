@@ -2039,7 +2039,6 @@ export default function Inventory() {
               exit={{ opacity: 0 }}
               onClick={() => setIsAddPopupOpen(false)}
               className="fixed inset-0 bg-black/50 z-[70]"
-              className="fixed inset-0 bg-black/50 z-[70]"
             />
             <motion.div
               initial={{ y: "100%" }}
@@ -2047,7 +2046,6 @@ export default function Inventory() {
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
               className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl z-[71] max-h-[70vh] overflow-y-auto pb-[calc(1rem+env(safe-area-inset-bottom)+5.5rem)]"
-              className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl z-[70]"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="sticky top-0 bg-white px-4 py-4 border-b border-gray-200">

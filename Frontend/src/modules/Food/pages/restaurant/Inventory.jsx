@@ -9,6 +9,7 @@ import {
   Utensils,
   Minus,
   Plus,
+  Upload,
   ChevronLeft,
   ChevronRight,
   X,
@@ -585,6 +586,7 @@ export default function Inventory() {
   const [showTimePicker, setShowTimePicker] = useState(false)
 
   const categoryRefs = useRef({})
+  const addonImageInputRef = useRef(null)
 
   // Swipe gesture refs
   const touchStartX = useRef(0)
@@ -813,6 +815,9 @@ export default function Inventory() {
     setAddonPrice("")
     setAddonImageFile(null)
     setAddonImagePreview("")
+    if (addonImageInputRef.current) {
+      addonImageInputRef.current.value = ""
+    }
     setIsAddAddonOpen(false)
     localStorage.removeItem(INVENTORY_ADDON_FORM_KEY)
   }
@@ -823,10 +828,12 @@ export default function Inventory() {
     const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/heic", "image/heif"]
     if (!allowed.includes(file.type)) {
       toast.error("Invalid image type. Please use PNG, JPG, JPEG, WEBP, HEIC, or HEIF.")
+      e.target.value = ""
       return
     }
     if (file.size > 5 * 1024 * 1024) {
       toast.error("Image must be under 5MB.")
+      e.target.value = ""
       return
     }
     if (addonImagePreview && addonImagePreview.startsWith("blob:")) {
@@ -835,6 +842,7 @@ export default function Inventory() {
     const preview = URL.createObjectURL(file)
     setAddonImageFile(file)
     setAddonImagePreview(preview)
+    e.target.value = ""
   }
 
   const handleSaveAddon = async () => {
@@ -1488,11 +1496,25 @@ export default function Inventory() {
                         </div>
                       )}
                       <input
+                        ref={addonImageInputRef}
                         type="file"
                         accept="image/*"
                         onChange={handleAddonImageSelect}
-                        className="w-full text-sm"
+                        className="hidden"
                       />
+                      <button
+                        type="button"
+                        onClick={() => addonImageInputRef.current?.click()}
+                        className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-3 text-left transition-colors hover:bg-gray-100"
+                      >
+                        <span className="flex items-center gap-2 text-sm font-medium text-gray-900">
+                          <Upload className="h-4 w-4 text-gray-500" />
+                          {addonImageFile?.name || "Upload image"}
+                        </span>
+                        <span className="mt-1 block text-xs text-gray-500">
+                          {addonImageFile ? "Image selected successfully" : "Tap to choose 1 image from your device"}
+                        </span>
+                      </button>
                       <p className="text-xs text-gray-500 mt-1">PNG, JPG, WEBP, HEIC up to 5MB.</p>
                     </div>
                     <div className="flex items-center gap-3">
@@ -2017,6 +2039,7 @@ export default function Inventory() {
               exit={{ opacity: 0 }}
               onClick={() => setIsAddPopupOpen(false)}
               className="fixed inset-0 bg-black/50 z-[70]"
+              className="fixed inset-0 bg-black/50 z-[70]"
             />
             <motion.div
               initial={{ y: "100%" }}
@@ -2024,6 +2047,7 @@ export default function Inventory() {
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
               className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl z-[71] max-h-[70vh] overflow-y-auto pb-[calc(1rem+env(safe-area-inset-bottom)+5.5rem)]"
+              className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl z-[70]"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="sticky top-0 bg-white px-4 py-4 border-b border-gray-200">

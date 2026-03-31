@@ -407,7 +407,7 @@ export async function createOrder(userId, dto) {
 
   if (isWallet) {
     try {
-      await userWalletService.deductWalletBalance(userId, order.pricing.total, `Payment for order #${order._id}`, { orderId: order._id });
+      await userWalletService.deductWalletBalance(userId, order.pricing.total, `Payment for order #${order.order_id || order._id}`, { orderId: order._id });
     } catch (err) {
       // If wallet deduction fails (e.g. insufficient balance), we should not have saved the order or we should delete/cancel it.
       // But since we already saved it, let's at least throw the error so the user knows.
@@ -434,8 +434,8 @@ export async function createOrder(userId, dto) {
         ? "Complete Payment to Confirm Order"
         : "Order Confirmed! 🍔",
       body: isAwaitingOnlinePayment
-        ? `Order #${order._id} is created. Please complete payment to send it to ${restaurant.restaurantName || "the restaurant"}.`
-        : `Your order #${order._id} from ${restaurant.restaurantName || "the restaurant"} has been placed successfully.`,
+        ? `Order #${order.order_id || order._id} is created. Please complete payment to send it to ${restaurant.restaurantName || "the restaurant"}.`
+        : `Your order #${order.order_id || order._id} from ${restaurant.restaurantName || "the restaurant"} has been placed successfully.`,
       image: "https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png",
       data: {
         type: isAwaitingOnlinePayment
@@ -482,7 +482,7 @@ export async function createOrder(userId, dto) {
     }
   }
 
-  const saved = order.toObject();
+  const saved = normalizeOrderForClient(order);
   return { order: saved, razorpay: razorpayPayload };
 }
 
@@ -497,7 +497,7 @@ export async function verifyPayment(userId, dto) {
   });
   if (!order) throw new NotFoundError("Order not found");
   if (order.payment.status === "paid")
-    return { order: order.toObject(), payment: order.payment };
+    return { order: normalizeOrderForClient(order), payment: order.payment };
 
   const valid = verifyPaymentSignature(
     dto.razorpayOrderId,
@@ -548,7 +548,7 @@ export async function verifyPayment(userId, dto) {
     } catch {}
   }
 
-  return { order: order.toObject(), payment: order.payment };
+  return { order: normalizeOrderForClient(order), payment: order.payment };
 }
 
 // ----- Auto-assign -----
@@ -1001,7 +1001,7 @@ export async function cancelOrder(orderId, userId, reason) {
     (!order.payment.refund || order.payment.refund.status !== "processed")
   ) {
     try {
-      await userWalletService.refundWalletBalance(userId, order.pricing.total, `Refund for cancelled order #${order._id}`, { orderId: order._id });
+      await userWalletService.refundWalletBalance(userId, order.pricing.total, `Refund for cancelled order #${order.order_id || order._id}`, { orderId: order._id });
       order.payment.status = "refunded";
       order.payment.refund = {
         status: "processed",
@@ -1047,7 +1047,7 @@ export async function cancelOrder(orderId, userId, reason) {
     ],
     {
       title: "Order Cancelled ❌",
-      body: `Order #${order._id.toString()} has been cancelled successfully.${refundDetail}`,
+      body: `Order #${order.order_id || order._id} has been cancelled successfully.${refundDetail}`,
       image: "https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png",
       data: {
         type: "order_cancelled",
@@ -1065,7 +1065,7 @@ export async function cancelOrder(orderId, userId, reason) {
         orderMongoId: order._id?.toString?.(),
         orderId: order._id.toString(),
         orderStatus: order.orderStatus,
-        message: `Order #${order._id.toString()} has been cancelled successfully.${refundDetail}`
+        message: `Order #${order.order_id || order._id} has been cancelled successfully.${refundDetail}`
       };
       io.to(rooms.user(userId)).emit("order_status_update", payload);
       io.to(rooms.restaurant(order.restaurantId)).emit("order_status_update", payload);
@@ -1074,7 +1074,7 @@ export async function cancelOrder(orderId, userId, reason) {
     logger.warn(`cancelOrder socket emit failed: ${err?.message || err}`);
   }
 
-  return order.toObject();
+  return normalizeOrderForClient(order);
 }
 
 export async function submitOrderRatings(orderId, userId, dto) {
@@ -1165,7 +1165,7 @@ export async function listOrdersRestaurant(restaurantId, query) {
       .lean(),
     FoodOrder.countDocuments(filter),
   ]);
-  return buildPaginatedResult({ docs, total, page, limit });
+  return buildPaginatedResult({ docs: docs.map(d => normalizeOrderForClient(d)), total, page, limit });
 }
 
 export async function updateOrderStatusRestaurant(
@@ -1250,12 +1250,12 @@ export async function updateOrderStatusRestaurant(
       notifyList.push({ ownerType: "DELIVERY_PARTNER", ownerId: assignedRiderId });
     }
 
-    let riderTitle = `Order #${order._id.toString()} updated`;
+    let riderTitle = `Order #${order.order_id || order._id} updated`;
     let riderBody = `The order status is now ${String(orderStatus).replace(/_/g, " ")}.`;
 
     if (String(orderStatus).includes("cancel")) {
       riderTitle = "Order Cancelled ❌";
-      riderBody = `Order #${order._id.toString()} has been cancelled. Please stop your current task.`;
+      riderBody = `Order #${order.order_id || order._id} has been cancelled. Please stop your current task.`;
       
       // Sync transaction status
       try {
@@ -1392,7 +1392,7 @@ export async function updateOrderStatusRestaurant(
       (!order.payment.refund || order.payment.refund.status !== "processed")
     ) {
       try {
-        await userWalletService.refundWalletBalance(order.userId, order.pricing.total, `Refund for order #${order._id} cancelled by restaurant`, { orderId: order._id });
+        await userWalletService.refundWalletBalance(order.userId, order.pricing.total, `Refund for order #${order.order_id || order._id} cancelled by restaurant`, { orderId: order._id });
         order.payment.status = "refunded";
         order.payment.refund = {
           status: "processed",
@@ -1407,7 +1407,7 @@ export async function updateOrderStatusRestaurant(
       await order.save();
     }
 
-    return order.toObject();
+    return normalizeOrderForClient(order);
 }
 
 /**
@@ -1625,7 +1625,7 @@ export async function listOrdersAdmin(query) {
       .lean(),
     FoodOrder.countDocuments(filter),
   ]);
-  const paginated = buildPaginatedResult({ docs, total, page, limit });
+  const paginated = buildPaginatedResult({ docs: docs.map(d => normalizeOrderForClient(d)), total, page, limit });
   return { ...paginated, orders: paginated.data };
 }
 
@@ -1656,7 +1656,7 @@ export async function assignDeliveryPartnerAdmin(
         deliveryPartnerId,
         adminId
     });
-    return order.toObject();
+    return normalizeOrderForClient(order);
 }
 
 export async function deleteOrderAdmin(orderId, adminId) {

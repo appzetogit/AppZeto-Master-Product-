@@ -23,7 +23,6 @@ import { useCompanyName } from "@food/hooks/useCompanyName"
 import { getGoogleMapsApiKey } from "@food/utils/googleMapsApiKey"
 import { clearModuleAuth, clearAuthData } from "@food/utils/auth"
 import { ImageSourcePicker } from "@food/components/ImageSourcePicker"
-import { isFlutterBridgeAvailable, openCamera } from "@food/utils/imageUploadUtils"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -37,6 +36,7 @@ const GST_NUMBER_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/
 const FSSAI_NUMBER_REGEX = /^\d{14}$/
 const BANK_ACCOUNT_NUMBER_REGEX = /^\d{9,18}$/
 const IFSC_CODE_REGEX = /^[A-Z0-9]{11}$/
+const OWNER_NAME_REGEX = /^[A-Za-z ]+$/
 const ACCOUNT_HOLDER_NAME_REGEX = /^[A-Za-z ]+$/
 const GST_LEGAL_NAME_REGEX = /^[A-Za-z ]+$/
 const LOCAL_IMAGE_FILE_ACCEPT = ".jpg,.jpeg,.png,.webp,.heic,.heif"
@@ -600,22 +600,6 @@ export default function RestaurantOnboarding() {
     return null
   }
 
-  const openBrowserCameraFallback = ({ onSelectFile }) => {
-    try {
-      const input = document.createElement("input")
-      input.type = "file"
-      input.accept = "image/*"
-      input.capture = "environment"
-      input.onchange = (event) => {
-        const file = event?.target?.files?.[0] || null
-        if (file) onSelectFile(file)
-      }
-      input.click()
-    } catch (error) {
-      debugError("Browser camera fallback failed:", error)
-    }
-  }
-
   const openImageSourcePicker = ({ title, onSelectFile, fileNamePrefix, fallbackInputRef }) => {
     setSourcePicker({
       isOpen: true,
@@ -630,19 +614,38 @@ export default function RestaurantOnboarding() {
     setSourcePicker((prev) => ({ ...prev, isOpen: false }))
   }
 
-  const handlePickFromDevice = () => {
-    const fallbackRef = sourcePicker.fallbackInputRef
-    closeImageSourcePicker()
-    fallbackRef?.current?.click()
+  const handleMenuImagesSelected = (files = []) => {
+    if (!files.length) return
+    const nextMenuImages = [...(step2.menuImages || []), ...files]
+    setStep2((prev) => ({
+      ...prev,
+      menuImages: nextMenuImages,
+    }))
+    void persistMenuImagesToDB(nextMenuImages)
   }
 
-  const handlePickFromCamera = async () => {
-    const pickerConfig = {
-      onSelectFile: sourcePicker.onSelectFile,
-      fileNamePrefix: sourcePicker.fileNamePrefix,
-    }
-    closeImageSourcePicker()
-    await openCamera(pickerConfig)
+  const handleProfileImageSelected = (file) => {
+    if (!file) return
+    setStep2((prev) => ({
+      ...prev,
+      profileImage: file,
+    }))
+    void saveFileToDB("profileImage", file)
+  }
+
+  const handlePanImageSelected = (file) => {
+    if (!file) return
+    setStep3((prev) => ({ ...prev, panImage: file }))
+  }
+
+  const handleGstImageSelected = (file) => {
+    if (!file) return
+    setStep3((prev) => ({ ...prev, gstImage: file }))
+  }
+
+  const handleFssaiImageSelected = (file) => {
+    if (!file) return
+    setStep3((prev) => ({ ...prev, fssaiImage: file }))
   }
 
 
@@ -970,6 +973,8 @@ export default function RestaurantOnboarding() {
     }
     if (!step1.ownerName?.trim()) {
       errors.push("Owner name is required")
+    } else if (!OWNER_NAME_REGEX.test(step1.ownerName.trim())) {
+      errors.push("Owner name must contain only letters")
     }
     if (!step1.ownerEmail?.trim()) {
       errors.push("Owner email is required")
@@ -1181,13 +1186,9 @@ export default function RestaurantOnboarding() {
     }
 
     if (validationErrors.length > 0) {
-      // Show error toast for each validation error
-      validationErrors.forEach((error, index) => {
-        setTimeout(() => {
-          toast.error(error, {
-            duration: 4000,
-          })
-        }, index * 100)
+      // Surface only the first error so validation proceeds top-to-bottom.
+      toast.error(validationErrors[0], {
+        duration: 4000,
       })
       debugLog('? Validation failed:', validationErrors)
       return
@@ -1375,7 +1376,12 @@ export default function RestaurantOnboarding() {
             <Label className="text-xs text-gray-700">Full name*</Label>
             <Input
               value={step1.ownerName || ""}
-              onChange={(e) => setStep1({ ...step1, ownerName: e.target.value })}
+              onChange={(e) =>
+                setStep1({
+                  ...step1,
+                  ownerName: e.target.value.replace(/[^A-Za-z ]/g, ""),
+                })
+              }
               className="mt-1 bg-white text-sm text-black placeholder-black"
               placeholder="Owner full name"
               disabled={!isEditing}
@@ -1870,7 +1876,14 @@ export default function RestaurantOnboarding() {
               type="button"
               variant="outline"
               className="w-full text-xs"
-              onClick={() => menuImagesInputRef.current?.click()}
+              onClick={() =>
+                openImageSourcePicker({
+                  title: "Add menu image",
+                  fileNamePrefix: "menu-image",
+                  fallbackInputRef: menuImagesInputRef,
+                  onSelectFile: (file) => handleMenuImagesSelected(file ? [file] : []),
+                })
+              }
             >
               <Upload className="w-4 h-4 mr-1.5" />
               Upload
@@ -1886,12 +1899,7 @@ export default function RestaurantOnboarding() {
                 const files = Array.from(e.target.files || [])
                 if (!files.length) return
                 debugLog('?? Menu images selected:', files.length, 'files')
-                const nextMenuImages = [...(step2.menuImages || []), ...files]
-                setStep2((prev) => ({
-                  ...prev,
-                  menuImages: nextMenuImages, // Append new files to existing ones
-                }))
-                void persistMenuImagesToDB(nextMenuImages)
+                handleMenuImagesSelected(files)
                 // Reset input to allow selecting same file again
                 e.target.value = ''
               }}
@@ -2020,7 +2028,14 @@ export default function RestaurantOnboarding() {
             type="button"
             variant="outline"
             className="w-full text-xs"
-            onClick={() => profileImageInputRef.current?.click()}
+            onClick={() =>
+              openImageSourcePicker({
+                title: "Upload profile image",
+                fileNamePrefix: "profile-image",
+                fallbackInputRef: profileImageInputRef,
+                onSelectFile: handleProfileImageSelected,
+              })
+            }
           >
             <Upload className="w-4 h-4 mr-1.5" />
             Upload
@@ -2035,11 +2050,7 @@ export default function RestaurantOnboarding() {
               const file = e.target.files?.[0] || null
               if (file) {
                 debugLog('?? Profile image selected:', file.name)
-                setStep2((prev) => ({
-                  ...prev,
-                  profileImage: file,
-                }))
-                void saveFileToDB("profileImage", file)
+                handleProfileImageSelected(file)
               }
               // Reset input to allow selecting same file again
               e.target.value = ''
@@ -2178,7 +2189,14 @@ export default function RestaurantOnboarding() {
             type="button"
             variant="outline"
             className="mt-2 w-full text-xs"
-            onClick={() => panImageInputRef.current?.click()}
+            onClick={() =>
+              openImageSourcePicker({
+                title: "Upload PAN image",
+                fileNamePrefix: "pan-image",
+                fallbackInputRef: panImageInputRef,
+                onSelectFile: handlePanImageSelected,
+              })
+            }
           >
             <Upload className="w-4 h-4 mr-1.5" />
             Upload
@@ -2188,9 +2206,10 @@ export default function RestaurantOnboarding() {
             accept={GALLERY_IMAGE_ACCEPT}
             className="hidden"
             ref={panImageInputRef}
-            onChange={(e) =>
-              setStep3((prev) => ({ ...prev, panImage: e.target.files?.[0] || null }))
-            }
+            onChange={(e) => {
+              handlePanImageSelected(e.target.files?.[0] || null)
+              e.target.value = ""
+            }}
           />
           {step3.panImage && (
             <div className="mt-3 relative aspect-4/3 rounded-md overflow-hidden bg-gray-100">
@@ -2276,7 +2295,14 @@ export default function RestaurantOnboarding() {
               type="button"
               variant="outline"
               className="w-full text-xs"
-              onClick={() => gstImageInputRef.current?.click()}
+              onClick={() =>
+                openImageSourcePicker({
+                  title: "Upload GST image",
+                  fileNamePrefix: "gst-image",
+                  fallbackInputRef: gstImageInputRef,
+                  onSelectFile: handleGstImageSelected,
+                })
+              }
             >
               <Upload className="w-4 h-4 mr-1.5" />
               Upload
@@ -2286,9 +2312,10 @@ export default function RestaurantOnboarding() {
               accept={GALLERY_IMAGE_ACCEPT}
               className="hidden"
               ref={gstImageInputRef}
-              onChange={(e) =>
-                setStep3((prev) => ({ ...prev, gstImage: e.target.files?.[0] || null }))
-              }
+              onChange={(e) => {
+                handleGstImageSelected(e.target.files?.[0] || null)
+                e.target.value = ""
+              }}
             />
             {step3.gstImage && (
               <div className="mt-3 relative aspect-4/3 rounded-md overflow-hidden bg-gray-100">
@@ -2379,7 +2406,14 @@ export default function RestaurantOnboarding() {
           type="button"
           variant="outline"
           className="w-full text-xs"
-          onClick={() => fssaiImageInputRef.current?.click()}
+          onClick={() =>
+            openImageSourcePicker({
+              title: "Upload FSSAI image",
+              fileNamePrefix: "fssai-image",
+              fallbackInputRef: fssaiImageInputRef,
+              onSelectFile: handleFssaiImageSelected,
+            })
+          }
         >
           <Upload className="w-4 h-4 mr-1.5" />
           Upload
@@ -2389,9 +2423,10 @@ export default function RestaurantOnboarding() {
           accept={GALLERY_IMAGE_ACCEPT}
           className="hidden"
           ref={fssaiImageInputRef}
-          onChange={(e) =>
-            setStep3((prev) => ({ ...prev, fssaiImage: e.target.files?.[0] || null }))
-          }
+          onChange={(e) => {
+            handleFssaiImageSelected(e.target.files?.[0] || null)
+            e.target.value = ""
+          }}
         />
         {step3.fssaiImage && (
           <div className="mt-3 relative aspect-4/3 rounded-md overflow-hidden bg-gray-100">

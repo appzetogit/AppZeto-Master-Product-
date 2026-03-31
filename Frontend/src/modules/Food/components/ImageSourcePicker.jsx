@@ -23,11 +23,12 @@ export const ImageSourcePicker = ({
 }) => {
   
   const handleOpenCamera = async () => {
-    onClose()
-    await openCamera({
+    const openPromise = openCamera({
       onSelectFile: onFileSelect,
       fileNamePrefix: fileNamePrefix
     })
+    onClose()
+    await openPromise
   }
 
   const handlePickFromDevice = async () => {

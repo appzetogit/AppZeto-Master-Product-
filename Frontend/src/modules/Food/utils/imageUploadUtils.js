@@ -1,5 +1,58 @@
 import { toast } from "sonner"
 
+const openTransientImageInput = ({
+  onSelectFile,
+  accept = "image/*",
+  capture = undefined,
+}) => {
+  if (typeof document === "undefined") {
+    throw new Error("Document is not available")
+  }
+
+  const input = document.createElement("input")
+  input.type = "file"
+  input.accept = accept
+  input.multiple = false
+  if (capture) {
+    input.setAttribute("capture", capture)
+  }
+
+  input.style.position = "fixed"
+  input.style.left = "-9999px"
+  input.style.width = "1px"
+  input.style.height = "1px"
+  input.style.opacity = "0"
+  input.style.pointerEvents = "none"
+
+  const cleanup = () => {
+    input.onchange = null
+    input.oncancel = null
+    if (input.parentNode) {
+      input.parentNode.removeChild(input)
+    }
+  }
+
+  input.onchange = (event) => {
+    const file = event?.target?.files?.[0] || null
+    if (file) onSelectFile(file)
+    cleanup()
+  }
+
+  input.oncancel = cleanup
+  document.body.appendChild(input)
+
+  if (typeof input.showPicker === "function") {
+    try {
+      input.showPicker()
+      return
+    } catch {
+      // Fall back to the standard click-based picker below.
+    }
+  }
+
+  input.click()
+}
+
 /**
  * Utility to convert base64 image data from Flutter bridge into a File object
  */
@@ -36,15 +89,11 @@ export const convertBase64ToFile = (base64Value, mimeType = "image/jpeg", fileNa
  */
 export const openBrowserCameraFallback = (onSelectFile) => {
   try {
-    const input = document.createElement("input")
-    input.type = "file"
-    input.accept = "image/*"
-    input.capture = "environment"
-    input.onchange = (event) => {
-      const file = event?.target?.files?.[0] || null
-      if (file) onSelectFile(file)
-    }
-    input.click()
+    openTransientImageInput({
+      onSelectFile,
+      accept: "image/*",
+      capture: "environment",
+    })
   } catch (error) {
     console.error("Browser camera fallback failed:", error)
     toast.error("Could not open camera")
@@ -111,17 +160,13 @@ export const openCamera = async ({ onSelectFile, fileNamePrefix = "camera-photo"
 export const openGallery = async ({ onSelectFile, fileNamePrefix = "gallery-photo" }) => {
   try {
     // For Gallery, we use the standard browser input.
-    // Why? Because the browser's native file picker on Android/iOS 
+    // Why? Because the browser's native file picker on Android/iOS
     // is highly reliable and provides direct gallery access.
     // The bridge "openCamera" seems to force camera even for gallery source.
-    const input = document.createElement("input")
-    input.type = "file"
-    input.accept = "image/*"
-    input.onchange = (event) => {
-      const file = event?.target?.files?.[0] || null
-      if (file) onSelectFile(file)
-    }
-    input.click()
+    openTransientImageInput({
+      onSelectFile,
+      accept: "image/*",
+    })
   } catch (error) {
     console.error("Gallery pick failed:", error)
     toast.error("Failed to open gallery")

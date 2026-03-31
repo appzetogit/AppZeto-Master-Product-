@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, ChevronDown, Search, Mic, Bell, CheckCircle2, Tag, Gift, AlertCircle, Clock, BellOff } from 'lucide-react';
+import { MapPin, ChevronDown, Search, Mic, Bell, CheckCircle2, Tag, Gift, AlertCircle, Clock, BellOff, X } from 'lucide-react';
 import { 
   Popover, 
   PopoverContent, 
@@ -59,6 +59,15 @@ export default function HomeHeader({
   ];
 
   const unreadCount = notifications.filter(n => !n.read).length;
+
+  const handleDeleteNotification = (id) => {
+    setNotifications((prev) => {
+      const next = prev.filter((notification) => notification.id !== id);
+      localStorage.setItem('food_user_notifications', JSON.stringify(next));
+      window.dispatchEvent(new CustomEvent('notificationsUpdated', { detail: { count: next.filter((n) => !n.read).length } }));
+      return next;
+    });
+  };
 
   return (
     <div className="relative bg-gradient-to-b from-[#f36371] to-[#ef4f5f] pt-5 pb-5 px-4 space-y-5 shadow-xl overflow-hidden">
@@ -135,7 +144,21 @@ export default function HomeHeader({
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2 mb-0.5">
                             <span className="text-sm font-bold text-gray-900 dark:text-white truncate">{notif.title}</span>
-                            <span className="text-[10px] text-gray-400 whitespace-nowrap">{notif.time}</span>
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] text-gray-400 whitespace-nowrap">{notif.time}</span>
+                              <button
+                                type="button"
+                                aria-label="Delete notification"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleDeleteNotification(notif.id);
+                                }}
+                                className="rounded-full p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
                           </div>
                           <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed">
                             {notif.message}

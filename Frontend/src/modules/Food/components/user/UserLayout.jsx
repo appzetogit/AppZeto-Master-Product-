@@ -120,16 +120,17 @@ export default function UserLayout() {
   const normalizedPath =
     path.length > 1 ? path.replace(/\/+$/, "") : path
 
+  const isProfileRoot =
+    normalizedPath === "/profile" ||
+    normalizedPath === "/user/profile"
+
   const showBottomNav = normalizedPath === "/" ||
     normalizedPath === "/user" ||
     normalizedPath === "/dining" ||
     normalizedPath === "/user/dining" ||
     normalizedPath === "/under-250" ||
     normalizedPath === "/user/under-250" ||
-    normalizedPath === "/profile" ||
-    normalizedPath.startsWith("/profile") ||
-    normalizedPath === "/user/profile" ||
-    normalizedPath.startsWith("/user/profile") ||
+    isProfileRoot ||
     normalizedPath === "" // Handle empty string case for root relative to /food
 
   const isUnder250 = normalizedPath === "/under-250" || normalizedPath === "/user/under-250"

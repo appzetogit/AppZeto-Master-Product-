@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
-import { ArrowLeft, Bell, CheckCircle2, Clock, Tag, Gift, AlertCircle, Trash2 } from "lucide-react"
+import { ArrowLeft, Bell, CheckCircle2, Clock, Tag, Gift, AlertCircle, Trash2, X } from "lucide-react"
 import AnimatedPage from "@food/components/user/AnimatedPage"
 import { Button } from "@food/components/ui/button"
 import { Card, CardContent } from "@food/components/ui/card"
@@ -110,6 +110,10 @@ export default function Notifications() {
     setNotificationsList([])
   }
 
+  const handleDeleteOne = (id) => {
+    setNotificationsList((prev) => prev.filter((notification) => notification.id !== id))
+  }
+
   return (
     <AnimatedPage className="min-h-screen bg-white dark:bg-[#0a0a0a]">
       <div className="max-w-md md:max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 md:py-8">
@@ -171,10 +175,23 @@ export default function Notifications() {
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
-                      <h3 className={`text-sm sm:text-base md:text-lg font-semibold mb-1 md:mb-2 ${!notification.read ? "text-gray-900 dark:text-white" : "text-gray-700 dark:text-gray-300"
-                        }`}>
-                        {notification.title}
-                      </h3>
+                      <div className="flex items-start justify-between gap-2 mb-1 md:mb-2">
+                        <h3 className={`text-sm sm:text-base md:text-lg font-semibold ${!notification.read ? "text-gray-900 dark:text-white" : "text-gray-700 dark:text-gray-300"
+                          }`}>
+                          {notification.title}
+                        </h3>
+                        <button
+                          type="button"
+                          aria-label="Delete notification"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeleteOne(notification.id)
+                          }}
+                          className="flex-shrink-0 rounded-full p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
                       <p className="text-xs sm:text-sm md:text-base text-gray-600 dark:text-gray-400 mb-2 md:mb-3 line-clamp-2">
                         {notification.message}
                       </p>

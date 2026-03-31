@@ -1583,17 +1583,44 @@ function RestaurantDetailsContent() {
     return false;
   }
 
-  // Filter sections to only show those with items under Rs 250
-  // Returns array of { section, originalIndex } to preserve original index for expanded sections
+  // Build renderable sections from the current filter state so section/subsection visibility
+  // stays in sync with the actual filtered items shown on screen.
   const getFilteredSections = () => {
-    if (!restaurant?.menuSections) return [];
-    if (!showOnlyUnder250) {
-      return restaurant.menuSections.map((section, index) => ({ section, originalIndex: index }));
-    }
+    if (!restaurant?.menuSections) return []
 
     return restaurant.menuSections
-      .map((section, index) => ({ section, originalIndex: index }))
-      .filter(({ section }) => sectionHasItemsUnder250(section));
+      .map((section, index) => {
+        const filteredItems = sortMenuItems(
+          filterMenuItems(
+            toRenderableArray(section?.items).filter((item) => item?.isAvailable !== false)
+          )
+        )
+
+        const filteredSubsections = toRenderableArray(section?.subsections)
+          .map((subsection) => ({
+            ...subsection,
+            items: sortMenuItems(
+              filterMenuItems(
+                toRenderableArray(subsection?.items).filter((item) => item?.isAvailable !== false)
+              )
+            ),
+          }))
+          .filter((subsection) => subsection.items.length > 0)
+
+        return {
+          section: {
+            ...section,
+            items: filteredItems,
+            subsections: filteredSubsections,
+          },
+          originalIndex: index,
+        }
+      })
+      .filter(({ section }) => {
+        const hasVisibleItems = toRenderableArray(section?.items).length > 0
+        const hasVisibleSubsections = toRenderableArray(section?.subsections).length > 0
+        return hasVisibleItems || hasVisibleSubsections
+      })
   }
 
   useEffect(() => {
@@ -2053,7 +2080,7 @@ function RestaurantDetailsContent() {
                   )}
                   {isExpanded && sectionItems.length > 0 && (
                     <div className="space-y-0">
-                      {sortMenuItems(filterMenuItems(sectionItems)).map((item) => {
+                      {sectionItems.map((item) => {
                         const quantity = quantities[item.id] || 0
                         // Determine veg/non-veg based on foodType
                         const isVeg = item.foodType === "Veg"
@@ -2237,17 +2264,7 @@ function RestaurantDetailsContent() {
                   {/* Subsections */}
                   {isExpanded && sectionSubsections.length > 0 && (
                     <div className="space-y-4">
-                      {sectionSubsections.filter(subsection => {
-                        // Filter subsections to only show those with items under ?250
-                        if (!showOnlyUnder250) return true;
-                        const subsectionItems = toRenderableArray(subsection?.items)
-                        if (subsectionItems.length === 0) return false;
-                        return subsectionItems.some(item => {
-                          if (item.isAvailable === false) return false;
-                          const finalPrice = getFinalPrice(item);
-                          return finalPrice <= 250;
-                        });
-                      }).map((subsection, subIndex) => {
+                      {sectionSubsections.map((subsection, subIndex) => {
                         const subsectionKey = `${originalIndex}-${subIndex}`
                         const isSubsectionExpanded = expandedSections.has(subsectionKey)
                         const subsectionItems = toRenderableArray(subsection?.items)
@@ -2284,7 +2301,7 @@ function RestaurantDetailsContent() {
                             {/* Subsection Items */}
                             {isSubsectionExpanded && subsectionItems.length > 0 && (
                               <div className="space-y-0">
-                                {sortMenuItems(filterMenuItems(subsectionItems)).map((item) => {
+                                {subsectionItems.map((item) => {
                                   const quantity = quantities[item.id] || 0
                                   // Determine veg/non-veg based on foodType
                                   const isVeg = item.foodType === "Veg"

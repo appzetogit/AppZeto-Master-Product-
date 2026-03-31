@@ -36,8 +36,8 @@ import { useNavigate } from 'react-router-dom';
 function BottomPopup({ isOpen, onClose, title, children }) {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-[600] flex items-end" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/40" />
+    <div className="fixed inset-0 z-[600] flex items-end">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <motion.div
         initial={{ y: "100%" }}
         animate={{ y: 0 }}
@@ -67,10 +67,9 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   const { isOnline, toggleOnline, activeOrder, tripStatus, setRiderLocation, setActiveOrder, updateTripStatus, clearActiveOrder } = useDeliveryStore();
   const { isWithinRange, distanceToTarget } = useProximityCheck();
   const { acceptOrder, reachPickup, pickUpOrder, reachDrop, completeDelivery, resetTrip } = useOrderManager();
-  
   const { newOrder, clearNewOrder, orderStatusUpdate, clearOrderStatusUpdate, isConnected: isSocketConnected, emitLocation } = useDeliveryNotifications();
+  const companyName = useCompanyName();
 
-  
   const [incomingOrder, setIncomingOrder] = useState(null);
   const [currentTab, setCurrentTab] = useState(tab);
   
@@ -106,7 +105,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   const mapRef = useRef(null);
 
   const isLoggingOut = useRef(false);
-  const handleLogout = React.useCallback(() => {
+  const handleLogout = useCallback(() => {
     if (isLoggingOut.current) return;
     isLoggingOut.current = true;
     
@@ -207,8 +206,6 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
     return () => clearInterval(interval);
   }, [isSimMode, simPath, simIndex, activeOrder, emitLocation, activePolyline, eta, tripStatus]);
 
-  const companyName = useCompanyName();
-
   // Fetch Emergency numbers and Profile (Restored logic)
   useEffect(() => {
     (async () => {
@@ -255,18 +252,6 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   useEffect(() => {
     setIsModalMinimized(false);
   }, [tripStatus, showVerification, incomingOrder]);
-
-  useEffect(() => {
-    const handleLogout = (e) => {
-      // If the delivery module specifically fails, we exit.
-      if (!e.detail || e.detail.module === "delivery") {
-        toast.error("Session expired. Please login again.");
-        navigate("/food/delivery/login", { replace: true });
-      }
-    };
-    window.addEventListener("authRefreshFailed", handleLogout);
-    return () => window.removeEventListener("authRefreshFailed", handleLogout);
-  }, [navigate]);
 
   // 1. Initial Sync (Force sync with server to avoid 'stuck' persistent state)
   useEffect(() => {
@@ -475,6 +460,82 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   }, [isOnline]);
 
   useEffect(() => { if (newOrder) setIncomingOrder(newOrder); }, [newOrder]);
+
+  useEffect(() => {
+    if (activeOrder && incomingOrder) {
+      setIncomingOrder(null);
+    }
+  }, [activeOrder, incomingOrder]);
+
+  useEffect(() => {
+    if (!isOnline) return;
+    if (currentTab !== 'feed') return;
+    if (activeOrder) return;
+
+    let cancelled = false;
+
+    const hydrateAvailableOrder = async () => {
+      try {
+        const currentResponse = await deliveryAPI.getCurrentDelivery();
+        const currentPayload =
+          currentResponse?.data?.data?.activeOrder ||
+          currentResponse?.data?.data ||
+          null;
+
+        if (!cancelled && currentPayload && (currentPayload._id || currentPayload.orderId)) {
+          setActiveOrder(currentPayload);
+          return;
+        }
+
+        const availableResponse = await deliveryAPI.getOrders({ limit: 20, page: 1 });
+        const availablePayload =
+          availableResponse?.data?.data ||
+          availableResponse?.data ||
+          {};
+        const availableOrders = Array.isArray(availablePayload?.docs)
+          ? availablePayload.docs
+          : Array.isArray(availablePayload?.items)
+            ? availablePayload.items
+            : Array.isArray(availablePayload)
+              ? availablePayload
+              : [];
+
+        const nextIncomingOrder = availableOrders.find((order) => {
+          const dispatchStatus = String(order?.dispatch?.status || '').toLowerCase();
+          const orderStatus = String(order?.orderStatus || order?.status || '').toLowerCase();
+          return (
+            ['unassigned', 'assigned'].includes(dispatchStatus) &&
+            ['confirmed', 'preparing', 'ready_for_pickup'].includes(orderStatus)
+          );
+        });
+
+        if (!cancelled && nextIncomingOrder) {
+          setIncomingOrder((prev) => {
+            const prevId = prev?.orderId || prev?._id || prev?.orderMongoId;
+            const nextId =
+              nextIncomingOrder?.orderId ||
+              nextIncomingOrder?._id ||
+              nextIncomingOrder?.orderMongoId;
+            return prevId === nextId && prev ? prev : nextIncomingOrder;
+          });
+        }
+      } catch (error) {
+        console.warn('[DeliveryHomeV2] Available order fallback sync failed:', error?.message || error);
+      }
+    };
+
+    void hydrateAvailableOrder();
+    const poller = window.setInterval(() => {
+      if (!document.hidden) {
+        void hydrateAvailableOrder();
+      }
+    }, isSocketConnected ? 12000 : 5000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(poller);
+    };
+  }, [activeOrder, currentTab, isOnline, isSocketConnected, setActiveOrder]);
 
   useEffect(() => {
     if (orderStatusUpdate) {

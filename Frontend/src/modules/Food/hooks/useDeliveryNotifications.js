@@ -5,24 +5,36 @@ import { deliveryAPI } from '@food/api';
 import alertSound from '@food/assets/audio/alert.mp3';
 import originalSound from '@food/assets/audio/original.mp3';
 
-if (typeof window !== 'undefined') {
-  console.log('?? [DeliverySocket] alertSound URL:', alertSound);
-  console.log('?? [DeliverySocket] originalSound URL:', originalSound);
-}
+const shouldLogDeliverySocket = () => {
+  if (typeof window === 'undefined') return import.meta.env.DEV;
+  try {
+    return (
+      import.meta.env.DEV ||
+      window.localStorage.getItem('delivery_socket_debug') === '1' ||
+      window.location.search.includes('delivery_socket_debug=1')
+    );
+  } catch {
+    return import.meta.env.DEV;
+  }
+};
+
 const debugLog = (...args) => {
-  if (import.meta.env.DEV) {
-    console.log('?? [DeliverySocket]', ...args);
+  if (shouldLogDeliverySocket()) {
+    console.log('[DeliverySocket]', ...args);
   }
-}
+};
 const debugWarn = (...args) => {
-  if (import.meta.env.DEV) {
-    console.warn('?? [DeliverySocket]', ...args);
+  if (shouldLogDeliverySocket()) {
+    console.warn('[DeliverySocket]', ...args);
   }
-}
+};
 const debugError = (...args) => {
-  if (import.meta.env.DEV) {
-    console.error('?? [DeliverySocket]', ...args);
-  }
+  console.error('[DeliverySocket]', ...args);
+};
+
+if (typeof window !== 'undefined') {
+  debugLog('alertSound URL:', alertSound);
+  debugLog('originalSound URL:', originalSound);
 }
 
 const resolveAudioSource = (source) => {
@@ -175,6 +187,7 @@ export const useDeliveryNotifications = () => {
   const [orderStatusUpdate, setOrderStatusUpdate] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [deliveryPartnerId, setDeliveryPartnerId] = useState(null);
+  const joinedDeliveryRoomRef = useRef(null);
   const ALERT_LOOP_INTERVAL_MS = 4500;
   const ALERT_LOOP_MAX_MS = 120000;
   const ALERT_DEDUPE_MS = 15000;
@@ -352,6 +365,126 @@ export const useDeliveryNotifications = () => {
       showBackgroundOrderNotification(orderData);
     }
   }, [playNotificationSound, showBackgroundOrderNotification, startAlertLoop]);
+
+  const recoverDeliveryState = useCallback(async () => {
+    if (!deliveryPartnerId) return;
+
+    try {
+      const [availableResult, currentTripResult] = await Promise.allSettled([
+        deliveryAPI.getOrders({ limit: 20, page: 1 }),
+        deliveryAPI.getCurrentDelivery(),
+      ]);
+
+      const currentTrip =
+        currentTripResult.status === 'fulfilled'
+          ? currentTripResult.value?.data?.data ??
+            currentTripResult.value?.data ??
+            null
+          : null;
+
+      if (currentTrip) {
+        debugLog('Recovered current delivery trip after reconnect/focus:', currentTrip);
+        setOrderStatusUpdate({
+          ...currentTrip,
+          recoverySource: 'delivery_reconnect',
+        });
+        return;
+      }
+
+      const availablePayload =
+        availableResult.status === 'fulfilled'
+          ? availableResult.value?.data?.data ??
+            availableResult.value?.data ??
+            {}
+          : {};
+      const availableOrders = Array.isArray(availablePayload?.docs)
+        ? availablePayload.docs
+        : Array.isArray(availablePayload?.items)
+          ? availablePayload.items
+          : Array.isArray(availablePayload)
+            ? availablePayload
+            : [];
+
+      const recoverableOrder = availableOrders.find((order) => {
+        const dispatchStatus = order?.dispatch?.status;
+        return (
+          ['unassigned', 'assigned'].includes(dispatchStatus) &&
+          ['preparing', 'ready_for_pickup'].includes(order?.orderStatus)
+        );
+      });
+
+      if (recoverableOrder && !activeOrderRef.current) {
+        debugLog('Recovered available delivery order after reconnect/focus:', recoverableOrder);
+        setNewOrder(recoverableOrder);
+        handleIncomingOrderAlert(recoverableOrder);
+      }
+    } catch (error) {
+      debugWarn('Delivery recovery sync failed:', error?.message || error);
+    }
+  }, [deliveryPartnerId, handleIncomingOrderAlert]);
+
+  const joinDeliveryRoomIfPossible = useCallback(() => {
+    if (!socketRef.current?.connected || !deliveryPartnerId) {
+      return false;
+    }
+
+    if (joinedDeliveryRoomRef.current === deliveryPartnerId) {
+      return true;
+    }
+
+    debugLog('Joining delivery room', {
+      deliveryPartnerId,
+      socketId: socketRef.current?.id,
+    });
+    socketRef.current.emit('join-delivery', deliveryPartnerId);
+    joinedDeliveryRoomRef.current = deliveryPartnerId;
+    return true;
+  }, [deliveryPartnerId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    window.__deliverySocketDebug = {
+      enabled: shouldLogDeliverySocket(),
+      apiBaseUrl: API_BASE_URL,
+      get deliveryPartnerId() {
+        return deliveryPartnerId;
+      },
+      get isConnected() {
+        return isConnected;
+      },
+      get socketId() {
+        return socketRef.current?.id || null;
+      },
+      get socketConnected() {
+        return Boolean(socketRef.current?.connected);
+      },
+      forceReconnect() {
+        if (socketRef.current) {
+          socketRef.current.connect();
+        }
+      },
+      dump() {
+        return {
+          enabled: shouldLogDeliverySocket(),
+          apiBaseUrl: API_BASE_URL,
+          deliveryPartnerId,
+          isConnected,
+          socketId: socketRef.current?.id || null,
+          socketConnected: Boolean(socketRef.current?.connected),
+          socketAuthTokenPresent: Boolean(
+            localStorage.getItem('delivery_accessToken') || localStorage.getItem('accessToken')
+          ),
+        };
+      },
+    };
+
+    return () => {
+      if (window.__deliverySocketDebug) {
+        delete window.__deliverySocketDebug;
+      }
+    };
+  }, [deliveryPartnerId, isConnected]);
 
   // Step 4: All effects (unconditional hook calls, conditional logic inside)
   useEffect(() => {
@@ -542,23 +675,27 @@ export const useDeliveryNotifications = () => {
       setIsConnected(false);
       return;
     }
-    if (!deliveryPartnerId) {
-      debugLog('? Waiting for deliveryPartnerId...');
-      return;
-    }
 
     // IMPORTANT: Socket.IO server is on the origin (not /api/v1).
     // Our API baseURL is typically like: http://localhost:5000/api/v1
     // So for sockets we always connect to: http://localhost:5000
     let backendUrl = API_BASE_URL;
     try {
-      backendUrl = new URL(backendUrl).origin;
+      const base =
+        String(backendUrl).startsWith('http')
+          ? undefined
+          : (typeof window !== 'undefined' ? window.location.origin : undefined);
+      backendUrl = new URL(backendUrl, base).origin;
     } catch {
       // best-effort fallback: strip common API prefixes
       backendUrl = String(backendUrl || "")
         .replace(/\/api\/v\d+\/?$/i, "")
         .replace(/\/api\/?$/i, "")
         .replace(/\/+$/, "");
+
+      if ((!backendUrl || !backendUrl.startsWith('http')) && typeof window !== 'undefined') {
+        backendUrl = window.location.origin;
+      }
     }
     
     // Backend uses default namespace; rooms handle role separation.
@@ -599,6 +736,13 @@ export const useDeliveryNotifications = () => {
     }
 
     const token = localStorage.getItem('delivery_accessToken') || localStorage.getItem('accessToken');
+    const tokenPreview = token ? `${String(token).slice(0, 12)}...` : null;
+    debugLog('Preparing socket auth payload', {
+      tokenPresent: Boolean(token),
+      tokenPreview,
+      deliveryPartnerId,
+      socketUrl,
+    });
 
     socketRef.current = io(socketUrl, {
       path: '/socket.io/',
@@ -610,49 +754,72 @@ export const useDeliveryNotifications = () => {
       timeout: 20000,
       auth: {
         token: token || ""
-      }
+      },
+      query: token ? { token } : undefined,
+    });
+
+    debugLog('Socket.IO client created', {
+      socketUrl,
+      path: '/socket.io/',
+      transports: ['polling', 'websocket'],
+      tokenPresent: Boolean(token),
+      tokenPreview,
+      deliveryPartnerId,
     });
 
     socketRef.current.on('connect', () => {
-      debugLog('? Delivery Socket connected, deliveryPartnerId:', deliveryPartnerId);
+      debugLog('Socket connected', {
+        socketId: socketRef.current?.id,
+        deliveryPartnerId,
+        transport: socketRef.current?.io?.engine?.transport?.name || 'unknown',
+      });
       setIsConnected(true);
-      
-      if (deliveryPartnerId) {
-        debugLog('?? Joining delivery room with ID:', deliveryPartnerId);
-        socketRef.current.emit('join-delivery', deliveryPartnerId);
+
+      joinedDeliveryRoomRef.current = null;
+      if (!joinDeliveryRoomIfPossible()) {
+        debugLog('Socket connected before deliveryPartnerId was ready; waiting to join room.');
       }
+      debugLog('Requesting resync after connect', {
+        deliveryPartnerId,
+        socketId: socketRef.current?.id,
+      });
       socketRef.current.emit('resync');
+      void recoverDeliveryState();
     });
 
     socketRef.current.on('delivery-room-joined', (data) => {
-      debugLog('? Delivery room joined successfully:', data);
+      debugLog('Delivery room joined successfully', data);
+    });
+
+    socketRef.current.on('resync_complete', (data) => {
+      debugLog('Resync completed', data);
     });
 
     socketRef.current.on('connect_error', (error) => {
-      // Only log if it's not a network/polling/websocket error (backend might be down or WebSocket not available)
-      // Socket.IO will automatically retry connection and fall back to polling
-      const isTransportError = error.type === 'TransportError' || 
-                               error.message === 'xhr poll error' ||
-                               error.message?.includes('WebSocket') ||
-                               error.message?.includes('websocket') ||
-                               error.description === 0; // WebSocket upgrade failures
-      
-      if (!isTransportError) {
-        debugError('? Delivery Socket connection error:', error);
-      } else {
-        // Silently handle transport errors - backend might not be running or WebSocket not available
-        // Socket.IO will automatically retry with exponential backoff and fall back to polling
-        // Only log in development for debugging
-        if (process.env.NODE_ENV === 'development') {
-          debugLog('? Delivery Socket: WebSocket upgrade failed, using polling fallback');
-        }
-      }
+      debugError('Socket connection error', {
+        message: error?.message,
+        type: error?.type,
+        description: error?.description,
+        context: error?.context,
+        data: error?.data,
+        socketUrl,
+        apiBaseUrl: API_BASE_URL,
+        deliveryPartnerId,
+        tokenPresent: Boolean(token),
+        tokenPreview,
+        transport: socketRef.current?.io?.engine?.transport?.name || 'unknown',
+      });
       setIsConnected(false);
     });
 
     socketRef.current.on('disconnect', (reason) => {
-      debugLog('? Delivery Socket disconnected:', reason);
+      debugWarn('Socket disconnected', {
+        reason,
+        socketId: socketRef.current?.id,
+        deliveryPartnerId,
+      });
       setIsConnected(false);
+      joinedDeliveryRoomRef.current = null;
       
       if (reason === 'io server disconnect') {
         socketRef.current.connect();
@@ -660,36 +827,53 @@ export const useDeliveryNotifications = () => {
     });
 
     socketRef.current.on('reconnect_attempt', (attemptNumber) => {
-      debugLog(`?? Reconnection attempt ${attemptNumber}...`);
+      debugWarn('Reconnection attempt', {
+        attemptNumber,
+        socketUrl,
+        deliveryPartnerId,
+      });
     });
 
     socketRef.current.on('reconnect', (attemptNumber) => {
-      debugLog(`? Reconnected after ${attemptNumber} attempts`);
+      debugLog('Socket reconnected', {
+        attemptNumber,
+        socketId: socketRef.current?.id,
+        deliveryPartnerId,
+        transport: socketRef.current?.io?.engine?.transport?.name || 'unknown',
+      });
       setIsConnected(true);
-      
-      if (deliveryPartnerId) {
-        socketRef.current.emit('join-delivery', deliveryPartnerId);
-      }
+
+      joinedDeliveryRoomRef.current = null;
+      joinDeliveryRoomIfPossible();
       socketRef.current.emit('resync');
+      void recoverDeliveryState();
     });
 
     socketRef.current.on('new_order', (orderData) => {
-      debugLog('?? New order received via socket:', orderData);
+      debugLog('New order received via socket', {
+        orderId: orderData?.orderId || orderData?.orderMongoId || orderData?._id,
+        dispatchStatus: orderData?.dispatch?.status,
+      });
       setNewOrder(orderData);
       handleIncomingOrderAlert(orderData);
     });
 
     // Listen for priority-based order notifications (new_order_available)
     socketRef.current.on('new_order_available', (orderData) => {
-      debugLog('?? New order available (priority notification):', orderData);
-      debugLog('?? Notification phase:', orderData.phase || 'unknown');
+      debugLog('New order available received via socket', {
+        orderId: orderData?.orderId || orderData?.orderMongoId || orderData?._id,
+        phase: orderData?.phase || 'unknown',
+        dispatchStatus: orderData?.dispatch?.status,
+      });
       // Treat it the same as new_order for now - delivery boy can accept it
       setNewOrder(orderData);
       handleIncomingOrderAlert(orderData);
     });
 
     socketRef.current.on('play_notification_sound', (data) => {
-      debugLog('?? Sound notification:', data);
+      debugLog('play_notification_sound received', {
+        orderId: data?.orderId || data?.orderMongoId || data?.order_id,
+      });
       const normalizedData = {
         orderId: data?.orderId || data?.order_id,
         orderMongoId: data?.orderMongoId || data?.order_mongo_id,
@@ -706,7 +890,9 @@ export const useDeliveryNotifications = () => {
     });
 
     socketRef.current.on('order_ready', (orderData) => {
-      debugLog('? Order ready notification received via socket:', orderData);
+      debugLog('order_ready received via socket', {
+        orderId: orderData?.orderId || orderData?.orderMongoId || orderData?._id,
+      });
       setOrderReady(orderData);
       playNotificationSound(orderData);
     });
@@ -736,8 +922,8 @@ export const useDeliveryNotifications = () => {
       debugLog('?? Order reassigned to another partner:', data);
       if (data.orderId === activeOrderRef.current?._id || data.orderId === activeOrderRef.current?.orderId) {
         debugLog('?? Removing reassigned order from local state');
-        setIncomingOrders(prev => prev.filter(o => o.orderId !== data.orderId && o._id !== data.orderId));
-        // If this was our current popup, close it
+        stopAlertLoop();
+        activeOrderRef.current = null;
         setNewOrder(null);
       }
     });
@@ -765,21 +951,54 @@ export const useDeliveryNotifications = () => {
       }
     };
 
+    const handleWindowFocus = () => {
+      void recoverDeliveryState();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void recoverDeliveryState();
+      }
+    };
+
     window.addEventListener('deliveryAuthChanged', handleAuthChange);
     window.addEventListener('authRefreshed', handleAuthRefreshed);
+    window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       debugLog('? Cleaning up socket connection...');
       stopAlertLoop();
+      joinedDeliveryRoomRef.current = null;
       window.removeEventListener('deliveryAuthChanged', handleAuthChange);
       window.removeEventListener('authRefreshed', handleAuthRefreshed);
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (socketRef.current) {
         socketRef.current.removeAllListeners();
         socketRef.current.disconnect();
         socketRef.current = null;
       }
     };
-  }, [deliveryPartnerId, handleIncomingOrderAlert, playNotificationSound, showBackgroundOrderNotification, startAlertLoop, stopAlertLoop]);
+  }, [deliveryPartnerId, handleIncomingOrderAlert, joinDeliveryRoomIfPossible, playNotificationSound, recoverDeliveryState, showBackgroundOrderNotification, startAlertLoop, stopAlertLoop]);
+
+  useEffect(() => {
+    if (!deliveryPartnerId) {
+      debugLog('? Waiting for deliveryPartnerId...');
+      return;
+    }
+
+    joinDeliveryRoomIfPossible();
+
+    if (socketRef.current?.connected) {
+      debugLog('Requesting resync after deliveryPartnerId resolved', {
+        deliveryPartnerId,
+        socketId: socketRef.current?.id,
+      });
+      socketRef.current.emit('resync');
+      void recoverDeliveryState();
+    }
+  }, [deliveryPartnerId, joinDeliveryRoomIfPossible, recoverDeliveryState]);
 
   // Helper functions
   const clearNewOrder = () => {

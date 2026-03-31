@@ -1,0 +1,257 @@
+import mongoose from 'mongoose';
+import { logger } from '../../../../utils/logger.js';
+import {
+  sendNotificationToOwner,
+  sendNotificationToOwners,
+} from "../../../../core/notifications/firebase.service.js";
+import { getIO, rooms } from '../../../../config/socket.js';
+import { addOrderJob } from '../../../../queues/producers/order.producer.js';
+
+export function enqueueOrderEvent(action, payload = {}) {
+  try {
+    void addOrderJob({ action, ...payload }).catch((err) => {
+      logger.warn(`BullMQ enqueue order event failed: ${action} - ${err?.message || err}`);
+    });
+  } catch (err) {
+    logger.warn(`BullMQ enqueue order event failed (sync): ${action} - ${err?.message || err}`);
+  }
+}
+
+export function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+export function generateFourDigitDeliveryOtp() {
+  return String(Math.floor(1000 + Math.random() * 9000));
+}
+
+export function sanitizeOrderForExternal(orderDoc) {
+  const o = orderDoc?.toObject ? orderDoc.toObject() : { ...(orderDoc || {}) };
+  delete o.deliveryOtp;
+  const dv = o.deliveryVerification;
+  if (dv && dv.dropOtp != null) {
+    const d = dv.dropOtp;
+    o.deliveryVerification = {
+      ...dv,
+      dropOtp: {
+        required: Boolean(d.required),
+        verified: Boolean(d.verified),
+      },
+    };
+  }
+  o.orderMongoId = (o._id || orderDoc?._id || "").toString();
+  o.orderId = o.orderMongoId;
+  return o;
+}
+
+export function emitDeliveryDropOtpToUser(order, plainOtp) {
+  try {
+    const io = getIO();
+    if (!io || !plainOtp || !order?.userId) return;
+    io.to(rooms.user(order.userId)).emit("delivery_drop_otp", {
+      orderMongoId: order._id?.toString?.(),
+      orderId: order._id?.toString?.(),
+      otp: plainOtp,
+      message:
+        "Share this OTP with your delivery partner to hand over the order.",
+    });
+  } catch (e) {
+    logger.warn(`emitDeliveryDropOtpToUser failed: ${e?.message || e}`);
+  }
+}
+
+export async function notifyOwnersSafely(targets, payload) {
+  try {
+    await sendNotificationToOwners(targets, payload);
+  } catch (error) {
+    logger.warn(`FCM notification failed: ${error?.message || error}`);
+  }
+}
+
+export async function notifyOwnerSafely(target, payload) {
+  try {
+    await sendNotificationToOwner({ ...target, payload });
+  } catch (error) {
+    logger.warn(`FCM notification failed: ${error?.message || error}`);
+  }
+}
+
+export function buildOrderIdentityFilter(orderIdOrMongoId) {
+  const raw = String(orderIdOrMongoId || "").trim();
+  if (!raw) return null;
+  if (mongoose.isValidObjectId(raw))
+    return { _id: new mongoose.Types.ObjectId(raw) };
+  return null;
+}
+
+export function toGeoPoint(lat, lng) {
+  if (lat == null || lng == null) return undefined;
+  const a = Number(lat);
+  const b = Number(lng);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return undefined;
+  return { type: "Point", coordinates: [b, a] };
+}
+
+export function pushStatusHistory(order, { byRole, byId, from, to, note = "" }) {
+  order.statusHistory.push({
+    at: new Date(),
+    byRole,
+    byId: byId || undefined,
+    from,
+    to,
+    note,
+  });
+}
+
+export function normalizeOrderForClient(orderDoc) {
+  const order = orderDoc?.toObject ? orderDoc.toObject() : orderDoc || {};
+  const orderId = (order._id || orderDoc?._id || "").toString();
+  return {
+    ...order,
+    orderMongoId: orderId,
+    orderId,
+    status: order?.orderStatus || order?.status || "",
+    deliveredAt:
+      order?.deliveryState?.deliveredAt || order?.deliveredAt || null,
+    deliveryPartnerId:
+      order?.dispatch?.deliveryPartnerId || order?.deliveryPartnerId || null,
+    rating: order?.ratings?.restaurant?.rating ?? order?.rating ?? null,
+    deliveryState: {
+      ...(order?.deliveryState || {}),
+      currentLocation: order?.lastRiderLocation?.coordinates?.length >= 2 ? {
+        lat: order.lastRiderLocation.coordinates[1],
+        lng: order.lastRiderLocation.coordinates[0]
+      } : (order?.deliveryState?.currentLocation || null)
+    }
+  };
+}
+
+export async function applyAggregateRating(model, entityId, newRating) {
+  if (!entityId) return;
+  const doc = await model.findById(entityId).select("rating totalRatings");
+  if (!doc) return;
+
+  const totalRatings = Number(doc.totalRatings || 0);
+  const currentAverage = Number(doc.rating || 0);
+  const nextTotal = totalRatings + 1;
+  const nextAverage = Number(
+    ((currentAverage * totalRatings + Number(newRating)) / nextTotal).toFixed(1),
+  );
+
+  doc.totalRatings = nextTotal;
+  doc.rating = nextAverage;
+  await doc.save();
+}
+
+export function buildDeliverySocketPayload(orderDoc, restaurantDoc = null) {
+  const order = orderDoc?.toObject ? orderDoc.toObject() : orderDoc || {};
+  const restaurant = restaurantDoc || order?.restaurantId || null;
+  const restaurantLocation = restaurant?.location || {};
+
+  return {
+    orderMongoId:
+      orderDoc?._id?.toString?.() || order?._id?.toString?.() || order?._id,
+    orderId: order?._id?.toString?.(),
+    status: orderDoc?.orderStatus || order?.orderStatus,
+    items: order?.items || [],
+    pricing: order?.pricing,
+    total: order?.pricing?.total,
+    payment: order?.payment,
+    paymentMethod: order?.payment?.method,
+    restaurantId:
+      order?.restaurantId?._id?.toString?.() ||
+      order?.restaurantId?.toString?.() ||
+      order?.restaurantId,
+    restaurantName: restaurant?.restaurantName || order?.restaurantName,
+    restaurantAddress:
+      restaurantLocation?.address ||
+      restaurantLocation?.formattedAddress ||
+      restaurant?.addressLine1 ||
+      "",
+    restaurantPhone: restaurant?.phone || "",
+    restaurantLocation: {
+      latitude: restaurantLocation?.latitude,
+      longitude: restaurantLocation?.longitude,
+      address:
+        restaurantLocation?.address ||
+        restaurantLocation?.formattedAddress ||
+        restaurant?.addressLine1 ||
+        "",
+      area: restaurantLocation?.area || restaurant?.area || "",
+      city: restaurantLocation?.city || restaurant?.city || "",
+      state: restaurantLocation?.state || restaurant?.state || "",
+    },
+    deliveryAddress: order?.deliveryAddress,
+    customerAddress: order?.deliveryAddress?.formattedAddress || order?.deliveryAddress?.addressLine1 || "",
+    customerName: order?.userId?.name || order?.customerName || "",
+    customerPhone: order?.userId?.phone || order?.deliveryAddress?.phone || "",
+    userName: order?.userId?.name || order?.customerName || "",
+    userPhone: order?.userId?.phone || order?.deliveryAddress?.phone || "",
+    riderEarning: order?.riderEarning || 0,
+    earnings: order?.riderEarning || order?.pricing?.deliveryFee || 0,
+    deliveryFee: order?.pricing?.deliveryFee || 0,
+    deliveryFleet: order?.deliveryFleet,
+    dispatch: order?.dispatch,
+    createdAt: order?.createdAt,
+    updatedAt: order?.updatedAt,
+  };
+}
+
+export function canExposeOrderToRestaurant(orderLike) {
+  const method = String(orderLike?.payment?.method || "").toLowerCase();
+  const status = String(orderLike?.payment?.status || "").toLowerCase();
+  if (["cash", "wallet"].includes(method)) return true;
+  return ["paid", "authorized", "captured", "settled"].includes(status);
+}
+
+export async function notifyRestaurantNewOrder(orderDoc) {
+  try {
+    if (!orderDoc || !canExposeOrderToRestaurant(orderDoc)) return;
+
+    const io = getIO();
+    if (io) {
+      const payload = {
+        ...orderDoc.toObject(),
+        orderMongoId: orderDoc._id?.toString?.() || undefined,
+      };
+      logger.info(
+        `[RestaurantOrders] Emitting new_order to ${rooms.restaurant(orderDoc.restaurantId)} for order ${orderDoc._id?.toString?.() || ''}`,
+      );
+      io.to(rooms.restaurant(orderDoc.restaurantId)).emit("new_order", payload);
+      logger.info(
+        `[RestaurantOrders] Emitting play_notification_sound to ${rooms.restaurant(orderDoc.restaurantId)} for order ${orderDoc._id?.toString?.() || ''}`,
+      );
+      io.to(rooms.restaurant(orderDoc.restaurantId)).emit(
+        "play_notification_sound",
+        {
+          orderId: payload.orderId,
+          orderMongoId: payload.orderMongoId,
+        },
+      );
+    }
+
+    await notifyOwnersSafely(
+      [{ ownerType: "RESTAURANT", ownerId: orderDoc.restaurantId }],
+      {
+        title: "New order received",
+        body: `Order #${orderDoc._id} is waiting for review.`,
+        data: {
+          type: "new_order",
+          orderId: orderDoc._id.toString(),
+          orderMongoId: orderDoc._id?.toString?.() || "",
+          link: `/restaurant/orders/${orderDoc._id?.toString?.() || ""}`,
+        },
+      },
+    );
+  } catch {
+    // Do not block order/payment flow if notification fails.
+  }
+}

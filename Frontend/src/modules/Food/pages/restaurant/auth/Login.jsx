@@ -1,6 +1,6 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { ChevronDown, Phone, ShieldCheck } from "lucide-react"
+import { ShieldCheck } from "lucide-react"
 import {
   Select,
   SelectContent,
@@ -20,6 +20,7 @@ export default function RestaurantLogin() {
   const companyName = useCompanyName()
   const navigate = useNavigate()
   const DEFAULT_COUNTRY_CODE = "+91"
+  const phoneInputRef = useRef(null)
   const [formData, setFormData] = useState(() => {
     const saved = sessionStorage.getItem("restaurantLoginPhone")
     return {
@@ -29,8 +30,26 @@ export default function RestaurantLogin() {
   })
   const [error, setError] = useState("")
   const [isSending, setIsSending] = useState(false)
+  const [keyboardInset, setKeyboardInset] = useState(0)
 
-  const selectedCountry = countryCodes.find((c) => c.code === formData.countryCode) || countryCodes[0]
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.visualViewport) return undefined
+
+    const updateKeyboardInset = () => {
+      const viewport = window.visualViewport
+      const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+      setKeyboardInset(inset > 0 ? inset : 0)
+    }
+
+    updateKeyboardInset()
+    window.visualViewport.addEventListener("resize", updateKeyboardInset)
+    window.visualViewport.addEventListener("scroll", updateKeyboardInset)
+
+    return () => {
+      window.visualViewport.removeEventListener("resize", updateKeyboardInset)
+      window.visualViewport.removeEventListener("scroll", updateKeyboardInset)
+    }
+  }, [])
 
   const validatePhone = (phone, countryCode) => {
     if (!phone || phone.trim() === "") return "Phone number is required"
@@ -66,6 +85,15 @@ export default function RestaurantLogin() {
     }
   }
 
+  const ensurePhoneFieldVisible = () => {
+    window.setTimeout(() => {
+      phoneInputRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      })
+    }, 180)
+  }
+
   const handleSendOTP = async () => {
     const phoneError = validatePhone(formData.phone, formData.countryCode)
     setError(phoneError)
@@ -99,7 +127,10 @@ export default function RestaurantLogin() {
   const isValidPhone = !validatePhone(formData.phone, formData.countryCode)
 
   return (
-    <div className="min-h-screen bg-white flex flex-col font-sans">
+    <div
+      className="min-h-[100dvh] bg-white flex flex-col overflow-y-auto overscroll-contain font-sans"
+      style={{ paddingBottom: keyboardInset ? `${keyboardInset + 24}px` : undefined }}
+    >
       {/* Curved Header Background */}
       <div className="relative h-[300px] w-full bg-[#ef4f5f] overflow-hidden">
         {/* Abstract Circles like in the image */}
@@ -135,7 +166,7 @@ export default function RestaurantLogin() {
             <div className="space-y-3">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] ml-1">Registered Mobile Number</label>
               
-              <div className="flex items-center gap-2 h-16 bg-slate-50 border border-slate-100 rounded-[32px] px-2 focus-within:border-[#ef4f5f]/30 focus-within:ring-4 focus-within:ring-[#ef4f5f]/5 transition-all">
+              <div className="flex items-center gap-2 h-16 bg-slate-50 border border-slate-100 rounded-[32px] px-2 focus-within:border-[#ef4f5f]/30 focus-within:ring-4 focus-within:ring-[#ef4f5f]/5 transition-all overflow-hidden">
                 <Select value={formData.countryCode} onValueChange={handleCountryCodeChange}>
                   <SelectTrigger className="w-24 h-12 border-none bg-transparent shadow-none focus:ring-0">
                     <SelectValue>
@@ -154,12 +185,18 @@ export default function RestaurantLogin() {
                 <div className="w-[1px] h-6 bg-slate-200" />
                 
                 <input
+                  ref={phoneInputRef}
                   type="tel"
                   maxLength={10}
+                  inputMode="numeric"
+                  autoComplete="tel-national"
+                  enterKeyHint="done"
                   placeholder="Mobile number"
                   value={formData.phone}
                   onChange={handlePhoneChange}
-                  className="flex-1 h-full bg-transparent border-0 outline-none ring-0 shadow-none focus:border-0 focus:outline-none focus:ring-0 focus:shadow-none text-lg font-bold text-slate-900 placeholder-slate-300 px-4"
+                  onFocus={ensurePhoneFieldVisible}
+                  className="min-w-0 flex-1 h-12 bg-transparent border-0 outline-none ring-0 shadow-none focus:border-0 focus:outline-none focus:ring-0 focus:shadow-none text-left text-lg font-bold leading-none tracking-[0.02em] text-slate-900 placeholder-slate-300 caret-[#ef4f5f] px-4"
+                  style={{ WebkitTextFillColor: "#0f172a", opacity: 1 }}
                 />
               </div>
 
@@ -206,7 +243,7 @@ export default function RestaurantLogin() {
         </div>
       </div>
 
-      <div className="pb-8 text-center">
+      <div className={`pb-8 text-center ${keyboardInset ? "hidden" : ""}`}>
           <p className="text-[10px] font-black text-slate-300 tracking-[0.2em] uppercase">
             &copy; {new Date().getFullYear()} {companyName.toUpperCase()} PARTNER
           </p>

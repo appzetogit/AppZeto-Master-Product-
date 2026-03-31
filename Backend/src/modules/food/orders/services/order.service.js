@@ -482,7 +482,7 @@ export async function createOrder(userId, dto) {
     }
   }
 
-  const saved = order.toObject();
+  const saved = normalizeOrderForClient(order);
   return { order: saved, razorpay: razorpayPayload };
 }
 
@@ -497,7 +497,7 @@ export async function verifyPayment(userId, dto) {
   });
   if (!order) throw new NotFoundError("Order not found");
   if (order.payment.status === "paid")
-    return { order: order.toObject(), payment: order.payment };
+    return { order: normalizeOrderForClient(order), payment: order.payment };
 
   const valid = verifyPaymentSignature(
     dto.razorpayOrderId,
@@ -548,7 +548,7 @@ export async function verifyPayment(userId, dto) {
     } catch {}
   }
 
-  return { order: order.toObject(), payment: order.payment };
+  return { order: normalizeOrderForClient(order), payment: order.payment };
 }
 
 // ----- Auto-assign -----

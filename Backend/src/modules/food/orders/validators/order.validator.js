@@ -13,6 +13,8 @@ const orderItemSchema = z.object({
 
 const addressSchema = z.object({
     label: z.enum(['Home', 'Office', 'Other']).optional(),
+    name: z.string().optional(),
+    fullName: z.string().optional(),
     street: z.string().min(1, 'Street required'),
     additionalDetails: z.string().optional(),
     city: z.string().min(1, 'City required'),
@@ -63,6 +65,8 @@ export function validateCreateOrderDto(body) {
         address: addressSchema,
         restaurantId: z.string().min(1, 'Restaurant id required'),
         restaurantName: z.string().optional(),
+        customerName: z.string().optional(),
+        customerPhone: z.string().optional(),
         pricing: pricingSchema,
         deliveryFleet: z.string().optional(),
         note: z.string().optional(),

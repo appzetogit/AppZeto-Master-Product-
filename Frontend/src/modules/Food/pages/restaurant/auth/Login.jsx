@@ -1,13 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { ShieldCheck } from "lucide-react"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@food/components/ui/select"
 import { Button } from "@food/components/ui/button"
 import { restaurantAPI } from "@food/api"
 import { useCompanyName } from "@food/hooks/useCompanyName"
@@ -76,13 +69,6 @@ export default function RestaurantLogin() {
     }
   }
 
-  const handleCountryCodeChange = (value) => {
-    setFormData((prev) => ({ ...prev, countryCode: value }))
-    if (formData.phone) {
-      setError(validatePhone(formData.phone, value))
-    }
-  }
-
   const ensurePhoneFieldVisible = () => {
     window.setTimeout(() => {
       phoneInputRef.current?.scrollIntoView({
@@ -97,7 +83,7 @@ export default function RestaurantLogin() {
     setError(phoneError)
     if (phoneError) return
 
-    const fullPhone = `${formData.countryCode} ${formData.phone}`.trim()
+    const fullPhone = `${formData.countryCode || DEFAULT_COUNTRY_CODE} ${formData.phone}`.trim()
 
     try {
       setIsSending(true)
@@ -162,23 +148,12 @@ export default function RestaurantLogin() {
             <div className="space-y-3">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] ml-1">Registered Mobile Number</label>
               
-              <div className="flex items-center gap-2 h-16 bg-slate-50 border border-slate-100 rounded-[32px] px-2 focus-within:border-[#ef4f5f]/30 focus-within:ring-4 focus-within:ring-[#ef4f5f]/5 transition-all overflow-hidden">
-                <Select value={formData.countryCode} onValueChange={handleCountryCodeChange}>
-                  <SelectTrigger className="w-24 h-12 border-none bg-transparent shadow-none focus:ring-0">
-                    <SelectValue>
-                      <span className="font-bold text-slate-900">{formData.countryCode}</span>
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border-slate-100">
-                    {countryCodes.map((c) => (
-                      <SelectItem key={c.code} value={c.code}>
-                        {c.flag} {c.code}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="flex items-center gap-2 h-16 bg-slate-50 border border-slate-100 rounded-[32px] px-6 focus-within:border-[#ef4f5f]/30 focus-within:ring-4 focus-within:ring-[#ef4f5f]/5 transition-all overflow-hidden">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-slate-900 text-lg">{formData.countryCode}</span>
+                </div>
                 
-                <div className="w-[1px] h-6 bg-slate-200" />
+                <div className="w-[1px] h-6 bg-slate-200 ml-2" />
 
                 <input
                   ref={phoneInputRef}
@@ -191,7 +166,7 @@ export default function RestaurantLogin() {
                   value={formData.phone}
                   onChange={handlePhoneChange}
                   onFocus={ensurePhoneFieldVisible}
-                  className="min-w-0 flex-1 h-12 bg-transparent border-0 outline-none ring-0 shadow-none focus:border-0 focus:outline-none focus:ring-0 focus:shadow-none text-left text-lg font-bold leading-none tracking-[0.02em] text-slate-900 placeholder-slate-300 caret-[#ef4f5f] px-4"
+                  className="min-w-0 flex-1 h-12 bg-transparent border-0 outline-none ring-0 shadow-none focus:border-0 focus:outline-none focus:ring-0 focus:shadow-none text-left text-lg font-bold leading-none tracking-[0.02em] text-slate-900 placeholder-slate-300 caret-[#ef4f5f] px-2"
                   style={{ WebkitTextFillColor: "#0f172a", opacity: 1 }}
                 />
               </div>
@@ -216,7 +191,7 @@ export default function RestaurantLogin() {
             </Button>
           </div>
 
-          <div className="text-center pt-4 pb-2">
+          <div className={`text-center pt-4 pb-2 ${keyboardInset ? "hidden" : ""}`}>
             <p className="text-slate-400 text-xs font-medium">
               By logging in, you agree to our <br />
               <button

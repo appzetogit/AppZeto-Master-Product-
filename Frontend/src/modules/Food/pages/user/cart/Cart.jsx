@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, Fragment } from "react"
+import { createPortal } from "react-dom"
 import { Link, useNavigate } from "react-router-dom"
-import { Plus, Minus, ArrowLeft, ChevronRight, Clock, MapPin, Phone, FileText, Utensils, Tag, Percent, Share2, ChevronUp, ChevronDown, X, Check, Settings, CreditCard, Wallet, Building2, Sparkles, Banknote, Zap, CheckCircle2 } from "lucide-react"
+import { Plus, Minus, ArrowLeft, ChevronRight, Clock, MapPin, Phone, FileText, Utensils, Tag, Percent, Share2, ChevronUp, ChevronDown, X, Check, Settings, CreditCard, Wallet, Building2, Sparkles, Banknote, Zap, CheckCircle2, MessageCircle, Send, Mail, Copy } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import confetti from "canvas-confetti"
 
@@ -75,12 +76,16 @@ const formatFullAddress = (address) => {
 }
 
 const RUPEE_SYMBOL = "\u20B9"
+const CART_RECIPIENT_DETAILS_STORAGE_KEY = "food-cart-recipient-details-v1"
+const CART_ORDER_NOTE_STORAGE_KEY = "food-cart-order-note-v1"
 
 export default function Cart() {
   const companyName = useCompanyName()
   const navigate = useNavigate()
   const goBack = useAppBackNavigation()
   const orderSuccessAudioRef = useRef(null)
+  const hasRestoredRecipientRef = useRef(false)
+  const hasRestoredNoteRef = useRef(false)
 
   // Defensive check: Ensure CartProvider is available
   let cartContext;
@@ -121,31 +126,40 @@ export default function Cart() {
   const [showPaymentSheet, setShowPaymentSheet] = useState(false)
   const [walletBalance, setWalletBalance] = useState(0)
   const [isLoadingWallet, setIsLoadingWallet] = useState(false)
-  const [note, setNote] = useState("")
-  const [showNoteInput, setShowNoteInput] = useState(false)
-
-  const handleShare = async () => {
+  const [note, setNote] = useState(() => {
     try {
-      if (navigator.share) {
-        await navigator.share({
-          title: `My Cart at ${restaurantName || companyName}`,
-          text: `Check out what I'm ordering from ${restaurantName || companyName}!`,
-          url: window.location.href,
-        });
-      } else {
-        await navigator.clipboard.writeText(window.location.href);
-        toast.success("Link copied to clipboard!");
-      }
-    } catch (error) {
-      if (error.name !== 'AbortError') {
-        debugError('Error sharing:', error);
-        toast.error("Failed to share link");
-      }
+      if (typeof window === "undefined") return ""
+      const raw = window.localStorage.getItem(CART_ORDER_NOTE_STORAGE_KEY)
+      if (!raw) return ""
+      const stored = JSON.parse(raw)
+      return String(stored?.note || "")
+    } catch {
+      return ""
     }
-  };
+  })
+  const [showNoteInput, setShowNoteInput] = useState(() => {
+    try {
+      if (typeof window === "undefined") return false
+      const raw = window.localStorage.getItem(CART_ORDER_NOTE_STORAGE_KEY)
+      if (!raw) return false
+      const stored = JSON.parse(raw)
+      const storedNote = String(stored?.note || "")
+      return Boolean(stored?.showNoteInput) || storedNote.trim().length > 0
+    } catch {
+      return false
+    }
+  })
+  const [showShareModal, setShowShareModal] = useState(false)
+  const [sharePayload, setSharePayload] = useState(null)
+  const [isEditingRecipient, setIsEditingRecipient] = useState(false)
+  const [recipientDetails, setRecipientDetails] = useState({
+    name: "",
+    phone: "",
+  })
+
   const [sendCutlery, setSendCutlery] = useState(true)
   const [isPlacingOrder, setIsPlacingOrder] = useState(false)
-  const [showBillDetails, setShowBillDetails] = useState(false)
+  const [showBillDetails, setShowBillDetails] = useState(true)
   const [showPlacingOrder, setShowPlacingOrder] = useState(false)
   const [isScheduled, setIsScheduled] = useState(false)
   const [scheduledDate, setScheduledDate] = useState("")
@@ -292,6 +306,7 @@ export default function Cart() {
     if (normalized === "other") return "Other"
     return label || "Saved address"
   }
+  const sanitizeRecipientPhone = (value) => String(value || "").replace(/[^\d+]/g, "").slice(0, 14)
   const savedAddress = getDefaultAddress()
   const selectedAddress = addresses.find((addr) => getAddressId(addr) && getAddressId(addr) === selectedAddressId)
 
@@ -351,6 +366,8 @@ export default function Cart() {
   }, [deliveryAddressMode, currentLocationAddress, selectedAddress, savedAddress])
 
   const hasSavedAddress = Boolean(defaultAddress && formatFullAddress(defaultAddress))
+  const recipientName = String(recipientDetails.name || "").trim() || userProfile?.name || "Your Name"
+  const recipientPhone = sanitizeRecipientPhone(recipientDetails.phone || "") || userProfile?.phone || ""
   const selectedAddressCoordinates = defaultAddress?.location?.coordinates
   const zoneLocation = selectedAddressCoordinates?.length === 2
     ? {
@@ -372,6 +389,76 @@ export default function Cart() {
       // ignore
     }
   })
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    try {
+      const raw = window.localStorage.getItem(CART_RECIPIENT_DETAILS_STORAGE_KEY)
+      if (!raw) {
+        hasRestoredRecipientRef.current = true
+        return
+      }
+
+      const stored = JSON.parse(raw)
+      setRecipientDetails({
+        name: stored?.name || "",
+        phone: sanitizeRecipientPhone(stored?.phone || ""),
+      })
+      setIsEditingRecipient(Boolean(stored?.isEditingRecipient))
+    } catch {
+      setRecipientDetails({ name: "", phone: "" })
+      setIsEditingRecipient(false)
+    } finally {
+      hasRestoredRecipientRef.current = true
+    }
+  }, [])
+
+  useEffect(() => {
+    setRecipientDetails((prev) => ({
+      name: prev.name || userProfile?.name || "",
+      phone: prev.phone || userProfile?.phone || "",
+    }))
+  }, [userProfile?.name, userProfile?.phone])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    if (!hasRestoredRecipientRef.current) return
+
+    try {
+      window.localStorage.setItem(
+        CART_RECIPIENT_DETAILS_STORAGE_KEY,
+        JSON.stringify({
+          name: recipientDetails.name || "",
+          phone: sanitizeRecipientPhone(recipientDetails.phone || ""),
+          isEditingRecipient,
+        })
+      )
+    } catch {
+      // Ignore storage errors and keep cart flow working.
+    }
+  }, [recipientDetails, isEditingRecipient])
+
+  useEffect(() => {
+    hasRestoredNoteRef.current = true
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    if (!hasRestoredNoteRef.current) return
+
+    try {
+      window.localStorage.setItem(
+        CART_ORDER_NOTE_STORAGE_KEY,
+        JSON.stringify({
+          note,
+          showNoteInput,
+        })
+      )
+    } catch {
+      // Ignore storage errors and keep note flow working.
+    }
+  }, [note, showNoteInput])
 
   useEffect(() => {
     if (deliveryAddressMode === "current") {
@@ -942,9 +1029,120 @@ export default function Cart() {
   // Restaurant name from data or cart
   const restaurantName = restaurantData?.name || cart[0]?.restaurant || "Restaurant"
 
+  const handleShare = async () => {
+    const restaurantNameStr = restaurantName || companyName || "this restaurant"
+    const shareUrl = window.location.href
+    const shareText = `Check out what I'm ordering from ${restaurantNameStr}! ${shareUrl}`
+
+    const payload = {
+      title: `My Cart at ${restaurantNameStr}`,
+      text: shareText,
+      url: shareUrl,
+    }
+
+    if (isMobileDevice()) {
+      openShareModal(payload)
+      return
+    }
+
+    const shared = await tryNativeShare(payload)
+    if (shared) {
+      toast.success("Link shared successfully")
+      return
+    }
+
+    openShareModal(payload)
+  }
+
+  const openShareModal = (payload) => {
+    setSharePayload(payload)
+    setShowShareModal(true)
+  }
+
+  const tryNativeShare = async (payload) => {
+    if (typeof navigator === "undefined" || !navigator.share) return false
+    try {
+      await navigator.share(payload)
+      return true
+    } catch (error) {
+      if (error?.name === "AbortError") return true
+      return false
+    }
+  }
+
+  const isMobileDevice = () => {
+    if (typeof window === "undefined" || typeof navigator === "undefined") return false
+    const mobileUA = /Android|iPhone|iPad|iPod|Windows Phone|Opera Mini|IEMobile/i.test(navigator.userAgent)
+    const smallViewport = window.matchMedia?.("(max-width: 768px)")?.matches
+    return Boolean(mobileUA || smallViewport)
+  }
+
+  const openShareTarget = (target) => {
+    if (!sharePayload?.url) return
+
+    const text = sharePayload.text || ""
+    const url = sharePayload.url
+    const encodedText = encodeURIComponent(text)
+    const encodedUrl = encodeURIComponent(url)
+
+    let shareLink = ""
+
+    if (target === "whatsapp") {
+      shareLink = `https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`
+    } else if (target === "telegram") {
+      shareLink = `https://t.me/share/url?url=${encodedUrl}&text=${encodedText}`
+    } else if (target === "email") {
+      shareLink = `mailto:?subject=${encodeURIComponent(sharePayload.title || "Check this out")}&body=${encodeURIComponent(`${text}\n\n${url}`)}`
+    }
+
+    if (shareLink) {
+      window.open(shareLink, "_blank", "noopener,noreferrer")
+      setShowShareModal(false)
+    }
+  }
+
+  const copyShareLink = async () => {
+    if (!sharePayload?.url) return
+    await copyToClipboard(sharePayload.url)
+    setShowShareModal(false)
+  }
+
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success("Link copied to clipboard!")
+    } catch (error) {
+      // Fallback for older browsers
+      const textArea = document.createElement("textarea")
+      textArea.value = text
+      textArea.style.position = "fixed"
+      textArea.style.opacity = "0"
+      document.body.appendChild(textArea)
+      textArea.select()
+      try {
+        document.execCommand("copy")
+        toast.success("Link copied to clipboard!")
+      } catch (err) {
+        toast.error("Failed to copy link")
+      }
+      document.body.removeChild(textArea)
+    }
+  }
+
+  const handleSystemShareFromModal = async () => {
+    if (!sharePayload) return
+    const shared = await tryNativeShare(sharePayload)
+    if (shared) {
+      setShowShareModal(false)
+      toast.success("Shared successfully")
+    }
+  }
+
   const handleBack = () => {
-    if (restaurantData?.slug) {
-      navigate(`/food/restaurants/${restaurantData.slug}`)
+    // Priority: slug > restaurantId (both work for the restaurant details route)
+    const idOrSlug = restaurantData?.slug || restaurantId
+    if (idOrSlug) {
+      navigate(`/food/user/restaurants/${idOrSlug}`)
     } else {
       goBack()
     }
@@ -1413,7 +1611,14 @@ export default function Cart() {
 
       const orderPayload = {
         items: orderItems,
-        address: defaultAddress,
+        address: {
+          ...defaultAddress,
+          phone: recipientPhone || defaultAddress?.phone || "",
+          name: recipientName,
+          fullName: recipientName,
+        },
+        customerName: recipientName,
+        customerPhone: recipientPhone || defaultAddress?.phone || "",
         restaurantId: finalRestaurantId,
         restaurantName: finalRestaurantName || undefined,
         pricing: orderPricing,
@@ -1454,6 +1659,13 @@ export default function Cart() {
         setShowOrderSuccess(true)
         window.dispatchEvent(new CustomEvent('order-placed', { detail: { order } }))
         clearCart()
+        setNote("")
+        setShowNoteInput(false)
+        try {
+          window.localStorage.removeItem(CART_ORDER_NOTE_STORAGE_KEY)
+        } catch {
+          // ignore
+        }
         setIsPlacingOrder(false)
         return
       }
@@ -1465,6 +1677,13 @@ export default function Cart() {
         setShowOrderSuccess(true)
         window.dispatchEvent(new CustomEvent('order-placed', { detail: { order } }))
         clearCart()
+        setNote("")
+        setShowNoteInput(false)
+        try {
+          window.localStorage.removeItem(CART_ORDER_NOTE_STORAGE_KEY)
+        } catch {
+          // ignore
+        }
         setIsPlacingOrder(false)
         // Refresh wallet balance
         try {
@@ -1492,9 +1711,9 @@ export default function Cart() {
 
       // Get user info for Razorpay prefill
       const userInfo = userProfile || {}
-      const userPhone = userInfo.phone || defaultAddress?.phone || ""
+      const userPhone = recipientPhone || userInfo.phone || defaultAddress?.phone || ""
       const userEmail = userInfo.email || ""
-      const userName = userInfo.name || ""
+      const userName = recipientName || userInfo.name || ""
 
       // Format phone number (remove non-digits, take last 10 digits)
       const formattedPhone = userPhone.replace(/\D/g, "").slice(-10)
@@ -1710,7 +1929,7 @@ export default function Cart() {
       </div>
 
       {/* Scrollable Content Area */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden pb-24 md:pb-32">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden pb-44 md:pb-52">
         {/* Savings Banner */}
         {savings > 0 && (
           <div className="bg-blue-100 dark:bg-blue-900/20 px-4 md:px-6 py-2 md:py-3 flex-shrink-0">
@@ -1722,10 +1941,10 @@ export default function Cart() {
           </div>
         )}
 
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 px-4 md:px-6 py-4 md:py-6">
-            {/* Left Column - Cart Items and Details */}
-            <div className="lg:col-span-2 space-y-2 md:space-y-4">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 md:py-6">
+          <div className="max-w-3xl mx-auto">
+            {/* Main Cart Content */}
+            <div className="space-y-2 md:space-y-4">
               {/* Cart Items */}
               <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-4 md:py-5 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 dark:border-gray-800">
                 <div className="space-y-3 md:space-y-4">
@@ -1786,7 +2005,7 @@ export default function Cart() {
                   className="flex-1 flex items-center gap-2 px-3 md:px-4 py-2 md:py-3 border border-gray-200 dark:border-gray-700 rounded-lg md:rounded-xl text-sm md:text-base text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
                 >
                   <FileText className="h-4 w-4 md:h-5 md:w-5" />
-                  <span className="truncate">{note || "Add a note for the restaurant"}</span>
+                  <span className="truncate">{note || "Add a note for the delivery partner"}</span>
                 </button>
                 <button
                   onClick={() => setSendCutlery(!sendCutlery)}
@@ -1799,13 +2018,25 @@ export default function Cart() {
 
               {/* Note Input */}
               {showNoteInput && (
-                <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-3 md:py-4 rounded-lg md:rounded-xl">
+                <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-3 md:py-4 rounded-lg md:rounded-xl border border-slate-100 dark:border-gray-800">
+                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
+                    Delivery instructions
+                  </p>
                   <textarea
                     value={note}
                     onChange={(e) => setNote(e.target.value)}
-                    placeholder="Add cooking instructions, allergies, etc."
+                    placeholder="Eg. Call when outside, ring bell once, leave at gate"
                     className="w-full border border-gray-200 dark:border-gray-700 rounded-lg md:rounded-xl p-3 md:p-4 text-sm md:text-base resize-none h-20 md:h-24 focus:outline-none focus:border-[#EB590E] dark:focus:border-[#EB590E] bg-white dark:bg-[#0a0a0a] text-gray-900 dark:text-gray-100"
+                    maxLength={240}
                   />
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                      Ye note order ke saath save hoga aur assigned delivery partner ko dikh sakta hai.
+                    </p>
+                    <span className="text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                      {note.length}/240
+                    </span>
+                  </div>
                 </div>
               )}
 
@@ -2187,15 +2418,68 @@ export default function Cart() {
 
               {/* Contact */}
               <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-4 rounded-2xl shadow-sm border border-slate-100 dark:border-gray-800">
-                <Link to="/user/profile" className="flex items-center justify-between">
-                  <div className="flex items-center gap-3 md:gap-4">
-                    <Phone className="h-4 w-4 md:h-5 md:w-5 text-gray-500 dark:text-gray-400" />
-                    <p className="text-sm md:text-base text-gray-800 dark:text-gray-200">
-                      {userProfile?.name || "Your Name"}, <span className="font-medium">{userProfile?.phone || "+91-XXXXXXXXXX"}</span>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 md:gap-4 flex-1 min-w-0">
+                    <Phone className="h-4 w-4 md:h-5 md:w-5 text-gray-500 dark:text-gray-400 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm md:text-base text-gray-800 dark:text-gray-200 font-medium">
+                        {recipientName}, <span className="font-semibold">{recipientPhone || "+91-XXXXXXXXXX"}</span>
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Order recipient details
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingRecipient((prev) => !prev)}
+                    className="text-[#EB590E] text-xs md:text-sm font-semibold whitespace-nowrap"
+                  >
+                    {isEditingRecipient ? "Done" : "Change"}
+                  </button>
+                </div>
+
+                {isEditingRecipient && (
+                  <div className="mt-4 pt-4 border-t border-dashed border-gray-200 dark:border-gray-800 space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+                        Name
+                      </label>
+                      <input
+                        type="text"
+                        value={recipientDetails.name}
+                        onChange={(e) =>
+                          setRecipientDetails((prev) => ({
+                            ...prev,
+                            name: e.target.value,
+                          }))
+                        }
+                        placeholder="Enter recipient name"
+                        className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#111111] px-3 py-2.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:border-[#EB590E]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+                        Phone Number
+                      </label>
+                      <input
+                        type="tel"
+                        value={recipientDetails.phone}
+                        onChange={(e) =>
+                          setRecipientDetails((prev) => ({
+                            ...prev,
+                            phone: sanitizeRecipientPhone(e.target.value),
+                          }))
+                        }
+                        placeholder="Enter recipient phone"
+                        className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#111111] px-3 py-2.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:border-[#EB590E]"
+                      />
+                    </div>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                      Agar aap kisi aur ke liye order kar rahe ho, to yahan uska naam aur phone save kar do.
                     </p>
                   </div>
-                  <ChevronRight className="h-4 w-4 md:h-5 md:w-5 text-gray-400" />
-                </Link>
+                )}
               </div>
 {/* Bill Details */}
               <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-5 rounded-2xl shadow-sm border border-slate-100 dark:border-gray-800">
@@ -2265,54 +2549,6 @@ export default function Cart() {
                 )}
               </div>
 
-            </div>
-
-            {/* Right Column - Order Summary (Desktop) */}
-            <div className="lg:col-span-1">
-              <div className="lg:sticky lg:top-24 space-y-4 md:space-y-6">
-                {/* Bill Summary Card */}
-                <div className="bg-white dark:bg-[#1a1a1a] px-5 py-6 rounded-2xl shadow-sm border border-slate-100 dark:border-gray-800">
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-5">Order Summary</h3>
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600 dark:text-gray-400">Item Total</span>
-                      <span className="text-gray-800 dark:text-gray-200 font-medium">{RUPEE_SYMBOL}{subtotal.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600 dark:text-gray-400">Delivery Fee</span>
-                      <span className={deliveryFee === 0 ? "text-[#EB590E] font-medium" : "text-gray-800 dark:text-gray-200 font-medium"}>
-                        {deliveryFee === 0 ? "FREE" : `${RUPEE_SYMBOL}${deliveryFee.toFixed(2)}`}
-                      </span>
-                    </div>
-                    {deliveryFeeBreakdownText && (
-                      <div className="text-[11px] text-gray-500 dark:text-gray-400 -mt-2 border-l-2 border-gray-100 pl-2 ml-1">
-                        {deliveryFeeBreakdownText}
-                      </div>
-                    )}
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600 dark:text-gray-400">Platform Fee</span>
-                      <span className="text-gray-800 dark:text-gray-200 font-medium">{RUPEE_SYMBOL}{platformFee.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600 dark:text-gray-400">GST</span>
-                      <span className="text-gray-800 dark:text-gray-200 font-medium">{RUPEE_SYMBOL}{gstCharges.toFixed(2)}</span>
-                    </div>
-                    {discount > 0 && (
-                      <div className="flex justify-between text-sm text-[#EB590E] font-medium">
-                        <span>Discount</span>
-                        <span>-{RUPEE_SYMBOL}{discount.toFixed(2)}</span>
-                      </div>
-                    )}
-
-                    <div className="my-4 border-t border-dashed border-gray-200 dark:border-gray-700"></div>
-
-                    <div className="flex justify-between text-lg font-black text-gray-900 dark:text-white">
-                      <span>Grand Total</span>
-                      <span>{RUPEE_SYMBOL}{total.toFixed(2)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -2820,6 +3056,84 @@ export default function Cart() {
           stroke-dashoffset: 0;
         }
       `}</style>
-        </div>
-        )
+
+      {/* Share Modal */}
+      {typeof window !== "undefined" &&
+        createPortal(
+          <AnimatePresence>
+            {showShareModal && sharePayload && (
+              <>
+                <motion.div
+                  className="fixed inset-0 bg-black/50 z-[10020]"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setShowShareModal(false)}
+                />
+                <motion.div
+                  className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[10021] w-[92vw] max-w-md bg-white dark:bg-[#1a1a1a] rounded-2xl shadow-2xl"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.16 }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="px-5 pt-5 pb-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between gap-3">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">Share</h3>
+                    <button
+                      className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
+                      onClick={() => setShowShareModal(false)}
+                      aria-label="Close share modal"
+                    >
+                      <X className="h-4 w-4 text-gray-600 dark:text-gray-300" />
+                    </button>
+                  </div>
+
+                  <div className="px-5 py-4 space-y-2">
+                    {typeof navigator !== "undefined" && navigator.share && (
+                      <button
+                        className="w-full flex items-center gap-3 px-3 py-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-left"
+                        onClick={handleSystemShareFromModal}
+                      >
+                        <Share2 className="h-5 w-5 text-gray-700 dark:text-gray-300" />
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">Share via system apps</span>
+                      </button>
+                    )}
+                    <button
+                      className="w-full flex items-center gap-3 px-3 py-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-left"
+                      onClick={() => openShareTarget("whatsapp")}
+                    >
+                      <MessageCircle className="h-5 w-5 text-gray-700 dark:text-gray-300" />
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">WhatsApp</span>
+                    </button>
+                    <button
+                      className="w-full flex items-center gap-3 px-3 py-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-left"
+                      onClick={() => openShareTarget("telegram")}
+                    >
+                      <Send className="h-5 w-5 text-gray-700 dark:text-gray-300" />
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Telegram</span>
+                    </button>
+                    <button
+                      className="w-full flex items-center gap-3 px-3 py-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-left"
+                      onClick={() => openShareTarget("email")}
+                    >
+                      <Mail className="h-5 w-5 text-gray-700 dark:text-gray-300" />
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Email</span>
+                    </button>
+                    <button
+                      className="w-full flex items-center gap-3 px-3 py-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-left"
+                      onClick={copyShareLink}
+                    >
+                      <Copy className="h-5 w-5 text-gray-700 dark:text-gray-300" />
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Copy link</span>
+                    </button>
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>,
+          document.body
+        )}
+    </div>
+  )
 }      

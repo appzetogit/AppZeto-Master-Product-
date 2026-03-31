@@ -21,6 +21,7 @@ import { useProfile } from "@food/context/ProfileContext"
 import { useLocation } from "@food/hooks/useLocation"
 import { useZone } from "@food/hooks/useZone"
 import { useDelayedLoading } from "@food/hooks/useDelayedLoading"
+import { getMenuFromResponse } from "@food/utils/menuItems"
 
 // Filter options
 const filterOptions = [
@@ -32,6 +33,8 @@ const filterOptions = [
 ]
 
 // Mock data removed - using backend data only
+
+const CATEGORY_PAGE_FILTERS_STORAGE_KEY = "food-category-page-filters-v1"
 
 
 
@@ -46,7 +49,6 @@ export default function CategoryPage() {
   const [activeFilters, setActiveFilters] = useState(new Set())
   const [favorites, setFavorites] = useState(new Set())
   const [sortBy, setSortBy] = useState(null)
-  const [selectedCuisine, setSelectedCuisine] = useState(null)
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [activeFilterTab, setActiveFilterTab] = useState('sort')
   const [activeScrollSection, setActiveScrollSection] = useState('sort')
@@ -55,6 +57,9 @@ export default function CategoryPage() {
   const rightContentRef = useRef(null)
   const categoryScrollRef = useRef(null)
   const menuEnrichmentRequestRef = useRef(0)
+  const approvedFoodsCacheRef = useRef(null)
+  const approvedFoodsInFlightRef = useRef(null)
+  const hasRestoredCategoryFiltersRef = useRef(false)
 
   // State for categories from admin
   const [categories, setCategories] = useState([])
@@ -63,11 +68,32 @@ export default function CategoryPage() {
   const [restaurantsData, setRestaurantsData] = useState([])
   const [loadingRestaurants, setLoadingRestaurants] = useState(true)
   const [isEnrichingMenus, setIsEnrichingMenus] = useState(false)
+  const [approvedFoodsData, setApprovedFoodsData] = useState([])
   const [categoryKeywords, setCategoryKeywords] = useState({})
   const showCategorySkeleton = useDelayedLoading(loadingCategories)
   const deferredSearchQuery = useDeferredValue(searchQuery)
   const BACKEND_ORIGIN = useMemo(() => API_BASE_URL.replace(/\/api\/?$/, ""), [])
   const slugify = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
+  const normalizeCategoryToken = (value) =>
+    String(value || "")
+      .toLowerCase()
+      .replace(/&/g, " and ")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim()
+  const matchesCategoryText = (value, keywords) => {
+    const normalizedValue = normalizeCategoryToken(value)
+    if (!normalizedValue) return false
+
+    return keywords.some((keyword) => {
+      const normalizedKeyword = normalizeCategoryToken(keyword)
+      if (!normalizedKeyword) return false
+      return (
+        normalizedValue === normalizedKeyword ||
+        normalizedValue.includes(normalizedKeyword) ||
+        slugify(normalizedValue) === slugify(normalizedKeyword)
+      )
+    })
+  }
   const uniqueByRestaurant = (list) => {
     const seen = new Set()
     return list.filter((row) => {
@@ -77,6 +103,227 @@ export default function CategoryPage() {
       seen.add(key)
       return true
     })
+  }
+
+  const toArray = (value) => {
+    if (Array.isArray(value)) return value
+    if (!value || typeof value !== "object") return []
+    return Object.values(value).filter((entry) => entry && typeof entry === "object")
+  }
+
+  const normalizeMenu = (menu) => {
+    const rawSections = toArray(menu?.sections)
+    return {
+      ...menu,
+      sections: rawSections.map((section, sectionIndex) => ({
+        ...section,
+        id: String(section?.id || section?._id || `section-${sectionIndex}`),
+        name: section?.name || section?.title || "Unnamed Section",
+        items: toArray(section?.items).map((item, itemIndex) => ({
+          ...item,
+          id: String(item?.id || item?._id || `${sectionIndex}-${itemIndex}`),
+        })),
+        subsections: toArray(section?.subsections).map((subsection, subsectionIndex) => ({
+          ...subsection,
+          id: String(subsection?.id || subsection?._id || `subsection-${sectionIndex}-${subsectionIndex}`),
+          name: subsection?.name || "Unnamed Subsection",
+          items: toArray(subsection?.items).map((item, itemIndex) => ({
+            ...item,
+            id: String(item?.id || item?._id || `${sectionIndex}-${subsectionIndex}-${itemIndex}`),
+          })),
+        })),
+      })),
+    }
+  }
+
+  const fetchApprovedFoods = async () => {
+    if (Array.isArray(approvedFoodsCacheRef.current)) {
+      return approvedFoodsCacheRef.current
+    }
+
+    if (approvedFoodsInFlightRef.current) {
+      return approvedFoodsInFlightRef.current
+    }
+
+    approvedFoodsInFlightRef.current = (async () => {
+      try {
+        const response = await adminAPI.getFoods({ limit: 1000 })
+        const list = response?.data?.data?.foods || []
+        const approvedFoods = Array.isArray(list)
+          ? list.filter((food) =>
+              String(food?.approvalStatus || "").toLowerCase() === "approved" &&
+              food?.isAvailable !== false
+            )
+          : []
+
+        approvedFoodsCacheRef.current = approvedFoods
+        return approvedFoods
+      } catch {
+        approvedFoodsCacheRef.current = []
+        return []
+      } finally {
+        approvedFoodsInFlightRef.current = null
+      }
+    })()
+
+    return approvedFoodsInFlightRef.current
+  }
+
+  useEffect(() => {
+    let cancelled = false
+
+    void (async () => {
+      const foods = await fetchApprovedFoods()
+      if (!cancelled) {
+        setApprovedFoodsData(Array.isArray(foods) ? foods : [])
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const buildFallbackMenuFromFoods = (foods, restaurant) => {
+    const restaurantIds = new Set(
+      [
+        restaurant?.restaurantId,
+        restaurant?.id,
+        restaurant?.mongoId,
+      ]
+        .filter(Boolean)
+        .map((value) => String(value).trim())
+    )
+
+    const restaurantName = String(restaurant?.name || "").trim().toLowerCase()
+    const matchingFoods = foods.filter((food) => {
+      const foodRestaurantId = String(food?.restaurantId || "").trim()
+      const foodRestaurantName = String(food?.restaurantName || "").trim().toLowerCase()
+      return (
+        (foodRestaurantId && restaurantIds.has(foodRestaurantId)) ||
+        (restaurantName && foodRestaurantName === restaurantName)
+      )
+    })
+
+    if (matchingFoods.length === 0) {
+      return null
+    }
+
+    const sectionsMap = new Map()
+    matchingFoods.forEach((food, index) => {
+      const sectionName = String(food?.categoryName || food?.category || "Varieties").trim() || "Varieties"
+      const sectionKey = slugify(sectionName)
+      if (!sectionsMap.has(sectionKey)) {
+        sectionsMap.set(sectionKey, {
+          id: sectionKey || `section-${index}`,
+          name: sectionName,
+          items: [],
+          subsections: [],
+        })
+      }
+
+      sectionsMap.get(sectionKey).items.push({
+        id: String(food?.id || food?._id || `${sectionKey}-${index}`),
+        _id: food?._id,
+        name: food?.name || "Unnamed Item",
+        description: food?.description || "",
+        price: Number(food?.price || 0),
+        originalPrice: Number(food?.originalPrice || food?.price || 0),
+        image: normalizeImageUrl(food?.image),
+        foodType: food?.foodType || "Non-Veg",
+        isAvailable: food?.isAvailable !== false,
+        categoryName: food?.categoryName || sectionName,
+        category: food?.categoryName || sectionName,
+        preparationTime: food?.preparationTime || "",
+        approvalStatus: food?.approvalStatus || "approved",
+      })
+    })
+
+    return {
+      sections: Array.from(sectionsMap.values()),
+    }
+  }
+
+  const getCategoryFallbackDishesFromApprovedFoods = (categoryId, restaurants) => {
+    const keywords = getCategoryKeywords(categoryId)
+    if (keywords.length === 0 || !Array.isArray(approvedFoodsData) || approvedFoodsData.length === 0) {
+      return []
+    }
+
+    const restaurantsById = new Map()
+    const restaurantsByName = new Map()
+    ;(Array.isArray(restaurants) ? restaurants : []).forEach((restaurant) => {
+      const idCandidates = [
+        restaurant?.restaurantId,
+        restaurant?.id,
+        restaurant?.mongoId,
+      ]
+        .filter(Boolean)
+        .map((value) => String(value).trim())
+
+      idCandidates.forEach((value) => {
+        if (!restaurantsById.has(value)) {
+          restaurantsById.set(value, restaurant)
+        }
+      })
+
+      const normalizedName = String(restaurant?.name || "").trim().toLowerCase()
+      if (normalizedName && !restaurantsByName.has(normalizedName)) {
+        restaurantsByName.set(normalizedName, restaurant)
+      }
+    })
+
+    return approvedFoodsData
+      .filter((food) => {
+        if (food?.isAvailable === false) return false
+        if (String(food?.approvalStatus || "").toLowerCase() !== "approved") return false
+
+        const categoryName = String(food?.categoryName || food?.category || "").toLowerCase()
+        const foodName = String(food?.name || "").toLowerCase()
+        return (
+          matchesCategoryText(categoryName, keywords) ||
+          matchesCategoryText(foodName, keywords)
+        )
+      })
+      .map((food, index) => {
+        const restaurantId = String(food?.restaurantId || "").trim()
+        const restaurantName = String(food?.restaurantName || "").trim()
+        const matchedRestaurant =
+          restaurantsById.get(restaurantId) ||
+          restaurantsByName.get(restaurantName.toLowerCase()) ||
+          null
+
+        const fallbackRestaurantName = restaurantName || "Restaurant"
+        const fallbackSlug = slugify(fallbackRestaurantName)
+        const fallbackImage = normalizeImageUrl(food?.image)
+
+        return {
+          ...(matchedRestaurant || {}),
+          id: `${restaurantId || fallbackSlug || "restaurant"}-${String(food?.id || food?._id || index)}`,
+          restaurantId: restaurantId || matchedRestaurant?.restaurantId || matchedRestaurant?.id || null,
+          mongoId: matchedRestaurant?.mongoId || matchedRestaurant?.id || null,
+          slug: matchedRestaurant?.slug || fallbackSlug,
+          name: matchedRestaurant?.name || fallbackRestaurantName,
+          image: matchedRestaurant?.image || fallbackImage,
+          images: Array.isArray(matchedRestaurant?.images) && matchedRestaurant.images.length > 0
+            ? matchedRestaurant.images
+            : (fallbackImage ? [fallbackImage] : []),
+          cuisine: matchedRestaurant?.cuisine || null,
+          rating: matchedRestaurant?.rating || null,
+          deliveryTime: matchedRestaurant?.deliveryTime || null,
+          distance: matchedRestaurant?.distance || null,
+          offer: matchedRestaurant?.offer || null,
+          featuredDish: matchedRestaurant?.featuredDish || food?.name || null,
+          featuredPrice: matchedRestaurant?.featuredPrice || Number(food?.price || 0),
+          menu: matchedRestaurant?.menu || null,
+          dishId: String(food?.id || food?._id || `${restaurantId}-${index}`),
+          categoryDish: food,
+          categoryDishName: food?.name || "Unnamed Item",
+          categoryDishPrice: Number(food?.price || 0),
+          categoryDishImage: fallbackImage,
+          categoryDishFoodType: food?.foodType || "Non-Veg",
+        }
+      })
   }
 
   const normalizeImageUrl = (value) => {
@@ -152,6 +399,166 @@ export default function CategoryPage() {
     } catch {
       return absolutePath
     }
+  }
+
+  const currentFilterStorageKey = useMemo(
+    () => slugify(selectedCategory || category || "all") || "all",
+    [selectedCategory, category]
+  )
+
+  const parseFirstNumber = (value) => {
+    if (typeof value === "number" && Number.isFinite(value)) return value
+    const match = String(value || "").match(/(\d+(?:\.\d+)?)/)
+    return match ? Number(match[1]) : null
+  }
+
+  const getComparableDeliveryTime = (row) => parseFirstNumber(row?.deliveryTime)
+
+  const getComparableDistance = (row) => {
+    const raw = String(row?.distance || "").trim().toLowerCase()
+    if (!raw) return null
+
+    const parsed = parseFirstNumber(raw)
+    if (parsed == null) return null
+    if (raw.includes("m") && !raw.includes("km")) {
+      return parsed / 1000
+    }
+    return parsed
+  }
+
+  const getComparablePrice = (row) => {
+    const raw = row?.categoryDishPrice ?? row?.featuredPrice ?? null
+    const parsed = typeof raw === "number" ? raw : parseFirstNumber(raw)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
+  const getComparableRating = (row) => {
+    const parsed = typeof row?.rating === "number" ? row.rating : parseFirstNumber(row?.rating)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
+  const matchesOfferText = (value, pattern) => pattern.test(String(value || ""))
+
+  const applyFiltersAndSorting = (rows) => {
+    let nextRows = Array.isArray(rows) ? [...rows] : []
+
+    if (activeFilters.has('under-30-mins')) {
+      nextRows = nextRows.filter((row) => {
+        const time = getComparableDeliveryTime(row)
+        return time != null && time <= 30
+      })
+    }
+
+    if (activeFilters.has('delivery-under-45')) {
+      nextRows = nextRows.filter((row) => {
+        const time = getComparableDeliveryTime(row)
+        return time != null && time <= 45
+      })
+    }
+
+    if (activeFilters.has('rating-35-plus')) {
+      nextRows = nextRows.filter((row) => {
+        const rating = getComparableRating(row)
+        return rating != null && rating >= 3.5
+      })
+    }
+
+    if (activeFilters.has('rating-4-plus')) {
+      nextRows = nextRows.filter((row) => {
+        const rating = getComparableRating(row)
+        return rating != null && rating >= 4.0
+      })
+    }
+
+    if (activeFilters.has('rating-45-plus')) {
+      nextRows = nextRows.filter((row) => {
+        const rating = getComparableRating(row)
+        return rating != null && rating >= 4.5
+      })
+    }
+
+    if (activeFilters.has('distance-under-1km')) {
+      nextRows = nextRows.filter((row) => {
+        const distance = getComparableDistance(row)
+        return distance != null && distance <= 1
+      })
+    }
+
+    if (activeFilters.has('distance-under-2km')) {
+      nextRows = nextRows.filter((row) => {
+        const distance = getComparableDistance(row)
+        return distance != null && distance <= 2
+      })
+    }
+
+    if (activeFilters.has('price-under-200')) {
+      nextRows = nextRows.filter((row) => {
+        const price = getComparablePrice(row)
+        return price != null && price <= 200
+      })
+    }
+
+    if (activeFilters.has('under-250')) {
+      nextRows = nextRows.filter((row) => {
+        const price = getComparablePrice(row)
+        return price != null && price <= 250
+      })
+    }
+
+    if (activeFilters.has('price-under-500')) {
+      nextRows = nextRows.filter((row) => {
+        const price = getComparablePrice(row)
+        return price != null && price <= 500
+      })
+    }
+
+    if (activeFilters.has('flat-50-off')) {
+      nextRows = nextRows.filter((row) => matchesOfferText(row?.offer, /50\s*%/i))
+    }
+
+    if (activeFilters.has('price-match')) {
+      nextRows = nextRows.filter((row) =>
+        matchesOfferText(row?.offer, /price\s*match/i) ||
+        matchesOfferText(row?.priceRange, /price\s*match/i) ||
+        matchesOfferText(row?.categoryDish?.description, /price\s*match/i)
+      )
+    }
+
+    if (deferredSearchQuery.trim()) {
+      const query = deferredSearchQuery.toLowerCase()
+      nextRows = nextRows.filter((row) =>
+        row.name?.toLowerCase().includes(query) ||
+        row.cuisine?.toLowerCase().includes(query) ||
+        row.featuredDish?.toLowerCase().includes(query) ||
+        row.categoryDishName?.toLowerCase().includes(query)
+      )
+    }
+
+    if (sortBy) {
+      nextRows.sort((left, right) => {
+        if (sortBy === 'price-low' || sortBy === 'price-high') {
+          const leftPrice = getComparablePrice(left)
+          const rightPrice = getComparablePrice(right)
+          if (leftPrice == null && rightPrice == null) return 0
+          if (leftPrice == null) return 1
+          if (rightPrice == null) return -1
+          return sortBy === 'price-low' ? leftPrice - rightPrice : rightPrice - leftPrice
+        }
+
+        if (sortBy === 'rating-high' || sortBy === 'rating-low') {
+          const leftRating = getComparableRating(left)
+          const rightRating = getComparableRating(right)
+          if (leftRating == null && rightRating == null) return 0
+          if (leftRating == null) return 1
+          if (rightRating == null) return -1
+          return sortBy === 'rating-high' ? rightRating - leftRating : leftRating - rightRating
+        }
+
+        return 0
+      })
+    }
+
+    return uniqueByRestaurant(nextRows)
   }
 
   // Fetch categories from admin API
@@ -250,7 +657,7 @@ export default function CategoryPage() {
 
     for (const section of menu.sections) {
       const sectionNameLower = (section.name || '').toLowerCase()
-      if (keywords.some(keyword => sectionNameLower.includes(keyword))) {
+      if (matchesCategoryText(sectionNameLower, keywords)) {
         return true
       }
 
@@ -259,9 +666,10 @@ export default function CategoryPage() {
           const itemNameLower = (item.name || '').toLowerCase()
           const itemCategoryLower = (item.categoryName || item.category || '').toLowerCase()
 
-          if (keywords.some(keyword =>
-            itemNameLower.includes(keyword) || itemCategoryLower.includes(keyword)
-          )) {
+          if (
+            matchesCategoryText(itemNameLower, keywords) ||
+            matchesCategoryText(itemCategoryLower, keywords)
+          ) {
             return true
           }
         }
@@ -271,7 +679,7 @@ export default function CategoryPage() {
       if (section.subsections && Array.isArray(section.subsections)) {
         for (const subsection of section.subsections) {
           const subsectionNameLower = (subsection?.name || "").toLowerCase()
-          if (keywords.some((keyword) => subsectionNameLower.includes(keyword))) {
+          if (matchesCategoryText(subsectionNameLower, keywords)) {
             return true
           }
 
@@ -279,7 +687,10 @@ export default function CategoryPage() {
           for (const item of subItems) {
             const itemNameLower = (item?.name || "").toLowerCase()
             const itemCategoryLower = (item?.categoryName || item?.category || "").toLowerCase()
-            if (keywords.some((keyword) => itemNameLower.includes(keyword) || itemCategoryLower.includes(keyword))) {
+            if (
+              matchesCategoryText(itemNameLower, keywords) ||
+              matchesCategoryText(itemCategoryLower, keywords)
+            ) {
               return true
             }
           }
@@ -305,16 +716,16 @@ export default function CategoryPage() {
 
     for (const section of menu.sections) {
       const sectionNameLower = (section?.name || "").toLowerCase()
-      const sectionMatches = keywords.some((keyword) => sectionNameLower.includes(keyword))
+      const sectionMatches = matchesCategoryText(sectionNameLower, keywords)
 
       if (section.items && Array.isArray(section.items)) {
         for (const item of section.items) {
           const itemNameLower = (item.name || '').toLowerCase()
           const itemCategoryLower = (item.categoryName || item.category || '').toLowerCase()
 
-          const itemMatches = keywords.some(keyword =>
-            itemNameLower.includes(keyword) || itemCategoryLower.includes(keyword)
-          )
+          const itemMatches =
+            matchesCategoryText(itemNameLower, keywords) ||
+            matchesCategoryText(itemCategoryLower, keywords)
 
           // If the section name matches the category, include all items in it.
           if (sectionMatches || itemMatches) {
@@ -344,13 +755,15 @@ export default function CategoryPage() {
       if (section.subsections && Array.isArray(section.subsections)) {
         for (const subsection of section.subsections) {
           const subsectionNameLower = (subsection?.name || "").toLowerCase()
-          const subsectionMatches = keywords.some((keyword) => subsectionNameLower.includes(keyword))
+          const subsectionMatches = matchesCategoryText(subsectionNameLower, keywords)
           const subItems = Array.isArray(subsection?.items) ? subsection.items : []
 
           for (const item of subItems) {
             const itemNameLower = (item?.name || "").toLowerCase()
             const itemCategoryLower = (item?.categoryName || item?.category || "").toLowerCase()
-            const itemMatches = keywords.some((keyword) => itemNameLower.includes(keyword) || itemCategoryLower.includes(keyword))
+            const itemMatches =
+              matchesCategoryText(itemNameLower, keywords) ||
+              matchesCategoryText(itemCategoryLower, keywords)
 
             if (sectionMatches || subsectionMatches || itemMatches) {
               const originalPrice = item?.originalPrice || item?.price || 0
@@ -423,11 +836,9 @@ export default function CategoryPage() {
           // Transform restaurants - filter out default values
           const restaurantsWithIds = restaurantsArray
             .filter((restaurant) => {
-              const hasName = restaurant.name && restaurant.name.trim().length > 0
-              const hasRealImage = restaurant.profileImage?.url ||
-                (restaurant.coverImages && restaurant.coverImages.length > 0) ||
-                (restaurant.menuImages && restaurant.menuImages.length > 0)
-              return hasName && hasRealImage
+              const displayName = String(restaurant.restaurantName || restaurant.name || "").trim()
+              const hasName = displayName.length > 0
+              return hasName
             })
             .map((restaurant) => {
               let deliveryTime = restaurant.estimatedDeliveryTime || null
@@ -483,6 +894,7 @@ export default function CategoryPage() {
                 offer: offer,
                 slug: restaurant.slug || (restaurant.restaurantName || restaurant.name)?.toLowerCase().replace(/\s+/g, '-'),
                 restaurantId: restaurantId,
+                mongoId: restaurant._id || null,
                 hasPaneer: false,
                 category: 'all',
               }
@@ -493,6 +905,7 @@ export default function CategoryPage() {
           })
 
           setIsEnrichingMenus(true)
+          const enrichmentRequestId = ++menuEnrichmentRequestRef.current
           void (async () => {
             try {
               const transformedRestaurants = []
@@ -502,9 +915,39 @@ export default function CategoryPage() {
                 const batchResults = await Promise.all(
                   batchRestaurants.map(async (restaurant) => {
                     try {
-                      const menuResponse = await restaurantAPI.getMenuByRestaurantId(restaurant.restaurantId)
-                      if (menuResponse.data && menuResponse.data.success && menuResponse.data.data && menuResponse.data.data.menu) {
-                        const menu = menuResponse.data.data.menu
+                      const lookupIds = [
+                        restaurant.restaurantId,
+                        restaurant.id,
+                        restaurant.mongoId,
+                        restaurant.slug,
+                      ]
+                        .filter(Boolean)
+                        .map((value) => String(value).trim())
+                        .filter((value, valueIndex, arr) => arr.indexOf(value) === valueIndex)
+
+                      let menu = null
+                      for (const lookupId of lookupIds) {
+                        try {
+                          const menuResponse = await restaurantAPI.getMenuByRestaurantId(lookupId, { noCache: true })
+                          const rawMenu = getMenuFromResponse(menuResponse)
+                          const normalizedMenu = normalizeMenu(rawMenu)
+                          if (menuResponse?.data?.success && normalizedMenu?.sections?.length > 0) {
+                            menu = normalizedMenu
+                            break
+                          }
+                        } catch (lookupError) {
+                          if (lookupError?.response?.status !== 404) {
+                            throw lookupError
+                          }
+                        }
+                      }
+
+                      if (!menu || menu.sections.length === 0) {
+                        const approvedFoods = await fetchApprovedFoods()
+                        menu = buildFallbackMenuFromFoods(approvedFoods, restaurant)
+                      }
+
+                      if (menu?.sections?.length > 0) {
                         const hasPaneer = checkCategoryInMenu(menu, 'paneer-tikka')
 
                         let featuredDish = restaurant.featuredDish
@@ -596,6 +1039,60 @@ export default function CategoryPage() {
       setSelectedCategory(category.toLowerCase())
     }
   }, [category, categories])
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !currentFilterStorageKey) return
+
+    hasRestoredCategoryFiltersRef.current = false
+
+    try {
+      const raw = window.localStorage.getItem(CATEGORY_PAGE_FILTERS_STORAGE_KEY)
+      if (!raw) return
+
+      const stored = JSON.parse(raw)
+      const categoryState = stored?.[currentFilterStorageKey]
+      if (!categoryState || typeof categoryState !== "object") return
+
+      setSortBy(categoryState.sortBy || null)
+      setActiveFilters(new Set(Array.isArray(categoryState.activeFilters) ? categoryState.activeFilters : []))
+    } catch {
+      setSortBy(null)
+      setActiveFilters(new Set())
+    } finally {
+      hasRestoredCategoryFiltersRef.current = true
+    }
+  }, [currentFilterStorageKey])
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !currentFilterStorageKey) return
+    if (!hasRestoredCategoryFiltersRef.current) return
+
+    try {
+      const raw = window.localStorage.getItem(CATEGORY_PAGE_FILTERS_STORAGE_KEY)
+      const stored = raw ? JSON.parse(raw) : {}
+      stored[currentFilterStorageKey] = {
+        sortBy,
+        activeFilters: Array.from(activeFilters),
+      }
+      window.localStorage.setItem(CATEGORY_PAGE_FILTERS_STORAGE_KEY, JSON.stringify(stored))
+    } catch {
+      // Ignore storage failures and keep in-memory filters working.
+    }
+  }, [currentFilterStorageKey, sortBy, activeFilters])
+
+  useEffect(() => {
+    const rail = categoryScrollRef.current
+    if (!rail) return
+
+    const selectedButton = rail.querySelector("[data-category-selected='true']")
+    if (!selectedButton || typeof selectedButton.scrollIntoView !== "function") return
+
+    selectedButton.scrollIntoView({
+      behavior: "smooth",
+      inline: "center",
+      block: "nearest",
+    })
+  }, [selectedCategory, categories])
 
   const toggleFilter = (filterId) => {
     setActiveFilters(prev => {
@@ -694,35 +1191,17 @@ export default function CategoryPage() {
       })
 
       filtered = expandedDishes
+
+      if (filtered.length === 0) {
+        const fallbackDishes = getCategoryFallbackDishesFromApprovedFoods(selectedCategory, sourceData)
+        filtered = vegMode
+          ? fallbackDishes.filter((dish) => dish.categoryDishFoodType === "Veg")
+          : fallbackDishes
+      }
     }
 
-    // Apply filters
-    if (activeFilters.has('under-30-mins')) {
-      filtered = filtered.filter(r => {
-        if (!r.deliveryTime) return false
-        const timeMatch = r.deliveryTime.match(/(\d+)/)
-        return timeMatch && parseInt(timeMatch[1]) <= 30
-      })
-    }
-    if (activeFilters.has('rating-4-plus')) {
-      filtered = filtered.filter(r => r.rating && r.rating >= 4.0)
-    }
-    if (activeFilters.has('flat-50-off')) {
-      filtered = filtered.filter(r => r.offer && r.offer.includes('50%'))
-    }
-
-    // Filter by search
-    if (deferredSearchQuery.trim()) {
-      const query = deferredSearchQuery.toLowerCase()
-      filtered = filtered.filter(r =>
-        r.name?.toLowerCase().includes(query) ||
-        r.cuisine?.toLowerCase().includes(query) ||
-        r.featuredDish?.toLowerCase().includes(query)
-      )
-    }
-
-    return uniqueByRestaurant(filtered)
-  }, [selectedCategory, activeFilters, deferredSearchQuery, restaurantsData, categoryKeywords, vegMode])
+    return applyFiltersAndSorting(filtered)
+  }, [selectedCategory, activeFilters, deferredSearchQuery, restaurantsData, categoryKeywords, vegMode, approvedFoodsData, sortBy])
 
   const filteredAllRestaurants = useMemo(() => {
     const sourceData = restaurantsData.length > 0 ? restaurantsData : []
@@ -762,38 +1241,17 @@ export default function CategoryPage() {
       })
 
       filtered = expandedDishes
+
+      if (filtered.length === 0) {
+        const fallbackDishes = getCategoryFallbackDishesFromApprovedFoods(selectedCategory, sourceData)
+        filtered = vegMode
+          ? fallbackDishes.filter((dish) => dish.categoryDishFoodType === "Veg")
+          : fallbackDishes
+      }
     }
 
-    // Apply filters
-    if (activeFilters.has('under-30-mins')) {
-      filtered = filtered.filter(r => {
-        if (!r.deliveryTime) return false
-        const timeMatch = r.deliveryTime.match(/(\d+)/)
-        return timeMatch && parseInt(timeMatch[1]) <= 30
-      })
-    }
-    if (activeFilters.has('rating-4-plus')) {
-      filtered = filtered.filter(r => r.rating && r.rating >= 4.0)
-    }
-    if (activeFilters.has('under-250')) {
-      filtered = filtered.filter(r => r.featuredPrice && r.featuredPrice <= 250)
-    }
-    if (activeFilters.has('flat-50-off')) {
-      filtered = filtered.filter(r => r.offer && r.offer.includes('50%'))
-    }
-
-    // Filter by search
-    if (deferredSearchQuery.trim()) {
-      const query = deferredSearchQuery.toLowerCase()
-      filtered = filtered.filter(r =>
-        r.name?.toLowerCase().includes(query) ||
-        r.cuisine?.toLowerCase().includes(query) ||
-        r.featuredDish?.toLowerCase().includes(query)
-      )
-    }
-
-    return uniqueByRestaurant(filtered)
-  }, [selectedCategory, activeFilters, deferredSearchQuery, restaurantsData, categoryKeywords, vegMode])
+    return applyFiltersAndSorting(filtered)
+  }, [selectedCategory, activeFilters, deferredSearchQuery, restaurantsData, categoryKeywords, vegMode, approvedFoodsData, sortBy])
 
   const showRestaurantSkeleton = useDelayedLoading(
     isLoadingFilterResults || loadingRestaurants || (isEnrichingMenus && selectedCategory !== 'all' && filteredRecommended.length === 0),
@@ -813,11 +1271,12 @@ export default function CategoryPage() {
 
   // Check if should show grayscale (user out of service)
   const shouldShowGrayscale = isOutOfService
+  const isCategoryView = selectedCategory && selectedCategory !== 'all'
 
   return (
     <div className={`min-h-screen bg-white dark:bg-[#0a0a0a] ${shouldShowGrayscale ? 'grayscale opacity-75' : ''}`}>
       {/* Sticky Header */}
-      <div className="sticky top-0 z-20 bg-white dark:bg-[#1a1a1a] shadow-sm">
+      <div className="sticky top-0 z-20 bg-white/95 dark:bg-[#1a1a1a]/95 backdrop-blur supports-[backdrop-filter]:bg-white/90 shadow-sm">
         <div className="max-w-7xl mx-auto">
           {/* Search Bar with Back Button */}
           <div className="flex items-center gap-2 px-3 md:px-6 py-3 border-b border-gray-100 dark:border-gray-800">
@@ -859,6 +1318,7 @@ export default function CategoryPage() {
                   <button
                     key={cat.id}
                     onClick={() => handleCategorySelect(cat)}
+                    data-category-selected={isSelected ? "true" : "false"}
                     className={`flex flex-col items-center gap-1.5 flex-shrink-0 pb-2 transition-all ${isSelected ? 'border-b-2 border-[#EB590E]' : ''
                       }`}
                   >
@@ -903,12 +1363,8 @@ export default function CategoryPage() {
               )
             )}
           </div>
-        </div>
-      </div>
 
-      {/* Filters */}
-      <div className="bg-white dark:bg-[#1a1a1a] border-b border-gray-100 dark:border-gray-800">
-        <div className="max-w-7xl mx-auto">
+          {/* Filters */}
           <div className="flex flex-col md:flex-row md:flex-wrap gap-2 px-4 md:px-6 py-3">
             {/* Row 1 */}
             <div
@@ -997,7 +1453,7 @@ export default function CategoryPage() {
 
               {/* Small Restaurant Cards - Grid - Show all dishes when category is selected */}
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 md:gap-4">
-                {(selectedCategory && selectedCategory !== 'all'
+                {(isCategoryView
                   ? filteredRecommended
                   : filteredRecommended.slice(0, 6)
                 ).map((restaurant) => {
@@ -1064,14 +1520,20 @@ export default function CategoryPage() {
                           </div>
                         </div>
 
-                        {/* Restaurant Info - Show category dish name if available, otherwise restaurant name */}
                         <h3 className="font-semibold text-gray-900 dark:text-white text-xs md:text-sm line-clamp-1">
-                          {restaurant.categoryDishName || restaurant.name}
+                          {isCategoryView ? (restaurant.categoryDishName || restaurant.featuredDish || restaurant.name) : restaurant.name}
                         </h3>
-                        <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400 text-[10px] md:text-xs">
-                          <Clock className="h-2.5 w-2.5 md:h-3 md:w-3" />
-                          <span>{restaurant.deliveryTime || 'Not available'}</span>
-                        </div>
+                        {isCategoryView && (
+                          <p className="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
+                            {restaurant.name}
+                          </p>
+                        )}
+                        {restaurant.deliveryTime && (
+                          <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400 text-[10px] md:text-xs">
+                            <Clock className="h-2.5 w-2.5 md:h-3 md:w-3" />
+                            <span>{restaurant.deliveryTime}</span>
+                          </div>
+                        )}
                       </div>
                     </Link>
                   )
@@ -1148,10 +1610,12 @@ export default function CategoryPage() {
                         )}
 
                         {/* Category Dish Badge - Top Left (shows category dish if available, otherwise featured dish) */}
-                        {(restaurant.categoryDishName || restaurant.featuredDish) && (
+                        {(isCategoryView ? restaurant.categoryDishPrice : (restaurant.categoryDishName || restaurant.featuredDish)) && (
                           <div className="absolute top-3 left-3">
                             <div className="bg-gray-800/80 backdrop-blur-sm text-white px-3 py-1.5 rounded-lg text-xs sm:text-sm md:text-base font-medium">
-                              {restaurant.categoryDishName || restaurant.featuredDish} • ₹{restaurant.categoryDishPrice || restaurant.featuredPrice}
+                              {isCategoryView
+                                ? `₹${restaurant.categoryDishPrice || restaurant.featuredPrice || 0}`
+                                : `${restaurant.categoryDishName || restaurant.featuredDish} • ₹${restaurant.categoryDishPrice || restaurant.featuredPrice}`}
                             </div>
                           </div>
                         )}
@@ -1184,8 +1648,13 @@ export default function CategoryPage() {
                         <div className="flex items-start justify-between gap-2 mb-2 lg:mb-3">
                           <div className="flex-1 min-w-0">
                             <h3 className="text-md md:text-xl lg:text-2xl font-bold text-gray-900 dark:text-white line-clamp-1 lg:line-clamp-2">
-                              {restaurant.name}
+                              {isCategoryView ? (restaurant.categoryDishName || restaurant.featuredDish || restaurant.name) : restaurant.name}
                             </h3>
+                            {isCategoryView && (
+                              <p className="mt-1 text-sm md:text-base text-gray-500 dark:text-gray-400 line-clamp-1">
+                                {restaurant.name}
+                              </p>
+                            )}
                           </div>
                           <div className="flex-shrink-0 bg-green-600 text-white px-2 md:px-3 lg:px-4 py-1 lg:py-1.5 rounded-lg flex items-center gap-1">
                             <span className="text-sm md:text-base lg:text-lg font-bold">{restaurant.rating}</span>
@@ -1194,16 +1663,20 @@ export default function CategoryPage() {
                         </div>
 
                         {/* Delivery Time & Distance */}
-                        <div className="flex items-center gap-1 text-sm md:text-base lg:text-lg text-gray-500 dark:text-gray-400 mb-2 lg:mb-3">
-                          <Clock className="h-4 w-4 md:h-5 md:w-5 lg:h-6 lg:w-6" strokeWidth={1.5} />
-                          <span className="font-medium">{restaurant.deliveryTime || 'Not available'}</span>
-                          {restaurant.distance && (
-                            <>
-                              <span className="mx-1">|</span>
+                        {(restaurant.deliveryTime || restaurant.distance) && (
+                          <div className="flex items-center gap-1 text-sm md:text-base lg:text-lg text-gray-500 dark:text-gray-400 mb-2 lg:mb-3">
+                            {restaurant.deliveryTime && (
+                              <>
+                                <Clock className="h-4 w-4 md:h-5 md:w-5 lg:h-6 lg:w-6" strokeWidth={1.5} />
+                                <span className="font-medium">{restaurant.deliveryTime}</span>
+                              </>
+                            )}
+                            {restaurant.deliveryTime && restaurant.distance && <span className="mx-1">|</span>}
+                            {restaurant.distance && (
                               <span className="font-medium">{restaurant.distance}</span>
-                            </>
-                          )}
-                        </div>
+                            )}
+                          </div>
+                        )}
 
                         {/* Offer Badge */}
                         {restaurant.offer && (
@@ -1235,9 +1708,8 @@ export default function CategoryPage() {
                     setActiveFilters(new Set())
                     setSearchQuery("")
                     setSortBy(null)
-                    setSelectedCuisine(null)
                     // Trigger a gentle refresh to ensure data freshness
-                    const enrichmentRequestId = ++menuEnrichmentRequestRef.current
+                    menuEnrichmentRequestRef.current += 1
                     setIsEnrichingMenus(false)
                     setTimeout(() => setIsLoadingFilterResults(false), 500)
                   }}
@@ -1272,7 +1744,6 @@ export default function CategoryPage() {
                         setIsLoadingFilterResults(true)
                         setActiveFilters(new Set())
                         setSortBy(null)
-                        setSelectedCuisine(null)
                         setTimeout(() => setIsLoadingFilterResults(false), 500)
                       }}
                       className="text-[#EB590E] font-medium text-sm md:text-base hover:underline"
@@ -1291,7 +1762,6 @@ export default function CategoryPage() {
                         { id: 'rating', label: 'Rating', icon: Star },
                         { id: 'distance', label: 'Distance', icon: MapPin },
                         { id: 'price', label: 'Dish Price', icon: IndianRupee },
-                        { id: 'cuisine', label: 'Cuisine', icon: UtensilsCrossed },
                         { id: 'offers', label: 'Offers', icon: BadgePercent },
                         { id: 'trust', label: 'Trust', icon: ShieldCheck },
                       ].map((tab) => {
@@ -1494,31 +1964,6 @@ export default function CategoryPage() {
                         </div>
                       </div>
 
-                      {/* Cuisine Tab */}
-                      <div
-                        ref={el => filterSectionRefs.current['cuisine'] = el}
-                        data-section-id="cuisine"
-                        className="space-y-4 mb-8"
-                      >
-                        <h3 className="text-lg md:text-xl font-semibold text-gray-900 dark:text-white mb-4">Cuisine</h3>
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
-                          {['Chinese', 'American', 'Japanese', 'Italian', 'Mexican', 'Indian', 'Asian', 'Seafood', 'Desserts', 'Cafe', 'Healthy'].map((cuisine) => (
-                            <button
-                              key={cuisine}
-                              onClick={() => setSelectedCuisine(selectedCuisine === cuisine ? null : cuisine)}
-                              className={`px-4 md:px-5 py-3 md:py-4 rounded-xl border text-center transition-colors ${selectedCuisine === cuisine
-                                ? 'border-[#EB590E] bg-[#FFF2EB] dark:bg-[#EB590E]/20'
-                                : 'border-gray-200 dark:border-gray-700 hover:border-[#EB590E]'
-                                }`}
-                            >
-                              <span className={`text-sm md:text-base font-medium ${selectedCuisine === cuisine ? 'text-[#EB590E]' : 'text-gray-700 dark:text-gray-300'}`}>
-                                {cuisine}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
                       {/* Offers Tab */}
                       <div
                         ref={el => filterSectionRefs.current['offers'] = el}
@@ -1584,12 +2029,12 @@ export default function CategoryPage() {
                           setIsLoadingFilterResults(false)
                         }, 500)
                       }}
-                      className={`flex-1 py-3 md:py-4 font-semibold rounded-xl transition-colors text-sm md:text-base ${activeFilters.size > 0 || sortBy || selectedCuisine
+                      className={`flex-1 py-3 md:py-4 font-semibold rounded-xl transition-colors text-sm md:text-base ${activeFilters.size > 0 || sortBy
                         ? 'bg-[#EB590E] text-white hover:bg-[#D94F0C]'
                         : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
                         }`}
                     >
-                      {activeFilters.size > 0 || sortBy || selectedCuisine
+                      {activeFilters.size > 0 || sortBy
                         ? 'Show results'
                         : 'Show results'}
                     </button>

@@ -245,6 +245,8 @@ export async function createOrder(userId, dto) {
 
   const deliveryAddress = {
     label: dto.address?.label || "Home",
+    name: dto.address?.name || dto.address?.fullName || dto.customerName || "",
+    fullName: dto.address?.fullName || dto.address?.name || dto.customerName || "",
     street: dto.address?.street || "",
     additionalDetails: dto.address?.additionalDetails || "",
     city: dto.address?.city || "",
@@ -353,6 +355,8 @@ export async function createOrder(userId, dto) {
       : restaurant.zoneId,
     items: dto.items,
     deliveryAddress,
+    customerName: dto.customerName || deliveryAddress.fullName || "",
+    customerPhone: dto.customerPhone || deliveryAddress.phone || "",
     pricing: normalizedPricing,
     payment,
     orderStatus: "created",

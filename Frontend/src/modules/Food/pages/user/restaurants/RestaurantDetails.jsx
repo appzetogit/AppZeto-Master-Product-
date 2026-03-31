@@ -60,6 +60,7 @@ const debugError = (...args) => {}
 
 const FOOD_IMAGE_FALLBACK = "https://picsum.photos/seed/food-fallback/800/600"
 const RUPEE_SYMBOL = "\u20B9"
+const RESTAURANT_DETAILS_FILTERS_STORAGE_KEY = "food-restaurant-details-filters"
 
 function RestaurantDetailsContent() {
   const { slug } = useParams()
@@ -98,9 +99,46 @@ function RestaurantDetailsContent() {
   const [highlightedDishId, setHighlightedDishId] = useState(null)
   const [loadingMenuItems, setLoadingMenuItems] = useState(true)
   const dishCardRefs = useRef({})
-  const [filters, setFilters] = useState({
-    sortBy: null, // "low-to-high" | "high-to-low"
-    vegNonVeg: null, // "veg" | "non-veg"
+
+  // Initialize filters from localStorage if available
+  const [filters, setFilters] = useState(() => {
+    if (typeof window === "undefined" || !slug) {
+      return {
+        sortBy: null,
+        vegNonVeg: null,
+        highlyReordered: false,
+        spicy: false,
+      }
+    }
+    try {
+      const raw = window.localStorage.getItem(RESTAURANT_DETAILS_FILTERS_STORAGE_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        const savedFilters = parsed?.[slug]
+        if (savedFilters && typeof savedFilters === "object") {
+          return {
+            sortBy:
+              savedFilters.sortBy === "low-to-high" || savedFilters.sortBy === "high-to-low"
+                ? savedFilters.sortBy
+                : null,
+            vegNonVeg:
+              savedFilters.vegNonVeg === "veg" || savedFilters.vegNonVeg === "non-veg"
+                ? savedFilters.vegNonVeg
+                : null,
+            highlyReordered: savedFilters.highlyReordered === true,
+            spicy: savedFilters.spicy === true,
+          }
+        }
+      }
+    } catch (error) {
+      debugWarn("Failed to initialize restaurant filters from localStorage:", error)
+    }
+    return {
+      sortBy: null,
+      vegNonVeg: null,
+      highlyReordered: false,
+      spicy: false,
+    }
   })
 
   // Restaurant data state
@@ -671,16 +709,26 @@ function RestaurantDetailsContent() {
                   if (!value || typeof value !== "object") return []
                   return Object.values(value).filter((entry) => entry && typeof entry === "object")
                 }
-                const normalizeItem = (item = {}) => ({
-                  ...item,
-                  id: String(item.id || item._id || `${Date.now()}-${Math.random()}`),
-                  name: item.name || "Unnamed Item",
-                  foodType: item.foodType || "Non-Veg",
-                  price: Number(item.price || 0),
-                  isAvailable: item.isAvailable !== false,
-                  isRecommended: item.isRecommended === true,
-                  description: typeof item.description === "string" ? item.description : "",
-                })
+                const normalizeItem = (item = {}) => {
+                   const isRecommended = item.isRecommended === true || item.isRecommended === 1 || String(item.isRecommended) === "true"
+                   const isSpicy = item.isSpicy === true || item.isSpicy === 1 || String(item.isSpicy) === "true"
+                   let foodType = item.foodType || "Non-Veg"
+                   if (typeof foodType === 'string') {
+                     if (foodType.toLowerCase() === 'veg') foodType = 'Veg'
+                     else if (foodType.toLowerCase() === 'non-veg' || foodType.toLowerCase() === 'nonveg') foodType = 'Non-Veg'
+                   }
+                   return {
+                     ...item,
+                     id: String(item.id || item._id || `${Date.now()}-${Math.random()}`),
+                     name: item.name || "Unnamed Item",
+                     foodType,
+                     price: Number(item.price || 0),
+                     isAvailable: item.isAvailable !== false,
+                     isRecommended,
+                     isSpicy,
+                     description: typeof item.description === "string" ? item.description : "",
+                   }
+                 }
                 const menuSections = toArray(rawSections).map((section, sectionIndex) => ({
                   ...section,
                   id: String(section.id || section._id || `section-${sectionIndex}`),
@@ -1177,10 +1225,26 @@ function RestaurantDetailsContent() {
     let count = 0
     if (filters.sortBy) count++
     if (filters.vegNonVeg) count++
+    if (filters.highlyReordered) count++
+    if (filters.spicy) count++
     return count
   }
 
   const activeFilterCount = getActiveFilterCount()
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !slug) return
+
+    try {
+      const raw = window.localStorage.getItem(RESTAURANT_DETAILS_FILTERS_STORAGE_KEY)
+      const parsed = raw ? JSON.parse(raw) : {}
+      const nextState = parsed && typeof parsed === "object" ? parsed : {}
+      nextState[slug] = filters
+      window.localStorage.setItem(RESTAURANT_DETAILS_FILTERS_STORAGE_KEY, JSON.stringify(nextState))
+    } catch (error) {
+      debugWarn("Failed to persist restaurant filters:", error)
+    }
+  }, [filters, slug])
 
   // Handle bookmark click
   const handleBookmarkClick = (item) => {
@@ -1467,6 +1531,8 @@ function RestaurantDetailsContent() {
         if (item.foodType !== "Non-Veg") return false
       }
 
+      if (filters.highlyReordered && item.isRecommended !== true) return false
+      if (filters.spicy && item.isSpicy !== true) return false
 
       return true
     })
@@ -1517,17 +1583,44 @@ function RestaurantDetailsContent() {
     return false;
   }
 
-  // Filter sections to only show those with items under Rs 250
-  // Returns array of { section, originalIndex } to preserve original index for expanded sections
+  // Build renderable sections from the current filter state so section/subsection visibility
+  // stays in sync with the actual filtered items shown on screen.
   const getFilteredSections = () => {
-    if (!restaurant?.menuSections) return [];
-    if (!showOnlyUnder250) {
-      return restaurant.menuSections.map((section, index) => ({ section, originalIndex: index }));
-    }
+    if (!restaurant?.menuSections) return []
 
     return restaurant.menuSections
-      .map((section, index) => ({ section, originalIndex: index }))
-      .filter(({ section }) => sectionHasItemsUnder250(section));
+      .map((section, index) => {
+        const filteredItems = sortMenuItems(
+          filterMenuItems(
+            toRenderableArray(section?.items).filter((item) => item?.isAvailable !== false)
+          )
+        )
+
+        const filteredSubsections = toRenderableArray(section?.subsections)
+          .map((subsection) => ({
+            ...subsection,
+            items: sortMenuItems(
+              filterMenuItems(
+                toRenderableArray(subsection?.items).filter((item) => item?.isAvailable !== false)
+              )
+            ),
+          }))
+          .filter((subsection) => subsection.items.length > 0)
+
+        return {
+          section: {
+            ...section,
+            items: filteredItems,
+            subsections: filteredSubsections,
+          },
+          originalIndex: index,
+        }
+      })
+      .filter(({ section }) => {
+        const hasVisibleItems = toRenderableArray(section?.items).length > 0
+        const hasVisibleSubsections = toRenderableArray(section?.subsections).length > 0
+        return hasVisibleItems || hasVisibleSubsections
+      })
   }
 
   useEffect(() => {
@@ -1987,7 +2080,7 @@ function RestaurantDetailsContent() {
                   )}
                   {isExpanded && sectionItems.length > 0 && (
                     <div className="space-y-0">
-                      {sortMenuItems(filterMenuItems(sectionItems)).map((item) => {
+                      {sectionItems.map((item) => {
                         const quantity = quantities[item.id] || 0
                         // Determine veg/non-veg based on foodType
                         const isVeg = item.foodType === "Veg"
@@ -2028,8 +2121,8 @@ function RestaurantDetailsContent() {
 
                               <h3 className="font-bold text-gray-800 dark:text-white text-lg leading-tight">{item.name}</h3>
 
-                              {/* Highly Reordered Progress Bar - Show if customisable */}
-                              {item.customisable && (
+                              {/* Highly Reordered Progress Bar - Show if recommended */}
+                              {item.isRecommended && (
                                 <div className="flex items-center gap-2 mt-1">
                                   <div className="h-1.5 w-16 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                                     <div className="h-full bg-[#EB590E] w-3/4"></div>
@@ -2171,17 +2264,7 @@ function RestaurantDetailsContent() {
                   {/* Subsections */}
                   {isExpanded && sectionSubsections.length > 0 && (
                     <div className="space-y-4">
-                      {sectionSubsections.filter(subsection => {
-                        // Filter subsections to only show those with items under ?250
-                        if (!showOnlyUnder250) return true;
-                        const subsectionItems = toRenderableArray(subsection?.items)
-                        if (subsectionItems.length === 0) return false;
-                        return subsectionItems.some(item => {
-                          if (item.isAvailable === false) return false;
-                          const finalPrice = getFinalPrice(item);
-                          return finalPrice <= 250;
-                        });
-                      }).map((subsection, subIndex) => {
+                      {sectionSubsections.map((subsection, subIndex) => {
                         const subsectionKey = `${originalIndex}-${subIndex}`
                         const isSubsectionExpanded = expandedSections.has(subsectionKey)
                         const subsectionItems = toRenderableArray(subsection?.items)
@@ -2218,7 +2301,7 @@ function RestaurantDetailsContent() {
                             {/* Subsection Items */}
                             {isSubsectionExpanded && subsectionItems.length > 0 && (
                               <div className="space-y-0">
-                                {sortMenuItems(filterMenuItems(subsectionItems)).map((item) => {
+                                {subsectionItems.map((item) => {
                                   const quantity = quantities[item.id] || 0
                                   // Determine veg/non-veg based on foodType
                                   const isVeg = item.foodType === "Veg"
@@ -2259,8 +2342,8 @@ function RestaurantDetailsContent() {
 
                                         <h3 className="font-bold text-gray-800 dark:text-white text-lg leading-tight">{item.name}</h3>
 
-                                        {/* Highly Reordered Progress Bar - Show if customisable */}
-                                        {item.customisable && (
+                                        {/* Highly Reordered Progress Bar - Show if recommended */}
+                                        {item.isRecommended && (
                                           <div className="flex items-center gap-2 mt-1">
                                             <div className="h-1.5 w-16 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                                               <div className="h-full bg-[#EB590E] w-3/4"></div>
@@ -3039,7 +3122,7 @@ function RestaurantDetailsContent() {
                     </p>
 
                     {/* Highly Reordered Progress Bar */}
-                    {selectedItem.customisable && (
+                    {selectedItem.isRecommended && (
                       <div className="flex items-center gap-2 mb-4">
                         <div className="flex-1 h-0.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                           <div className="h-full bg-green-500 dark:bg-green-400 rounded-full" style={{ width: '50%' }} />

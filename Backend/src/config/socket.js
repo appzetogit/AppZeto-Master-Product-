@@ -21,6 +21,13 @@ function getTokenFromHandshake(socket) {
     return null;
 }
 
+function maskToken(token) {
+    if (!token || typeof token !== 'string') return null;
+    const trimmed = token.trim();
+    if (!trimmed) return null;
+    return `${trimmed.slice(0, 12)}...${trimmed.slice(-6)}`;
+}
+
 const roomNames = {
     restaurant: (id) => `restaurant:${String(id)}`,
     user: (id) => `user:${String(id)}`,
@@ -48,14 +55,41 @@ export const initSocket = async (server) => {
             const token = getTokenFromHandshake(socket);
             if (!token) {
                 logger.warn(`Socket auth failed: token missing for socket ${socket.id}`);
+                logger.warn(`[DeliverySocket] Handshake auth missing`, {
+                    socketId: socket.id,
+                    origin: socket?.handshake?.headers?.origin || null,
+                    host: socket?.handshake?.headers?.host || null,
+                    userAgent: socket?.handshake?.headers?.['user-agent'] || null,
+                    hasAuthToken: Boolean(socket?.handshake?.auth?.token),
+                    hasAuthorizationHeader: Boolean(
+                        socket?.handshake?.headers?.authorization || socket?.handshake?.headers?.Authorization
+                    ),
+                    hasQueryToken: Boolean(socket?.handshake?.query?.token),
+                });
                 return next(new Error('AUTH_MISSING'));
             }
+            logger.info(`[DeliverySocket] Handshake token received`, {
+                socketId: socket.id,
+                origin: socket?.handshake?.headers?.origin || null,
+                host: socket?.handshake?.headers?.host || null,
+                transport: socket?.handshake?.query?.transport || null,
+                tokenPreview: maskToken(token),
+            });
             const decoded = verifyAccessToken(token);
             socket.user = { userId: decoded.userId, role: decoded.role };
             logger.info(`Socket auth success: ${decoded.role}:${decoded.userId} for socket ${socket.id}`);
             return next();
         } catch (err) {
             logger.error(`Socket auth failed for socket ${socket.id}: ${err.message}`);
+            logger.error(`[DeliverySocket] Handshake auth invalid`, {
+                socketId: socket.id,
+                origin: socket?.handshake?.headers?.origin || null,
+                host: socket?.handshake?.headers?.host || null,
+                transport: socket?.handshake?.query?.transport || null,
+                tokenPreview: maskToken(getTokenFromHandshake(socket)),
+                errorMessage: err.message,
+                errorName: err.name || null,
+            });
             return next(new Error('AUTH_INVALID'));
         }
     });

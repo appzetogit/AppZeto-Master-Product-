@@ -737,6 +737,12 @@ export const useDeliveryNotifications = () => {
 
     const token = localStorage.getItem('delivery_accessToken') || localStorage.getItem('accessToken');
     const tokenPreview = token ? `${String(token).slice(0, 12)}...` : null;
+    debugLog('Preparing socket auth payload', {
+      tokenPresent: Boolean(token),
+      tokenPreview,
+      deliveryPartnerId,
+      socketUrl,
+    });
 
     socketRef.current = io(socketUrl, {
       path: '/socket.io/',
@@ -748,7 +754,8 @@ export const useDeliveryNotifications = () => {
       timeout: 20000,
       auth: {
         token: token || ""
-      }
+      },
+      query: token ? { token } : undefined,
     });
 
     debugLog('Socket.IO client created', {
@@ -794,10 +801,12 @@ export const useDeliveryNotifications = () => {
         type: error?.type,
         description: error?.description,
         context: error?.context,
+        data: error?.data,
         socketUrl,
         apiBaseUrl: API_BASE_URL,
         deliveryPartnerId,
         tokenPresent: Boolean(token),
+        tokenPreview,
         transport: socketRef.current?.io?.engine?.transport?.name || 'unknown',
       });
       setIsConnected(false);

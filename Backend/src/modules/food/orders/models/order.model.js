@@ -180,7 +180,12 @@ const deliveryVerificationSchema = new mongoose.Schema(
 
 const orderSchema = new mongoose.Schema(
     {
-
+        order_id: {
+            type: String,
+            unique: true,
+            sparse: true,
+            index: true
+        },
         userId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'FoodUser',
@@ -289,6 +294,15 @@ orderSchema.index({ 'dispatch.status': 1, orderStatus: 1, updatedAt: -1 });
 orderSchema.index({ 'dispatch.deliveryPartnerId': 1, 'dispatch.status': 1, updatedAt: -1 });
 orderSchema.index({ 'payment.status': 1, createdAt: -1 });
 orderSchema.index({ 'payment.method': 1, createdAt: -1 });
+
+orderSchema.pre('save', async function (next) {
+    if (!this.order_id) {
+        const timestamp = Date.now().toString().slice(-4);
+        const random = Math.floor(100 + Math.random() * 900);
+        this.order_id = `FOD-${timestamp}${random}`;
+    }
+    next();
+});
 
 export const FoodOrder = mongoose.model('FoodOrder', orderSchema);
 

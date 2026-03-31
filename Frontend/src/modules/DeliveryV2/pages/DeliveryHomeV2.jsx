@@ -477,6 +477,82 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   useEffect(() => { if (newOrder) setIncomingOrder(newOrder); }, [newOrder]);
 
   useEffect(() => {
+    if (activeOrder && incomingOrder) {
+      setIncomingOrder(null);
+    }
+  }, [activeOrder, incomingOrder]);
+
+  useEffect(() => {
+    if (!isOnline) return;
+    if (currentTab !== 'feed') return;
+    if (activeOrder) return;
+
+    let cancelled = false;
+
+    const hydrateAvailableOrder = async () => {
+      try {
+        const currentResponse = await deliveryAPI.getCurrentDelivery();
+        const currentPayload =
+          currentResponse?.data?.data?.activeOrder ||
+          currentResponse?.data?.data ||
+          null;
+
+        if (!cancelled && currentPayload && (currentPayload._id || currentPayload.orderId)) {
+          setActiveOrder(currentPayload);
+          return;
+        }
+
+        const availableResponse = await deliveryAPI.getOrders({ limit: 20, page: 1 });
+        const availablePayload =
+          availableResponse?.data?.data ||
+          availableResponse?.data ||
+          {};
+        const availableOrders = Array.isArray(availablePayload?.docs)
+          ? availablePayload.docs
+          : Array.isArray(availablePayload?.items)
+            ? availablePayload.items
+            : Array.isArray(availablePayload)
+              ? availablePayload
+              : [];
+
+        const nextIncomingOrder = availableOrders.find((order) => {
+          const dispatchStatus = String(order?.dispatch?.status || '').toLowerCase();
+          const orderStatus = String(order?.orderStatus || order?.status || '').toLowerCase();
+          return (
+            ['unassigned', 'assigned'].includes(dispatchStatus) &&
+            ['confirmed', 'preparing', 'ready_for_pickup'].includes(orderStatus)
+          );
+        });
+
+        if (!cancelled && nextIncomingOrder) {
+          setIncomingOrder((prev) => {
+            const prevId = prev?.orderId || prev?._id || prev?.orderMongoId;
+            const nextId =
+              nextIncomingOrder?.orderId ||
+              nextIncomingOrder?._id ||
+              nextIncomingOrder?.orderMongoId;
+            return prevId === nextId && prev ? prev : nextIncomingOrder;
+          });
+        }
+      } catch (error) {
+        console.warn('[DeliveryHomeV2] Available order fallback sync failed:', error?.message || error);
+      }
+    };
+
+    void hydrateAvailableOrder();
+    const poller = window.setInterval(() => {
+      if (!document.hidden) {
+        void hydrateAvailableOrder();
+      }
+    }, isSocketConnected ? 12000 : 5000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(poller);
+    };
+  }, [activeOrder, currentTab, isOnline, isSocketConnected, setActiveOrder]);
+
+  useEffect(() => {
     if (orderStatusUpdate) {
       if (orderStatusUpdate.status === 'cancelled') {
         toast.error('Order cancelled');

@@ -67,10 +67,9 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   const { isOnline, toggleOnline, activeOrder, tripStatus, setRiderLocation, setActiveOrder, updateTripStatus, clearActiveOrder } = useDeliveryStore();
   const { isWithinRange, distanceToTarget } = useProximityCheck();
   const { acceptOrder, reachPickup, pickUpOrder, reachDrop, completeDelivery, resetTrip } = useOrderManager();
-  
   const { newOrder, clearNewOrder, orderStatusUpdate, clearOrderStatusUpdate, isConnected: isSocketConnected, emitLocation } = useDeliveryNotifications();
+  const companyName = useCompanyName();
 
-  
   const [incomingOrder, setIncomingOrder] = useState(null);
   const [currentTab, setCurrentTab] = useState(tab);
   
@@ -106,7 +105,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   const mapRef = useRef(null);
 
   const isLoggingOut = useRef(false);
-  const handleLogout = React.useCallback(() => {
+  const handleLogout = useCallback(() => {
     if (isLoggingOut.current) return;
     isLoggingOut.current = true;
     
@@ -207,8 +206,6 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
     return () => clearInterval(interval);
   }, [isSimMode, simPath, simIndex, activeOrder, emitLocation, activePolyline, eta, tripStatus]);
 
-  const companyName = useCompanyName();
-
   // Fetch Emergency numbers and Profile (Restored logic)
   useEffect(() => {
     (async () => {
@@ -255,18 +252,6 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   useEffect(() => {
     setIsModalMinimized(false);
   }, [tripStatus, showVerification, incomingOrder]);
-
-  useEffect(() => {
-    const handleLogout = (e) => {
-      // If the delivery module specifically fails, we exit.
-      if (!e.detail || e.detail.module === "delivery") {
-        toast.error("Session expired. Please login again.");
-        navigate("/food/delivery/login", { replace: true });
-      }
-    };
-    window.addEventListener("authRefreshFailed", handleLogout);
-    return () => window.removeEventListener("authRefreshFailed", handleLogout);
-  }, [navigate]);
 
   // 1. Initial Sync (Force sync with server to avoid 'stuck' persistent state)
   useEffect(() => {

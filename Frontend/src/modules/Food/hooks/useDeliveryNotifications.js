@@ -187,6 +187,7 @@ export const useDeliveryNotifications = () => {
   const [orderStatusUpdate, setOrderStatusUpdate] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [deliveryPartnerId, setDeliveryPartnerId] = useState(null);
+  const joinedDeliveryRoomRef = useRef(null);
   const ALERT_LOOP_INTERVAL_MS = 4500;
   const ALERT_LOOP_MAX_MS = 120000;
   const ALERT_DEDUPE_MS = 15000;
@@ -422,6 +423,24 @@ export const useDeliveryNotifications = () => {
     }
   }, [deliveryPartnerId, handleIncomingOrderAlert]);
 
+  const joinDeliveryRoomIfPossible = useCallback(() => {
+    if (!socketRef.current?.connected || !deliveryPartnerId) {
+      return false;
+    }
+
+    if (joinedDeliveryRoomRef.current === deliveryPartnerId) {
+      return true;
+    }
+
+    debugLog('Joining delivery room', {
+      deliveryPartnerId,
+      socketId: socketRef.current?.id,
+    });
+    socketRef.current.emit('join-delivery', deliveryPartnerId);
+    joinedDeliveryRoomRef.current = deliveryPartnerId;
+    return true;
+  }, [deliveryPartnerId]);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -656,23 +675,27 @@ export const useDeliveryNotifications = () => {
       setIsConnected(false);
       return;
     }
-    if (!deliveryPartnerId) {
-      debugLog('? Waiting for deliveryPartnerId...');
-      return;
-    }
 
     // IMPORTANT: Socket.IO server is on the origin (not /api/v1).
     // Our API baseURL is typically like: http://localhost:5000/api/v1
     // So for sockets we always connect to: http://localhost:5000
     let backendUrl = API_BASE_URL;
     try {
-      backendUrl = new URL(backendUrl).origin;
+      const base =
+        String(backendUrl).startsWith('http')
+          ? undefined
+          : (typeof window !== 'undefined' ? window.location.origin : undefined);
+      backendUrl = new URL(backendUrl, base).origin;
     } catch {
       // best-effort fallback: strip common API prefixes
       backendUrl = String(backendUrl || "")
         .replace(/\/api\/v\d+\/?$/i, "")
         .replace(/\/api\/?$/i, "")
         .replace(/\/+$/, "");
+
+      if ((!backendUrl || !backendUrl.startsWith('http')) && typeof window !== 'undefined') {
+        backendUrl = window.location.origin;
+      }
     }
     
     // Backend uses default namespace; rooms handle role separation.
@@ -744,13 +767,10 @@ export const useDeliveryNotifications = () => {
         transport: socketRef.current?.io?.engine?.transport?.name || 'unknown',
       });
       setIsConnected(true);
-      
-      if (deliveryPartnerId) {
-        debugLog('Joining delivery room', {
-          deliveryPartnerId,
-          socketId: socketRef.current?.id,
-        });
-        socketRef.current.emit('join-delivery', deliveryPartnerId);
+
+      joinedDeliveryRoomRef.current = null;
+      if (!joinDeliveryRoomIfPossible()) {
+        debugLog('Socket connected before deliveryPartnerId was ready; waiting to join room.');
       }
       debugLog('Requesting resync after connect', {
         deliveryPartnerId,
@@ -790,6 +810,7 @@ export const useDeliveryNotifications = () => {
         deliveryPartnerId,
       });
       setIsConnected(false);
+      joinedDeliveryRoomRef.current = null;
       
       if (reason === 'io server disconnect') {
         socketRef.current.connect();
@@ -812,10 +833,9 @@ export const useDeliveryNotifications = () => {
         transport: socketRef.current?.io?.engine?.transport?.name || 'unknown',
       });
       setIsConnected(true);
-      
-      if (deliveryPartnerId) {
-        socketRef.current.emit('join-delivery', deliveryPartnerId);
-      }
+
+      joinedDeliveryRoomRef.current = null;
+      joinDeliveryRoomIfPossible();
       socketRef.current.emit('resync');
       void recoverDeliveryState();
     });
@@ -893,8 +913,8 @@ export const useDeliveryNotifications = () => {
       debugLog('?? Order reassigned to another partner:', data);
       if (data.orderId === activeOrderRef.current?._id || data.orderId === activeOrderRef.current?.orderId) {
         debugLog('?? Removing reassigned order from local state');
-        setIncomingOrders(prev => prev.filter(o => o.orderId !== data.orderId && o._id !== data.orderId));
-        // If this was our current popup, close it
+        stopAlertLoop();
+        activeOrderRef.current = null;
         setNewOrder(null);
       }
     });
@@ -940,6 +960,7 @@ export const useDeliveryNotifications = () => {
     return () => {
       debugLog('? Cleaning up socket connection...');
       stopAlertLoop();
+      joinedDeliveryRoomRef.current = null;
       window.removeEventListener('deliveryAuthChanged', handleAuthChange);
       window.removeEventListener('authRefreshed', handleAuthRefreshed);
       window.removeEventListener('focus', handleWindowFocus);
@@ -950,7 +971,25 @@ export const useDeliveryNotifications = () => {
         socketRef.current = null;
       }
     };
-  }, [deliveryPartnerId, handleIncomingOrderAlert, playNotificationSound, recoverDeliveryState, showBackgroundOrderNotification, startAlertLoop, stopAlertLoop]);
+  }, [deliveryPartnerId, handleIncomingOrderAlert, joinDeliveryRoomIfPossible, playNotificationSound, recoverDeliveryState, showBackgroundOrderNotification, startAlertLoop, stopAlertLoop]);
+
+  useEffect(() => {
+    if (!deliveryPartnerId) {
+      debugLog('? Waiting for deliveryPartnerId...');
+      return;
+    }
+
+    joinDeliveryRoomIfPossible();
+
+    if (socketRef.current?.connected) {
+      debugLog('Requesting resync after deliveryPartnerId resolved', {
+        deliveryPartnerId,
+        socketId: socketRef.current?.id,
+      });
+      socketRef.current.emit('resync');
+      void recoverDeliveryState();
+    }
+  }, [deliveryPartnerId, joinDeliveryRoomIfPossible, recoverDeliveryState]);
 
   // Helper functions
   const clearNewOrder = () => {

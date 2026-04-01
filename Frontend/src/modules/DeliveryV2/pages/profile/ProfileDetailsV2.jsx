@@ -145,11 +145,42 @@ export const ProfileDetailsV2 = () => {
     ).trim()
   }
 
-  const ratingValue = Number(profile?.metrics?.rating)
-  const ratingCount = Number(profile?.metrics?.ratingCount || 0)
-  const ratingDisplay = Number.isFinite(ratingValue) ? `${ratingValue.toFixed(1)} (${ratingCount})` : "-"
+  const parseNumericValue = (...values) => {
+    for (const value of values) {
+      const numeric = Number(value)
+      if (Number.isFinite(numeric) && numeric > 0) {
+        return numeric
+      }
+    }
+    return null
+  }
+
+  const ratingValue = parseNumericValue(
+    profile?.metrics?.rating,
+    profile?.ratings?.average,
+    profile?.averageRating,
+    profile?.rating,
+    profile?.stats?.averageRating,
+    profile?.analytics?.averageRating,
+  )
+
+  const ratingCount = Number(
+    profile?.metrics?.ratingCount ||
+    profile?.ratings?.count ||
+    profile?.totalRatings ||
+    profile?.reviewCount ||
+    profile?.reviewsCount ||
+    profile?.stats?.totalRatings ||
+    profile?.analytics?.totalRatings ||
+    0,
+  )
+
+  const ratingDisplay = ratingValue
+    ? `${ratingValue.toFixed(1)}${ratingCount > 0 ? ` (${ratingCount})` : ""}`
+    : "-"
+
   const getRiderLevel = () => {
-    if (!Number.isFinite(ratingValue) || ratingCount <= 0) return "New Rider"
+    if (!Number.isFinite(ratingValue) || ratingValue <= 0 || ratingCount <= 0) return "New Rider"
     if (ratingValue >= 4.8 && ratingCount >= 100) return "Champion"
     if (ratingValue >= 4.6 && ratingCount >= 50) return "Elite"
     if (ratingValue >= 4.3 && ratingCount >= 20) return "Pro"
@@ -243,10 +274,26 @@ export const ProfileDetailsV2 = () => {
 
   const handleUpiQrSelected = (e) => {
     const file = e.target.files?.[0]
-    if (file) {
-      setUpiQrFile(file)
-      setUpiQrPreview(URL.createObjectURL(file))
+    if (file) uploadUpiQrFile(file)
+    if (upiQrInputRef.current) upiQrInputRef.current.value = ""
+  }
+
+  const uploadUpiQrFile = (file) => {
+    if (!file) return
+
+    if (!String(file.type || "").startsWith("image/")) {
+      toast.error("Please select an image file")
+      return
     }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image size should be less than 5MB")
+      return
+    }
+
+    setUpiQrFile(file)
+    setUpiQrPreview(URL.createObjectURL(file))
+    toast.success("UPI QR selected")
   }
 
   const submitBankDetails = async () => {

@@ -201,16 +201,15 @@ export async function tryAutoAssign(orderId, options = {}) {
       }
     }
 
-    const best = eligible[0];
-    order.dispatch.status = 'assigned';
-    order.dispatch.deliveryPartnerId = best.partnerId;
-    order.dispatch.assignedAt = new Date();
-    order.dispatch.offeredTo.push({
-      partnerId: best.partnerId,
+    const offeredToEntries = eligible.map(p => ({
+      partnerId: p.partnerId,
       at: new Date(),
-      action: 'offered',
-    });
+      action: 'offered'
+    }));
 
+    order.dispatch.status = 'unassigned';
+    order.dispatch.deliveryPartnerId = null;
+    order.dispatch.offeredTo.push(...offeredToEntries);
     await order.save();
 
     try {

@@ -15,6 +15,14 @@ const stub = () =>
     config: {},
   });
 
+/** Search API - unified search for user app */
+export const searchAPI = {
+  unifiedSearch: (params = {}) =>
+    apiClient.get("/food/search/unified", { params }),
+  getAdminCategories: (params = {}) =>
+    apiClient.get("/food/search/categories/admin", { params }),
+};
+
 const createStubAPI = () =>
   new Proxy(
     {},

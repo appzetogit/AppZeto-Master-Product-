@@ -2158,12 +2158,8 @@ export default function Home() {
   }, [openLocationSelector]);
 
   const handleSearchFocus = useCallback(() => {
-    // Sync heroSearch with global searchValue when opening overlay
-    if (heroSearch) {
-      setSearchValue(heroSearch);
-    }
-    openSearch();
-  }, [heroSearch, openSearch, setSearchValue]);
+    navigate("/food/user/search");
+  }, [navigate]);
 
   const handleSearchClose = useCallback(() => {
     closeSearch();

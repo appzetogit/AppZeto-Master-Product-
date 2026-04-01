@@ -24,7 +24,7 @@ const TableBooking = lazy(() => import("@food/pages/user/dining/TableBooking"))
 const TableBookingConfirmation = lazy(() => import("@food/pages/user/dining/TableBookingConfirmation"))
 const TableBookingSuccess = lazy(() => import("@food/pages/user/dining/TableBookingSuccess"))
 const MyBookings = lazy(() => import("@food/pages/user/dining/MyBookings"))
-const SearchResults = lazy(() => import("@food/pages/user/SearchResults"))
+const SearchResults = lazy(() => import("@food/pages/user/search/ProfessionalSearch"))
 const ProductDetail = lazy(() => import("@food/pages/user/ProductDetail"))
 
 // Cart

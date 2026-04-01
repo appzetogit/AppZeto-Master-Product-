@@ -50,6 +50,10 @@ const deliveryPartnerSchema = new mongoose.Schema(
         aadharNumber: {
             type: String
         },
+        drivingLicenseNumber: {
+            type: String,
+            trim: true
+        },
         profilePhoto: {
             type: String
         },

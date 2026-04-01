@@ -10,7 +10,7 @@ import { getDeliveryCashLimitSettings } from '../../admin/services/admin.service
 export const registerDeliveryPartner = async (payload, files) => {
     const { 
         name, phone, email, countryCode, address, city, state, 
-        vehicleType, vehicleName, vehicleNumber, panNumber, aadharNumber,
+        vehicleType, vehicleName, vehicleNumber, drivingLicenseNumber, panNumber, aadharNumber,
         fcmToken, platform 
     } = payload;
     const refRaw = typeof payload?.ref === 'string' ? String(payload.ref).trim() : '';
@@ -53,6 +53,7 @@ export const registerDeliveryPartner = async (payload, files) => {
         vehicleType,
         vehicleName,
         vehicleNumber,
+        drivingLicenseNumber,
         panNumber,
         aadharNumber,
         status: 'pending',
@@ -110,7 +111,7 @@ export const updateDeliveryPartnerProfile = async (userId, payload, files) => {
 
     const {
         name, countryCode, address, city, state,
-        vehicleType, vehicleName, vehicleNumber, panNumber, aadharNumber,
+        vehicleType, vehicleName, vehicleNumber, drivingLicenseNumber, panNumber, aadharNumber,
         fcmToken, platform
     } = payload;
 
@@ -122,6 +123,7 @@ export const updateDeliveryPartnerProfile = async (userId, payload, files) => {
     if (vehicleType !== undefined) partner.vehicleType = vehicleType;
     if (vehicleName !== undefined) partner.vehicleName = vehicleName;
     if (vehicleNumber !== undefined) partner.vehicleNumber = vehicleNumber;
+    if (drivingLicenseNumber !== undefined) partner.drivingLicenseNumber = drivingLicenseNumber;
 
     if (fcmToken) {
         if (platform === 'mobile') {

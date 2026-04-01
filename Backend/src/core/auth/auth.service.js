@@ -569,8 +569,11 @@ export const getProfile = async (userId, role) => {
                   document: partner.panPhoto || null,
                 }
               : null,
-          drivingLicense: partner.drivingLicensePhoto
-            ? { document: partner.drivingLicensePhoto }
+          drivingLicense: partner.drivingLicensePhoto || partner.drivingLicenseNumber
+            ? {
+                number: partner.drivingLicenseNumber || null,
+                document: partner.drivingLicensePhoto || null,
+              }
             : null,
           bankDetails:
             partner.bankAccountHolderName ||

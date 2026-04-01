@@ -147,6 +147,16 @@ export const ProfileDetailsV2 = () => {
     ).trim()
   }
 
+  const getDrivingLicenseNumber = () =>
+    String(
+      profile?.documents?.drivingLicense?.number ||
+      profile?.documents?.drivingLicense?.idNumber ||
+      profile?.documents?.drivingLicense?.documentNumber ||
+      profile?.drivingLicenseNumber ||
+      profile?.documents?.drivingLicenseNumber ||
+      "",
+    ).trim()
+
   const parseNumericValue = (...values) => {
     for (const value of values) {
       const numeric = Number(value)
@@ -630,7 +640,7 @@ export const ProfileDetailsV2 = () => {
              {[
                { icon: FileText, label: "Aadhar Card", doc: profile?.documents?.aadhar },
                { icon: FileText, label: "PAN Card", doc: profile?.documents?.pan },
-               { icon: Truck, label: "Driving License", doc: profile?.documents?.drivingLicense }
+               { icon: Truck, label: "Driving License", doc: profile?.documents?.drivingLicense, number: getDrivingLicenseNumber() }
              ].map((item, i) => (
                <div key={i} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
                   <div className="flex items-center gap-4">
@@ -639,7 +649,7 @@ export const ProfileDetailsV2 = () => {
                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{item.label}</p>
                         <p className="text-xs font-bold text-gray-600">{getDocumentVerificationLabel(item.doc)}</p>
                         <p className="text-[11px] font-semibold text-gray-500 mt-0.5">
-                          {getDocumentNumber(item.doc) || "Number not added"}
+                          {item.number || getDocumentNumber(item.doc) || "Number not added"}
                         </p>
                      </div>
                   </div>

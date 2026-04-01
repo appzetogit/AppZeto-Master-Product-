@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react"
 import { ArrowLeft, CheckCircle, Mail } from "lucide-react"
 import { useNavigate } from "react-router-dom"
+import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 
 const REPORT_VIEWS = [
   { id: "detailed", label: "Detailed report" },
@@ -11,6 +12,7 @@ const VIEW_TYPES = ["DAILY", "WEEKLY", "MONTHLY"]
 
 export default function DownloadReport() {
   const navigate = useNavigate()
+  const goBack = useRestaurantBackNavigation()
   const [reportView, setReportView] = useState("detailed")
   const [viewType, setViewType] = useState("DAILY")
   const durations = useMemo(() => {
@@ -57,7 +59,7 @@ export default function DownloadReport() {
       <div className="sticky top-0 z-20 bg-white px-4 py-3 flex items-center gap-3 border-b border-gray-200">
         <button
           className="p-2 -ml-2 rounded-full hover:bg-gray-100"
-          onClick={() => navigate(-1)}
+          onClick={goBack}
           aria-label="Back"
         >
           <ArrowLeft className="w-5 h-5 text-gray-900" />

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
+import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import { ArrowLeft, AlertCircle, Upload, Loader2 } from "lucide-react"
 import { restaurantAPI, uploadAPI } from "@food/api"
 import { ImageSourcePicker } from "@food/components/ImageSourcePicker"
@@ -20,6 +21,7 @@ const EMPTY_FORM = {
 
 export default function UpdateBankDetails() {
   const navigate = useNavigate()
+  const goBack = useRestaurantBackNavigation()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploadingQr, setUploadingQr] = useState(false)
@@ -167,7 +169,7 @@ export default function UpdateBankDetails() {
   return (
     <div className="min-h-screen bg-white flex flex-col">
       <div className="px-4 pt-4 pb-3 flex items-center gap-3 border-b border-gray-200">
-        <button onClick={() => navigate(-1)} className="p-2 rounded-full hover:bg-gray-100" aria-label="Back">
+        <button onClick={goBack} className="p-2 rounded-full hover:bg-gray-100" aria-label="Back">
           <ArrowLeft className="w-5 h-5 text-gray-900" />
         </button>
         <h1 className="text-lg font-bold text-gray-900">Bank & UPI Details</h1>

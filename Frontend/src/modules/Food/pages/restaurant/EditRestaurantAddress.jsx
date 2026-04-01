@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
+import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import Lenis from "lenis"
 import { ArrowLeft, ChevronDown } from "lucide-react"
 import BottomPopup from "@delivery/components/BottomPopup"
@@ -17,6 +18,7 @@ const DEFAULT_LNG = 75.8577
 
 export default function EditRestaurantAddress() {
   const navigate = useNavigate()
+  const goBack = useRestaurantBackNavigation()
   const [address, setAddress] = useState("")
   const [restaurantName, setRestaurantName] = useState("")
   const [location, setLocation] = useState(null)
@@ -180,7 +182,7 @@ export default function EditRestaurantAddress() {
             // Dispatch event to notify other components
             window.dispatchEvent(new Event("addressUpdated"))
             setShowSelectOptionDialog(false)
-            navigate(-1)
+            goBack()
           } else {
             throw new Error("Invalid response from server")
           }
@@ -212,7 +214,7 @@ export default function EditRestaurantAddress() {
       {/* Sticky Header */}
       <div className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-50 flex items-center gap-3 shrink-0">
         <button
-          onClick={() => navigate(-1)}
+          onClick={goBack}
           className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors shrink-0"
           aria-label="Go back"
         >

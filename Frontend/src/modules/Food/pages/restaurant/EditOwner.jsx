@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
+import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import Lenis from "lenis"
 import {
   ArrowLeft,
@@ -34,6 +35,7 @@ const STORAGE_KEY = "restaurant_owner_contact"
 
 export default function EditOwner() {
   const navigate = useNavigate()
+  const goBack = useRestaurantBackNavigation()
   const [ownerData, setOwnerData] = useState({
     name: "",
     phone: "",
@@ -218,7 +220,7 @@ export default function EditOwner() {
         setHasChanges(false)
         
         // Navigate back
-        navigate(-1)
+        goBack()
       } else {
         throw new Error("Invalid response from server")
       }
@@ -290,7 +292,7 @@ export default function EditOwner() {
         <div className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-50">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => navigate(-1)}
+              onClick={goBack}
               className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
               aria-label="Go back"
             >

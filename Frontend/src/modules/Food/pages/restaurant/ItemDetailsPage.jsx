@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react"
 import { useNavigate, useParams, useLocation } from "react-router-dom"
+import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   ArrowLeft,
@@ -38,6 +39,7 @@ const getUploadErrorMessage = (error, fileName = "image") => {
 
 export default function ItemDetailsPage() {
   const navigate = useNavigate()
+  const goBack = useRestaurantBackNavigation()
   const { id } = useParams()
   const location = useLocation()
   const isNewItem = id === "new"
@@ -664,7 +666,7 @@ export default function ItemDetailsPage() {
   const handleDelete = () => {
     // Delete logic here
     debugLog("Deleting item:", id)
-    navigate(-1)
+    goBack()
   }
 
   return (
@@ -681,7 +683,7 @@ export default function ItemDetailsPage() {
       <div className="sticky top-0 z-40 bg-white border-b border-gray-200 flex-shrink-0">
         <div className="px-4 py-3 flex items-center gap-3">
           <button
-            onClick={() => navigate(-1)}
+            onClick={goBack}
             className="p-1 rounded-full hover:bg-gray-100"
           >
             <ArrowLeft className="w-5 h-5 text-gray-700" />

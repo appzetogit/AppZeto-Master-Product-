@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
+import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import { motion, AnimatePresence } from "framer-motion"
 import Lenis from "lenis"
 import { ArrowLeft, Truck, X, CheckCircle, AlertCircle } from "lucide-react"
@@ -14,6 +15,7 @@ const DELIVERY_STATUS_KEY = "restaurant_delivery_status"
 
 export default function DeliverySettings() {
   const navigate = useNavigate()
+  const goBack = useRestaurantBackNavigation()
   const [deliveryStatus, setDeliveryStatus] = useState(false)
   const [showWarning, setShowWarning] = useState(false)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
@@ -134,7 +136,7 @@ export default function DeliverySettings() {
       <div className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-50">
         <div className="flex items-center gap-3">
           <button 
-            onClick={() => navigate(-1)}
+            onClick={goBack}
             className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
             aria-label="Go back"
           >

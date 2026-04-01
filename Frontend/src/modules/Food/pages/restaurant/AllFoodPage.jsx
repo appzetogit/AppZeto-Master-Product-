@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
+import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import { motion, AnimatePresence } from "framer-motion"
 import Lenis from "lenis"
 import { 
@@ -17,6 +18,7 @@ import { flattenMenuItems, getMenuFromResponse } from "@food/utils/menuItems"
 
 export default function AllFoodPage() {
   const navigate = useNavigate()
+  const goBack = useRestaurantBackNavigation()
   const [searchParams] = useSearchParams()
   const [activeCategory, setActiveCategory] = useState("All")
   const [searchQuery, setSearchQuery] = useState("")
@@ -160,7 +162,7 @@ export default function AllFoodPage() {
             transition={{ duration: 0.3 }}
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
-            onClick={() => navigate(-1)}
+            onClick={goBack}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5 text-gray-800" />

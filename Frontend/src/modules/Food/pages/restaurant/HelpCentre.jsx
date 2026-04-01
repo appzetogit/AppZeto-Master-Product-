@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
+import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import { motion } from "framer-motion"
 import { 
   ChevronLeft, 
@@ -54,6 +55,7 @@ const helpTopics = [
 
 export default function HelpCentre() {
   const navigate = useNavigate()
+  const goBack = useRestaurantBackNavigation()
   const [searchQuery, setSearchQuery] = useState("")
 
   const filteredTopics = helpTopics.filter(topic =>
@@ -68,7 +70,7 @@ export default function HelpCentre() {
         <div className="px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => navigate(-1)}
+              onClick={goBack}
               className="p-1 hover:bg-gray-100 rounded-full transition-colors"
             >
               <ChevronLeft className="w-6 h-6 text-gray-900" />

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
+import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import { motion, AnimatePresence } from "framer-motion"
 import Lenis from "lenis"
 import {
@@ -38,6 +39,7 @@ const CUISINES_STORAGE_KEY = "restaurant_cuisines"
 
 export default function OutletInfo() {
   const navigate = useNavigate()
+  const goBack = useRestaurantBackNavigation()
   
   // State management
   const [restaurantData, setRestaurantData] = useState(null)
@@ -342,7 +344,7 @@ export default function OutletInfo() {
         <div className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-50">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 flex-1">
-              <button onClick={() => navigate(-1)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
+              <button onClick={goBack} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
                 <ArrowLeft className="w-6 h-6 text-gray-900" />
               </button>
               <h1 className="text-lg font-bold text-gray-900">Outlet info</h1>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useNavigate } from "react-router-dom"
+import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import Lenis from "lenis"
 import { 
   ArrowLeft,
@@ -23,6 +24,7 @@ const debugError = (...args) => {}
 
 export default function AdvertisementsPage() {
   const navigate = useNavigate()
+  const goBack = useRestaurantBackNavigation()
   const [activeFilter, setActiveFilter] = useState("all")
   const [openMenuId, setOpenMenuId] = useState(null)
   const [showMenu, setShowMenu] = useState(false)
@@ -97,7 +99,7 @@ export default function AdvertisementsPage() {
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-50 flex items-center gap-3">
         <button 
-          onClick={() => navigate(-1)}
+          onClick={goBack}
           className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
         >
           <ArrowLeft className="w-5 h-5 text-gray-600" />

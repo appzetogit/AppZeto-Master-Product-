@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useNavigate } from "react-router-dom"
+import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import Lenis from "lenis"
 import { ArrowLeft, X, Plus } from "lucide-react"
 import { Button } from "@food/components/ui/button"
@@ -15,6 +16,7 @@ const debugError = (...args) => {}
 
 export default function RestaurantConfigPage() {
   const navigate = useNavigate()
+  const goBack = useRestaurantBackNavigation()
   const [showMenu, setShowMenu] = useState(false)
 
   // Lenis smooth scrolling
@@ -165,7 +167,7 @@ export default function RestaurantConfigPage() {
             transition={{ duration: 0.3 }}
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
-            onClick={() => navigate(-1)}
+            onClick={goBack}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5 text-gray-700" />

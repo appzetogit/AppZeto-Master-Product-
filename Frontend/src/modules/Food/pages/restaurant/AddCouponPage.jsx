@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react"
 import { motion } from "framer-motion"
 import { useNavigate } from "react-router-dom"
+import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import Lenis from "lenis"
 import { 
   ArrowLeft,
@@ -24,6 +25,7 @@ export default function AddCouponPage(props) {
   const isEditMode = mode === "edit"
 
   const navigate = useNavigate()
+  const goBack = useRestaurantBackNavigation()
   const [showDiscountDropdown, setShowDiscountDropdown] = useState(false)
   const [showDiscountDropdown2, setShowDiscountDropdown2] = useState(false)
   const [showStartDatePicker, setShowStartDatePicker] = useState(false)
@@ -127,7 +129,7 @@ export default function AddCouponPage(props) {
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-50 flex items-center gap-3">
         <button 
-          onClick={() => navigate(-1)}
+          onClick={goBack}
           className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
         >
           <ArrowLeft className="w-5 h-5 text-gray-600" />

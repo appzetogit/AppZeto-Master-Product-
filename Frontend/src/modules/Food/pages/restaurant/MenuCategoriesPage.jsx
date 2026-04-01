@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
+import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   ArrowLeft,
@@ -25,6 +26,7 @@ const debugError = (...args) => {}
 
 export default function MenuCategoriesPage() {
   const navigate = useNavigate()
+  const goBack = useRestaurantBackNavigation()
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
@@ -183,7 +185,7 @@ export default function MenuCategoriesPage() {
     <div className="min-h-screen bg-gray-50 pb-24">
       <div className="sticky top-0 z-40 bg-white border-b border-gray-200">
         <div className="px-4 py-3 flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="p-1 rounded-full hover:bg-gray-100">
+          <button onClick={goBack} className="p-1 rounded-full hover:bg-gray-100">
             <ArrowLeft className="w-5 h-5 text-gray-700" />
           </button>
           <h1 className="text-xl font-bold text-gray-900">Menu Categories</h1>

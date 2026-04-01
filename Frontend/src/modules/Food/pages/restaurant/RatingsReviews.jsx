@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
+import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import { motion, AnimatePresence } from "framer-motion"
 import Lenis from "lenis"
 import {
@@ -53,6 +54,7 @@ const accordionItems = [
 
 export default function RatingsReviews() {
   const navigate = useNavigate()
+  const goBack = useRestaurantBackNavigation()
   const [expandedItems, setExpandedItems] = useState(new Set())
   const [showThankYouPopup, setShowThankYouPopup] = useState(false)
   const [showNotHelpfulPopup, setShowNotHelpfulPopup] = useState(false)
@@ -114,7 +116,7 @@ export default function RatingsReviews() {
       <div className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-50">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate(-1)}
+            onClick={goBack}
             className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
             aria-label="Go back"
           >

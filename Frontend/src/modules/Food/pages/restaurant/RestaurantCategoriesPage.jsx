@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { useNavigate } from "react-router-dom"
+import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import Lenis from "lenis"
 import { ArrowLeft } from "lucide-react"
 import BottomNavbar from "@food/components/restaurant/BottomNavbar"
@@ -8,6 +9,7 @@ import MenuOverlay from "@food/components/restaurant/MenuOverlay"
 
 export default function RestaurantCategoriesPage() {
   const navigate = useNavigate()
+  const goBack = useRestaurantBackNavigation()
   const [showMenu, setShowMenu] = useState(false)
   const [failedImages, setFailedImages] = useState(new Set())
 
@@ -66,7 +68,7 @@ export default function RestaurantCategoriesPage() {
             transition={{ duration: 0.3 }}
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
-            onClick={() => navigate(-1)}
+            onClick={goBack}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5 text-gray-700" />

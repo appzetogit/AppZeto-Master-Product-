@@ -1,11 +1,13 @@
 import { motion } from "framer-motion"
 import { useNavigate } from "react-router-dom"
+import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import { useEffect, useState } from "react"
 import { ArrowLeft } from "lucide-react"
 import api, { API_ENDPOINTS } from "@food/api"
 
 export default function TermsAndConditionsPage() {
   const navigate = useNavigate()
+  const goBack = useRestaurantBackNavigation()
   const [loading, setLoading] = useState(true)
   const [termsData, setTermsData] = useState({ title: "Terms and Conditions", content: "", updatedAt: "" })
 
@@ -35,7 +37,7 @@ export default function TermsAndConditionsPage() {
       {/* Header */}
       <div className="fixed top-0 left-0 right-0 bg-white border-b border-gray-200 px-4 py-3 z-50 flex items-center gap-3">
         <button 
-          onClick={() => navigate(-1)}
+          onClick={goBack}
           className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
         >
           <ArrowLeft className="w-5 h-5 text-gray-600" />

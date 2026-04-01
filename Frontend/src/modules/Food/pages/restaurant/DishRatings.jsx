@@ -1,15 +1,17 @@
 import { useNavigate } from "react-router-dom"
+import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import { ArrowLeft } from "lucide-react"
 
 export default function DishRatings() {
   const navigate = useNavigate()
+  const goBack = useRestaurantBackNavigation()
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
       <div className="bg-white border-b border-gray-200 sticky top-0 z-40">
         <div className="px-4 py-3 flex items-center gap-3">
           <button
-            onClick={() => navigate(-1)}
+            onClick={goBack}
             className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
             aria-label="Go back"
           >

@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
+import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { ArrowLeft, ChevronDown, ChevronUp, Download, Mail, X, Info } from "lucide-react"
 
 export default function FinanceDetailsPage() {
   const navigate = useNavigate()
+  const goBack = useRestaurantBackNavigation()
   const location = useLocation()
   const financeData = location.state?.financeData || null
   const restaurantData = location.state?.restaurantData || null
@@ -125,7 +127,7 @@ export default function FinanceDetailsPage() {
       <div className="sticky bg-white top-0 z-40 px-4 py-3 border-b border-gray-200">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate(-1)}
+            onClick={goBack}
             className="p-1 rounded-full hover:bg-gray-100"
           >
             <ArrowLeft className="w-5 h-5 text-gray-700" />

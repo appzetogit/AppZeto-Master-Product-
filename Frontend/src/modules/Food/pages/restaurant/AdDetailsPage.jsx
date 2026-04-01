@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { useNavigate, useParams } from "react-router-dom"
+import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import Lenis from "lenis"
 import { 
   ArrowLeft,
@@ -16,6 +17,7 @@ import MenuOverlay from "@food/components/restaurant/MenuOverlay"
 
 export default function AdDetailsPage() {
   const navigate = useNavigate()
+  const goBack = useRestaurantBackNavigation()
   const { id } = useParams()
   const [showMenu, setShowMenu] = useState(false)
 
@@ -46,7 +48,7 @@ export default function AdDetailsPage() {
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-50 flex items-center gap-3">
         <button 
-          onClick={() => navigate(-1)}
+          onClick={goBack}
           className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
         >
           <ArrowLeft className="w-5 h-5 text-gray-600" />

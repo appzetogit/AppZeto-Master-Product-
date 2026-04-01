@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useNavigate } from "react-router-dom"
+import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import {
   ArrowLeft,
   Search,
@@ -118,6 +119,7 @@ const filterOptions = {
 
 export default function AllOrdersPage() {
   const navigate = useNavigate()
+  const goBack = useRestaurantBackNavigation()
   const [searchQuery, setSearchQuery] = useState("")
   const [showCalendar, setShowCalendar] = useState(false)
   const [showDateRangePopup, setShowDateRangePopup] = useState(false)
@@ -483,7 +485,7 @@ export default function AllOrdersPage() {
       <div className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-50">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate(-1)}
+            onClick={goBack}
             className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
             aria-label="Go back"
           >

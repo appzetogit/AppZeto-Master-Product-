@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
+import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import { ChevronLeft, Loader2, Send } from "lucide-react"
 import { restaurantAPI } from "@food/api"
 import BottomNavOrders from "@food/components/restaurant/BottomNavOrders"
@@ -35,6 +36,7 @@ const getStatusStyle = (status) => {
 
 export default function RestaurantSupport() {
   const navigate = useNavigate()
+  const goBack = useRestaurantBackNavigation()
   const [tickets, setTickets] = useState([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -109,7 +111,7 @@ export default function RestaurantSupport() {
       <div className="sticky top-0 z-40 bg-white border-b border-slate-200">
         <div className="px-4 py-3 flex items-center gap-3">
           <button
-            onClick={() => navigate(-1)}
+            onClick={goBack}
             className="p-1 hover:bg-slate-100 rounded-full transition-colors"
             aria-label="Go back"
           >

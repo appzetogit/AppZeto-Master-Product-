@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
+import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import { MapPin, Search, Save, Loader2, ArrowLeft } from "lucide-react"
 import RestaurantNavbar from "@food/components/restaurant/RestaurantNavbar"
 import { restaurantAPI } from "@food/api"
@@ -51,6 +52,7 @@ const getSavedLocationCoords = (location) => {
 
 export default function ZoneSetup() {
   const navigate = useNavigate()
+  const goBack = useRestaurantBackNavigation()
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const markerRef = useRef(null)
@@ -389,7 +391,7 @@ export default function ZoneSetup() {
           <div className="flex items-center gap-3 mb-4 md:mb-0">
             {/* Back Button */}
             <button
-              onClick={() => navigate(-1)}
+              onClick={goBack}
               className="p-2 hover:bg-gray-100 rounded-full transition-colors"
               aria-label="Go back"
             >

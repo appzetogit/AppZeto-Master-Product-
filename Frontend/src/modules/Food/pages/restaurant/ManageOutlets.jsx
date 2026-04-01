@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
+import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { ArrowLeft, Info } from "lucide-react"
 const debugLog = (...args) => {}
@@ -9,6 +10,7 @@ const debugError = (...args) => {}
 
 export default function ManageOutlets() {
   const navigate = useNavigate()
+  const goBack = useRestaurantBackNavigation()
   const [showToast, setShowToast] = useState(false)
 
   const options = [
@@ -57,7 +59,7 @@ export default function ManageOutlets() {
       {/* Header */}
       <div className="px-4 pt-4 pb-3 flex items-center gap-3 border-b border-gray-200">
         <button
-          onClick={() => navigate(-1)}
+          onClick={goBack}
           className="p-2 rounded-full hover:bg-gray-100"
           aria-label="Back"
         >

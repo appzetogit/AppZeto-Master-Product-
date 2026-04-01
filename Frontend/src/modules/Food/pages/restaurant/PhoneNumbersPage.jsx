@@ -1,10 +1,12 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
+import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { ArrowLeft, Edit, Phone, Users, ChevronDown, X } from "lucide-react"
 
 export default function PhoneNumbersPage() {
   const navigate = useNavigate()
+  const goBack = useRestaurantBackNavigation()
   const [editingNumber, setEditingNumber] = useState(null) // { type: 'orderReminder1' | 'orderReminder2' | 'restaurantPage' }
   const [countryCode, setCountryCode] = useState("+91")
   const [phoneNumber, setPhoneNumber] = useState("")
@@ -130,7 +132,7 @@ export default function PhoneNumbersPage() {
       <div className="sticky top-0 z-40 bg-white border-b border-gray-200">
         <div className="px-4 py-3 flex items-center gap-3">
           <button
-            onClick={() => navigate(-1)}
+            onClick={goBack}
             className="p-1 rounded-full hover:bg-gray-100"
           >
             <ArrowLeft className="w-5 h-5 text-gray-700" />

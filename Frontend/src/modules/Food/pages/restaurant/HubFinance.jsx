@@ -148,21 +148,34 @@ export default function HubFinance() {
   }, [financeData])
 
   const invoiceOrders = useMemo(() => {
+    const allOrdersMap = new Map()
+    
+    // Add current cycle orders first
     const current = financeData?.currentCycle?.orders || []
+    current.forEach(order => {
+      const id = order.orderId || order._id || order.id
+      if (id) {
+        allOrdersMap.set(id, order)
+      }
+    })
+    
+    // Add past cycles orders, avoiding duplicates already in current map
     const past = pastCyclesData?.orders || []
-    return [...current, ...past]
+    past.forEach(order => {
+      const id = order.orderId || order._id || order.id
+      if (id && !allOrdersMap.has(id)) {
+        allOrdersMap.set(id, order)
+      }
+    })
+    
+    return Array.from(allOrdersMap.values())
   }, [financeData, pastCyclesData])
 
   const invoiceSummary = useMemo(() => {
-    const subtotal = invoiceOrders.reduce((sum, order) => sum + (order.orderTotal || 0), 0)
-    const taxes = invoiceOrders.reduce((sum, order) => {
-      const totalAmount = order.totalAmount || 0
-      const orderTotal = order.orderTotal || 0
-      const inferredTax = Math.max(0, totalAmount - orderTotal)
-      return sum + inferredTax
-    }, 0)
-    const gross = invoiceOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0)
-    return { subtotal, taxes, gross, count: invoiceOrders.length }
+    const earnings = invoiceOrders.reduce((sum, order) => sum + (order.payout || order.restaurantEarning || 0), 0)
+    const commission = invoiceOrders.reduce((sum, order) => sum + (order.commission || 0), 0)
+    const gross = invoiceOrders.reduce((sum, order) => sum + (order.totalAmount || order.orderTotal || 0), 0)
+    return { earnings, commission, gross, count: invoiceOrders.length }
   }, [invoiceOrders])
 
   const handleViewDetails = () => {
@@ -767,7 +780,7 @@ export default function HubFinance() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-4 py-6">
+      <div className="flex-1 overflow-y-auto px-4 pt-6 pb-28">
         {activeTab === "payouts" && (
           <div className="space-y-6">
             {/* Current cycle */}
@@ -1133,12 +1146,12 @@ export default function HubFinance() {
                   <p className="text-base font-semibold text-gray-900">{invoiceSummary.count}</p>
                 </div>
                 <div className="rounded-md bg-gray-50 p-3">
-                  <p className="text-xs text-gray-600">Taxable subtotal</p>
-                  <p className="text-base font-semibold text-gray-900">₹{invoiceSummary.subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  <p className="text-xs text-gray-600">Earnings</p>
+                  <p className="text-base font-semibold text-gray-900">₹{invoiceSummary.earnings.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
                 <div className="rounded-md bg-gray-50 p-3">
-                  <p className="text-xs text-gray-600">Taxes</p>
-                  <p className="text-base font-semibold text-gray-900">₹{invoiceSummary.taxes.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  <p className="text-xs text-gray-600">Commission</p>
+                  <p className="text-base font-semibold text-gray-900">₹{invoiceSummary.commission.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
                 <div className="rounded-md bg-gray-50 p-3">
                   <p className="text-xs text-gray-600">Gross amount</p>

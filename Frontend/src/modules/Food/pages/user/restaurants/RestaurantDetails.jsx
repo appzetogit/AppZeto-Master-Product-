@@ -1797,9 +1797,6 @@ function RestaurantDetailsContent() {
 
     setExpandedSections(nextExpanded)
   }, [filteredSections, hasActiveMenuFilters])
-  }
-
-  const filteredSections = getFilteredSections()
 
   useEffect(() => {
     if (!restaurant?.menuSections || !targetDishId) return
@@ -1858,12 +1855,6 @@ function RestaurantDetailsContent() {
       window.clearTimeout(highlightTimer)
     }
   }, [restaurant, targetDishId])
-
-  function toRenderableArray(value) {
-    if (Array.isArray(value)) return value
-    if (!value || typeof value !== "object") return []
-    return Object.values(value).filter((entry) => entry && typeof entry === "object")
-  }
 
   // Highlight offers/texts for the blue offer line
   const highlightOffers = [
@@ -2212,7 +2203,6 @@ function RestaurantDetailsContent() {
                 </p>
               </div>
             )}
-            {filteredSections.map(({ section, originalIndex }, sectionIndex) => {
             {filteredSections.length === 0 && (
               <div className="rounded-3xl border border-dashed border-gray-300 bg-white px-6 py-10 text-center text-sm text-gray-500">
                 No dishes match the current filters.

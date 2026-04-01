@@ -105,6 +105,7 @@ export async function getRestaurantFinance(restaurantId, query = {}) {
             orderTotal: orderTotalExclTax,
             totalAmount: tx.amounts?.totalCustomerPaid || 0,
             payout: tx.amounts?.restaurantShare || 0,
+            commission: tx.amounts?.restaurantCommission || 0,
             status: tx.status
         };
     });
@@ -193,6 +194,7 @@ export async function getRestaurantFinance(restaurantId, query = {}) {
                 orderTotal: orderTotalExclTax,
                 totalAmount: tx.amounts?.totalCustomerPaid || 0,
                 payout: tx.amounts?.restaurantShare || 0,
+                commission: tx.amounts?.restaurantCommission || 0,
                 status: tx.status
             };
         });

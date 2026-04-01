@@ -15,7 +15,9 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
+  Volume2,
 } from "lucide-react"
+import ResendNotificationButton from "@food/components/restaurant/ResendNotificationButton"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -222,6 +224,8 @@ export default function OrderDetails() {
               paidAmount,
               paymentStatus
             },
+            deliveryPartnerId: order.deliveryPartnerId || order.dispatch?.deliveryPartnerId || null,
+            dispatchStatus: order.dispatch?.status || null,
             reason: order.cancellationReason || '',
             timeline: [
               { event: 'Order placed', timestamp: new Date(order.createdAt).toLocaleString('en-GB'), status: 'completed' },
@@ -688,10 +692,22 @@ export default function OrderDetails() {
         <div className="bg-white rounded-lg p-4">
           {/* Status and Order ID Row */}
           <div className="flex items-start justify-between mb-3">
-            <span className={`px-2.5 py-1 rounded text-xs font-bold ${getStatusColor(orderData.status)}`}>
-              {orderData.status}
-            </span>
-            <span className="text-xs text-gray-500">{orderData.date}, {orderData.time}</span>
+            <div className="flex flex-col items-end gap-1">
+              <span className={`px-2.5 py-1 rounded text-xs font-bold ${getStatusColor(orderData.status)}`}>
+                {orderData.status}
+              </span>
+              <span className="text-xs text-gray-500">{orderData.date}, {orderData.time}</span>
+              {/* Resend button for order details */}
+              {(orderData.status === "PREPARING" || orderData.status === "READY" || orderData.status === "CONFIRMED") && 
+                orderData.dispatchStatus !== "accepted" && (
+                <div className="mt-2">
+                  <ResendNotificationButton 
+                    orderId={orderId} 
+                    onSuccess={() => window.location.reload()} 
+                  />
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Order ID */}
@@ -916,4 +932,40 @@ export default function OrderDetails() {
     </div>
   )
 }
+
+function ResendNotificationButton({ orderId, onSuccess }) {
+  const [loading, setLoading] = useState(false);
+
+  const handleResend = async (e) => {
+    e.stopPropagation();
+    if (loading) return;
+
+    try {
+      setLoading(true);
+      const response = await restaurantAPI.resendDeliveryNotification(orderId);
+      if (response.data?.success) {
+        if (onSuccess) onSuccess();
+      }
+    } catch (error) {
+      debugError("Error resending notification:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleResend}
+      disabled={loading}
+      className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-xs font-semibold transition-all active:scale-95 shadow-lg shadow-orange-200 disabled:opacity-70 disabled:cursor-not-allowed">
+      {loading ? (
+        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+      ) : (
+        <Volume2 className="w-3.5 h-3.5" />
+      )}
+      {loading ? "Triggering..." : "Resend Notification"}
+    </button>
+  );
+}
+
 

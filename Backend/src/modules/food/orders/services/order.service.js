@@ -1197,8 +1197,9 @@ export async function updateOrderStatusRestaurant(
   restaurantId,
   orderStatus,
 ) {
+  const identity = buildOrderIdentityFilter(orderId);
   let order = await FoodOrder.findOne({
-    _id: new mongoose.Types.ObjectId(orderId),
+    ...identity,
     restaurantId: new mongoose.Types.ObjectId(restaurantId),
   });
   if (!order) throw new NotFoundError("Order not found");

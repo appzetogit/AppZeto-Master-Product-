@@ -30,6 +30,7 @@ import { restaurantAPI, diningAPI } from "@food/api";
 import { useRestaurantNotifications } from "@food/hooks/useRestaurantNotifications";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import ResendNotificationButton from "@food/components/restaurant/ResendNotificationButton";
 const debugLog = (...args) => {};
 const debugWarn = (...args) => {};
 const debugError = (...args) => {};
@@ -91,6 +92,7 @@ const transformOrderForList = (order) => ({
   photoAlt: order.items?.[0]?.name || "Order",
   paymentMethod: order.paymentMethod || order.payment?.method || null,
   deliveryPartnerId: order.deliveryPartnerId || null,
+  dispatchStatus: order.dispatch?.status || null,
   preparingTimestamp: order.tracking?.preparing?.timestamp
     ? new Date(order.tracking.preparing.timestamp)
     : new Date(order.createdAt || Date.now()),
@@ -1840,7 +1842,7 @@ export default function OrdersMain() {
     <div className="min-h-screen bg-gray-100 flex flex-col">
       {/* Restaurant Navbar - Sticky at top */}
       <div className="sticky top-0 z-50 bg-white">
-        <RestaurantNavbar showNotifications={false} />
+        <RestaurantNavbar showNotifications={true} />
       </div>
 
       {/* Top Filter Bar - Sticky below navbar */}
@@ -2653,6 +2655,18 @@ export default function OrdersMain() {
                   <span className="text-[11px] text-gray-500">
                     {selectedOrder.timePlaced}
                   </span>
+                  {/* Delivery Resend Button - Only for preparing/ready orders with no partner */}
+                  {(String(selectedOrder.status).toLowerCase() === "preparing" ||
+                    String(selectedOrder.status).toLowerCase() === "ready") &&
+                    !selectedOrder.deliveryPartnerId && (
+                      <div className="mt-1">
+                        <ResendNotificationButton
+                          orderId={selectedOrder.orderId}
+                          mongoId={selectedOrder.mongoId}
+                          onSuccess={() => setIsSheetOpen(false)}
+                        />
+                      </div>
+                    )}
                 </div>
               </div>
 
@@ -2708,62 +2722,6 @@ export default function OrdersMain() {
   );
 }
 
-// Resend Notification Button Component
-function ResendNotificationButton({ orderId, mongoId, onSuccess }) {
-  const [loading, setLoading] = useState(false);
-
-  const handleResend = async (e) => {
-    e.stopPropagation(); // Prevent card click
-    if (loading) return;
-
-    try {
-      setLoading(true);
-      const id = mongoId || orderId;
-      const response = await restaurantAPI.resendDeliveryNotification(id);
-
-      if (response.data?.success) {
-        toast.success(
-          `Notification sent to ${response.data.data?.notifiedCount || 0} delivery partners`,
-        );
-        // Refresh orders if onSuccess callback is provided
-        if (onSuccess) {
-           onSuccess();
-        }
-      } else {
-        toast.error(response.data?.message || "Failed to send notification");
-      }
-    } catch (error) {
-      debugError("Error resending notification:", error);
-      toast.error(
-        error.response?.data?.message ||
-          "Failed to send notification. Please try again.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={handleResend}
-      disabled={loading}
-      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-700 border border-blue-300 hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      title="Resend notification to delivery partners">
-      {loading ? (
-        <>
-          <Loader2 className="w-3 h-3 animate-spin" />
-          <span>Sending...</span>
-        </>
-      ) : (
-        <>
-          <Volume2 className="w-3 h-3" />
-          <span>Resend</span>
-        </>
-      )}
-    </button>
-  );
-}
 
 // Order Card Component
 function OrderCard({
@@ -2780,6 +2738,7 @@ function OrderCard({
   photoUrl,
   photoAlt,
   deliveryPartnerId,
+  dispatchStatus,
   onSelect,
   onCancel,
   onMarkReady,
@@ -2882,8 +2841,8 @@ function OrderCard({
                 {type}
                 {tableOrToken ? ` • ${tableOrToken}` : ""}
               </p>
-              {/* Delivery Assignment Status - Only show for preparing and ready orders */}
-              {(isPreparing || isReady) && (
+              {/* Delivery Assignment Status - Only show for active orders */}
+              {(isPreparing || isReady || normalizedStatus === "confirmed") && (
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span
                     className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
@@ -2898,7 +2857,7 @@ function OrderCard({
                     />
                     {deliveryPartnerId ? "Assigned" : "Not Assigned"}
                   </span>
-                  {!deliveryPartnerId && (
+                  {dispatchStatus !== "accepted" && (
                     <ResendNotificationButton
                       orderId={orderId}
                       mongoId={mongoId}
@@ -2994,7 +2953,8 @@ function PreparingOrders({
                   .join(", ") || "No items",
               photoUrl: order.items?.[0]?.image || null,
               photoAlt: order.items?.[0]?.name || "Order",
-              deliveryPartnerId: order.deliveryPartnerId || null, // Track if delivery partner is assigned
+              deliveryPartnerId: order.deliveryPartnerId || null,
+              dispatchStatus: order.dispatch?.status || null,
               paymentMethod:
                 order.paymentMethod || order.payment?.method || null,
             };
@@ -3242,6 +3202,7 @@ function PreparingOrders({
                 photoAlt={order.photoAlt}
                 paymentMethod={order.paymentMethod}
                 deliveryPartnerId={order.deliveryPartnerId}
+                dispatchStatus={order.dispatchStatus}
                 onSelect={onSelectOrder}
                 onCancel={onCancel}
                 onMarkReady={handleMarkReady}
@@ -3301,6 +3262,7 @@ function ReadyOrders({ onSelectOrder, refreshToken = 0 }) {
             photoAlt: order.items?.[0]?.name || "Order",
             paymentMethod: order.paymentMethod || order.payment?.method || null,
             deliveryPartnerId: order.deliveryPartnerId || null,
+            dispatchStatus: order.dispatch?.status || null,
           }));
 
           if (isMounted) {
@@ -3417,6 +3379,8 @@ const OutForDeliveryOrders = ({ onSelectOrder, refreshToken = 0 }) => {
             photoUrl: order.items?.[0]?.image || null,
             photoAlt: order.items?.[0]?.name || "Order",
             paymentMethod: order.paymentMethod || order.payment?.method || null,
+            deliveryPartnerId: order.deliveryPartnerId || null,
+            dispatchStatus: order.dispatch?.status || null,
           }));
 
           if (isMounted) {

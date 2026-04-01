@@ -90,7 +90,14 @@ export function buildOrderIdentityFilter(orderIdOrMongoId) {
   if (!raw) return null;
   if (mongoose.isValidObjectId(raw))
     return { _id: new mongoose.Types.ObjectId(raw) };
-  return { order_id: raw };
+  
+  // Search BOTH underscore and camelCase variants for robust lookup
+  return { 
+    $or: [
+        { order_id: raw },
+        { orderId: raw }
+    ]
+  };
 }
 
 export function toGeoPoint(lat, lng) {

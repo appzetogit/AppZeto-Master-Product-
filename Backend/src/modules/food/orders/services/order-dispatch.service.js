@@ -9,6 +9,7 @@ import { getIO, rooms } from '../../../../config/socket.js';
 import { addOrderJob } from '../../../../queues/producers/order.producer.js';
 import {
   buildDeliverySocketPayload,
+  buildOrderIdentityFilter,
   haversineKm,
   notifyOwnerSafely,
   notifyOwnersSafely,
@@ -267,8 +268,9 @@ export async function processDispatchTimeout(orderId, partnerId) {
 }
 
 export async function resendDeliveryNotificationRestaurant(orderId, restaurantId) {
+  const identity = buildOrderIdentityFilter(orderId);
   const order = await FoodOrder.findOne({
-    _id: new mongoose.Types.ObjectId(orderId),
+    ...identity,
     restaurantId: new mongoose.Types.ObjectId(restaurantId),
   });
 

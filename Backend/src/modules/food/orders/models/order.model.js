@@ -188,6 +188,13 @@ const orderSchema = new mongoose.Schema(
             sparse: true,
             index: true
         },
+        /** Compatibility alias: satisfies rogue unique index 'orderId_1' found in legacy deployments. */
+        orderId: {
+            type: String,
+            unique: true,
+            sparse: true,
+            index: true
+        },
         userId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'FoodUser',
@@ -304,6 +311,10 @@ orderSchema.pre('save', async function (next) {
         const timestamp = Date.now().toString().slice(-4);
         const random = Math.floor(100 + Math.random() * 900);
         this.order_id = `FOD-${timestamp}${random}`;
+    }
+    // Synchronize camelCase alias to satisfy unique index 'orderId_1'
+    if (this.order_id) {
+        this.orderId = this.order_id;
     }
     next();
 });

@@ -8,6 +8,7 @@ const phoneSchema = z
 
 const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
 const aadharRegex = /^[0-9]{12}$/;
+const drivingLicenseRegex = /^[A-Z]{2}[0-9]{2}[0-9]{4}[0-9]{7}$/;
 
 const deliveryRegisterSchema = z.object({
     name: z.string().min(1, 'Name is required'),
@@ -20,6 +21,11 @@ const deliveryRegisterSchema = z.object({
     vehicleType: z.string().optional(),
     vehicleName: z.string().optional(),
     vehicleNumber: z.string().optional(),
+    drivingLicenseNumber: z
+        .string()
+        .regex(drivingLicenseRegex, 'Invalid driving license format')
+        .optional()
+        .or(z.literal('')),
     ref: z.string().trim().max(64).optional().or(z.literal('')),
     panNumber: z
         .string()
@@ -52,6 +58,11 @@ const deliveryProfileUpdateSchema = z.object({
     vehicleType: z.string().optional(),
     vehicleName: z.string().optional(),
     vehicleNumber: z.string().optional(),
+    drivingLicenseNumber: z
+        .string()
+        .regex(drivingLicenseRegex, 'Invalid driving license format')
+        .optional()
+        .or(z.literal('')),
     fcmToken: z.string().optional().nullable(),
     platform: z.enum(['web', 'mobile']).optional().default('web')
 });

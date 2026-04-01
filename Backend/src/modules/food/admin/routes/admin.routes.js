@@ -182,13 +182,10 @@ router.delete('/dining/categories/:id', diningAdminController.deleteDiningCatego
 router.get('/dining/restaurants', diningAdminController.getDiningRestaurants);
 router.patch('/dining/restaurants/:restaurantId', diningAdminController.updateDiningRestaurant);
 
-// ----- Orders & Dispatch Settings -----
+// ----- Orders -----
 router.get('/orders', orderController.listOrdersAdminController);
 router.get('/orders/:orderId', orderController.getOrderByIdAdminController);
-router.patch('/orders/:orderId/assign-delivery', orderController.assignDeliveryPartnerController);
 router.delete('/orders/:orderId', orderController.deleteOrderAdminController);
-router.get('/settings/dispatch', orderController.getDispatchSettingsController);
-router.patch('/settings/dispatch', orderController.updateDispatchSettingsController);
 
 // ----- CMS Pages (About + legal) -----
 router.get('/pages-social-media/:key', getAdminPageController);

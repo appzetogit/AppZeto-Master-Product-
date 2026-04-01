@@ -94,20 +94,16 @@ async function listNearbyOnlineDeliveryPartners(
 }
 
 export async function getDispatchSettings() {
-  let doc = await FoodSettings.findOne({ key: "dispatch" }).lean();
-  if (!doc) {
-    await FoodSettings.create({ key: "dispatch", dispatchMode: "manual" });
-    doc = await FoodSettings.findOne({ key: "dispatch" }).lean();
-  }
-  return { dispatchMode: doc?.dispatchMode || "manual" };
+  return { dispatchMode: "auto" };
 }
 
 export async function updateDispatchSettings(dispatchMode, adminId) {
+  // Always set to auto
   await FoodSettings.findOneAndUpdate(
     { key: "dispatch" },
     {
       $set: {
-        dispatchMode,
+        dispatchMode: "auto",
         updatedBy: { role: "ADMIN", adminId, at: new Date() },
       },
     },

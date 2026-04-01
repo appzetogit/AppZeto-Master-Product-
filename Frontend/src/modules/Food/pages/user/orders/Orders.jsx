@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { ArrowLeft, Search, MoreVertical, ChevronRight, Star, RotateCcw, AlertCircle, Loader2, Clock, X, Share2, MessageCircle, Send, Copy } from "lucide-react"
+import { ArrowLeft, Search, MoreVertical, ChevronRight, Star, RotateCcw, AlertCircle, Loader2, Clock, X, Share2, MessageCircle, Send, Copy, Mail, MessagesSquare, Link2 } from "lucide-react"
 import { orderAPI } from "@food/api"
 import { toast } from "sonner"
 import { getCompanyNameAsync } from "@food/utils/businessSettings"
@@ -419,13 +419,6 @@ export default function Orders() {
     setActiveMenuOrderId((current) => (current === orderId ? null : orderId))
   }
 
-  const isMobileDevice = () => {
-    if (typeof window === "undefined" || typeof navigator === "undefined") return false
-    const mobileUA = /Android|iPhone|iPad|iPod|Windows Phone|Opera Mini|IEMobile/i.test(navigator.userAgent)
-    const smallViewport = window.matchMedia?.("(max-width: 768px)")?.matches
-    return Boolean(mobileUA || smallViewport)
-  }
-
   const openShareModal = (payload) => {
     setSharePayload(payload)
     setShowShareModal(true)
@@ -477,6 +470,16 @@ export default function Orders() {
       shareLink = `https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`
     } else if (target === "telegram") {
       shareLink = `https://t.me/share/url?url=${encodedUrl}&text=${encodedText}`
+    } else if (target === "email") {
+      shareLink = `mailto:?subject=${encodeURIComponent(sharePayload.title || "Check this out")}&body=${encodeURIComponent(`${text}\n\n${url}`)}`
+    } else if (target === "sms") {
+      shareLink = `sms:?body=${encodeURIComponent(`${text} ${url}`)}`
+    } else if (target === "facebook") {
+      shareLink = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`
+    } else if (target === "x") {
+      shareLink = `https://twitter.com/intent/tweet?text=${encodeURIComponent(`${text} ${url}`)}`
+    } else if (target === "linkedin") {
+      shareLink = `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`
     }
 
     if (shareLink) {
@@ -521,11 +524,6 @@ Order again from this restaurant in the ${companyName} app.`
     }
 
     try {
-      if (isMobileDevice()) {
-        openShareModal(payload)
-        return
-      }
-
       const shared = await tryNativeShare(payload)
       if (shared) {
         toast.success("Restaurant shared successfully")
@@ -1140,7 +1138,7 @@ Order again from this restaurant in the ${companyName} app.`
             <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
               <div>
                 <h3 className="text-base font-semibold text-gray-900">Share restaurant</h3>
-                <p className="text-xs text-gray-500 mt-0.5">Choose how you want to share</p>
+                <p className="text-xs text-gray-500 mt-0.5">Native share available ho to sab supported apps wahan dikhenge</p>
               </div>
               <button
                 type="button"
@@ -1180,6 +1178,46 @@ Order again from this restaurant in the ${companyName} app.`
                 >
                   <Send className="w-5 h-5 text-sky-500" />
                   Telegram
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openShareTarget("email")}
+                  className="rounded-2xl border border-gray-200 px-3 py-4 text-xs font-medium text-gray-700 flex flex-col items-center gap-2 hover:bg-gray-50"
+                >
+                  <Mail className="w-5 h-5 text-rose-500" />
+                  Email
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openShareTarget("sms")}
+                  className="rounded-2xl border border-gray-200 px-3 py-4 text-xs font-medium text-gray-700 flex flex-col items-center gap-2 hover:bg-gray-50"
+                >
+                  <MessagesSquare className="w-5 h-5 text-violet-500" />
+                  SMS
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openShareTarget("facebook")}
+                  className="rounded-2xl border border-gray-200 px-3 py-4 text-xs font-medium text-gray-700 flex flex-col items-center gap-2 hover:bg-gray-50"
+                >
+                  <Share2 className="w-5 h-5 text-blue-600" />
+                  Facebook
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openShareTarget("x")}
+                  className="rounded-2xl border border-gray-200 px-3 py-4 text-xs font-medium text-gray-700 flex flex-col items-center gap-2 hover:bg-gray-50"
+                >
+                  <Link2 className="w-5 h-5 text-gray-900" />
+                  X
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openShareTarget("linkedin")}
+                  className="rounded-2xl border border-gray-200 px-3 py-4 text-xs font-medium text-gray-700 flex flex-col items-center gap-2 hover:bg-gray-50"
+                >
+                  <Share2 className="w-5 h-5 text-blue-700" />
+                  LinkedIn
                 </button>
                 <button
                   type="button"

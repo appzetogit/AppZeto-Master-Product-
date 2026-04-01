@@ -8,7 +8,6 @@ import {
 } from "lucide-react"
 import BottomPopup from "@delivery/components/BottomPopup"
 import { toast } from "sonner"
-import { openCamera, isFlutterBridgeAvailable } from "@food/utils/imageUploadUtils"
 import { deliveryAPI } from "@food/api"
 import { motion, AnimatePresence } from "framer-motion"
 import useDeliveryBackNavigation from "../../hooks/useDeliveryBackNavigation"
@@ -51,11 +50,13 @@ export const ProfileDetailsV2 = () => {
   const [isUpdatingBankDetails, setIsUpdatingBankDetails] = useState(false)
   const [isUploadingImage, setIsUploadingImage] = useState(false)
   const fileInputRef = useRef(null)
+  const profileCameraInputRef = useRef(null)
   const [uploadTarget, setUploadTarget] = useState(null) // 'profilePhoto' only for instant picker
   const [showDeletePopup, setShowDeletePopup] = useState(false)
   const [isDeletingImage, setIsDeletingImage] = useState(false)
   const [activePicker, setActivePicker] = useState(null) // { target: 'profilePhoto' | 'upiQrCode', ref: any, title: string }
   const drivingLicenseInputRef = useRef(null)
+  const upiQrCameraInputRef = useRef(null)
 
   // Fetch profile data
   useEffect(() => {
@@ -209,13 +210,14 @@ export const ProfileDetailsV2 = () => {
   }
 
   const handleTakeCameraPhoto = (target) => {
-    openCamera({
-      onSelectFile: (file) => {
-        if (target === "profilePhoto") uploadProfileFile(file)
-        else if (target === "upiQrCode") uploadUpiQrFile(file)
-      },
-      fileNamePrefix: `profile-${target}`
-    })
+    if (target === "profilePhoto") {
+      profileCameraInputRef.current?.click()
+      return
+    }
+
+    if (target === "upiQrCode") {
+      upiQrCameraInputRef.current?.click()
+    }
   }
 
   const handlePickFromGallery = (target, ref) => {
@@ -253,6 +255,15 @@ export const ProfileDetailsV2 = () => {
     if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
+  const handleProfileCameraSelected = async (e) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setUploadTarget("profilePhoto")
+      await uploadProfileFile(file)
+    }
+    if (profileCameraInputRef.current) profileCameraInputRef.current.value = ""
+  }
+
   const handleDeletePhoto = async () => {
     try {
       setIsDeletingImage(true)
@@ -276,6 +287,12 @@ export const ProfileDetailsV2 = () => {
     const file = e.target.files?.[0]
     if (file) uploadUpiQrFile(file)
     if (upiQrInputRef.current) upiQrInputRef.current.value = ""
+  }
+
+  const handleUpiQrCameraSelected = (e) => {
+    const file = e.target.files?.[0]
+    if (file) uploadUpiQrFile(file)
+    if (upiQrCameraInputRef.current) upiQrCameraInputRef.current.value = ""
   }
 
   const uploadUpiQrFile = (file) => {
@@ -629,6 +646,15 @@ export const ProfileDetailsV2 = () => {
         onChange={handleFileSelected} 
         style={{ display: 'none' }}
       />
+      <input
+        ref={profileCameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={handleProfileCameraSelected}
+        style={{ display: "none" }}
+      />
 
       {/* ─── MODALS ─── */}
       
@@ -839,6 +865,7 @@ export const ProfileDetailsV2 = () => {
                   </div>
                 )}
                 <input ref={upiQrInputRef} type="file" accept="image/*" className="hidden" onChange={handleUpiQrSelected} />
+                <input ref={upiQrCameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleUpiQrCameraSelected} />
                 <p className="text-[9px] text-purple-400 font-medium">Upload your UPI QR code from Google Pay, PhonePe, etc. to receive easy payouts.</p>
              </div>
           </div>

@@ -15,6 +15,7 @@ import {
   FileText,
 } from "lucide-react"
 import { orderAPI, restaurantAPI } from "@food/api"
+import { useCart } from "@food/context/CartContext"
 import { toast } from "sonner"
 import { jsPDF } from "jspdf"
 import autoTable from "jspdf-autotable"
@@ -27,6 +28,7 @@ const debugError = (...args) => {}
 export default function UserOrderDetails() {
   const navigate = useNavigate()
   const goBack = useAppBackNavigation()
+  const { replaceCart } = useCart()
   const { orderId } = useParams()
   const [order, setOrder] = useState(null)
   const [restaurant, setRestaurant] = useState(null)
@@ -309,6 +311,48 @@ export default function UserOrderDetails() {
       debugError("Error generating PDF:", error)
       toast.error("Failed to download summary")
     }
+  }
+
+  const handleReorder = (currentOrder) => {
+    const restaurantTarget =
+      restaurantObj.slug ||
+      restaurantObj._id ||
+      restaurantObj.restaurantId ||
+      (typeof currentOrder?.restaurantId === "string" ? currentOrder.restaurantId : currentOrder?.restaurantId?._id)
+
+    if (!restaurantTarget || !items.length) {
+      toast.error("Order items or restaurant information not available")
+      return
+    }
+
+    const reorderItems = items
+      .map((item, index) => {
+        const itemId = item.id || item.itemId || item._id
+        if (!itemId) return null
+
+        return {
+          id: itemId,
+          name: item.name || item.foodName || "Item",
+          price: Number(item.price) || 0,
+          image: item.image || "",
+          restaurant: restaurantName,
+          restaurantId: restaurantObj._id || restaurantObj.restaurantId || currentOrder?.restaurantId,
+          description: item.description || "",
+          isVeg: item.isVeg !== false,
+          quantity: Math.max(1, Number(item.quantity || item.qty) || 1),
+          reorderIndex: index,
+        }
+      })
+      .filter(Boolean)
+
+    if (!reorderItems.length) {
+      toast.error("No reorderable items found in this order")
+      return
+    }
+
+    replaceCart(reorderItems)
+    toast.success("Items added to cart")
+    navigate(`/food/user/restaurants/${restaurantTarget}`)
   }
 
   return (

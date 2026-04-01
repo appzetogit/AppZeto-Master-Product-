@@ -2715,7 +2715,7 @@ export default function Cart() {
           {/* Order Success Celebration Page */}
           {showOrderSuccess && (
             <div
-              className="fixed inset-0 z-[70] bg-white flex flex-col items-center justify-center h-screen w-screen overflow-hidden"
+              className="fixed inset-0 z-[70] bg-white dark:bg-[#0a0a0a] flex flex-col items-center justify-center h-screen w-screen overflow-hidden"
               style={{ animation: 'fadeIn 0.3s ease-out' }}
             >
               {/* Confetti Background */}
@@ -2745,14 +2745,14 @@ export default function Cart() {
                 >
                   {/* Outer ring animation */}
                   <div
-                    className="absolute inset-0 w-32 h-32 rounded-full border-4 border-green-500"
+                    className="absolute inset-0 w-32 h-32 rounded-full border-4 border-green-500 dark:border-green-400"
                     style={{
                       animation: 'ringPulse 1.5s ease-out infinite',
                       opacity: 0.3
                     }}
                   />
                   {/* Main circle */}
-                  <div className="w-32 h-32 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center shadow-2xl">
+                  <div className="w-32 h-32 bg-gradient-to-br from-green-500 to-green-600 dark:from-green-500 dark:to-emerald-500 rounded-full flex items-center justify-center shadow-2xl shadow-green-200/60 dark:shadow-green-900/40">
                     <svg
                       className="w-16 h-16 text-white"
                       viewBox="0 0 24 24"
@@ -2770,7 +2770,7 @@ export default function Cart() {
                   {[...Array(6)].map((_, i) => (
                     <div
                       key={i}
-                      className="absolute w-2 h-2 bg-yellow-400 rounded-full"
+                      className="absolute w-2 h-2 bg-yellow-400 dark:bg-yellow-300 rounded-full"
                       style={{
                         top: '50%',
                         left: '50%',
@@ -2787,16 +2787,16 @@ export default function Cart() {
                   style={{ animation: 'slideUp 0.5s ease-out 0.6s both' }}
                 >
                   <div className="flex items-center justify-center gap-2 mb-2">
-                    <div className="w-5 h-5 text-red-500">
+                    <div className="w-5 h-5 text-red-500 dark:text-red-400">
                       <svg viewBox="0 0 24 24" fill="currentColor">
                         <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
                       </svg>
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
                       {defaultAddress?.city || "Your Location"}
                     </h2>
                   </div>
-                  <p className="text-gray-500 text-base">
+                  <p className="text-gray-500 dark:text-gray-400 text-base">
                     {defaultAddress ? (formatFullAddress(defaultAddress) || defaultAddress?.formattedAddress || defaultAddress?.address || "Delivery Address") : "Delivery Address"}
                   </p>
                 </div>
@@ -2806,14 +2806,14 @@ export default function Cart() {
                   className="mt-12 text-center"
                   style={{ animation: 'slideUp 0.5s ease-out 0.8s both' }}
                 >
-                  <h3 className="text-3xl font-bold text-[#EB590E] mb-2">Order Placed!</h3>
-                  <p className="text-gray-600">Your delicious food is on its way</p>
+                  <h3 className="text-3xl font-bold text-[#EB590E] dark:text-orange-400 mb-2">Order Placed!</h3>
+                  <p className="text-gray-600 dark:text-gray-300">Your delicious food is on its way</p>
                 </div>
 
                 {/* Action Button */}
                 <button
                   onClick={handleGoToOrders}
-                  className="mt-10 bg-[#EB590E] hover:bg-[#D94F0C] text-white font-semibold py-4 px-12 rounded-xl shadow-lg transition-all hover:shadow-xl hover:scale-105"
+                  className="mt-10 bg-[#EB590E] hover:bg-[#D94F0C] text-white font-semibold py-4 px-12 rounded-xl shadow-lg shadow-orange-200/70 dark:shadow-orange-950/40 transition-all hover:shadow-xl hover:scale-105"
                   style={{ animation: 'slideUp 0.5s ease-out 1s both' }}
                 >
                   Track Your Order

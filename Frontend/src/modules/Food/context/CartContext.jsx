@@ -32,6 +32,9 @@ const defaultCartContext = {
   cleanCartForRestaurant: () => {
     debugWarn('CartProvider not available - cleanCartForRestaurant called');
   },
+  replaceCart: () => {
+    debugWarn('CartProvider not available - replaceCart called');
+  },
 }
 
 const CartContext = createContext(defaultCartContext)
@@ -314,6 +317,16 @@ export function CartProvider({ children }) {
 
   const clearCart = () => setCart([])
 
+  const replaceCart = (items) => {
+    const normalizedItems = normalizeCartData(items).filter((item) => {
+      const quantity = Number(item?.quantity)
+      return item?.id && (item?.restaurantId || item?.restaurant) && Number.isFinite(quantity) && quantity > 0
+    })
+
+    setCart(normalizedItems)
+    return { ok: true, count: normalizedItems.length }
+  }
+
   // Clean cart to remove items from different restaurants
   // Keeps only items from the specified restaurant
   const cleanCartForRestaurant = (restaurantId, restaurantName) => {
@@ -457,6 +470,7 @@ export function CartProvider({ children }) {
       getCartItem,
       clearCart,
       cleanCartForRestaurant,
+      replaceCart,
     }),
     [cart, cartForAnimation, lastAddEvent, lastRemoveEvent]
   )

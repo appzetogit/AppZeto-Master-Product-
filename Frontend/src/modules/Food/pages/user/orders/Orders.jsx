@@ -2,6 +2,7 @@ import { useState, useEffect } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { ArrowLeft, Search, MoreVertical, ChevronRight, Star, RotateCcw, AlertCircle, Loader2, Clock, X, Share2, MessageCircle, Send, Copy, Mail, MessagesSquare, Link2 } from "lucide-react"
 import { orderAPI } from "@food/api"
+import { useCart } from "@food/context/CartContext"
 import { toast } from "sonner"
 import { getCompanyNameAsync } from "@food/utils/businessSettings"
 const debugLog = (...args) => {}
@@ -11,6 +12,7 @@ const debugError = (...args) => {}
 
 export default function Orders() {
   const navigate = useNavigate()
+  const { replaceCart } = useCart()
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
@@ -406,12 +408,41 @@ export default function Orders() {
 
   // Handle reorder
   const handleReorder = (order) => {
-    // Navigate to restaurant page or cart
-    if (order.restaurantId) {
-      navigate(`/user/restaurants/${order.restaurantId}`)
-    } else {
-      toast.info('Restaurant information not available')
+    const restaurantTarget = order.restaurantSlug || order.restaurantId
+
+    if (!restaurantTarget || !order.items?.length) {
+      toast.info('Order items or restaurant information not available')
+      return
     }
+
+    const reorderItems = order.items
+      .map((item, index) => {
+        const itemId = item.id || item.itemId || item._id
+        if (!itemId) return null
+
+        return {
+          id: itemId,
+          name: item.name || item.foodName || "Item",
+          price: Number(item.price) || 0,
+          image: item.image || "",
+          restaurant: order.restaurant || "Restaurant",
+          restaurantId: order.restaurantId,
+          description: item.description || "",
+          isVeg: item.isVeg !== false,
+          quantity: Math.max(1, Number(item.quantity) || 1),
+          reorderIndex: index,
+        }
+      })
+      .filter(Boolean)
+
+    if (!reorderItems.length) {
+      toast.error("No reorderable items found in this order")
+      return
+    }
+
+    replaceCart(reorderItems)
+    toast.success("Items added to cart")
+    navigate(`/food/user/restaurants/${restaurantTarget}`)
   }
 
   // Three-dots menu handlers

@@ -35,6 +35,7 @@ export const PocketDetailsV2 = () => {
   const [orders, setOrders] = useState([]);
   const [paymentTransactions, setPaymentTransactions] = useState([]);
   const [bonusTransactions, setBonusTransactions] = useState([]);
+  const [summaryData, setSummaryData] = useState({ totalEarning: 0, totalBonus: 0, grandTotal: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -50,14 +51,21 @@ export const PocketDetailsV2 = () => {
         const trips = payload?.trips || payload?.orders || [];
         const payments = payload?.transactions?.payment || [];
         const bonuses = payload?.transactions?.bonus || [];
+        const summary = payload?.summary || {};
 
         setOrders(Array.isArray(trips) ? trips : []);
         setPaymentTransactions(Array.isArray(payments) ? payments : []);
         setBonusTransactions(Array.isArray(bonuses) ? bonuses : []);
+        setSummaryData({
+          totalEarning: Number(summary.totalEarning) || 0,
+          totalBonus: Number(summary.totalBonus) || 0,
+          grandTotal: Number(summary.grandTotal) || 0,
+        });
       } catch (error) {
         setOrders([]);
         setPaymentTransactions([]);
         setBonusTransactions([]);
+        setSummaryData({ totalEarning: 0, totalBonus: 0, grandTotal: 0 });
       } finally {
         setLoading(false);
       }
@@ -70,14 +78,18 @@ export const PocketDetailsV2 = () => {
     let totalBonus = 0;
     paymentTransactions.forEach((p) => { totalEarning += p.amount || 0; });
     bonusTransactions.forEach((b) => { totalBonus += b.amount || 0; });
-    return { totalEarning, totalBonus, grandTotal: totalEarning + totalBonus };
-  }, [paymentTransactions, bonusTransactions]);
+    return {
+      totalEarning: summaryData.totalEarning || totalEarning,
+      totalBonus: summaryData.totalBonus || totalBonus,
+      grandTotal: summaryData.grandTotal || (summaryData.totalEarning || totalEarning) + (summaryData.totalBonus || totalBonus),
+    };
+  }, [paymentTransactions, bonusTransactions, summaryData]);
 
   const getOrderEarning = (orderId) => {
     const p = paymentTransactions.find(p => (p.orderId || p.metadata?.orderId) === orderId);
     if (p) return p.amount || 0;
     const order = orders.find(o => (o.orderId || o._id || o.id) === orderId);
-    return order?.deliveryEarning || order?.amount || 0;
+    return order?.deliveryEarning || order?.earningAmount || order?.amount || 0;
   };
 
   const getOrderBonus = (orderId) => {

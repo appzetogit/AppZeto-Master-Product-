@@ -670,10 +670,16 @@ export const getDeliveryPocketDetails = async (deliveryPartnerId, query = {}) =>
     const orders = await FoodOrder.find({
         'dispatch.deliveryPartnerId': partnerId,
         orderStatus: 'delivered',
-        'deliveryState.deliveredAt': { $gte: start, $lte: end }
+        $or: [
+            { 'deliveryState.deliveredAt': { $gte: start, $lte: end } },
+            { deliveredAt: { $gte: start, $lte: end } },
+            { completedAt: { $gte: start, $lte: end } },
+            { updatedAt: { $gte: start, $lte: end } },
+            { createdAt: { $gte: start, $lte: end } }
+        ]
     })
         .populate({ path: 'restaurantId', select: 'restaurantName' })
-        .sort({ 'deliveryState.deliveredAt': -1 })
+        .sort({ 'deliveryState.deliveredAt': -1, deliveredAt: -1, completedAt: -1, updatedAt: -1, createdAt: -1 })
         .limit(limit)
         .lean();
 

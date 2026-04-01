@@ -352,6 +352,13 @@ export async function getDashboardStats(query = {}) {
         restaurantMatch.zoneId = zoneId;
     }
 
+    const zoneRestaurantIds = zoneId
+        ? await FoodRestaurant.find({ zoneId }).distinct('_id')
+        : null;
+    const zoneScopedRestaurantMatch = zoneId
+        ? { restaurantId: { $in: zoneRestaurantIds || [] } }
+        : {};
+
     const [
         orderTotalsAgg,
         monthlyAgg,
@@ -458,27 +465,52 @@ export async function getDashboardStats(query = {}) {
         FoodRestaurant.countDocuments({ ...restaurantMatch, status: 'pending' }),
         FoodDeliveryPartner.countDocuments({ status: 'approved' }),
         FoodDeliveryPartner.countDocuments({ status: 'pending' }),
-        FoodItem.countDocuments({ approvalStatus: 'approved' }),
-        FoodAddon.countDocuments({ approvalStatus: 'approved', isDeleted: { $ne: true } }),
-        FoodUser.countDocuments({}),
-        FoodRestaurant.find({ status: 'pending' }).sort({ createdAt: -1 }).limit(5).select('restaurantName createdAt').lean(),
+        FoodItem.countDocuments({ approvalStatus: 'approved', ...zoneScopedRestaurantMatch }),
+        FoodAddon.countDocuments({ approvalStatus: 'approved', isDeleted: { $ne: true }, ...zoneScopedRestaurantMatch }),
+        zoneId
+            ? FoodOrder.distinct('userId', { ...orderMatch, userId: { $ne: null } }).then((ids) => ids.length)
+            : FoodUser.countDocuments({}),
+        FoodRestaurant.find({ ...restaurantMatch, status: 'pending' }).sort({ createdAt: -1 }).limit(5).select('restaurantName createdAt').lean(),
         FoodDeliveryPartner.find({ status: 'pending' }).sort({ createdAt: -1 }).limit(5).select('name createdAt').lean(),
         FoodOrder.find({ 
+            ...orderMatch,
             orderStatus: { $in: PENDING_ORDER_STATUSES },
-            $or: [
-                { "payment.method": { $in: ["cash", "wallet"] } },
-                { "payment.status": { $in: ["paid", "authorized", "captured", "settled", "refunded"] } },
-            ],
         }).sort({ createdAt: -1 }).limit(5).select('orderId createdAt').lean(),
-        FoodOrder.find({ orderStatus: 'delivered' }).sort({ updatedAt: -1 }).limit(5).select('orderId updatedAt').lean(),
+        FoodOrder.find({ ...orderMatch, orderStatus: 'delivered' }).sort({ updatedAt: -1 }).limit(5).select('orderId updatedAt').lean(),
         FoodOrder.find({ 
+            ...orderMatch,
             orderStatus: { $in: CANCELLED_ORDER_STATUSES },
-            $or: [
-                { "payment.method": { $in: ["cash", "wallet"] } },
-                { "payment.status": { $in: ["paid", "authorized", "captured", "settled", "refunded"] } },
-            ],
         }).sort({ updatedAt: -1 }).limit(5).select('orderId updatedAt').lean(),
-        FoodUser.find({}).sort({ createdAt: -1 }).limit(5).select('name createdAt').lean()
+        zoneId
+            ? FoodOrder.aggregate([
+                { $match: { ...orderMatch, userId: { $ne: null } } },
+                { $sort: { createdAt: -1 } },
+                {
+                    $group: {
+                        _id: '$userId',
+                        createdAt: { $first: '$createdAt' }
+                    }
+                },
+                { $sort: { createdAt: -1 } },
+                { $limit: 5 },
+                {
+                    $lookup: {
+                        from: 'food_users',
+                        localField: '_id',
+                        foreignField: '_id',
+                        as: 'user'
+                    }
+                },
+                { $unwind: '$user' },
+                {
+                    $project: {
+                        _id: '$user._id',
+                        name: '$user.name',
+                        createdAt: 1
+                    }
+                }
+            ])
+            : FoodUser.find({}).sort({ createdAt: -1 }).limit(5).select('name createdAt').lean()
     ]);
 
     const liveSignals = [];
@@ -2474,7 +2506,16 @@ export async function getRestaurantAddonsAdmin(query = {}) {
     if (query.search && String(query.search).trim()) {
         const raw = String(query.search).trim().slice(0, 80);
         const term = raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        filter.$or = [{ 'draft.name': { $regex: term, $options: 'i' } }];
+        const matchingRestaurantIds = await FoodRestaurant.find({
+            restaurantName: { $regex: term, $options: 'i' }
+        })
+            .select('_id')
+            .lean();
+
+        filter.$or = [
+            { 'draft.name': { $regex: term, $options: 'i' } },
+            { restaurantId: { $in: matchingRestaurantIds.map((restaurant) => restaurant._id) } }
+        ];
     }
 
     const [list, total] = await Promise.all([

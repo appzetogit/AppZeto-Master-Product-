@@ -34,12 +34,14 @@ export const DeductionStatementV2 = () => {
         });
         
         if (response?.data?.success) {
-           // Filter by weekRange if necessary, but old UI didn't seem to filter actively 
-           // in the code snippet, it just had the selector. 
-           // I'll add basic filtering for better UX.
            const all = response.data.data.transactions || [];
-           const filtered = all.filter(t => {
-              const d = new Date(t.date || t.createdAt);
+           const filtered = all.filter((t) => {
+              const type = String(t.type || '').trim().toLowerCase();
+              const isManualDeduction = type === 'withdrawal' || type === 'deposit';
+              if (!isManualDeduction) return false;
+
+              const baseDate = t.date || t.createdAt;
+              const d = new Date(baseDate);
               return d >= weekRange.start && d <= weekRange.end;
            });
            setDeductions(filtered);

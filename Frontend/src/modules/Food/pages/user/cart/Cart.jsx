@@ -2556,7 +2556,10 @@ export default function Cart() {
       </div>
 
       {/* Bottom Sticky - Place Order */}
-      <div className="bg-white dark:bg-[#1a1a1a] border-t dark:border-gray-800 shadow-lg z-30 flex-shrink-0 fixed bottom-0 left-0 right-0">
+      <div
+        className="bg-white dark:bg-[#1a1a1a] border-t dark:border-gray-800 shadow-lg z-30 flex-shrink-0 fixed bottom-0 left-0 right-0"
+        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+      >
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 md:py-4">
           <div className="w-full max-w-lg mx-auto space-y-3">
             {/* Pay Using - Slim Pro UI */}
@@ -2838,9 +2841,10 @@ export default function Cart() {
                   animate={{ y: 0 }}
                   exit={{ y: "100%" }}
                   transition={{ type: "spring", damping: 30, stiffness: 350 }}
-                  className="fixed bottom-0 left-0 right-0 bg-white dark:bg-[#1a1a1a] rounded-t-[2rem] z-[101] shadow-2xl overflow-hidden pb-4 max-h-[60vh] md:max-h-[50vh] flex flex-col"
+                  className="fixed bottom-0 left-0 right-0 bg-white dark:bg-[#1a1a1a] rounded-t-[2rem] z-[101] shadow-2xl overflow-hidden max-h-[82vh] md:max-h-[60vh] flex flex-col"
+                  style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
                 >
-                  <div className="p-5 md:p-6 flex flex-col h-full">
+                  <div className="p-5 md:p-6 flex flex-col h-full min-h-0">
                     {/* Compact Drag handle */}
                     <div className="w-10 h-1 bg-gray-200 dark:bg-gray-800 rounded-full mx-auto mb-5" />
 
@@ -2857,7 +2861,7 @@ export default function Cart() {
                       </button>
                     </div>
 
-                    <div className="space-y-3 overflow-y-auto pr-1 custom-scrollbar pb-4 max-h-[45vh]">
+                    <div className="space-y-3 overflow-y-auto pr-1 custom-scrollbar pb-4 flex-1 min-h-0">
                       {[
                         {
                           id: 'razorpay',
@@ -2957,7 +2961,10 @@ export default function Cart() {
                       ))}
                     </div>
 
-                    <div className="mt-auto pt-4 border-t border-gray-100 dark:border-gray-800 flex items-center gap-4">
+                    <div
+                      className="mt-auto pt-4 border-t border-gray-100 dark:border-gray-800 flex items-center gap-4 bg-white dark:bg-[#1a1a1a]"
+                      style={{ paddingBottom: "max(0.25rem, env(safe-area-inset-bottom, 0px))" }}
+                    >
                       <div className="flex-shrink-0">
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-1">Total Pay</p>
                         <p className="text-xl font-black text-[#EB590E] tabular-nums">{RUPEE_SYMBOL}{total.toFixed(0)}</p>

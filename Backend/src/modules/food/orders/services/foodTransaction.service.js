@@ -88,7 +88,13 @@ export async function createInitialTransaction(order) {
     // Split logic
     const totalCustomerPaid = order.pricing?.total || 0;
     const riderShare = order.riderEarning || 0;
-    const restaurantCommission = commissionAmount || 0;
+    // Prefer commission already computed & stored on the order (source of truth for this order),
+    // fallback to rule snapshot for older orders.
+    const restaurantCommissionFromOrder = Number(order.pricing?.restaurantCommission);
+    const restaurantCommission =
+        Number.isFinite(restaurantCommissionFromOrder) && restaurantCommissionFromOrder > 0
+            ? restaurantCommissionFromOrder
+            : (commissionAmount || 0);
     const restaurantNet = (order.pricing?.subtotal || 0) + (order.pricing?.packagingFee || 0) - restaurantCommission;
     const platformNetProfit = (order.pricing?.platformFee || 0) + (order.pricing?.deliveryFee || 0) + restaurantCommission - riderShare;
 

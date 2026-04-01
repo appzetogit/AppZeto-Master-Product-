@@ -12,6 +12,7 @@ export default function PointOfSale() {
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(false)
   const [restaurantData, setRestaurantData] = useState(null)
+  const [paymentSummary, setPaymentSummary] = useState(null)
   const [showSearchResults, setShowSearchResults] = useState(false)
 
   const getRestaurantName = (restaurant) => {
@@ -74,6 +75,7 @@ export default function PointOfSale() {
     totalRevenue: 0,
     totalCommission: 0,
     restaurantEarning: 0,
+    restaurantProfit: 0,
     monthlyOrders: 0,
     yearlyOrders: 0,
     averageMonthlyProfit: 0,
@@ -97,6 +99,7 @@ export default function PointOfSale() {
       fetchRestaurantAnalytics(selectedRestaurant)
     } else {
       setRestaurantData(null)
+      setPaymentSummary(null)
       setAnalyticsData({
         totalOrders: 0,
         cancelledOrders: 0,
@@ -110,6 +113,7 @@ export default function PointOfSale() {
         totalRevenue: 0,
         totalCommission: 0,
         restaurantEarning: 0,
+        restaurantProfit: 0,
         monthlyOrders: 0,
         yearlyOrders: 0,
         averageMonthlyProfit: 0,
@@ -157,7 +161,7 @@ export default function PointOfSale() {
       debugLog('Analytics response:', analyticsResponse)
       
       if (analyticsResponse?.data?.success && analyticsResponse.data.data) {
-        const { restaurant, analytics } = analyticsResponse.data.data
+        const { restaurant, analytics, paymentSummary: apiPaymentSummary } = analyticsResponse.data.data
         
         debugLog('Analytics data received:', analytics)
         debugLog('Commission percentage from API:', analytics.commissionPercentage)
@@ -165,6 +169,7 @@ export default function PointOfSale() {
         
         // Set restaurant data
         setRestaurantData(restaurant)
+        setPaymentSummary(apiPaymentSummary || null)
         
         // Parse commission percentage - handle both number and string
         const commissionPercentage = analytics.commissionPercentage !== undefined && analytics.commissionPercentage !== null
@@ -187,6 +192,7 @@ export default function PointOfSale() {
           totalRevenue: analytics.totalRevenue || 0,
           totalCommission: analytics.totalCommission || 0,
           restaurantEarning: analytics.restaurantEarning || 0,
+          restaurantProfit: analytics.restaurantProfit || 0,
           monthlyOrders: analytics.monthlyOrders || 0,
           yearlyOrders: analytics.yearlyOrders || 0,
           averageMonthlyProfit: analytics.averageMonthlyProfit || 0,
@@ -200,6 +206,7 @@ export default function PointOfSale() {
         })
       } else {
         // Fallback to empty data if API fails
+        setPaymentSummary(null)
         setAnalyticsData({
           totalOrders: 0,
           cancelledOrders: 0,
@@ -213,6 +220,7 @@ export default function PointOfSale() {
           totalRevenue: 0,
           totalCommission: 0,
           restaurantEarning: 0,
+          restaurantProfit: 0,
           monthlyOrders: 0,
           yearlyOrders: 0,
           averageMonthlyProfit: 0,
@@ -244,6 +252,7 @@ export default function PointOfSale() {
       }
       
       // Set empty data on error
+      setPaymentSummary(null)
       setAnalyticsData({
         totalOrders: 0,
         cancelledOrders: 0,
@@ -257,6 +266,7 @@ export default function PointOfSale() {
         totalRevenue: 0,
         totalCommission: 0,
         restaurantEarning: 0,
+        restaurantProfit: 0,
         monthlyOrders: 0,
         yearlyOrders: 0,
         averageMonthlyProfit: 0,
@@ -569,6 +579,10 @@ export default function PointOfSale() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div className="flex justify-between items-center py-3 border-b border-[#e3e6ef]">
+                    <span className="text-sm text-[#8a94aa]">Subtotal (Dish Price)</span>
+                    <span className="text-base font-semibold text-[#334257]">{formatCurrency(paymentSummary?.subtotal || 0)}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-3 border-b border-[#e3e6ef]">
                     <span className="text-sm text-[#8a94aa]">Total Revenue</span>
                     <span className="text-base font-semibold text-[#334257]">{formatCurrency(analyticsData.totalRevenue)}</span>
                   </div>
@@ -577,8 +591,12 @@ export default function PointOfSale() {
                     <span className="text-base font-semibold text-[#006fbd]">{formatCurrency(analyticsData.totalCommission)}</span>
                   </div>
                   <div className="flex justify-between items-center py-3 border-b border-[#e3e6ef]">
-                    <span className="text-sm text-[#8a94aa]">Restaurant Earning</span>
+                    <span className="text-sm text-[#8a94aa]">Restaurant Share</span>
                     <span className="text-base font-semibold text-green-600">{formatCurrency(analyticsData.restaurantEarning)}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-3 border-b border-[#e3e6ef]">
+                    <span className="text-sm text-[#8a94aa]">Restaurant Profit</span>
+                    <span className="text-base font-semibold text-emerald-700">{formatCurrency(analyticsData.restaurantProfit)}</span>
                   </div>
                 </div>
                 <div className="space-y-4">
@@ -597,6 +615,61 @@ export default function PointOfSale() {
                         ? `${analyticsData.commissionPercentage}%`
                         : '0%'}
                     </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Restaurant Payments (from FoodTransaction ledger) */}
+            <div className="bg-white rounded-lg shadow-sm border border-[#e3e6ef] p-6">
+              <h3 className="text-lg font-semibold text-[#334257] mb-4">Restaurant Payments (Completed Orders)</h3>
+              <p className="text-xs text-[#8a94aa] mb-4">
+                Breakdown based on transaction ledger. “Subtotal” reflects total dish value (food price).
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center py-2 border-b border-[#e3e6ef]">
+                    <span className="text-sm text-[#8a94aa]">Subtotal (Dish Price)</span>
+                    <span className="text-sm font-semibold text-[#334257]">{formatCurrency(paymentSummary?.subtotal || 0)}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-[#e3e6ef]">
+                    <span className="text-sm text-[#8a94aa]">Tax</span>
+                    <span className="text-sm font-semibold text-[#334257]">{formatCurrency(paymentSummary?.tax || 0)}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-[#e3e6ef]">
+                    <span className="text-sm text-[#8a94aa]">Delivery Fee</span>
+                    <span className="text-sm font-semibold text-[#334257]">{formatCurrency(paymentSummary?.deliveryFee || 0)}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-[#e3e6ef]">
+                    <span className="text-sm text-[#8a94aa]">Platform Fee</span>
+                    <span className="text-sm font-semibold text-[#334257]">{formatCurrency(paymentSummary?.platformFee || 0)}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-[#e3e6ef]">
+                    <span className="text-sm text-[#8a94aa]">Discount</span>
+                    <span className="text-sm font-semibold text-[#334257]">{formatCurrency(paymentSummary?.discount || 0)}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-sm font-semibold text-[#334257]">Total Order Value</span>
+                    <span className="text-sm font-bold text-[#006fbd]">{formatCurrency(paymentSummary?.total || 0)}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center py-2 border-b border-[#e3e6ef]">
+                    <span className="text-sm text-[#8a94aa]">Restaurant Share</span>
+                    <span className="text-sm font-semibold text-green-700">{formatCurrency(paymentSummary?.restaurantShare || 0)}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-[#e3e6ef]">
+                    <span className="text-sm text-[#8a94aa]">Restaurant Commission (Admin)</span>
+                    <span className="text-sm font-semibold text-[#334257]">{formatCurrency(paymentSummary?.restaurantCommission || 0)}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-[#e3e6ef]">
+                    <span className="text-sm text-[#8a94aa]">Rider Share</span>
+                    <span className="text-sm font-semibold text-[#334257]">{formatCurrency(paymentSummary?.riderShare || 0)}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-sm text-[#8a94aa]">Platform Net Profit</span>
+                    <span className="text-sm font-semibold text-[#334257]">{formatCurrency(paymentSummary?.platformNetProfit || 0)}</span>
                   </div>
                 </div>
               </div>

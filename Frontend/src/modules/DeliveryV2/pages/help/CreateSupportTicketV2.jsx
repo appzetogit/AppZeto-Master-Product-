@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2, Send } from 'lucide-react';
 import { deliveryAPI } from '@food/api';
 import { toast } from 'sonner';
+import useDeliveryBackNavigation from '../../hooks/useDeliveryBackNavigation';
 
 /**
  * CreateSupportTicketV2 - Restored Old UI for Ticket Creation.
  */
 export const CreateSupportTicketV2 = () => {
-  const navigate = useNavigate();
+  const goBack = useDeliveryBackNavigation();
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     subject: "",
@@ -26,7 +26,7 @@ export const CreateSupportTicketV2 = () => {
       const response = await deliveryAPI.createSupportTicket(form);
       if (response?.data?.success) {
         toast.success("Ticket raised successfully");
-        navigate(-1);
+        goBack();
       }
     } catch (e) {
       toast.error("Failed to create ticket");
@@ -39,7 +39,7 @@ export const CreateSupportTicketV2 = () => {
     <div className="min-h-screen bg-white font-poppins">
       {/* Header */}
       <div className="bg-white px-4 py-5 flex items-center gap-4 fixed top-0 w-full z-50 shadow-sm border-b border-gray-50">
-        <button onClick={() => navigate(-1)} className="p-1 hover:bg-gray-50 rounded-full">
+        <button onClick={goBack} className="p-1 hover:bg-gray-50 rounded-full">
            <ArrowLeft className="w-6 h-6 text-gray-950" />
         </button>
         <h1 className="text-xl font-black text-gray-950 uppercase tracking-tight">Raise Ticket</h1>

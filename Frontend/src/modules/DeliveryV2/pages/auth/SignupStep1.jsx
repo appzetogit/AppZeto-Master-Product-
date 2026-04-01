@@ -2,6 +2,7 @@ import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { ArrowLeft } from "lucide-react"
 import { toast } from "sonner"
+import useDeliveryBackNavigation from "../../hooks/useDeliveryBackNavigation"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -9,6 +10,7 @@ const debugError = (...args) => {}
 
 export default function SignupStep1() {
   const navigate = useNavigate()
+  const goBack = useDeliveryBackNavigation()
   const [formData, setFormData] = useState(() => {
     const saved = sessionStorage.getItem("deliverySignupDetails")
     const base = {
@@ -41,8 +43,14 @@ export default function SignupStep1() {
   const sanitizeLocationValue = (value) =>
     value.replace(/[^A-Za-z\s.-]/g, "").replace(/\s{2,}/g, " ")
 
+  const sanitizeNameValue = (value) =>
+    value.replace(/[^A-Za-z\s]/g, "").replace(/\s{2,}/g, " ")
+
   const isValidLocationValue = (value) =>
     /^[A-Za-z][A-Za-z\s.-]*[A-Za-z.]$/.test(value.trim())
+
+  const isValidNameValue = (value) =>
+    /^[A-Za-z][A-Za-z\s]*[A-Za-z]$/.test(value.trim())
 
   const isValidEmailValue = (value) => {
     const normalizedValue = value.trim()
@@ -77,6 +85,14 @@ export default function SignupStep1() {
       updatedValue = value.toUpperCase()
     }
 
+    if (name === "name") {
+      updatedValue = sanitizeNameValue(value)
+    }
+
+    if (name === "vehicleNumber") {
+      updatedValue = updatedValue.slice(0, 10)
+    }
+
     // Restrict Aadhaar to numeric only
     if (name === "aadharNumber") {
       updatedValue = value.replace(/\D/g, "").slice(0, 12)
@@ -108,6 +124,8 @@ export default function SignupStep1() {
 
     if (!formData.name.trim()) {
       newErrors.name = "Name is required"
+    } else if (!isValidNameValue(formData.name)) {
+      newErrors.name = "Name can contain letters only"
     }
 
     if (formData.email && !isValidEmailValue(formData.email)) {
@@ -194,7 +212,7 @@ export default function SignupStep1() {
       {/* Header */}
       <div className="bg-white px-4 py-3 flex items-center gap-4 border-b border-gray-200">
         <button
-          onClick={() => navigate(-1)}
+          onClick={goBack}
           className="p-2 hover:bg-gray-100 rounded-full transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -220,6 +238,7 @@ export default function SignupStep1() {
               name="name"
               value={formData.name}
               onChange={handleChange}
+              inputMode="text"
               className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 ${errors.name ? "border-red-500" : "border-gray-300"
                 }`}
               placeholder="Enter your full name"
@@ -342,6 +361,7 @@ export default function SignupStep1() {
               name="vehicleNumber"
               value={formData.vehicleNumber}
               onChange={handleChange}
+              maxLength={10}
               className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 ${errors.vehicleNumber ? "border-red-500" : "border-gray-300"
                 }`}
               placeholder="e.g., MH12AB1234"

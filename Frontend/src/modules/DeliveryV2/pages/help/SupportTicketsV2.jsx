@@ -6,12 +6,14 @@ import {
 } from 'lucide-react';
 import { deliveryAPI } from '@food/api';
 import { toast } from 'sonner';
+import useDeliveryBackNavigation from '../../hooks/useDeliveryBackNavigation';
 
 /**
  * SupportTicketsV2 - Restored Old UI for Support Ticket Hub.
  */
 export const SupportTicketsV2 = () => {
   const navigate = useNavigate();
+  const goBack = useDeliveryBackNavigation();
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -45,7 +47,7 @@ export const SupportTicketsV2 = () => {
     <div className="min-h-screen bg-white font-poppins pb-20">
       {/* Header */}
       <div className="bg-white px-4 py-5 flex items-center gap-4 fixed top-0 w-full z-50 shadow-sm border-b border-gray-50">
-        <button onClick={() => navigate(-1)} className="p-1 hover:bg-gray-50 rounded-full">
+        <button onClick={goBack} className="p-1 hover:bg-gray-50 rounded-full">
            <ArrowLeft className="w-6 h-6 text-gray-950" />
         </button>
         <h1 className="text-xl font-black text-gray-950">Support Tickets</h1>

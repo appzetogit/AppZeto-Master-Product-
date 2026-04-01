@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Edit2, Loader2, Save } from 'lucide-react';
 import { deliveryAPI } from '@food/api';
 import { toast } from 'sonner';
+import useDeliveryBackNavigation from '../../hooks/useDeliveryBackNavigation';
 
 /**
  * ProfileBankV2 - Restored Old UI for Bank Details.
  */
 export const ProfileBankV2 = () => {
-  const navigate = useNavigate();
+  const goBack = useDeliveryBackNavigation();
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [form, setForm] = useState({
@@ -69,7 +69,7 @@ export const ProfileBankV2 = () => {
   return (
     <div className="min-h-screen bg-gray-50 font-poppins">
        <div className="bg-white px-4 py-5 flex items-center gap-4 fixed top-0 w-full z-50 shadow-sm">
-          <button onClick={() => navigate(-1)}><ArrowLeft className="w-6 h-6" /></button>
+          <button onClick={goBack}><ArrowLeft className="w-6 h-6" /></button>
           <h1 className="text-xl font-black">Bank Details</h1>
           {!isEditing && (
              <button onClick={() => setIsEditing(true)} className="ml-auto p-2 bg-orange-50 text-orange-600 rounded-xl"><Edit2 className="w-4 h-4" /></button>

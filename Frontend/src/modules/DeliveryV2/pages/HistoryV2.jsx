@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, ChevronDown, Loader2, Gift, X, 
   CheckCircle2, Clock, Search, History
@@ -7,6 +6,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { deliveryAPI } from '@food/api';
 import { toast } from 'sonner';
+import useDeliveryBackNavigation from '../hooks/useDeliveryBackNavigation';
 
 /**
  * HistoryV2 - EXACT 1:1 Match with User Screenshot.
@@ -15,7 +15,7 @@ import { toast } from 'sonner';
  * Font: Poppins
  */
 export const HistoryV2 = () => {
-  const navigate = useNavigate();
+  const goBack = useDeliveryBackNavigation();
   const [activeTab, setActiveTab] = useState("daily");
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedTripType, setSelectedTripType] = useState("ALL TRIPS");
@@ -116,17 +116,17 @@ export const HistoryV2 = () => {
   return (
     <div className="min-h-screen bg-white font-poppins pb-32">
        {/* 1. Header (Premium V2 Styled) */}
-       <div className="bg-white border-b border-gray-100 px-6 py-5 flex items-center justify-between sticky top-0 z-[100]">
+       <div className="bg-[#121212] border-b border-white/10 px-6 py-3 flex items-center justify-between sticky top-0 z-[100] backdrop-blur-2xl">
           <div className="flex items-center gap-4">
-            <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-900 border border-gray-100 active:scale-90 transition-all">
+            <button onClick={goBack} className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white border border-white/10 active:scale-90 transition-all">
                <ArrowLeft className="w-5 h-5" />
             </button>
             <div>
-               <h1 className="text-xl font-black text-gray-950 uppercase tracking-tighter">Trip History</h1>
-               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Your delivery milestones</p>
+               <h1 className="text-xl font-black text-white uppercase tracking-tighter">Trip History</h1>
+               <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mt-0.5">Your delivery milestones</p>
             </div>
           </div>
-          <button onClick={() => setShowBonusModal(true)} className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center text-[#10B981] border border-green-100 relative active:scale-90 transition-all">
+          <button onClick={() => setShowBonusModal(true)} className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center text-[#10B981] border border-green-500/20 relative active:scale-90 transition-all">
              <Gift className="w-5 h-5" />
              {bonusTransactions.length > 0 && (
                 <span className="absolute -top-1 -right-1 w-5 h-5 bg-[#10B981] text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white shadow-sm">
@@ -137,12 +137,12 @@ export const HistoryV2 = () => {
        </div>
 
        {/* 2. Selection Tabs (Matched to Image) */}
-       <div className="bg-white px-4 flex items-center gap-8 sticky top-[61px] z-[90]">
+       <div className="bg-[#121212] px-4 flex items-center gap-8 sticky top-[45px] z-[90] border-b border-white/5">
           {['daily', 'weekly', 'monthly'].map((tab) => (
              <button
                key={tab}
                onClick={() => setActiveTab(tab)}
-               className={`py-4 text-base font-medium capitalize relative ${activeTab === tab ? 'text-[#10B981]' : 'text-gray-400'}`}
+               className={`py-4 text-base font-medium capitalize relative ${activeTab === tab ? 'text-[#10B981]' : 'text-gray-500'}`}
              >
                 {tab}
                 {activeTab === tab && <motion.div layoutId="tab-indicator" className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#10B981]" />}
@@ -151,32 +151,32 @@ export const HistoryV2 = () => {
        </div>
 
        {/* 3. Filter Controls (Matched to Image) */}
-       <div className="bg-white px-4 py-4 flex gap-3 sticky top-[118px] z-[80]">
+       <div className="bg-[#121212] px-4 py-3 flex gap-3 sticky top-[102px] z-[80] border-b border-white/5">
           <button 
              onClick={() => { setShowDatePicker(!showDatePicker); setShowTripTypePicker(false); }}
-             className="flex-1 px-4 py-3 bg-[#f8f9fa] border border-gray-100 rounded-xl flex items-center justify-between text-gray-800"
+             className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl flex items-center justify-between text-white"
           >
              <span className="text-sm font-medium">{formatDateDisplay(selectedDate)}</span>
-             <ChevronDown className={`w-4 h-4 text-gray-400 transform transition-transform ${showDatePicker ? 'rotate-180' : ''}`} />
+             <ChevronDown className={`w-4 h-4 text-gray-500 transform transition-transform ${showDatePicker ? 'rotate-180' : ''}`} />
           </button>
           <button 
              onClick={() => { setShowTripTypePicker(!showTripTypePicker); setShowDatePicker(false); }}
-             className="w-[140px] px-4 py-3 bg-[#f8f9fa] border border-gray-100 rounded-xl flex items-center justify-between text-gray-800"
+             className="w-[140px] px-4 py-3 bg-white/5 border border-white/10 rounded-xl flex items-center justify-between text-white"
           >
              <span className="text-sm font-medium">{selectedTripType}</span>
-             <ChevronDown className={`w-4 h-4 text-gray-400 transform transition-transform ${showTripTypePicker ? 'rotate-180' : ''}`} />
+             <ChevronDown className={`w-4 h-4 text-gray-500 transform transition-transform ${showTripTypePicker ? 'rotate-180' : ''}`} />
           </button>
        </div>
 
        {/* Dropdowns */}
        <AnimatePresence>
           {showDatePicker && (
-             <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="fixed left-4 right-4 top-[185px] z-[200] bg-white rounded-2xl shadow-2xl border border-gray-100 max-h-[300px] overflow-y-auto p-2">
+             <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="fixed left-4 right-4 top-[160px] z-[200] bg-[#1a1a1a] rounded-2xl shadow-2xl border border-white/10 max-h-[300px] overflow-y-auto p-2">
                 {recentDates.map((date, idx) => (
                    <button 
                       key={idx} 
                       onClick={() => { setSelectedDate(date); setShowDatePicker(false); }}
-                      className={`w-full text-left p-4 rounded-xl text-sm font-medium ${date.toDateString() === selectedDate.toDateString() ? 'bg-green-50 text-[#10B981] font-bold' : 'text-gray-700 hover:bg-gray-50'}`}
+                      className={`w-full text-left p-4 rounded-xl text-sm font-medium ${date.toDateString() === selectedDate.toDateString() ? 'bg-green-500/10 text-[#10B981] font-bold' : 'text-gray-300 hover:bg-white/5'}`}
                    >
                       {formatDateDisplay(date)}
                    </button>
@@ -184,12 +184,12 @@ export const HistoryV2 = () => {
              </motion.div>
           )}
           {showTripTypePicker && (
-             <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="fixed right-4 top-[185px] w-48 z-[200] bg-white rounded-2xl shadow-2xl border border-gray-100 p-2">
+             <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="fixed right-4 top-[160px] w-48 z-[200] bg-[#1a1a1a] rounded-2xl shadow-2xl border border-white/10 p-2">
                 {tripTypes.map((type, idx) => (
                    <button 
                       key={idx} 
                       onClick={() => { setSelectedTripType(type); setShowTripTypePicker(false); }}
-                      className={`w-full text-left p-4 rounded-xl text-sm font-medium ${type === selectedTripType ? 'bg-green-50 text-[#10B981] font-bold' : 'text-gray-700 hover:bg-gray-50'}`}
+                      className={`w-full text-left p-4 rounded-xl text-sm font-medium ${type === selectedTripType ? 'bg-green-500/10 text-[#10B981] font-bold' : 'text-gray-300 hover:bg-white/5'}`}
                    >
                       {type}
                    </button>

@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { X, Loader2 } from "lucide-react";
 import { deliveryAPI } from "@food/api";
 import { toast } from "sonner";
 import { useCompanyName } from "@food/hooks/useCompanyName";
+import useDeliveryBackNavigation from "../../hooks/useDeliveryBackNavigation";
 
 export default function ShowIdCardV2() {
   const companyName = useCompanyName();
-  const navigate = useNavigate();
+  const goBack = useDeliveryBackNavigation();
   const [loading, setLoading] = useState(true);
   const [profileData, setProfileData] = useState(null);
 
@@ -94,7 +94,7 @@ export default function ShowIdCardV2() {
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="text-center">
           <p className="text-gray-600 mb-4">Failed to load ID card data</p>
-          <button onClick={() => navigate(-1)} className="px-4 py-2 bg-blue-600 text-white rounded-lg">Go Back</button>
+          <button onClick={goBack} className="px-4 py-2 bg-blue-600 text-white rounded-lg">Go Back</button>
         </div>
       </div>
     );
@@ -116,7 +116,7 @@ export default function ShowIdCardV2() {
       <div className="max-w-md mx-auto min-h-screen bg-gray-100 relative shadow-2xl">
         {/* Close Button - Top Right */}
         <button
-          onClick={() => navigate(-1)}
+          onClick={goBack}
           className="absolute top-4 right-4 p-2 hover:bg-gray-200 rounded-full transition-colors z-30 bg-white/50 backdrop-blur-md"
         >
           <X className="w-6 h-6 text-black" />
@@ -189,10 +189,6 @@ export default function ShowIdCardV2() {
                    Valid On: {idCardData.validTill}
                  </p>
               </div>
-            </div>
-
-            <div className="mt-12 opacity-30">
-               <img src="https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png" className="h-8 w-auto grayscale" alt="Logo" />
             </div>
           </div>
         </div>

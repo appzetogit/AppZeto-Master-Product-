@@ -25,7 +25,8 @@ import ProfileV2 from '@/modules/DeliveryV2/pages/ProfileV2';
 import { 
   Bell, HelpCircle, Headset, AlertTriangle, 
   Wallet, History, User as UserIcon, LayoutGrid,
-  Plus, Minus, Navigation2, Target, Play, CheckCircle2, Clock, ChevronDown
+  Plus, Minus, Navigation2, Target, Play, CheckCircle2, Clock, ChevronDown,
+  Contact
 } from 'lucide-react';
 
 import { getHaversineDistance, calculateETA, calculateHeading } from '@/modules/DeliveryV2/utils/geo';
@@ -80,7 +81,6 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
 
   const [showVerification, setShowVerification] = useState(false);
   const [showEmergencyPopup, setShowEmergencyPopup] = useState(false);
-  const [showHelpPopup, setShowHelpPopup] = useState(false);
   const [profileImage, setProfileImage] = useState(null);
   const [emergencyNumbers, setEmergencyNumbers] = useState({
     medicalEmergency: "",
@@ -230,11 +230,6 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
     { title: "Accident Helpline", subtitle: "Report an accident", icon: <AlertTriangle className="text-orange-600" />, phone: emergencyNumbers.accidentHelpline },
     { title: "Contact Police", subtitle: "Nearest police support", icon: <AlertTriangle className="text-blue-600" />, phone: emergencyNumbers.contactPolice },
     { title: "Insurance", subtitle: "Policy & claim help", icon: <AlertTriangle className="text-green-600" />, phone: emergencyNumbers.insurance },
-  ];
-
-  const helpOptions = [
-    { title: "Support tickets", subtitle: "Check status of tickets raised", icon: <Clock className="text-gray-600" />, path: "/food/delivery/help/tickets" },
-    { title: "Show ID card", subtitle: `See your ${companyName} ID card`, icon: <UserIcon className="text-gray-600" />, path: "/food/delivery/help/id-card" },
   ];
 
   // Reset simulation when path, order or mode changes
@@ -568,8 +563,8 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
     <div className="relative h-screen w-full bg-white text-gray-900 overflow-hidden flex flex-col">
       {/* ─── 1. TOP HEADER (Premium Dark Gray) ─── */}
       {currentTab !== 'history' && (
-      <div className="absolute top-0 inset-x-0 bg-[#121212]/95 backdrop-blur-2xl shadow-2xl z-[200] safe-top pb-4 border-b border-white/10">
-        <div className="flex items-center justify-between px-4 py-3">
+      <div className="absolute top-0 inset-x-0 bg-[#121212]/95 backdrop-blur-2xl shadow-2xl z-[200] safe-top pb-2 border-b border-white/10">
+        <div className="flex items-center justify-between px-4 py-2">
           <div className="flex items-center gap-4">
              <div 
                 onClick={() => navigate('/food/delivery/profile')}
@@ -601,7 +596,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
           </div>
           <div className="flex items-center gap-3">
              <button onClick={() => setShowEmergencyPopup(true)} className="w-9 h-9 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 border border-red-500/20 active:scale-95 transition-all shadow-lg"><AlertTriangle className="w-4 h-4" /></button>
-             <button onClick={() => setShowHelpPopup(true)} className="w-9 h-9 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 border border-blue-500/20 active:scale-95 transition-all shadow-lg"><HelpCircle className="w-4 h-4" /></button>
+             <button onClick={() => navigate('/food/delivery/help/id-card')} className="w-9 h-9 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 border border-blue-500/20 active:scale-95 transition-all shadow-lg"><Contact className="w-4 h-4" /></button>
              <button onClick={() => navigate('/food/delivery/help/tickets')} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white border border-white/10 active:scale-95 transition-all shadow-lg"><Headset className="w-4 h-4" /></button>
           </div>
         </div>
@@ -613,7 +608,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="px-4 mt-2"
+              className="px-4 mt-1"
             >
               {activeOrder ? (
                 <div className="grid grid-cols-2 gap-3 w-full">
@@ -874,27 +869,6 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                className="flex items-center gap-5 p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 active:scale-95 transition-all text-left"
              >
                <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm text-xl">{opt.icon}</div>
-               <div>
-                 <h4 className="font-bold text-gray-900">{opt.title}</h4>
-                 <p className="text-xs text-gray-500 font-medium">{opt.subtitle}</p>
-               </div>
-             </button>
-           ))}
-         </div>
-      </BottomPopup>
-
-      <BottomPopup isOpen={showHelpPopup} title="How can we help?" onClose={() => setShowHelpPopup(false)}>
-         <div className="grid gap-4 py-2">
-           {helpOptions.map((opt, i) => (
-             <button 
-               key={i} 
-               onClick={() => {
-                 setShowHelpPopup(false);
-                 navigate(opt.path);
-               }}
-               className="flex items-center gap-5 p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 active:scale-95 transition-all text-left"
-             >
-               <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm text-gray-700">{opt.icon}</div>
                <div>
                  <h4 className="font-bold text-gray-900">{opt.title}</h4>
                  <p className="text-xs text-gray-500 font-medium">{opt.subtitle}</p>

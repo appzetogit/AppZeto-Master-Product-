@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { 
   ArrowLeft,
   Loader2,
@@ -15,9 +14,10 @@ import { formatCurrency } from "@food/utils/currency";
 import WeekSelector from "@delivery/components/WeekSelector";
 import { deliveryAPI } from "@food/api";
 import { motion, AnimatePresence } from "framer-motion";
+import useDeliveryBackNavigation from "../../hooks/useDeliveryBackNavigation";
 
 export const PocketDetailsV2 = () => {
-  const navigate = useNavigate();
+  const goBack = useDeliveryBackNavigation();
 
   // Current week range (Sunday–Saturday)
   const getInitialWeekRange = () => {
@@ -90,7 +90,7 @@ export const PocketDetailsV2 = () => {
       {/* ─── HEADER ─── */}
       <div className="bg-white border-b border-gray-100 px-6 py-5 flex items-center justify-between sticky top-0 z-[100]">
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-900 border border-gray-100 active:scale-90 transition-all">
+          <button onClick={goBack} className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-900 border border-gray-100 active:scale-90 transition-all">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft,
   Loader2,
@@ -9,6 +8,7 @@ import WeekSelector from '@delivery/components/WeekSelector';
 import { deliveryAPI } from '@food/api';
 import { formatCurrency } from '@food/utils/currency';
 import { toast } from 'sonner';
+import useDeliveryBackNavigation from '../../hooks/useDeliveryBackNavigation';
 
 /**
  * DeductionStatementV2 - 1:1 Match with Old DeductionStatement UI.
@@ -16,7 +16,7 @@ import { toast } from 'sonner';
  * Font: Poppins
  */
 export const DeductionStatementV2 = () => {
-  const navigate = useNavigate();
+  const goBack = useDeliveryBackNavigation();
   const [loading, setLoading] = useState(true);
   const [deductions, setDeductions] = useState([]);
   const [weekRange, setWeekRange] = useState({
@@ -58,7 +58,7 @@ export const DeductionStatementV2 = () => {
        {/* Header (Old Style) */}
        <div className="bg-white border-b border-gray-200 px-4 py-4 safe-top flex items-center gap-4">
           <button 
-            onClick={() => navigate(-1)}
+            onClick={goBack}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5 text-gray-600" />

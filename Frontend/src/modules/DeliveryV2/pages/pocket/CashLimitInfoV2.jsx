@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, Loader2, IndianRupee, HelpCircle,
   ShieldCheck, AlertTriangle
@@ -7,6 +6,7 @@ import {
 import { deliveryAPI } from '@food/api';
 import { toast } from 'sonner';
 import { formatCurrency } from '@food/utils/currency';
+import useDeliveryBackNavigation from '../../hooks/useDeliveryBackNavigation';
 
 /**
  * CashLimitInfoV2 - 1:1 Match with Old AvailableCashLimit Component.
@@ -15,7 +15,7 @@ import { formatCurrency } from '@food/utils/currency';
  * Font: Poppins
  */
 export const CashLimitInfoV2 = () => {
-  const navigate = useNavigate();
+  const goBack = useDeliveryBackNavigation();
   const [loading, setLoading] = useState(true);
   const [walletState, setWalletState] = useState({
      totalCashLimit: 0,
@@ -68,7 +68,7 @@ export const CashLimitInfoV2 = () => {
     <div className="min-h-screen bg-[#f6e9dc] font-poppins pb-32">
        {/* Header */}
        <div className="bg-white border-b border-gray-200 px-4 py-4 safe-top flex items-center gap-4">
-          <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-lg">
+          <button onClick={goBack} className="p-2 hover:bg-gray-100 rounded-lg">
              <ArrowLeft className="w-5 h-5 text-gray-600" />
           </button>
           <h1 className="text-lg font-bold text-gray-900 leading-none">Available cash limit</h1>
@@ -119,7 +119,7 @@ export const CashLimitInfoV2 = () => {
 
              <div className="px-2">
                 <button 
-                  onClick={() => navigate(-1)}
+                  onClick={goBack}
                   className="w-full py-4 bg-black text-white rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-all"
                 >
                    Okay

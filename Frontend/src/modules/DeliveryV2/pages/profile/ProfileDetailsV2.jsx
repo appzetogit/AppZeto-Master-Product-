@@ -11,6 +11,7 @@ import { toast } from "sonner"
 import { openCamera, isFlutterBridgeAvailable } from "@food/utils/imageUploadUtils"
 import { deliveryAPI } from "@food/api"
 import { motion, AnimatePresence } from "framer-motion"
+import useDeliveryBackNavigation from "../../hooks/useDeliveryBackNavigation"
 
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -21,6 +22,7 @@ const debugError = (...args) => {}
  */
 export const ProfileDetailsV2 = () => {
   const navigate = useNavigate()
+  const goBack = useDeliveryBackNavigation()
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [vehicleNumber, setVehicleNumber] = useState("")
@@ -343,7 +345,7 @@ export const ProfileDetailsV2 = () => {
       {/* ─── HEADER ─── */}
       <div className="fixed top-0 inset-x-0 h-16 bg-white/80 backdrop-blur-xl border-b border-gray-100 z-50 px-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-xl transition-all active:scale-90">
+          <button onClick={goBack} className="p-2 hover:bg-gray-100 rounded-xl transition-all active:scale-90">
             <ArrowLeft className="w-5 h-5 text-gray-700" />
           </button>
           <h1 className="text-lg font-black text-black uppercase tracking-tight leading-none">Profile</h1>

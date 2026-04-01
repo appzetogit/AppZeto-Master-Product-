@@ -199,7 +199,7 @@ export default function AdminLogin() {
                     disabled={isLoading}
                     autoComplete="new-password"
                     required
-                    className="h-12 pr-12 text-base"
+                    className="h-12 pr-12 text-base [&::-ms-reveal]:hidden [&::-webkit-password-reveal-button]:hidden"
                   />
                   <button
                     type="button"

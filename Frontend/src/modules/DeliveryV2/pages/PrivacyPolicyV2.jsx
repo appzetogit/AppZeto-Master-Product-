@@ -1,11 +1,11 @@
 import { motion } from "framer-motion"
-import { useNavigate } from "react-router-dom"
 import { useState, useEffect } from "react"
 import { ArrowLeft, Loader2 } from "lucide-react"
 import { publicAPI } from "@food/api"
+import useDeliveryBackNavigation from "../hooks/useDeliveryBackNavigation"
 
 export default function PrivacyPolicyV2() {
-  const navigate = useNavigate()
+  const goBack = useDeliveryBackNavigation()
   const [loading, setLoading] = useState(true)
   const [content, setContent] = useState("")
   const [lastUpdated, setLastUpdated] = useState("")
@@ -41,7 +41,7 @@ export default function PrivacyPolicyV2() {
     <div className="min-h-screen bg-white dark:bg-[#0a0a0a] overflow-x-hidden">
       <div className="bg-white dark:bg-zinc-900 border-b border-gray-200 dark:border-zinc-800 px-4 py-4 flex items-center gap-4 sticky top-0 z-10 shadow-sm">
         <button
-          onClick={() => navigate(-1)}
+          onClick={goBack}
           className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
         >
           <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />

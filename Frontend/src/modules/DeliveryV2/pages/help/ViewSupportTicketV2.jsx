@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { 
   ArrowLeft, Clock, CheckCircle, XCircle, 
   Loader2, MessageSquare, ShieldCheck, Mail 
 } from 'lucide-react';
 import { deliveryAPI } from '@food/api';
 import { toast } from 'sonner';
+import useDeliveryBackNavigation from '../../hooks/useDeliveryBackNavigation';
 
 /**
  * ViewSupportTicketV2 - Restored Old UI for Ticket Details.
  */
 export const ViewSupportTicketV2 = () => {
-  const navigate = useNavigate();
+  const goBack = useDeliveryBackNavigation();
   const { ticketId } = useParams();
   const [ticket, setTicket] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -51,7 +52,7 @@ export const ViewSupportTicketV2 = () => {
     <div className="min-h-screen bg-gray-50 font-poppins pb-20">
       {/* Header */}
       <div className="bg-white px-4 py-5 flex items-center gap-4 fixed top-0 w-full z-50 shadow-sm border-b border-gray-50">
-        <button onClick={() => navigate(-1)} className="p-1 hover:bg-gray-50 rounded-full">
+        <button onClick={goBack} className="p-1 hover:bg-gray-50 rounded-full">
            <ArrowLeft className="w-6 h-6 text-gray-950" />
         </button>
         <h1 className="text-xl font-black text-gray-950 uppercase tracking-tight">Ticket Info</h1>

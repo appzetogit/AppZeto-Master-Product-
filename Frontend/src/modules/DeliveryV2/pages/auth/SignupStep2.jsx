@@ -4,6 +4,7 @@ import { ArrowLeft, Upload, X, Check, Camera, Image as ImageIcon } from "lucide-
 import { deliveryAPI } from "@food/api"
 import { toast } from "sonner"
 import { isFlutterBridgeAvailable, openCamera } from "@food/utils/imageUploadUtils"
+import useDeliveryBackNavigation from "../../hooks/useDeliveryBackNavigation"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -43,6 +44,7 @@ const sanitizeUploadedDocs = (docs) => ({
 
 export default function SignupStep2() {
   const navigate = useNavigate()
+  const goBack = useDeliveryBackNavigation()
   const isMobileDevice =
     typeof navigator !== "undefined" &&
     /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent || "")
@@ -360,7 +362,7 @@ export default function SignupStep2() {
       {/* Header */}
       <div className="bg-white px-4 py-3 flex items-center gap-4 border-b border-gray-200">
         <button
-          onClick={() => navigate(-1)}
+          onClick={goBack}
           className="p-2 hover:bg-gray-100 rounded-full transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />

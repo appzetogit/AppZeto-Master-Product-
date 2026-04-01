@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Eye, Edit2, Loader2, Camera, X, Plus, FileText, Image as ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { deliveryAPI } from '@food/api';
 import { toast } from 'sonner';
 import { openCamera } from "@food/utils/imageUploadUtils";
+import useDeliveryBackNavigation from '../../hooks/useDeliveryBackNavigation';
 
 /**
  * ProfileDocsV2 - Restored Old UI for Registration Documents & Vehicle Info.
  */
 export const ProfileDocsV2 = () => {
-  const navigate = useNavigate();
+  const goBack = useDeliveryBackNavigation();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -73,7 +73,7 @@ export const ProfileDocsV2 = () => {
   return (
     <div className="min-h-screen bg-gray-50 font-poppins pb-20">
        <div className="bg-white px-4 py-5 flex items-center gap-4 fixed top-0 w-full z-50 shadow-sm">
-          <button onClick={() => navigate(-1)}><ArrowLeft className="w-6 h-6 shadow-sm p-1 rounded-full bg-gray-50 bg-opacity-70" /></button>
+          <button onClick={goBack}><ArrowLeft className="w-6 h-6 shadow-sm p-1 rounded-full bg-gray-50 bg-opacity-70" /></button>
           <h1 className="text-xl font-black">Registration Docs</h1>
        </div>
 

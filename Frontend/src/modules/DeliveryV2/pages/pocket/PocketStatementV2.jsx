@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft,
   CheckCircle,
@@ -10,6 +9,7 @@ import {
 import WeekSelector from '@delivery/components/WeekSelector';
 import { deliveryAPI } from '@food/api';
 import { toast } from 'sonner';
+import useDeliveryBackNavigation from '../../hooks/useDeliveryBackNavigation';
 
 /**
  * PocketStatementV2 - 1:1 Match with Old PocketStatement UI.
@@ -17,7 +17,7 @@ import { toast } from 'sonner';
  * Font: Poppins
  */
 export const PocketStatementV2 = () => {
-  const navigate = useNavigate();
+  const goBack = useDeliveryBackNavigation();
 
   // Current week range (Sunday - Saturday)
   const getInitialWeekRange = () => {
@@ -123,7 +123,7 @@ export const PocketStatementV2 = () => {
        {/* Header (Old Style) */}
        <div className="bg-white border-b border-gray-200 px-4 py-4 safe-top flex items-center gap-4">
           <button 
-            onClick={() => navigate(-1)}
+            onClick={goBack}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5 text-gray-600" />

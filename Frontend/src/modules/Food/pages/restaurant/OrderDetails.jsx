@@ -15,7 +15,9 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
+  Volume2,
 } from "lucide-react"
+import ResendNotificationButton from "@food/components/restaurant/ResendNotificationButton"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -222,6 +224,8 @@ export default function OrderDetails() {
               paidAmount,
               paymentStatus
             },
+            deliveryPartnerId: order.deliveryPartnerId || order.dispatch?.deliveryPartnerId || null,
+            dispatchStatus: order.dispatch?.status || null,
             reason: order.cancellationReason || '',
             timeline: [
               { event: 'Order placed', timestamp: new Date(order.createdAt).toLocaleString('en-GB'), status: 'completed' },
@@ -688,10 +692,22 @@ export default function OrderDetails() {
         <div className="bg-white rounded-lg p-4">
           {/* Status and Order ID Row */}
           <div className="flex items-start justify-between mb-3">
-            <span className={`px-2.5 py-1 rounded text-xs font-bold ${getStatusColor(orderData.status)}`}>
-              {orderData.status}
-            </span>
-            <span className="text-xs text-gray-500">{orderData.date}, {orderData.time}</span>
+            <div className="flex flex-col items-end gap-1">
+              <span className={`px-2.5 py-1 rounded text-xs font-bold ${getStatusColor(orderData.status)}`}>
+                {orderData.status}
+              </span>
+              <span className="text-xs text-gray-500">{orderData.date}, {orderData.time}</span>
+              {/* Resend button for order details */}
+              {(orderData.status === "PREPARING" || orderData.status === "READY" || orderData.status === "CONFIRMED") && 
+                orderData.dispatchStatus !== "accepted" && (
+                <div className="mt-2">
+                  <ResendNotificationButton 
+                    orderId={orderId} 
+                    onSuccess={() => window.location.reload()} 
+                  />
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Order ID */}
@@ -916,4 +932,5 @@ export default function OrderDetails() {
     </div>
   )
 }
+
 

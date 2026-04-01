@@ -98,7 +98,7 @@ const paymentSchema = new mongoose.Schema(
 
 const dispatchSchema = new mongoose.Schema(
     {
-        modeAtCreation: { type: String, enum: ['auto', 'manual'], default: 'manual' },
+        modeAtCreation: { type: String, enum: ['auto'], default: 'auto' },
         status: {
             type: String,
             enum: ['unassigned', 'assigned', 'accepted', 'rejected', 'cancelled'],
@@ -324,7 +324,7 @@ export const FoodOrder = mongoose.model('FoodOrder', orderSchema);
 const settingsSchema = new mongoose.Schema(
     {
         key: { type: String, required: true, unique: true, trim: true },
-        dispatchMode: { type: String, enum: ['auto', 'manual'], default: 'manual' },
+        dispatchMode: { type: String, enum: ['auto'], default: 'auto' },
         updatedBy: {
             role: { type: String },
             adminId: { type: mongoose.Schema.Types.ObjectId },

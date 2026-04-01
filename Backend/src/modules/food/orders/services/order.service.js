@@ -1327,21 +1327,13 @@ export async function updateOrderStatusRestaurant(
         console.log(
           `[DEBUG] Order ${order._id.toString()} status changed to '${orderStatus}'. Triggering central delivery dispatch.`,
         );
-
-        if (order.dispatch?.modeAtCreation === "auto") {
-            try {
-                await tryAutoAssign(order._id);
-                // Refresh local order state after assignment
-                order = await FoodOrder.findById(order._id); 
-            } catch (err) {
-                console.error(`[DEBUG] Auto-assign in updateOrderStatusRestaurant failed:`, err);
-            }
-        } else {
-            // Manual mode: just trigger the broadcast aspect of tryAutoAssign if unassigned
-            if (order.dispatch?.status === 'unassigned') {
-              await tryAutoAssign(order._id);
-              order = await FoodOrder.findById(order._id);
-            }
+        
+        try {
+            await tryAutoAssign(order._id);
+            // Refresh local order state after assignment search
+            order = await FoodOrder.findById(order._id); 
+        } catch (err) {
+            console.error(`[DEBUG] Auto-assign in updateOrderStatusRestaurant failed:`, err);
         }
       }
 

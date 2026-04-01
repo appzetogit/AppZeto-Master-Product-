@@ -933,39 +933,4 @@ export default function OrderDetails() {
   )
 }
 
-function ResendNotificationButton({ orderId, onSuccess }) {
-  const [loading, setLoading] = useState(false);
-
-  const handleResend = async (e) => {
-    e.stopPropagation();
-    if (loading) return;
-
-    try {
-      setLoading(true);
-      const response = await restaurantAPI.resendDeliveryNotification(orderId);
-      if (response.data?.success) {
-        if (onSuccess) onSuccess();
-      }
-    } catch (error) {
-      debugError("Error resending notification:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <button
-      onClick={handleResend}
-      disabled={loading}
-      className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-xs font-semibold transition-all active:scale-95 shadow-lg shadow-orange-200 disabled:opacity-70 disabled:cursor-not-allowed">
-      {loading ? (
-        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-      ) : (
-        <Volume2 className="w-3.5 h-3.5" />
-      )}
-      {loading ? "Triggering..." : "Resend Notification"}
-    </button>
-  );
-}
-
 

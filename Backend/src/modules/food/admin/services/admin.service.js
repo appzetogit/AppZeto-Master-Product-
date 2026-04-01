@@ -665,18 +665,37 @@ export async function getTransactionReport(query = {}) {
     const transactions = transactionRows.map((tx) => {
         const order = tx.orderId || {};
         const pricing = order.pricing || {};
+        const subtotal = Number(pricing.subtotal || 0) || 0;
+        const packagingFee = Number(pricing.packagingFee || 0) || 0;
+        const deliveryFee = Number(pricing.deliveryFee || 0) || 0;
+        const tax = Number(pricing.tax || 0) || 0;
+        const discount = Number(pricing.discount || 0) || 0;
+        const total = Number(pricing.total || 0) || 0;
+
+        // "Platform fee" should come from pricing.platformFee when available.
+        // For older orders where pricing.platformFee isn't stored, derive it from the pricing equation:
+        // total = subtotal + packagingFee + deliveryFee + platformFee + tax - discount
+        const platformFeeDerived = Math.max(
+            0,
+            total - subtotal - packagingFee - deliveryFee - tax + discount
+        );
+        const platformFee =
+            pricing.platformFee !== undefined && pricing.platformFee !== null
+                ? Number(pricing.platformFee || 0) || 0
+                : platformFeeDerived;
         return {
             id: tx._id,
             orderId: tx.orderReadableId || order.orderId || 'N/A',
             restaurant: tx.restaurantId?.restaurantName || 'N/A',
             customerName: tx.userId?.name || 'Guest',
-            totalItemAmount: pricing.subtotal || 0,
+            totalItemAmount: subtotal,
             itemDiscount: pricing.discount || 0,
             couponDiscount: 0, // Placeholder if you add coupon logic
             referralDiscount: 0, // Placeholder
             discountedAmount: Math.max(0, (pricing.subtotal || 0) - (pricing.discount || 0)),
             vatTax: tx.amounts?.taxAmount || pricing.tax || 0,
             deliveryCharge: pricing.deliveryFee || 0,
+            platformFee,
             orderAmount: tx.amounts?.totalCustomerPaid || pricing.total || 0,
             status: tx.status
         };

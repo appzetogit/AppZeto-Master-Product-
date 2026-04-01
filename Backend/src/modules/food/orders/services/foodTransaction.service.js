@@ -100,6 +100,17 @@ export async function createInitialTransaction(order) {
         deliveryPartnerId: order.dispatch?.deliveryPartnerId,
         paymentMethod: order.payment?.method || 'cash',
         status: order.payment?.status === 'paid' ? 'captured' : 'pending',
+        pricing: {
+            subtotal: Number(order.pricing?.subtotal || 0) || 0,
+            tax: Number(order.pricing?.tax || 0) || 0,
+            packagingFee: Number(order.pricing?.packagingFee || 0) || 0,
+            deliveryFee: Number(order.pricing?.deliveryFee || 0) || 0,
+            platformFee: Number(order.pricing?.platformFee || 0) || 0,
+            restaurantCommission,
+            discount: Number(order.pricing?.discount || 0) || 0,
+            total: Number(order.pricing?.total || 0) || 0,
+            currency: String(order.pricing?.currency || order.currency || 'INR'),
+        },
         amounts: {
             totalCustomerPaid,
             restaurantShare: Math.max(0, restaurantNet),

@@ -296,24 +296,31 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
 };
 
 export const DeliveryVerificationModal = ({ order, onComplete, onClose }) => {
-  const [step, setStep] = useState('otp'); // 'otp' | 'payment'
-  const [verifiedOtp, setVerifiedOtp] = useState('');
-
+  const alreadyVerified = !!order?.deliveryVerification?.dropOtp?.verified;
   const paymentMethod = (order?.paymentMethod || order?.payment?.method || 'cod').toLowerCase();
   const isCod = ['cash', 'cod', 'cash_on_delivery', 'razorpay_qr'].includes(paymentMethod);
 
+  // Determine initial step: skip OTP if already verified
+  const [step, setStep] = useState(() => {
+    if (alreadyVerified) {
+      return isCod ? 'payment' : 'complete';
+    }
+    return 'otp';
+  });
+  const [verifiedOtp, setVerifiedOtp] = useState(alreadyVerified ? (order.deliveryVerification.dropOtp.code || '') : '');
+
   const handleOtpVerified = (otpValue) => {
     setVerifiedOtp(otpValue);
-    setStep('payment');
+    // After OTP is verified: COD → show payment panel, Online → show complete button
+    setStep(isCod ? 'payment' : 'complete');
   };
 
+  // If OTP was already verified on mount and it's a non-COD order, auto-complete
   useEffect(() => {
-    if (order?.deliveryVerification?.dropOtp?.verified && step === 'otp') {
-      console.log('[VerificationModal] OTP already verified, moving to payment.');
-      setStep(isCod ? 'payment' : 'otp');
-      if (!isCod) onComplete(order.deliveryVerification.dropOtp.code || '');
+    if (step === 'complete' && !isCod) {
+      onComplete(verifiedOtp);
     }
-  }, [order?.deliveryVerification?.dropOtp?.verified, isCod]);
+  }, []); // only on mount
 
   if (!order) return null;
 
@@ -335,6 +342,36 @@ export const DeliveryVerificationModal = ({ order, onComplete, onClose }) => {
           onComplete={onComplete} 
           onClose={onClose || (() => {})} 
         />
+      )}
+      {step === 'complete' && (
+        <div className="absolute inset-x-0 bottom-0 z-[120] p-0 sm:p-4 h-full flex items-end justify-center pointer-events-none">
+          <Backdrop onClose={onClose || (() => {})} />
+          <motion.div 
+            key="complete-modal"
+            initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+            className="w-full bg-white rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.3)] p-6 pb-12 pointer-events-auto max-w-lg"
+          >
+            <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6" />
+            <div className="flex items-center gap-3 mb-8">
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-green-100 text-green-600">
+                <CheckCircle2 className="w-7 h-7" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">OTP Verified</h2>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-green-600">Payment Received Online</p>
+              </div>
+            </div>
+            <ActionSlider 
+              key="action-complete"
+              label="Slide to Complete Delivery" 
+              successLabel="Delivered! ✓"
+              onConfirm={async () => {
+                await onComplete(verifiedOtp);
+              }}
+              color="bg-green-600"
+            />
+          </motion.div>
+        </div>
       )}
     </AnimatePresence>
   );

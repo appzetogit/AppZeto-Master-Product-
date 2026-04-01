@@ -346,6 +346,21 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId) {
         io.to(rooms.delivery(deliveryPartnerId)).emit('order_status_update', payload);
         io.to(rooms.restaurant(order.restaurantId)).emit('order_status_update', payload);
         io.to(rooms.user(order.userId)).emit('order_status_update', payload);
+
+        // Notify ALL other delivery partners who were offered this order to dismiss it
+        const offeredPartners = order.dispatch?.offeredTo || [];
+        const claimedPayload = {
+          orderId: order._id.toString(),
+          orderMongoId: order._id?.toString?.(),
+          claimedBy: deliveryPartnerId.toString(),
+        };
+        for (const offer of offeredPartners) {
+          const pid = offer.partnerId?.toString?.();
+          if (pid && pid !== deliveryPartnerId.toString()) {
+            io.to(rooms.delivery(pid)).emit('order_claimed', claimedPayload);
+          }
+        }
+        logger.info(`[DeliveryDispatch] Broadcasted order_claimed to ${offeredPartners.length - 1} other partners for order ${order._id.toString()}`);
       }
 
       await notifyOwnersSafely(

@@ -194,7 +194,8 @@ export const adminAPI = {
       (typeof localStorage !== "undefined"
         ? localStorage.getItem("admin_refreshToken")
         : null);
-    return authService.logout(token);
+    const fcmToken = typeof localStorage !== "undefined" ? localStorage.getItem("fcm_web_registered_token_admin") : null;
+    return authService.logout(token, fcmToken, "web");
   },
   // Restaurant approvals and join requests
   getPendingRestaurants: () =>
@@ -1215,7 +1216,8 @@ export const restaurantAPI = {
       (typeof localStorage !== "undefined"
         ? localStorage.getItem("restaurant_refreshToken")
         : null);
-    return authService.logout(token);
+    const fcmToken = typeof localStorage !== "undefined" ? localStorage.getItem("fcm_web_registered_token_restaurant") : null;
+    return authService.logout(token, fcmToken, "web");
   },
   /** Backend has no email/password login; use phone OTP only. */
   login: (_email, _password) =>
@@ -1507,7 +1509,8 @@ export const deliveryAPI = {
       (typeof localStorage !== "undefined"
         ? localStorage.getItem("delivery_refreshToken")
         : null);
-    return authService.logout(token);
+    const fcmToken = typeof localStorage !== "undefined" ? localStorage.getItem("fcm_web_registered_token_delivery") : null;
+    return authService.logout(token, fcmToken, "web");
   },
   /** POST /food/delivery/register - multipart FormData (new partner, no token). */
   register: (formData) => {

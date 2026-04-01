@@ -359,12 +359,16 @@ export default function PointOfSale() {
                 {showSearchResults && filteredRestaurants.length > 0 && (
                   <div className="absolute z-50 w-full mt-1 bg-white border border-[#e3e6ef] rounded-md shadow-lg max-h-60 overflow-y-auto">
                     {filteredRestaurants.map(restaurant => (
-                      <div
+                      <button
                         key={restaurant._id}
-                        onClick={() => handleRestaurantSelect(restaurant._id)}
-                        className="px-4 py-3 hover:bg-[#f9fafc] cursor-pointer border-b border-[#e3e6ef] last:border-b-0 transition-colors"
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          handleRestaurantSelect(restaurant._id)
+                        }}
+                        className="w-full px-4 py-3 text-left hover:bg-[#f9fafc] cursor-pointer border-b border-[#e3e6ef] last:border-b-0 transition-colors"
                       >
-                          <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between">
                           <div>
                             <p className="text-sm font-medium text-[#334257]">{restaurant.name}</p>
                             <p className="text-xs text-[#8a94aa]">ID: {restaurant.restaurantId || restaurant._id}</p>
@@ -373,7 +377,7 @@ export default function PointOfSale() {
                             <div className="w-2 h-2 bg-[#006fbd] rounded-full"></div>
                           )}
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 )}

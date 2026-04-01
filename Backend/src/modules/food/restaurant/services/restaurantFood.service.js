@@ -4,6 +4,7 @@ import { FoodItem } from '../../admin/models/food.model.js';
 import { FoodCategory } from '../../admin/models/category.model.js';
 
 const toStr = (v) => (v != null ? String(v).trim() : '');
+const GLOBAL_CATEGORY_FILTER = [{ restaurantId: { $exists: false } }, { restaurantId: null }];
 
 const normalizeFoodType = (v) => {
     const t = String(v || '').trim();
@@ -13,6 +14,66 @@ const normalizeFoodType = (v) => {
     // UI has "Egg" but DB model only supports Veg/Non-Veg.
     if (t === 'Egg') return 'Non-Veg';
     return 'Non-Veg';
+};
+
+const getAccessibleCategoryFilter = (restaurantId) => {
+    const restaurantObjectId = new mongoose.Types.ObjectId(String(restaurantId));
+    return {
+        $or: [
+            { restaurantId: restaurantObjectId },
+            {
+                $and: [
+                    { $or: GLOBAL_CATEGORY_FILTER },
+                    { isApproved: { $ne: false } }
+                ]
+            }
+        ]
+    };
+};
+
+const resolveCategoryForRestaurant = async (restaurantId, body = {}) => {
+    const categoryIdRaw = toStr(body.categoryId);
+    const categoryNameRaw = toStr(body.categoryName);
+
+    if (!categoryIdRaw && !categoryNameRaw) {
+        return { categoryObjectId: undefined, categoryName: '' };
+    }
+
+    const baseFilter = {
+        ...getAccessibleCategoryFilter(restaurantId),
+        isActive: { $ne: false }
+    };
+
+    let category = null;
+    if (categoryIdRaw) {
+        if (!mongoose.Types.ObjectId.isValid(categoryIdRaw)) {
+            throw new ValidationError('Invalid category id');
+        }
+
+        category = await FoodCategory.findOne({
+            _id: new mongoose.Types.ObjectId(categoryIdRaw),
+            ...baseFilter
+        })
+            .select('_id name')
+            .lean();
+    } else {
+        const exact = `^${String(categoryNameRaw).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`;
+        category = await FoodCategory.findOne({
+            ...baseFilter,
+            name: { $regex: exact, $options: 'i' }
+        })
+            .select('_id name')
+            .lean();
+    }
+
+    if (!category?._id) {
+        throw new ValidationError('Category not found for this restaurant');
+    }
+
+    return {
+        categoryObjectId: category._id,
+        categoryName: category.name || ''
+    };
 };
 
 export async function createRestaurantFood(restaurantId, body = {}) {
@@ -32,23 +93,7 @@ export async function createRestaurantFood(restaurantId, body = {}) {
     const isAvailable = body.isAvailable !== false;
     const foodType = normalizeFoodType(body.foodType);
     const preparationTime = toStr(body.preparationTime);
-
-    const categoryId = toStr(body.categoryId);
-    const categoryNameInput = toStr(body.categoryName);
-
-    let categoryName = categoryNameInput;
-    let categoryObjectId = undefined;
-
-    if (categoryId) {
-        if (!mongoose.Types.ObjectId.isValid(categoryId)) {
-            throw new ValidationError('Invalid category id');
-        }
-        categoryObjectId = new mongoose.Types.ObjectId(categoryId);
-        // One small lookup to store a stable name; indexed by _id.
-        const cat = await FoodCategory.findById(categoryObjectId).select('name').lean();
-        if (!cat) throw new ValidationError('Category not found');
-        categoryName = cat.name;
-    }
+    const { categoryObjectId, categoryName } = await resolveCategoryForRestaurant(restaurantId, body);
 
     const doc = await FoodItem.create({
         restaurantId,
@@ -113,19 +158,7 @@ export async function updateRestaurantFood(restaurantId, foodId, body = {}) {
     if (body.preparationTime !== undefined) update.preparationTime = toStr(body.preparationTime);
 
     if (body.categoryId !== undefined || body.categoryName !== undefined) {
-        const categoryId = toStr(body.categoryId);
-        const categoryNameInput = toStr(body.categoryName);
-        let categoryName = categoryNameInput;
-        let categoryObjectId = undefined;
-        if (categoryId) {
-            if (!mongoose.Types.ObjectId.isValid(categoryId)) {
-                throw new ValidationError('Invalid category id');
-            }
-            categoryObjectId = new mongoose.Types.ObjectId(categoryId);
-            const cat = await FoodCategory.findById(categoryObjectId).select('name').lean();
-            if (!cat) throw new ValidationError('Category not found');
-            categoryName = cat.name;
-        }
+        const { categoryObjectId, categoryName } = await resolveCategoryForRestaurant(restaurantId, body);
         update.categoryId = categoryObjectId;
         update.categoryName = categoryName || '';
     }
@@ -139,4 +172,3 @@ export async function updateRestaurantFood(restaurantId, foodId, body = {}) {
 
     return updated;
 }
-

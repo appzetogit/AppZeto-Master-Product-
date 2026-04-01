@@ -49,7 +49,6 @@ const Inventory = lazy(() => import("@food/pages/restaurant/Inventory"))
 const Feedback = lazy(() => import("@food/pages/restaurant/Feedback"))
 const ShareFeedback = lazy(() => import("@food/pages/restaurant/ShareFeedback"))
 const DishRatings = lazy(() => import("@food/pages/restaurant/DishRatings"))
-const HelpCentre = lazy(() => import("@food/pages/restaurant/HelpCentre"))
 const RestaurantSupport = lazy(() => import("@food/pages/restaurant/RestaurantSupport"))
 const FssaiDetails = lazy(() => import("@food/pages/restaurant/FssaiDetails"))
 const FssaiUpdate = lazy(() => import("@food/pages/restaurant/FssaiUpdate"))
@@ -131,7 +130,6 @@ export default function RestaurantRouter() {
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><Feedback /></ProtectedRoute>} path="feedback" />
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><ShareFeedback /></ProtectedRoute>} path="share-feedback" />
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><DishRatings /></ProtectedRoute>} path="dish-ratings" />
-        <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><HelpCentre /></ProtectedRoute>} path="help-centre" />
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><RestaurantSupport /></ProtectedRoute>} path="help-centre/support" />
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><FssaiDetails /></ProtectedRoute>} path="fssai" />
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><FssaiUpdate /></ProtectedRoute>} path="fssai/update" />

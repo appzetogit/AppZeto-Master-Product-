@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@food/components/ui/select"
-import { restaurantAPI, zoneAPI, api } from "@food/api"
+import { restaurantAPI, zoneAPI, uploadAPI, api } from "@food/api"
 import { MobileTimePicker } from "@mui/x-date-pickers/MobileTimePicker"
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider"
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns"
@@ -500,7 +500,8 @@ export default function RestaurantOnboarding() {
 
   const [verifiedPhoneNumber, setVerifiedPhoneNumber] = useState("")
   const [keyboardInset, setKeyboardInset] = useState(0)
-  const [isEditing, setIsEditing] = useState(false)
+  const [isEditing, setIsEditing] = useState(true)
+  const [hasExistingRestaurantProfile, setHasExistingRestaurantProfile] = useState(false)
   const [isFssaiCalendarOpen, setIsFssaiCalendarOpen] = useState(false)
   const [zones, setZones] = useState([])
   const [zonesLoading, setZonesLoading] = useState(false)
@@ -646,6 +647,117 @@ export default function RestaurantOnboarding() {
   const handleFssaiImageSelected = (file) => {
     if (!file) return
     setStep3((prev) => ({ ...prev, fssaiImage: file }))
+  }
+
+  const isPersistedImageValue = (value) =>
+    !isUploadableFile(value) &&
+    ((typeof value === "string" && value.trim()) ||
+      (value?.url && typeof value.url === "string"))
+
+  const getPersistedImagePayload = (value) => {
+    if (typeof value === "string" && value.trim()) {
+      return { url: value.trim(), publicId: null }
+    }
+
+    if (value?.url && typeof value.url === "string" && value.url.trim()) {
+      return {
+        url: value.url.trim(),
+        publicId: value.publicId || null,
+      }
+    }
+
+    return null
+  }
+
+  const toPersistedMenuImagesPayload = (menuImages = []) =>
+    (Array.isArray(menuImages) ? menuImages : [])
+      .filter((img) => isPersistedImageValue(img))
+      .map((img) =>
+        typeof img === "string"
+          ? img
+          : {
+              url: img.url,
+              publicId: img.publicId || null,
+            },
+      )
+
+  const handleRemoveMenuImage = async (indexToRemove) => {
+    const currentMenuImages = step2.menuImages || []
+    const imageToRemove = currentMenuImages[indexToRemove]
+    const nextMenuImages = currentMenuImages.filter((_, i) => i !== indexToRemove)
+
+    setStep2((prev) => ({
+      ...prev,
+      menuImages: nextMenuImages,
+    }))
+    await persistMenuImagesToDB(nextMenuImages)
+
+    if (!isPersistedImageValue(imageToRemove)) {
+      return
+    }
+
+    try {
+      await restaurantAPI.updateProfile({
+        menuImages: toPersistedMenuImagesPayload(nextMenuImages),
+      })
+      toast.success("Menu image removed")
+    } catch (error) {
+      setStep2((prev) => ({
+        ...prev,
+        menuImages: currentMenuImages,
+      }))
+      await persistMenuImagesToDB(currentMenuImages)
+      toast.error(error?.response?.data?.message || "Failed to remove menu image")
+    }
+  }
+
+  const handleRemoveProfileImage = async () => {
+    const currentProfileImage = step2.profileImage
+    setStep2((prev) => ({
+      ...prev,
+      profileImage: null,
+    }))
+
+    if (!isPersistedImageValue(currentProfileImage)) {
+      return
+    }
+
+    try {
+      await restaurantAPI.updateProfile({ profileImage: "" })
+      toast.success("Profile image removed")
+    } catch (error) {
+      setStep2((prev) => ({
+        ...prev,
+        profileImage: currentProfileImage,
+      }))
+      toast.error(error?.response?.data?.message || "Failed to remove profile image")
+    }
+  }
+
+  const resolveImageForProfileUpdate = async (value, folder) => {
+    if (!value) return null
+
+    if (isUploadableFile(value)) {
+      const uploaded = await handleUpload(value, folder)
+      return uploaded || null
+    }
+
+    return getPersistedImagePayload(value)
+  }
+
+  const resolveMenuImagesForProfileUpdate = async (menuImages = []) => {
+    const items = Array.isArray(menuImages) ? menuImages : []
+    const resolved = await Promise.all(
+      items.map(async (image) => {
+        if (isUploadableFile(image)) {
+          return handleUpload(image, "food/restaurants/menu")
+        }
+
+        return getPersistedImagePayload(image)
+      }),
+    )
+
+    return resolved.filter((image) => image?.url)
   }
 
 
@@ -856,63 +968,122 @@ export default function RestaurantOnboarding() {
         const data = res?.data?.data?.restaurant || res?.data?.restaurant
         
           if (data) {
-            setIsEditing(false)
+            setHasExistingRestaurantProfile(true)
+            const onboardingData = data.onboarding || {}
+            const step1Data = onboardingData.step1 || {}
+            const step2Data = onboardingData.step2 || {}
+            const step3Data = onboardingData.step3 || {}
+            const panData = step3Data.pan || {}
+            const gstData = step3Data.gst || {}
+            const fssaiData = step3Data.fssai || {}
+            const bankData = step3Data.bank || {}
+            const locationData = step1Data.location || data.location || {}
+            const deliveryTimings = step2Data.deliveryTimings || data.deliveryTimings || {}
+
+            setIsEditing(true)
             // Map Step 1 (Merging with local state)
             setStep1((prev) => ({
               ...prev,
-              restaurantName: data.name || data.restaurantName || prev.restaurantName || "",
-              pureVegRestaurant: typeof data.pureVegRestaurant === "boolean" ? data.pureVegRestaurant : prev.pureVegRestaurant,
-              ownerName: data.ownerName || prev.ownerName || "",
-              ownerEmail: data.ownerEmail || prev.ownerEmail || "",
-              ownerPhone: data.ownerPhone || prev.ownerPhone || "",
-              zoneId: data.zoneId || prev.zoneId || "",
-              primaryContactNumber: data.primaryContactNumber || prev.primaryContactNumber || "",
+              restaurantName: step1Data.restaurantName || data.name || data.restaurantName || prev.restaurantName || "",
+              pureVegRestaurant:
+                typeof step1Data.pureVegRestaurant === "boolean"
+                  ? step1Data.pureVegRestaurant
+                  : typeof data.pureVegRestaurant === "boolean"
+                  ? data.pureVegRestaurant
+                  : prev.pureVegRestaurant,
+              ownerName: step1Data.ownerName || data.ownerName || prev.ownerName || "",
+              ownerEmail: step1Data.ownerEmail || data.ownerEmail || data.email || prev.ownerEmail || "",
+              ownerPhone: step1Data.ownerPhone || data.ownerPhone || data.phone || prev.ownerPhone || "",
+              zoneId: step1Data.zoneId || data.zoneId || prev.zoneId || "",
+              primaryContactNumber:
+                step1Data.primaryContactNumber ||
+                data.primaryContactNumber ||
+                data.ownerPhone ||
+                data.phone ||
+                prev.primaryContactNumber ||
+                "",
               location: {
                 ...prev.location,
-                formattedAddress: data.location?.formattedAddress || data.location?.address || prev.location?.formattedAddress || "",
-                addressLine1: data.location?.addressLine1 || prev.location?.addressLine1 || "",
-                addressLine2: data.location?.addressLine2 || prev.location?.addressLine2 || "",
-                area: data.location?.area || prev.location?.area || "",
-                city: data.location?.city || prev.location?.city || "",
-                state: data.location?.state || prev.location?.state || "",
-                pincode: data.location?.pincode || prev.location?.pincode || "",
-                landmark: data.location?.landmark || prev.location?.landmark || "",
-                latitude: data.location?.latitude ?? prev.location?.latitude ?? "",
-                longitude: data.location?.longitude ?? prev.location?.longitude ?? "",
+                formattedAddress:
+                  locationData.formattedAddress ||
+                  locationData.address ||
+                  data.address ||
+                  prev.location?.formattedAddress ||
+                  "",
+                addressLine1: locationData.addressLine1 || data.addressLine1 || prev.location?.addressLine1 || "",
+                addressLine2: locationData.addressLine2 || data.addressLine2 || prev.location?.addressLine2 || "",
+                area: locationData.area || data.area || prev.location?.area || "",
+                city: locationData.city || data.city || prev.location?.city || "",
+                state: locationData.state || data.state || prev.location?.state || "",
+                pincode: locationData.pincode || data.pincode || prev.location?.pincode || "",
+                landmark: locationData.landmark || data.landmark || prev.location?.landmark || "",
+                latitude: locationData.latitude ?? prev.location?.latitude ?? "",
+                longitude: locationData.longitude ?? prev.location?.longitude ?? "",
               },
             }))
 
             // Map Step 2
             setStep2((prev) => ({
               ...prev,
-              menuImages: (data.menuImages && data.menuImages.length > 0) ? data.menuImages : prev.menuImages,
-              profileImage: data.profileImage || prev.profileImage,
-              cuisines: (data.cuisines && data.cuisines.length > 0) ? data.cuisines : prev.cuisines,
-              estimatedDeliveryTime: data.estimatedDeliveryTime || prev.estimatedDeliveryTime || "",
-              openingTime: normalizeTimeValue(data.openingTime) || prev.openingTime,
-              closingTime: normalizeTimeValue(data.closingTime) || prev.closingTime,
-              openDays: (data.openDays && data.openDays.length > 0) ? data.openDays : prev.openDays,
+              menuImages:
+                (step2Data.menuImageUrls && step2Data.menuImageUrls.length > 0)
+                  ? step2Data.menuImageUrls
+                  : (data.menuImages && data.menuImages.length > 0)
+                  ? data.menuImages
+                  : prev.menuImages,
+              profileImage: step2Data.profileImageUrl || data.profileImage || prev.profileImage,
+              cuisines:
+                (step2Data.cuisines && step2Data.cuisines.length > 0)
+                  ? step2Data.cuisines
+                  : (data.cuisines && data.cuisines.length > 0)
+                  ? data.cuisines
+                  : prev.cuisines,
+              estimatedDeliveryTime:
+                step2Data.estimatedDeliveryTime ||
+                data.estimatedDeliveryTime ||
+                prev.estimatedDeliveryTime ||
+                "",
+              openingTime: normalizeTimeValue(deliveryTimings.openingTime || data.openingTime) || prev.openingTime,
+              closingTime: normalizeTimeValue(deliveryTimings.closingTime || data.closingTime) || prev.closingTime,
+              openDays:
+                (step2Data.openDays && step2Data.openDays.length > 0)
+                  ? step2Data.openDays
+                  : (data.openDays && data.openDays.length > 0)
+                  ? data.openDays
+                  : prev.openDays,
             }))
 
             // Map Step 3
             setStep3((prev) => ({
               ...prev,
-              panNumber: data.panNumber || prev.panNumber || "",
-              nameOnPan: data.nameOnPan || prev.nameOnPan || "",
-              panImage: data.panImage || prev.panImage || null,
-              gstRegistered: typeof data.gstRegistered === 'boolean' ? data.gstRegistered : (prev.gstRegistered || false),
-              gstNumber: data.gstNumber || prev.gstNumber || "",
-              gstLegalName: data.gstLegalName || prev.gstLegalName || "",
-              gstAddress: data.gstAddress || prev.gstAddress || "",
-              gstImage: data.gstImage || prev.gstImage || null,
-              fssaiNumber: data.fssaiNumber || prev.fssaiNumber || "",
-              fssaiExpiry: data.fssaiExpiry ? String(data.fssaiExpiry).split('T')[0] : prev.fssaiExpiry,
-              fssaiImage: data.fssaiImage || prev.fssaiImage || null,
-              accountNumber: data.accountNumber || prev.accountNumber || "",
-              confirmAccountNumber: data.accountNumber || prev.confirmAccountNumber || "",
-              ifscCode: (data.ifscCode || prev.ifscCode || "").toUpperCase(),
-              accountHolderName: data.accountHolderName || prev.accountHolderName || "",
-              accountType: normalizeAccountTypeValue(data.accountType || prev.accountType || ""),
+              panNumber: panData.panNumber || data.panNumber || prev.panNumber || "",
+              nameOnPan: panData.nameOnPan || data.nameOnPan || prev.nameOnPan || "",
+              panImage: panData.image || data.panImage || prev.panImage || null,
+              gstRegistered:
+                typeof gstData.isRegistered === "boolean"
+                  ? gstData.isRegistered
+                  : typeof data.gstRegistered === "boolean"
+                  ? data.gstRegistered
+                  : (prev.gstRegistered || false),
+              gstNumber: gstData.gstNumber || data.gstNumber || prev.gstNumber || "",
+              gstLegalName: gstData.legalName || data.gstLegalName || prev.gstLegalName || "",
+              gstAddress: gstData.address || data.gstAddress || prev.gstAddress || "",
+              gstImage: gstData.image || data.gstImage || prev.gstImage || null,
+              fssaiNumber: fssaiData.registrationNumber || data.fssaiNumber || prev.fssaiNumber || "",
+              fssaiExpiry:
+                fssaiData.expiryDate
+                  ? String(fssaiData.expiryDate).split("T")[0]
+                  : data.fssaiExpiry
+                  ? String(data.fssaiExpiry).split("T")[0]
+                  : prev.fssaiExpiry,
+              fssaiImage: fssaiData.image || data.fssaiImage || prev.fssaiImage || null,
+              accountNumber: bankData.accountNumber || data.accountNumber || prev.accountNumber || "",
+              confirmAccountNumber:
+                bankData.accountNumber || data.accountNumber || prev.confirmAccountNumber || "",
+              ifscCode: (bankData.ifscCode || data.ifscCode || prev.ifscCode || "").toUpperCase(),
+              accountHolderName:
+                bankData.accountHolderName || data.accountHolderName || prev.accountHolderName || "",
+              accountType: normalizeAccountTypeValue(bankData.accountType || data.accountType || prev.accountType || ""),
             }))
 
           // Only determine step automatically if not specified in URL
@@ -932,9 +1103,11 @@ export default function RestaurantOnboarding() {
           }
         } else {
           setIsEditing(true)
+          setHasExistingRestaurantProfile(false)
         }
       } catch (err) {
         setIsEditing(true)
+        setHasExistingRestaurantProfile(false)
         if (err?.response?.status === 401) {
           debugError("Authentication error fetching onboarding:", err)
         } else {
@@ -950,9 +1123,18 @@ export default function RestaurantOnboarding() {
 
   const handleUpload = async (file, folder) => {
     try {
-      // Uploading is done on final registration submit (multipart /register).
-      // Keep this method for backward compatibility in case other flows call it.
-      throw new Error("Image uploads are submitted during registration")
+      if (!isUploadableFile(file)) {
+        throw new Error("Invalid image file")
+      }
+
+      const response = await uploadAPI.uploadMedia(file, { folder })
+      const uploadedImage = response?.data?.data
+
+      if (!uploadedImage?.url) {
+        throw new Error("Uploaded image URL was not returned")
+      }
+
+      return uploadedImage
     } catch (err) {
       // Provide more informative error message for upload failures
       const errorMsg = err?.response?.data?.message || err?.response?.data?.error || err?.message || "Failed to upload image"
@@ -1203,6 +1385,71 @@ export default function RestaurantOnboarding() {
         setStep(3)
         window.scrollTo({ top: 0, behavior: "instant" })
       } else if (step === 3) {
+        if (hasExistingRestaurantProfile) {
+          const [menuImagesPayload, profileImagePayload, panImagePayload, gstImagePayload, fssaiImagePayload] =
+            await Promise.all([
+              resolveMenuImagesForProfileUpdate(step2.menuImages || []),
+              resolveImageForProfileUpdate(step2.profileImage, "food/restaurants/profile"),
+              resolveImageForProfileUpdate(step3.panImage, "food/restaurants/pan"),
+              step3.gstRegistered
+                ? resolveImageForProfileUpdate(step3.gstImage, "food/restaurants/gst")
+                : Promise.resolve(null),
+              resolveImageForProfileUpdate(step3.fssaiImage, "food/restaurants/fssai"),
+            ])
+
+          await restaurantAPI.updateProfile({
+            restaurantName: step1.restaurantName || "",
+            pureVegRestaurant: step1.pureVegRestaurant === true,
+            ownerName: step1.ownerName || "",
+            ownerEmail: (step1.ownerEmail || "").trim(),
+            ownerPhone: normalizePhoneDigits(step1.ownerPhone),
+            primaryContactNumber: normalizePhoneDigits(step1.primaryContactNumber),
+            zoneId: step1.zoneId || "",
+            location: {
+              formattedAddress: step1.location?.formattedAddress || "",
+              addressLine1: step1.location?.addressLine1 || "",
+              addressLine2: step1.location?.addressLine2 || "",
+              area: step1.location?.area || "",
+              city: step1.location?.city || "",
+              state: step1.location?.state || "",
+              pincode: step1.location?.pincode || "",
+              landmark: step1.location?.landmark || "",
+              latitude: step1.location?.latitude || "",
+              longitude: step1.location?.longitude || "",
+            },
+            cuisines: Array.isArray(step2.cuisines) ? step2.cuisines : [],
+            estimatedDeliveryTime: (step2.estimatedDeliveryTime || "").trim(),
+            openingTime: normalizeTimeValue(step2.openingTime) || "",
+            closingTime: normalizeTimeValue(step2.closingTime) || "",
+            openDays: Array.isArray(step2.openDays) ? step2.openDays : [],
+            menuImages: menuImagesPayload,
+            profileImage: profileImagePayload || "",
+            panNumber: step3.panNumber || "",
+            nameOnPan: step3.nameOnPan || "",
+            panImage: panImagePayload || "",
+            gstRegistered: Boolean(step3.gstRegistered),
+            gstNumber: step3.gstRegistered ? step3.gstNumber || "" : "",
+            gstLegalName: step3.gstRegistered ? step3.gstLegalName || "" : "",
+            gstAddress: step3.gstRegistered ? step3.gstAddress || "" : "",
+            gstImage: step3.gstRegistered ? (gstImagePayload || "") : "",
+            fssaiNumber: step3.fssaiNumber || "",
+            fssaiExpiry: step3.fssaiExpiry || "",
+            fssaiImage: fssaiImagePayload || "",
+            accountNumber: step3.accountNumber || "",
+            ifscCode: (step3.ifscCode || "").toUpperCase(),
+            accountHolderName: step3.accountHolderName || "",
+            accountType: step3.accountType || "",
+          })
+
+          clearOnboardingFromLocalStorage()
+          clearOnboardingFileCache()
+          await clearAllFilesFromDB()
+
+          toast.success("Profile updated successfully", { duration: 4000 })
+          navigate("/food/restaurant/explore", { replace: true })
+          return
+        }
+
         // Final submit: create restaurant in DB using backend multipart endpoint.
         const formData = new FormData()
 
@@ -1934,15 +2181,10 @@ export default function RestaurantOnboarding() {
                     <div className="absolute top-1 right-1 z-30">
                       <button
                         type="button"
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          const nextMenuImages = (step2.menuImages || []).filter((_, i) => i !== idx)
-                          setStep2((prev) => ({
-                            ...prev,
-                            menuImages: nextMenuImages,
-                          }));
-                          void persistMenuImagesToDB(nextMenuImages)
+                          await handleRemoveMenuImage(idx)
                         }}
                         className="bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-colors"
                       >
@@ -1999,13 +2241,10 @@ export default function RestaurantOnboarding() {
               {step2.profileImage && (
                 <button
                   type="button"
-                  onClick={(e) => {
+                  onClick={async (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    setStep2((prev) => ({
-                      ...prev,
-                      profileImage: null,
-                    }));
+                    await handleRemoveProfileImage()
                   }}
                   className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-colors z-10"
                 >

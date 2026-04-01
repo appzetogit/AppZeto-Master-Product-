@@ -98,6 +98,7 @@ function RestaurantDetailsContent() {
   const [expandedSections, setExpandedSections] = useState(new Set([0])) // Default: Recommended section is expanded
   const [highlightedDishId, setHighlightedDishId] = useState(null)
   const [loadingMenuItems, setLoadingMenuItems] = useState(true)
+  const [selectedMenuCategory, setSelectedMenuCategory] = useState("all")
   const dishCardRefs = useRef({})
 
   // Initialize filters from localStorage if available
@@ -155,6 +156,10 @@ function RestaurantDetailsContent() {
 
     return () => clearInterval(intervalId)
   }, [])
+
+  useEffect(() => {
+    setSelectedMenuCategory("all")
+  }, [slug])
 
   // Fetch restaurant data from API
   useEffect(() => {
@@ -1127,7 +1132,8 @@ function RestaurantDetailsContent() {
       restaurantId: validRestaurantId, // Use validated restaurantId
       description: item.description,
       originalPrice: item.originalPrice,
-      isVeg: item.isVeg !== false // Add isVeg property
+      isVeg: item.isVeg !== false, // Add isVeg property
+      preparationTime: item.preparationTime // Add preparationTime property
     }
 
     // Get source position for animation from event target
@@ -1224,23 +1230,79 @@ function RestaurantDetailsContent() {
     return name === "recommended for you" || name === "result for your search"
   }
 
+  const isRecommendedItem = (item) => {
+    return item.isRecommended === true && typeof item.isRecommended === "boolean"
+  }
+
+  const getSectionDisplayName = (section) => {
+    if (isRecommendedSection(section)) {
+      return "Recommended for you"
+    }
+    if (section?.name && typeof section.name === "string" && section.name.trim()) {
+      return section.name.trim()
+    }
+    if (section?.title && typeof section.title === "string" && section.title.trim()) {
+      return section.title.trim()
+    }
+    return "Unnamed Section"
+  }
+
+  const normalizeMenuCategoryId = (value) =>
+    String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+
+  const toRenderableArray = (value) => {
+    if (Array.isArray(value)) return value
+    if (!value || typeof value !== "object") return []
+    return Object.values(value).filter((entry) => entry && typeof entry === "object")
+  }
+
+  const getSectionCategoryImage = (section) => {
+    const directImage = typeof section?.image === "string" ? section.image.trim() : ""
+    if (directImage) return directImage
+
+    const firstSectionItemImage = toRenderableArray(section?.items).find(
+      (item) => typeof item?.image === "string" && item.image.trim(),
+    )?.image
+    if (firstSectionItemImage) return firstSectionItemImage
+
+    const firstSubsectionImage = toRenderableArray(section?.subsections)
+      .flatMap((subsection) => toRenderableArray(subsection?.items))
+      .find((item) => typeof item?.image === "string" && item.image.trim())?.image
+
+    return firstSubsectionImage || ""
+  }
+
   // Menu categories - dynamically generated from restaurant menu sections
-  const menuCategories = (restaurant?.menuSections && Array.isArray(restaurant.menuSections))
-    ? restaurant.menuSections.map((section, index) => {
-      // Handle section name - check for valid non-empty string
-      let sectionTitle = section?.name || section?.title || "Unnamed Section"
+  const menuCategories = useMemo(() => {
+    if (!restaurant?.menuSections || !Array.isArray(restaurant.menuSections)) return []
 
-      const itemCount = section?.items?.length || 0
-      const subsectionCount = section?.subsections?.reduce((sum, sub) => sum + (sub?.items?.length || 0), 0) || 0
-      const totalCount = itemCount + subsectionCount
+    return restaurant.menuSections
+      .map((section, index) => {
+        if (isRecommendedSection(section)) return null
 
-      return {
-        name: sectionTitle,
-        count: totalCount,
-        sectionIndex: index,
-      }
-    })
-    : []
+        const sectionTitle = getSectionDisplayName(section)
+        const itemCount = Array.isArray(section?.items) ? section.items.length : 0
+        const subsectionCount = Array.isArray(section?.subsections)
+          ? section.subsections.reduce((sum, sub) => sum + (Array.isArray(sub?.items) ? sub.items.length : 0), 0)
+          : 0
+        const totalCount = itemCount + subsectionCount
+
+        if (totalCount <= 0) return null
+
+        return {
+          id: normalizeMenuCategoryId(section?.categoryId || sectionTitle || index) || `section-${index}`,
+          name: sectionTitle,
+          image: getSectionCategoryImage(section),
+          count: totalCount,
+          sectionIndex: index,
+        }
+      })
+      .filter(Boolean)
+  }, [restaurant?.menuSections])
 
   // Count active filters
   const getActiveFilterCount = () => {
@@ -1267,6 +1329,14 @@ function RestaurantDetailsContent() {
       debugWarn("Failed to persist restaurant filters:", error)
     }
   }, [filters, slug])
+
+  useEffect(() => {
+    if (selectedMenuCategory === "all") return
+    const categoryStillVisible = menuCategories.some((category) => category.id === selectedMenuCategory)
+    if (!categoryStillVisible) {
+      setSelectedMenuCategory("all")
+    }
+  }, [menuCategories, selectedMenuCategory])
 
   // Handle bookmark click
   const handleBookmarkClick = (item) => {
@@ -1664,6 +1734,14 @@ function RestaurantDetailsContent() {
         }
       })
       .filter(({ section }) => {
+        if (selectedMenuCategory !== "all") {
+          if (isRecommendedSection(section)) return false
+          const sectionCategoryId = normalizeMenuCategoryId(section?.categoryId || getSectionDisplayName(section))
+          if (sectionCategoryId !== selectedMenuCategory) {
+            return false
+          }
+        }
+
         const hasVisibleItems = toRenderableArray(section?.items).length > 0
         const hasVisibleSubsections = toRenderableArray(section?.subsections).length > 0
         return hasVisibleItems || hasVisibleSubsections
@@ -1773,12 +1851,6 @@ function RestaurantDetailsContent() {
       window.clearTimeout(highlightTimer)
     }
   }, [restaurant, targetDishId])
-
-  function toRenderableArray(value) {
-    if (Array.isArray(value)) return value
-    if (!value || typeof value !== "object") return []
-    return Object.values(value).filter((entry) => entry && typeof entry === "object")
-  }
 
   // Highlight offers/texts for the blue offer line
   const highlightOffers = [
@@ -2012,58 +2084,104 @@ function RestaurantDetailsContent() {
 
           {/* Filter/Category Buttons */}
           <div className="border-y border-gray-200 py-3 -mx-4 px-4 overflow-x-auto scrollbar-hide">
-            <div className="flex items-center gap-2 w-max">
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-1.5 whitespace-nowrap border-gray-300 dark:border-gray-700 bg-white dark:bg-[#1a1a1a] relative"
-                onClick={() => setShowFilterSheet(true)}
-              >
-                <SlidersHorizontal className="h-4 w-4" />
-                Filters
-                {activeFilterCount > 0 && (
-                  <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center font-semibold">
-                    {activeFilterCount}
-                  </span>
-                )}
-                <ChevronDown className="h-3 w-3" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className={`flex items-center gap-1.5 whitespace-nowrap border-gray-300 bg-white rounded-full ${filters.vegNonVeg === "veg" ? "border-green-600 bg-green-50 text-green-700 font-bold" : ""
-                  }`}
-                onClick={() =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    vegNonVeg: prev.vegNonVeg === "veg" ? null : "veg",
-                  }))
-                }
-              >
-                <div className="h-3 w-3 rounded-full bg-green-500" />
-                Veg
-                {filters.vegNonVeg === "veg" && (
-                  <X className="h-3 w-3 text-gray-600" />
-                )}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className={`flex items-center gap-1.5 whitespace-nowrap border-gray-300 bg-white rounded-full ${filters.vegNonVeg === "non-veg" ? "border-amber-700 bg-amber-50" : ""
-                  }`}
-                onClick={() =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    vegNonVeg: prev.vegNonVeg === "non-veg" ? null : "non-veg",
-                  }))
-                }
-              >
-                <div className="h-3 w-3 rounded-full bg-amber-700" />
-                Non-veg
-                {filters.vegNonVeg === "non-veg" && (
-                  <X className="h-3 w-3 text-gray-600" />
-                )}
-              </Button>
+            <div className="flex flex-col gap-2 w-max">
+              <div className="flex items-center gap-2 w-max">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-1.5 whitespace-nowrap border-gray-300 dark:border-gray-700 bg-white dark:bg-[#1a1a1a] relative"
+                  onClick={() => setShowFilterSheet(true)}
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                  Filters
+                  {activeFilterCount > 0 && (
+                    <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center font-semibold">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={`flex items-center gap-1.5 whitespace-nowrap border-gray-300 bg-white rounded-full ${filters.vegNonVeg === "veg" ? "border-green-600 bg-green-50 text-green-700 font-bold" : ""
+                    }`}
+                  onClick={() =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      vegNonVeg: prev.vegNonVeg === "veg" ? null : "veg",
+                    }))
+                  }
+                >
+                  <div className="h-3 w-3 rounded-full bg-green-500" />
+                  Veg
+                  {filters.vegNonVeg === "veg" && (
+                    <X className="h-3 w-3 text-gray-600" />
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={`flex items-center gap-1.5 whitespace-nowrap border-gray-300 bg-white rounded-full ${filters.vegNonVeg === "non-veg" ? "border-amber-700 bg-amber-50" : ""
+                    }`}
+                  onClick={() =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      vegNonVeg: prev.vegNonVeg === "non-veg" ? null : "non-veg",
+                    }))
+                  }
+                >
+                  <div className="h-3 w-3 rounded-full bg-amber-700" />
+                  Non-veg
+                  {filters.vegNonVeg === "non-veg" && (
+                    <X className="h-3 w-3 text-gray-600" />
+                  )}
+                </Button>
+              </div>
+
+              {menuCategories.length > 0 && (
+                <div className="flex items-center gap-2 w-max">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMenuCategory("all")}
+                    className={`flex items-center gap-2 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors ${
+                      selectedMenuCategory === "all"
+                        ? "border-[#EB590E] bg-[#FFF1E8] text-[#EB590E]"
+                        : "border-gray-300 bg-white text-gray-700"
+                    }`}
+                  >
+                    All
+                  </button>
+                  {menuCategories.map((category) => (
+                    <button
+                      key={category.id}
+                      type="button"
+                      onClick={() => setSelectedMenuCategory(category.id)}
+                      className={`flex items-center gap-2 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors ${
+                        selectedMenuCategory === category.id
+                          ? "border-[#EB590E] bg-[#FFF1E8] text-[#EB590E]"
+                          : "border-gray-300 bg-white text-gray-700"
+                      }`}
+                    >
+                      {category.image ? (
+                        <img
+                          src={category.image}
+                          alt={category.name}
+                          className="h-6 w-6 rounded-full object-cover border border-white/70 shadow-sm"
+                          onError={(event) => {
+                            event.currentTarget.style.display = "none"
+                          }}
+                        />
+                      ) : (
+                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-[10px] font-bold uppercase text-gray-500">
+                          {category.name?.charAt(0) || "C"}
+                        </span>
+                      )}
+                      {category.name}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -2081,17 +2199,15 @@ function RestaurantDetailsContent() {
                 </p>
               </div>
             )}
+            {filteredSections.length === 0 && (
+              <div className="rounded-3xl border border-dashed border-gray-300 bg-white px-6 py-10 text-center text-sm text-gray-500">
+                No dishes match the current filters.
+              </div>
+            )}
+
             {filteredSections.map(({ section, originalIndex }, sectionIndex) => {
               // Handle section name - check for valid non-empty string
               const isRecommended = isRecommendedSection(section)
-              let sectionTitle = "Unnamed Section"
-              if (isRecommended) {
-                sectionTitle = "Recommended for you"
-              } else if (section?.name && typeof section.name === 'string' && section.name.trim()) {
-                sectionTitle = section.name.trim()
-              } else if (section?.title && typeof section.title === 'string' && section.title.trim()) {
-                sectionTitle = section.title.trim()
-              }
               const sectionId = `menu-section-${originalIndex}`
               const sectionItems = toRenderableArray(section?.items)
               const sectionSubsections = toRenderableArray(section?.subsections)
@@ -2680,9 +2796,25 @@ function RestaurantDetailsContent() {
                             }, 300) // Small delay to allow sheet to close
                           }}
                         >
-                          <span className="text-base font-medium text-gray-900 dark:text-white">
-                            {category.name}
-                          </span>
+                          <div className="flex items-center gap-3 min-w-0">
+                            {category.image ? (
+                              <img
+                                src={category.image}
+                                alt={category.name}
+                                className="h-10 w-10 rounded-xl object-cover border border-gray-200"
+                                onError={(event) => {
+                                  event.currentTarget.style.display = "none"
+                                }}
+                              />
+                            ) : (
+                              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 text-sm font-bold uppercase text-gray-500">
+                                {category.name?.charAt(0) || "C"}
+                              </span>
+                            )}
+                            <span className="text-base font-medium text-gray-900 dark:text-white truncate">
+                              {category.name}
+                            </span>
+                          </div>
                           <div className="flex items-center gap-2">
                             <span className="text-sm text-gray-500 dark:text-gray-400">
                               {category.count}

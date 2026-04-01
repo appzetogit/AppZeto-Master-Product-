@@ -2,42 +2,98 @@ import mongoose from 'mongoose';
 import { ValidationError } from '../../../../core/auth/errors.js';
 import { FoodRestaurant } from '../models/restaurant.model.js';
 import { FoodItem } from '../../admin/models/food.model.js';
+import { FoodCategory } from '../../admin/models/category.model.js';
 
-const buildMenuFromFoods = (foods = []) => {
+const buildMenuFromFoods = async (foods = []) => {
+    const categoryIds = Array.from(
+        new Set(
+            (foods || [])
+                .map((food) => {
+                    const raw = food?.categoryId;
+                    if (!raw) return '';
+                    return String(raw);
+                })
+                .filter((value) => mongoose.Types.ObjectId.isValid(value))
+        )
+    );
+
+    const categoryDocs = categoryIds.length
+        ? await FoodCategory.find({ _id: { $in: categoryIds } })
+            .select('name image sortOrder')
+            .lean()
+        : [];
+    const categoryMap = new Map(categoryDocs.map((doc) => [String(doc._id), doc]));
+
     const byCategory = new Map();
-    for (const f of foods) {
-        const cat = (f.categoryName || f.category || 'Menu').trim() || 'Menu';
-        if (!byCategory.has(cat)) byCategory.set(cat, []);
-        byCategory.get(cat).push({
-            id: String(f._id),
-            _id: f._id,
-            name: f.name,
-            description: f.description || '',
-            price: f.price ?? 0,
-            image: f.image || '',
-            foodType: f.foodType || 'Non-Veg',
-            isAvailable: f.isAvailable !== false,
-            approvalStatus: f.approvalStatus || 'approved',
-            rejectionReason: f.rejectionReason || '',
-            requestedAt: f.requestedAt,
-            approvedAt: f.approvedAt,
-            rejectedAt: f.rejectedAt,
-            preparationTime: f.preparationTime || ''
+    for (const food of foods) {
+        const categoryId = food?.categoryId ? String(food.categoryId) : '';
+        const categoryDoc = categoryMap.get(categoryId) || null;
+        const sectionName = (categoryDoc?.name || food?.categoryName || food?.category || 'Menu').trim() || 'Menu';
+        const groupKey = categoryId || `name:${sectionName.toLowerCase()}`;
+
+        if (!byCategory.has(groupKey)) {
+            byCategory.set(groupKey, {
+                id: categoryId || null,
+                name: sectionName,
+                image: categoryDoc?.image || '',
+                sortOrder: Number.isFinite(Number(categoryDoc?.sortOrder)) ? Number(categoryDoc.sortOrder) : Number.MAX_SAFE_INTEGER,
+                items: []
+            });
+        }
+
+        byCategory.get(groupKey).items.push({
+            id: String(food._id),
+            _id: food._id,
+            categoryId: categoryId || null,
+            categoryName: sectionName,
+            category: sectionName,
+            name: food.name,
+            description: food.description || '',
+            price: food.price ?? 0,
+            image: food.image || '',
+            foodType: food.foodType || 'Non-Veg',
+            isAvailable: food.isAvailable !== false,
+            approvalStatus: food.approvalStatus || 'approved',
+            rejectionReason: food.rejectionReason || '',
+            requestedAt: food.requestedAt,
+            approvedAt: food.approvedAt,
+            rejectedAt: food.rejectedAt,
+            preparationTime: food.preparationTime || '',
+            createdAt: food.createdAt,
+            updatedAt: food.updatedAt
         });
     }
 
-    const names = Array.from(byCategory.keys()).sort((a, b) => a.localeCompare(b));
-    const sections = names.map((name, idx) => ({
-        id: `section-${idx}`,
-        name,
-        items: (byCategory.get(name) || []).sort((a, b) => {
-            const at = new Date(a.requestedAt || a.createdAt || 0).getTime();
-            const bt = new Date(b.requestedAt || b.createdAt || 0).getTime();
+    const orderedGroups = Array.from(byCategory.values()).sort((a, b) => {
+        if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+        return String(a.name || '').localeCompare(String(b.name || ''));
+    });
+
+    const sections = orderedGroups.map((group, idx) => ({
+        id: group.id || `section-${idx}`,
+        categoryId: group.id || null,
+        name: group.name,
+        image: group.image || '',
+        sortOrder: Number.isFinite(Number(group.sortOrder)) ? Number(group.sortOrder) : 0,
+        itemCount: group.items.length,
+        items: group.items.sort((a, b) => {
+            const at = new Date(a.createdAt || a.requestedAt || 0).getTime();
+            const bt = new Date(b.createdAt || b.requestedAt || 0).getTime();
             return bt - at;
         }),
         subsections: []
     }));
-    return { sections };
+
+    const categories = sections.map((section) => ({
+        id: section.categoryId || section.id,
+        categoryId: section.categoryId || null,
+        name: section.name,
+        image: section.image || '',
+        sortOrder: section.sortOrder || 0,
+        itemCount: section.itemCount || 0
+    }));
+
+    return { sections, categories };
 };
 
 export async function getRestaurantMenu(restaurantId) {
@@ -88,4 +144,3 @@ export async function syncMenuItemApprovalStatus(restaurantId, itemId, status, r
     // Kept to avoid breaking admin approval flows that call this helper.
     return;
 }
-

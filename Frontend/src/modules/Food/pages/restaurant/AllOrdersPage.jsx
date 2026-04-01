@@ -291,10 +291,8 @@ export default function AllOrdersPage() {
       }
     }
     
-    if (!restaurantData) return // Don't fetch if restaurant data is not loaded yet
-    
     fetchOrders()
-  }, [startDate, endDate, restaurantData, transformOrder])
+  }, [startDate, endDate, transformOrder])
 
   // Realtime: instantly prepend new orders (no refresh)
   useEffect(() => {
@@ -603,7 +601,16 @@ export default function AllOrdersPage() {
         
         {!loading && !error && (
           <AnimatePresence mode="popLayout">
-            {filteredOrders.map((order, index) => (
+            {filteredOrders.length === 0 ? (
+              <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+                <div className="flex flex-col items-center gap-3">
+                  <p className="text-gray-900 font-medium text-sm">No orders found</p>
+                  <p className="text-gray-500 text-xs">
+                    Try changing the date range or search filters.
+                  </p>
+                </div>
+              </div>
+            ) : filteredOrders.map((order, index) => (
             <motion.div
               key={order.id}
               layout
@@ -687,6 +694,118 @@ export default function AllOrdersPage() {
           </AnimatePresence>
         )}
       </div>
+
+      {/* Date Range Popup */}
+      <AnimatePresence>
+        {showDateRangePopup && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-black/50 z-50"
+              onClick={() => setShowDateRangePopup(false)}
+            />
+
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{
+                type: "spring",
+                damping: 30,
+                stiffness: 300
+              }}
+              className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl z-50"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-center pt-2 pb-1">
+                <div className="w-10 h-1 bg-gray-300 rounded-full"></div>
+              </div>
+
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+                <h2 className="text-lg font-bold text-gray-900">Select date range</h2>
+                <button
+                  onClick={() => setShowDateRangePopup(false)}
+                  className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                  aria-label="Close"
+                >
+                  <X className="w-5 h-5 text-gray-900" />
+                </button>
+              </div>
+
+              <div className="px-4 py-3 pb-6 space-y-2">
+                {dateRangeOptions.map((option) => {
+                  const isSelected =
+                    selectedDateRange?.label?.toLowerCase() === option.label.toLowerCase()
+
+                  return (
+                    <button
+                      key={option.label}
+                      type="button"
+                      onClick={() => handleDateRangeSelect(option)}
+                      className={`w-full flex items-center justify-between rounded-xl border px-4 py-3 text-left transition-colors ${
+                        isSelected
+                          ? "border-blue-500 bg-blue-50"
+                          : "border-gray-200 bg-white hover:bg-gray-50"
+                      }`}
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900 capitalize">{option.label}</p>
+                        {!option.custom && (
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {(() => {
+                              const dates = option.getDates()
+                              const start = dates.start.toLocaleDateString("en-US", { day: "numeric", month: "short" })
+                              const end = dates.end.toLocaleDateString("en-US", { day: "numeric", month: "short" })
+                              return `${start} - ${end}`
+                            })()}
+                          </p>
+                        )}
+                      </div>
+                      {isSelected && <span className="text-xs font-semibold text-blue-600">Selected</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Calendar Popup */}
+      <AnimatePresence>
+        {showCalendar && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-black/50 z-[60]"
+              onClick={() => setShowCalendar(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 16 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+              onClick={() => setShowCalendar(false)}
+            >
+              <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm">
+                <DateRangeCalendar
+                  startDate={startDate}
+                  endDate={endDate}
+                  onDateRangeChange={handleDateRangeChange}
+                  onClose={() => setShowCalendar(false)}
+                />
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Filter Popup */}
       <AnimatePresence>

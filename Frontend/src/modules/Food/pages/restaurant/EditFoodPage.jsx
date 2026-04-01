@@ -46,12 +46,21 @@ const defaultFormData = {
   allergies: []
 }
 
+const fallbackCategoryOptions = [
+  { id: "fallback-varieties", name: "Varieties" },
+  { id: "fallback-appetizers", name: "Appetizers" },
+  { id: "fallback-main-course", name: "Main Course" },
+  { id: "fallback-desserts", name: "Desserts" },
+  { id: "fallback-beverages", name: "Beverages" },
+]
+
 export default function EditFoodPage() {
   const navigate = useNavigate()
   const { id } = useParams()
   const isNewFood = id === "new" || !id
   const [showMenu, setShowMenu] = useState(false)
   const [menuSections, setMenuSections] = useState([])
+  const [availableCategories, setAvailableCategories] = useState([])
 
   // Lenis smooth scrolling
   useEffect(() => {
@@ -124,6 +133,49 @@ export default function EditFoodPage() {
       isMounted = false
     }
   }, [id, isNewFood])
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadCategories = async () => {
+      try {
+        const response = await restaurantAPI.getCategories()
+        const categories = response?.data?.data?.categories || []
+        if (!isMounted) return
+
+        const normalized = categories
+          .map((category) => ({
+            id: category?._id || category?.id,
+            name: String(category?.name || "").trim(),
+          }))
+          .filter((category) => category.id && category.name)
+
+        setAvailableCategories(normalized)
+
+        if (isNewFood && normalized.length > 0) {
+          setFormData((prev) => {
+            const currentCategory = String(prev.category || "").trim()
+            const hasCurrentCategory = normalized.some((category) => category.name === currentCategory)
+            if (hasCurrentCategory) return prev
+            return {
+              ...prev,
+              category: normalized[0].name,
+            }
+          })
+        }
+      } catch {
+        if (isMounted) {
+          setAvailableCategories([])
+        }
+      }
+    }
+
+    loadCategories()
+
+    return () => {
+      isMounted = false
+    }
+  }, [isNewFood])
 
   const [newTag, setNewTag] = useState("")
   const [newNutrition, setNewNutrition] = useState("")
@@ -213,6 +265,18 @@ export default function EditFoodPage() {
 
   const fileInputRef = useRef(null)
   const [isPhotoPickerOpen, setIsPhotoPickerOpen] = useState(false)
+  const categoryOptions = (() => {
+    const currentCategory = String(formData.category || "").trim()
+    const source = availableCategories.length > 0 ? availableCategories : fallbackCategoryOptions
+    if (!currentCategory) return source
+
+    const alreadyPresent = source.some(
+      (category) => String(category?.name || "").trim() === currentCategory,
+    )
+    if (alreadyPresent) return source
+
+    return [{ id: `legacy-${currentCategory}`, name: currentCategory }, ...source]
+  })()
 
   const handleImageUpload = (field, file) => {
     if (file) {
@@ -263,10 +327,21 @@ export default function EditFoodPage() {
         : null
     }
 
+    const matchedCategory = availableCategories.find(
+      (category) => String(category?.name || "").trim() === String(foodDataToSave.category || "").trim(),
+    )
+
+    if (!matchedCategory?.id) {
+      toast.error("Please select a valid menu category first")
+      navigate("/restaurant/menu-categories")
+      return
+    }
+
     if (isNewFood) {
       try {
         const res = await restaurantAPI.createFood({
           ...foodDataToSave,
+          categoryId: matchedCategory.id,
           // Map UI category field into backend categoryName (single source of truth)
           categoryName: foodDataToSave.category || foodDataToSave.categoryName,
         })
@@ -287,6 +362,7 @@ export default function EditFoodPage() {
     try {
       const res = await restaurantAPI.updateFood(String(id), {
         ...foodDataToSave,
+        categoryId: matchedCategory.id,
         categoryName: foodDataToSave.category || foodDataToSave.categoryName,
       })
       const updated = res?.data?.data?.food || res?.data?.food
@@ -410,12 +486,17 @@ export default function EditFoodPage() {
                     onChange={(e) => handleInputChange("category", e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff8100] focus:border-transparent outline-none"
                   >
-                    <option value="Varieties">Varieties</option>
-                    <option value="Appetizers">Appetizers</option>
-                    <option value="Main Course">Main Course</option>
-                    <option value="Desserts">Desserts</option>
-                    <option value="Beverages">Beverages</option>
+                    {categoryOptions.map((category) => (
+                      <option key={category.id} value={category.name}>
+                        {category.name}
+                      </option>
+                    ))}
                   </select>
+                  {availableCategories.length === 0 && (
+                    <p className="mt-2 text-xs text-amber-700">
+                      Add restaurant categories in Menu Categories before saving new dishes.
+                    </p>
+                  )}
                 </div>
 
                 <div>

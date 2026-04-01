@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import { ArrowLeft, AlertCircle, Upload, Loader2 } from "lucide-react"
@@ -90,7 +90,20 @@ export default function UpdateBankDetails() {
       const doc = response?.data?.data?.restaurant || response?.data?.restaurant || null
       if (!doc) return
 
-      setForm({ ...EMPTY_FORM })
+      const accountNumber = String(doc.accountNumber || "").replace(/\s|-/g, "")
+      const upiQrImage =
+        typeof doc.upiQrImage === "string"
+          ? doc.upiQrImage
+          : String(doc.upiQrImage?.url || "")
+
+      setForm({
+        accountHolderName: String(doc.accountHolderName || ""),
+        accountNumber,
+        confirmAccountNumber: accountNumber,
+        ifscCode: String(doc.ifscCode || "").toUpperCase(),
+        upiId: String(doc.upiId || ""),
+        upiQrImage,
+      })
       setLastUpdated(doc.updatedAt || "")
     } catch (error) {
       alert(error?.response?.data?.message || "Failed to load bank details")

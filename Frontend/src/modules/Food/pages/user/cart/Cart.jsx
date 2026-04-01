@@ -1440,7 +1440,8 @@ export default function Cart() {
         quantity: item.quantity || 1,
         image: item.image || "",
         description: item.description || "",
-        isVeg: item.isVeg !== false
+        isVeg: item.isVeg !== false,
+        preparationTime: item.preparationTime
       }))
 
       debugLog("?? Order items to send:", orderItems)

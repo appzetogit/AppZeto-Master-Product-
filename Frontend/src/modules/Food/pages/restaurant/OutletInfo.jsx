@@ -364,7 +364,7 @@ export default function OutletInfo() {
           <button
             onClick={() => handleImageClick('cover', menuImageInputRef, "Add Cover Image", true)}
             disabled={uploadingImage}
-            className="absolute top-4 right-4 bg-black/90 hover:bg-black px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-medium text-white transition-colors shadow-lg z-10 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="absolute bottom-4 right-4 bg-black/90 hover:bg-black px-3.5 py-2.5 rounded-xl flex items-center gap-2 text-sm font-medium text-white transition-colors shadow-lg z-20 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus className="w-4 h-4" />
             <span>{uploadingImage && imageType === 'menu' ? `Uploading ${uploadingCount}...` : 'Add image'}</span>
@@ -380,22 +380,33 @@ export default function OutletInfo() {
           
           {/* Cover Images Gallery */}
           {coverImages.length > 0 && (
-            <div className="absolute bottom-2 right-4 flex gap-1.5 z-10">
+            <div className="absolute bottom-16 right-4 flex gap-2.5 z-10">
               {coverImages.slice(0, 4).map((img, index) => (
-                <div key={index} className="relative w-8 h-8 rounded border-2 border-white overflow-hidden bg-gray-200">
-                  <img src={img.url} alt={`Cover ${index + 1}`} className="w-full h-full object-cover" />
+                <div
+                  key={index}
+                  className={`relative w-14 h-14 rounded-xl border-2 overflow-hidden bg-gray-200 shadow-md transition-all ${
+                    mainImage === img.url ? "border-black scale-105" : "border-white"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setMainImage(img.url)}
+                    className="w-full h-full"
+                  >
+                    <img src={img.url} alt={`Cover ${index + 1}`} className="w-full h-full object-cover" />
+                  </button>
                   <button
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleCoverImageDelete(index); }}
                     disabled={uploadingImage}
-                    className="absolute top-0 left-0 bg-red-500/90 hover:bg-red-600 p-0.5 rounded-br-sm transition-colors z-10"
+                    className="absolute top-1 right-1 bg-red-500/95 hover:bg-red-600 p-1 rounded-full transition-colors z-10"
                   >
-                    <Trash2 className="w-2.5 h-2.5 text-white" />
+                    <Trash2 className="w-3 h-3 text-white" />
                   </button>
                 </div>
               ))}
               {coverImages.length > 4 && (
-                <div className="w-8 h-8 rounded border-2 border-white bg-black/70 flex items-center justify-center">
-                  <span className="text-white text-xs font-bold">+{coverImages.length - 4}</span>
+                <div className="w-14 h-14 rounded-xl border-2 border-white bg-black/70 flex items-center justify-center shadow-md">
+                  <span className="text-white text-sm font-bold">+{coverImages.length - 4}</span>
                 </div>
               )}
             </div>

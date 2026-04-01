@@ -17,7 +17,7 @@ import {
   FileText,
   Star,
   MessageSquare,
-  HelpCircle,
+  LifeBuoy,
   Lightbulb,
   Edit,
   IndianRupee,
@@ -750,8 +750,8 @@ export default function ExploreMore() {
   ]
 
   const helpItems = [
-    { id: 1, label: "Help Center", icon: HelpCircle, route: "/restaurant/help-centre" },
-    { id: 3, label: "Share your feedback", icon: Edit, route: "/restaurant/Share-Feedback" },
+    { id: 1, label: "Support", icon: LifeBuoy, route: "/restaurant/help-centre/support" },
+    { id: 2, label: "Share your feedback", icon: Edit, route: "/restaurant/Share-Feedback" },
   ]
 
   const accountingItems = [

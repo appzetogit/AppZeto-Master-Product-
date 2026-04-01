@@ -136,12 +136,24 @@ const toRestaurantProfile = (doc) => {
         restaurantId: doc.restaurantId || undefined,
         name: doc.restaurantName || '',
         restaurantName: doc.restaurantName || '',
+        zoneId: doc.zoneId ? String(doc.zoneId) : '',
         cuisines: Array.isArray(doc.cuisines) ? doc.cuisines : [],
         location,
         ownerName: doc.ownerName || '',
         ownerEmail: doc.ownerEmail || '',
         ownerPhone: doc.ownerPhone || '',
         primaryContactNumber: doc.primaryContactNumber || '',
+        panNumber: doc.panNumber || '',
+        nameOnPan: doc.nameOnPan || '',
+        panImage: doc.panImage ? { url: doc.panImage } : null,
+        gstRegistered: Boolean(doc.gstRegistered),
+        gstNumber: doc.gstNumber || '',
+        gstLegalName: doc.gstLegalName || '',
+        gstAddress: doc.gstAddress || '',
+        gstImage: doc.gstImage ? { url: doc.gstImage } : null,
+        fssaiNumber: doc.fssaiNumber || '',
+        fssaiExpiry: doc.fssaiExpiry || null,
+        fssaiImage: doc.fssaiImage ? { url: doc.fssaiImage } : null,
         accountNumber: doc.accountNumber || '',
         ifscCode: doc.ifscCode || '',
         accountHolderName: doc.accountHolderName || '',
@@ -525,6 +537,13 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
         }
     }
 
+    if (body.zoneId !== undefined) {
+        const zoneId = String(body.zoneId || '').trim();
+        update.zoneId = zoneId && mongoose.Types.ObjectId.isValid(zoneId)
+            ? new mongoose.Types.ObjectId(zoneId)
+            : undefined;
+    }
+
     // Bank + UPI fields (Explore -> Update Bank Details page)
     if (body.accountHolderName !== undefined) {
         update.accountHolderName = String(body.accountHolderName || '').trim();
@@ -573,6 +592,7 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
             throw new ValidationError('Location must be an object');
         }
         const toStr = (v) => (v != null ? String(v).trim() : '');
+        const formattedAddress = toStr(loc.formattedAddress || loc.address);
         update.addressLine1 = toStr(loc.addressLine1);
         update.addressLine2 = toStr(loc.addressLine2);
         update.area = toStr(loc.area);
@@ -584,8 +604,52 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
         // Optional geo coords for server-side distance filtering.
         const lat = toFiniteNumber(loc.latitude);
         const lng = toFiniteNumber(loc.longitude);
-        if (lat !== null && lng !== null) {
-            update.location = { type: 'Point', coordinates: [lng, lat] };
+        update.location = {
+            type: 'Point',
+            coordinates: lat !== null && lng !== null ? [lng, lat] : undefined,
+            latitude: lat ?? undefined,
+            longitude: lng ?? undefined,
+            formattedAddress,
+            address: formattedAddress,
+            addressLine1: toStr(loc.addressLine1),
+            addressLine2: toStr(loc.addressLine2),
+            area: toStr(loc.area),
+            city: toStr(loc.city),
+            state: toStr(loc.state),
+            pincode: toStr(loc.pincode),
+            landmark: toStr(loc.landmark)
+        };
+    }
+
+    if (body.openingTime !== undefined) {
+        update.openingTime = normalizeRestaurantTime(body.openingTime) || '';
+    }
+    if (body.closingTime !== undefined) {
+        update.closingTime = normalizeRestaurantTime(body.closingTime) || '';
+    }
+    if (body.openDays !== undefined) {
+        if (!Array.isArray(body.openDays)) {
+            throw new ValidationError('openDays must be an array');
+        }
+        update.openDays = body.openDays
+            .map((day) => String(day || '').trim())
+            .filter(Boolean)
+            .slice(0, 7);
+    }
+    if (body.estimatedDeliveryTime !== undefined) {
+        const estimatedDeliveryTimeText = String(body.estimatedDeliveryTime || '').trim();
+        update.estimatedDeliveryTime = estimatedDeliveryTimeText;
+        update.estimatedDeliveryTimeMinutes = parseEstimatedDeliveryMinutes(estimatedDeliveryTimeText) ?? undefined;
+    }
+
+    const openingMinutes = body.openingTime !== undefined ? timeToMinutes(update.openingTime) : null;
+    const closingMinutes = body.closingTime !== undefined ? timeToMinutes(update.closingTime) : null;
+    if (openingMinutes !== null && closingMinutes !== null) {
+        if (openingMinutes === closingMinutes) {
+            throw new ValidationError('Opening time and closing time cannot be same');
+        }
+        if (closingMinutes < openingMinutes) {
+            throw new ValidationError('Closing time cannot be less than opening time');
         }
     }
 
@@ -598,6 +662,66 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
             .filter(Boolean)
             .slice(0, 20);
         update.menuImages = urls;
+    }
+
+    if (body.profileImage !== undefined) {
+        update.profileImage = toUrl(body.profileImage) || '';
+    }
+
+    if (body.panNumber !== undefined) {
+        update.panNumber = String(body.panNumber || '').trim().toUpperCase();
+    }
+    if (body.nameOnPan !== undefined) {
+        update.nameOnPan = String(body.nameOnPan || '').trim();
+    }
+    if (body.panImage !== undefined) {
+        update.panImage = toUrl(body.panImage) || '';
+    }
+    if (body.gstRegistered !== undefined) {
+        if (typeof body.gstRegistered === 'boolean') {
+            update.gstRegistered = body.gstRegistered;
+        } else if (typeof body.gstRegistered === 'string') {
+            const normalized = body.gstRegistered.trim().toLowerCase();
+            if (normalized === 'true' || normalized === '1' || normalized === 'yes') {
+                update.gstRegistered = true;
+            } else if (normalized === 'false' || normalized === '0' || normalized === 'no') {
+                update.gstRegistered = false;
+            } else {
+                throw new ValidationError('gstRegistered must be a boolean');
+            }
+        } else {
+            throw new ValidationError('gstRegistered must be a boolean');
+        }
+    }
+    if (body.gstNumber !== undefined) {
+        update.gstNumber = String(body.gstNumber || '').trim().toUpperCase();
+    }
+    if (body.gstLegalName !== undefined) {
+        update.gstLegalName = String(body.gstLegalName || '').trim();
+    }
+    if (body.gstAddress !== undefined) {
+        update.gstAddress = String(body.gstAddress || '').trim();
+    }
+    if (body.gstImage !== undefined) {
+        update.gstImage = toUrl(body.gstImage) || '';
+    }
+    if (body.fssaiNumber !== undefined) {
+        update.fssaiNumber = String(body.fssaiNumber || '').trim();
+    }
+    if (body.fssaiExpiry !== undefined) {
+        const rawExpiry = String(body.fssaiExpiry || '').trim();
+        if (!rawExpiry) {
+            update.fssaiExpiry = null;
+        } else {
+            const parsedExpiry = new Date(rawExpiry);
+            if (Number.isNaN(parsedExpiry.getTime())) {
+                throw new ValidationError('FSSAI expiry date is invalid');
+            }
+            update.fssaiExpiry = parsedExpiry;
+        }
+    }
+    if (body.fssaiImage !== undefined) {
+        update.fssaiImage = toUrl(body.fssaiImage) || '';
     }
 
     if (!Object.keys(update).length) {

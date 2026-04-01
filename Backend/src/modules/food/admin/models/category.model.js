@@ -6,9 +6,12 @@ const foodCategorySchema = new mongoose.Schema(
         image: { type: String, trim: true, default: '' },
         type: { type: String, trim: true, default: '' },
         /**
-         * Restaurant-created categories request approval.
-         * - When restaurantId is set and isApproved=false: pending request (visible only to that restaurant + admin).
-         * - When isApproved=true: category is globally usable by all restaurants.
+         * Category scope:
+         * - When restaurantId is missing: category is admin/global and can be shared across restaurants.
+         * - When restaurantId is set: category is private to that restaurant only.
+         *
+         * Approval remains available for admin moderation, but approval does not make a
+         * restaurant-owned category globally reusable.
          *
          * Note: existing categories (created by admin historically) should be treated as approved.
          */

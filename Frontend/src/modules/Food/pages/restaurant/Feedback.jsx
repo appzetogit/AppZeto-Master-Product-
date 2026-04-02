@@ -395,9 +395,30 @@ export default function Feedback() {
             <p className="text-md font-bold text-gray-900">{restaurantData?.name || "Restaurant"}</p>
           </div>
           <div className="flex items-center gap-2">
-            <Bell className="w-6 h-6 text-gray-700" />
-            <HelpCircle className="w-6 h-6 text-gray-700" />
-            <Menu className="w-6 h-6 text-gray-700" />
+            <button
+              type="button"
+              onClick={() => navigate("/food/restaurant/notifications")}
+              className="p-1 rounded-full hover:bg-gray-100 active:scale-95 transition-all"
+              aria-label="Open notifications"
+            >
+              <Bell className="w-6 h-6 text-gray-700" />
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/food/restaurant/help-centre/support")}
+              className="p-1 rounded-full hover:bg-gray-100 active:scale-95 transition-all"
+              aria-label="Open support"
+            >
+              <HelpCircle className="w-6 h-6 text-gray-700" />
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/food/restaurant/explore")}
+              className="p-1 rounded-full hover:bg-gray-100 active:scale-95 transition-all"
+              aria-label="Open explore"
+            >
+              <Menu className="w-6 h-6 text-gray-700" />
+            </button>
           </div>
         </div>
         

@@ -129,6 +129,9 @@ const toRestaurantProfile = (doc) => {
     const menuImages = Array.isArray(doc.menuImages)
         ? doc.menuImages.map((m) => toUrl(m)).filter(Boolean).map((url) => ({ url, publicId: null }))
         : [];
+    const coverImages = Array.isArray(doc.coverImages)
+        ? doc.coverImages.map((m) => toUrl(m)).filter(Boolean).map((url) => ({ url, publicId: null }))
+        : [];
 
     return {
         id: doc._id,
@@ -163,7 +166,7 @@ const toRestaurantProfile = (doc) => {
         pureVegRestaurant: Boolean(doc.pureVegRestaurant),
         profileImage: doc.profileImage ? { url: doc.profileImage } : null,
         menuImages,
-        coverImages: [],
+        coverImages,
         openingTime: normalizeRestaurantTime(doc.openingTime) || null,
         closingTime: normalizeRestaurantTime(doc.closingTime) || null,
         openDays: Array.isArray(doc.openDays) ? doc.openDays : [],
@@ -422,6 +425,7 @@ export const getCurrentRestaurantProfile = async (restaurantId) => {
                 'upiQrImage',
                 'pureVegRestaurant',
                 'profileImage',
+                'coverImages',
                 'menuImages',
                 'openingTime',
                 'closingTime',
@@ -472,6 +476,7 @@ export const updateRestaurantAcceptingOrders = async (restaurantId, isAcceptingO
                 'upiQrImage',
                 'pureVegRestaurant',
                 'profileImage',
+                'coverImages',
                 'menuImages',
                 'openingTime',
                 'closingTime',
@@ -713,6 +718,17 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
         update.menuImages = urls;
     }
 
+    if (body.coverImages !== undefined) {
+        if (!Array.isArray(body.coverImages)) {
+            throw new ValidationError('coverImages must be an array');
+        }
+        const urls = body.coverImages
+            .map((m) => toUrl(m))
+            .filter(Boolean)
+            .slice(0, 20);
+        update.coverImages = urls;
+    }
+
     if (body.profileImage !== undefined) {
         update.profileImage = toUrl(body.profileImage) || '';
     }
@@ -808,9 +824,10 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
                     'ownerEmail',
                     'ownerPhone',
                     'primaryContactNumber',
-                    'pureVegRestaurant',
-                    'profileImage',
-                    'menuImages',
+                'pureVegRestaurant',
+                'profileImage',
+                'coverImages',
+                'menuImages',
                     'openingTime',
                     'closingTime',
                     'openDays',
@@ -879,7 +896,7 @@ export const uploadRestaurantProfileImage = async (restaurantId, file) => {
                 rejectionReason: 1
             }
         },
-        { new: true, projection: 'profileImage restaurantName cuisines location menuImages addressLine1 addressLine2 area city state pincode landmark ownerName ownerEmail ownerPhone primaryContactNumber pureVegRestaurant openingTime closingTime openDays status createdAt updatedAt' }
+        { new: true, projection: 'profileImage coverImages restaurantName cuisines location menuImages addressLine1 addressLine2 area city state pincode landmark ownerName ownerEmail ownerPhone primaryContactNumber pureVegRestaurant openingTime closingTime openDays status createdAt updatedAt' }
     ).lean();
 
     if (!doc) throw new ValidationError('Restaurant not found');
@@ -895,6 +912,119 @@ export const uploadRestaurantMenuImage = async (file) => {
     if (!file?.buffer) throw new ValidationError('Image file is required');
     const url = await uploadImageBuffer(file.buffer, 'food/restaurants/menu');
     return { menuImage: { url, publicId: null } };
+};
+
+export const uploadRestaurantCoverImages = async (restaurantId, files = []) => {
+    if (!restaurantId) throw new ValidationError('Invalid restaurant id');
+    if (!Array.isArray(files) || files.length === 0) {
+        throw new ValidationError('At least one image file is required');
+    }
+
+    const validFiles = files.filter((file) => file?.buffer);
+    if (validFiles.length === 0) {
+        throw new ValidationError('At least one valid image file is required');
+    }
+
+    const currentRestaurant = await FoodRestaurant.findById(restaurantId)
+        .select('restaurantName status profileImage coverImages')
+        .lean();
+    if (!currentRestaurant) throw new ValidationError('Restaurant not found');
+
+    const uploadedUrls = await Promise.all(
+        validFiles.slice(0, 20).map((file) => uploadImageBuffer(file.buffer, 'food/restaurants/cover'))
+    );
+    const existingCoverImages = Array.isArray(currentRestaurant.coverImages)
+        ? currentRestaurant.coverImages.map((image) => toUrl(image)).filter(Boolean)
+        : [];
+    const nextCoverImages = [...existingCoverImages];
+
+    uploadedUrls.forEach((url) => {
+        if (!nextCoverImages.includes(url)) nextCoverImages.push(url);
+    });
+
+    const update = {
+        coverImages: nextCoverImages.slice(0, 20),
+        status: 'pending'
+    };
+
+    if (!toUrl(currentRestaurant.profileImage) && uploadedUrls[0]) {
+        update.profileImage = uploadedUrls[0];
+    }
+
+    await FoodRestaurant.findByIdAndUpdate(
+        restaurantId,
+        {
+            $set: update,
+            $unset: {
+                approvedAt: 1,
+                rejectedAt: 1,
+                rejectionReason: 1
+            }
+        },
+        { new: true }
+    ).lean();
+
+    if (currentRestaurant.status !== 'pending') {
+        void notifyAdminsAboutRestaurantProfileReview(restaurantId, currentRestaurant.restaurantName || '');
+    }
+
+    return {
+        coverImages: uploadedUrls.map((url) => ({ url, publicId: null })),
+        profileImage: update.profileImage ? { url: update.profileImage } : undefined
+    };
+};
+
+export const uploadRestaurantMenuImages = async (restaurantId, files = []) => {
+    if (!restaurantId) throw new ValidationError('Invalid restaurant id');
+    if (!Array.isArray(files) || files.length === 0) {
+        throw new ValidationError('At least one image file is required');
+    }
+
+    const validFiles = files.filter((file) => file?.buffer);
+    if (validFiles.length === 0) {
+        throw new ValidationError('At least one valid image file is required');
+    }
+
+    const currentRestaurant = await FoodRestaurant.findById(restaurantId)
+        .select('restaurantName status menuImages')
+        .lean();
+    if (!currentRestaurant) throw new ValidationError('Restaurant not found');
+
+    const uploadedUrls = await Promise.all(
+        validFiles.slice(0, 20).map((file) => uploadImageBuffer(file.buffer, 'food/restaurants/menu'))
+    );
+    const existingMenuImages = Array.isArray(currentRestaurant.menuImages)
+        ? currentRestaurant.menuImages.map((image) => toUrl(image)).filter(Boolean)
+        : [];
+    const nextMenuImages = [...existingMenuImages];
+
+    uploadedUrls.forEach((url) => {
+        if (!nextMenuImages.includes(url)) nextMenuImages.push(url);
+    });
+
+    await FoodRestaurant.findByIdAndUpdate(
+        restaurantId,
+        {
+            $set: {
+                menuImages: nextMenuImages.slice(0, 20),
+                status: 'pending'
+            },
+            $unset: {
+                approvedAt: 1,
+                rejectedAt: 1,
+                rejectionReason: 1
+            }
+        },
+        { new: true }
+    ).lean();
+
+    if (currentRestaurant.status !== 'pending') {
+        void notifyAdminsAboutRestaurantProfileReview(restaurantId, currentRestaurant.restaurantName || '');
+    }
+
+    return {
+        menuImages: uploadedUrls.map((url) => ({ url, publicId: null }))
+    };
 };
 
 export const listApprovedRestaurants = async (query = {}) => {
@@ -979,6 +1109,8 @@ export const listApprovedRestaurants = async (query = {}) => {
         city: 1,
         cuisines: 1,
         profileImage: 1,
+        coverImages: 1,
+        menuImages: 1,
         estimatedDeliveryTime: 1,
         estimatedDeliveryTimeMinutes: 1,
         offer: 1,
@@ -1076,6 +1208,7 @@ export const listApprovedRestaurants = async (query = {}) => {
         rating: normalizeRatingValue(r.rating),
         totalRatings: normalizeTotalRatingsValue(r.totalRatings),
         profileImage: r.profileImage ? { url: r.profileImage } : null,
+        coverImages: Array.isArray(r.coverImages) ? r.coverImages : [],
         openingTime: r.openingTime || null,
         closingTime: r.closingTime || null,
         openDays: Array.isArray(r.openDays) ? r.openDays : [],

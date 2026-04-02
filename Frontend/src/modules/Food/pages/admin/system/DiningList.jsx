@@ -8,6 +8,29 @@ const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
+const normalizeImageUrl = (image) => {
+    if (!image) return ""
+    if (typeof image === "string") return image
+    if (typeof image === "object") return image.url || image.secure_url || ""
+    return ""
+}
+
+const getPrimaryRestaurantImage = (restaurant, fallback = "") => {
+    const coverImages = Array.isArray(restaurant?.coverImages) ? restaurant.coverImages : []
+    const firstCoverImage = coverImages.map(normalizeImageUrl).find(Boolean)
+    if (firstCoverImage) return firstCoverImage
+
+    const menuImages = Array.isArray(restaurant?.menuImages) ? restaurant.menuImages : []
+    const firstMenuImage = menuImages.map(normalizeImageUrl).find(Boolean)
+    if (firstMenuImage) return firstMenuImage
+
+    return (
+        normalizeImageUrl(restaurant?.profileImage) ||
+        normalizeImageUrl(restaurant?.logo) ||
+        fallback
+    )
+}
+
 
 export default function DiningList() {
     const navigate = useNavigate()
@@ -42,7 +65,7 @@ export default function DiningList() {
                         zone: restaurant.zone || "N/A",
                         status: restaurant.status === "approved" || restaurant.isActive === true,
                         rating: restaurant.rating || 0,
-                        logo: restaurant.logo || "https://via.placeholder.com/40",
+                        logo: getPrimaryRestaurantImage(restaurant, "https://via.placeholder.com/40"),
                         categories: Array.isArray(restaurant.categories) ? restaurant.categories : [],
                         categoryIds: Array.isArray(restaurant.categoryIds) ? restaurant.categoryIds : [],
                         primaryCategoryId: restaurant.primaryCategoryId || null,
@@ -188,7 +211,7 @@ export default function DiningList() {
     }
 
     return (
-        <div className="p-4 lg:p-6 bg-slate-50 min-h-screen">
+        <div className="h-full overflow-y-auto bg-slate-50 p-4 lg:p-6">
             <div className="max-w-7xl mx-auto">
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">

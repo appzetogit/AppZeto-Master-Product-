@@ -32,7 +32,7 @@ export default function AdminLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-200 flex">
+    <div className="h-screen bg-neutral-200 flex overflow-hidden">
       {/* Mobile Overlay */}
       {sidebarOpen && (
         <div
@@ -50,7 +50,7 @@ export default function AdminLayout() {
 
       {/* Main Content Area */}
       <div className={`
-        flex-1 flex flex-col transition-all duration-300 ease-in-out min-w-0
+        flex-1 flex min-h-0 flex-col transition-all duration-300 ease-in-out min-w-0
         ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-80'}
       `}>
         {/* Top Navbar */}
@@ -64,7 +64,7 @@ export default function AdminLayout() {
         )}
 
         {/* Page Content */}
-        <main className="flex-1  w-full max-w-full overflow-x-hidden bg-neutral-100">
+        <main className="flex-1 min-h-0 w-full max-w-full overflow-hidden bg-neutral-100">
           <Outlet />
         </main>
       </div>

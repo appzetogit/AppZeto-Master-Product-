@@ -59,9 +59,10 @@ export const useHomeData = (location, zoneId) => {
           const rLng = rLoc?.longitude || (rLoc?.coordinates?.[0]);
           
           let distInKm = calculateDistance(userLat, userLng, rLat, rLng);
-          const profileImgs = extractImages(r.profileImage || r.image);
           const coverImgs = extractImages(r.coverImages);
-          const allImgs = Array.from(new Set([...profileImgs, ...coverImgs]));
+          const menuImgs = extractImages(r.menuImages);
+          const profileImgs = extractImages(r.profileImage || r.image);
+          const allImgs = Array.from(new Set([...coverImgs, ...menuImgs, ...profileImgs]));
 
           return {
             ...r,

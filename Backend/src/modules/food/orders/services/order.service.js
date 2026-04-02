@@ -969,12 +969,17 @@ export async function cancelOrder(orderId, userId, reason) {
     note: reason || "",
   });
 
+  const paymentMethod = String(order.payment?.method || "cash").toLowerCase();
+  const paymentStatus = String(order.payment?.status || "cod_pending").toLowerCase();
+  const hasRefundProcessed =
+    String(order.payment?.refund?.status || "none").toLowerCase() === "processed";
+
   // ✅ NEW: Automated Razorpay Refund on User Cancel
   if (
-    order.payment.status === "paid" &&
-    order.payment.method === "razorpay" &&
-    order.payment.razorpay?.paymentId &&
-    (!order.payment.refund || order.payment.refund.status !== "processed")
+    paymentStatus === "paid" &&
+    paymentMethod === "razorpay" &&
+    order.payment?.razorpay?.paymentId &&
+    !hasRefundProcessed
   ) {
     try {
       const refundResult = await initiateRazorpayRefund(
@@ -1002,9 +1007,9 @@ export async function cancelOrder(orderId, userId, reason) {
       order.payment.refund = { status: "failed", amount: order.pricing.total };
     }
   } else if (
-    order.payment.status === "paid" &&
-    order.payment.method === "wallet" &&
-    (!order.payment.refund || order.payment.refund.status !== "processed")
+    paymentStatus === "paid" &&
+    paymentMethod === "wallet" &&
+    !hasRefundProcessed
   ) {
     try {
       await userWalletService.refundWalletBalance(userId, order.pricing.total, `Refund for cancelled order #${order.order_id || order._id}`, { orderId: order._id });
@@ -1031,7 +1036,11 @@ export async function cancelOrder(orderId, userId, reason) {
 
   // Sync transaction status
   try {
-    const isOnlinePaid = order.payment.method === "razorpay" && (order.payment.status === "paid" || order.payment.status === "refunded");
+    const finalPaymentMethod = String(order.payment?.method || paymentMethod || "cash").toLowerCase();
+    const finalPaymentStatus = String(order.payment?.status || paymentStatus || "cod_pending").toLowerCase();
+    const isOnlinePaid =
+      finalPaymentMethod === "razorpay" &&
+      (finalPaymentStatus === "paid" || finalPaymentStatus === "refunded");
     await foodTransactionService.updateTransactionStatus(order._id, 'cancelled_by_user', {
         status: isOnlinePaid ? 'refunded' : 'failed',
         note: `Order cancelled by user: ${reason || "No reason"}`,
@@ -1043,7 +1052,11 @@ export async function cancelOrder(orderId, userId, reason) {
   }
 
   // Notify User and Restaurant about the cancellation
-  const isOnlinePaid = order.payment.method === "razorpay" && (order.payment.status === "paid" || order.payment.status === "refunded");
+  const finalPaymentMethod = String(order.payment?.method || paymentMethod || "cash").toLowerCase();
+  const finalPaymentStatus = String(order.payment?.status || paymentStatus || "cod_pending").toLowerCase();
+  const isOnlinePaid =
+    finalPaymentMethod === "razorpay" &&
+    (finalPaymentStatus === "paid" || finalPaymentStatus === "refunded");
   const refundDetail = isOnlinePaid ? ` Your refund of ₹${order.pricing.total} is being processed and will be credited to your original payment method within 5-7 working days.` : "";
   
   await notifyOwnersSafely(

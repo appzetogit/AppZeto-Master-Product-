@@ -136,7 +136,13 @@ const getRestaurantDisplayName = (restaurant) => {
 
 // Restaurant Image Carousel Component
 const RestaurantImageCarousel = React.memo(
-  ({ restaurant, priority = false, backendOrigin = "" }) => {
+  ({
+    restaurant,
+    priority = false,
+    backendOrigin = "",
+    className = "h-48 sm:h-56 md:h-60 lg:h-64 xl:h-72",
+    roundedClass = "rounded-t-md",
+  }) => {
     const webviewSessionKeyRef = useRef(WEBVIEW_SESSION_CACHE_BUSTER);
     const imageElementRef = useRef(null);
 
@@ -291,9 +297,11 @@ const RestaurantImageCarousel = React.memo(
       touchEndX.current = 0;
     };
 
+    const showMultipleImages = images.length > 1;
+
     return (
       <div
-        className="relative h-48 sm:h-56 md:h-60 lg:h-64 xl:h-72 w-full overflow-hidden rounded-t-md flex-shrink-0 group"
+        className={`relative ${className} w-full overflow-hidden ${roundedClass} flex-shrink-0 group`}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}>
@@ -348,7 +356,7 @@ const RestaurantImageCarousel = React.memo(
         )}
 
         {/* Image Indicators - only show if more than 1 image */}
-        {images.length > 1 && (
+        {showMultipleImages && (
           <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex items-center z-10 -space-x-2">
             {images.map((_, index) => (
               <button
@@ -1522,15 +1530,14 @@ export default function Home() {
               ];
               const profileImageUrl = profileImageCandidates[0] || "";
 
-              // Prefer directly updated admin/profile image first, then legacy arrays.
-              // This keeps banner stable across location/offline state changes.
+              // Prefer uploaded restaurant gallery first, then fall back to older image fields.
               const allImages = Array.from(
                 new Set(
                   [
-                    ...profileImageCandidates,
                     ...coverImages,
                     ...fallbackImages,
                     ...onboardingMenuImages,
+                    ...profileImageCandidates,
                   ].filter(Boolean),
                 ),
               );
@@ -2664,11 +2671,11 @@ export default function Home() {
                         to={`/user/restaurants/${restaurantSlug}`}
                         className="block rounded-[20px] overflow-hidden border border-gray-100 dark:border-gray-800 bg-white dark:bg-[#1a1a1a] shadow-sm hover:shadow-md transition-shadow">
                         <div className="relative h-24 sm:h-28 md:h-32 bg-gray-50">
-                          <img
-                            src={restaurant.image}
-                            alt={restaurant.name}
-                            className="w-full h-full object-cover"
-                            loading="lazy"
+                          <RestaurantImageCarousel
+                            restaurant={restaurant}
+                            backendOrigin={BACKEND_ORIGIN}
+                            className="h-24 sm:h-28 md:h-32"
+                            roundedClass="rounded-t-[20px]"
                           />
                           <div className={`absolute bottom-2 left-2 px-2 py-0.5 rounded-lg ${Number(restaurant.rating) > 0 ? "bg-black/80 backdrop-blur-md text-white font-medium" : "bg-gray-200/90 text-gray-600 font-medium"} text-[10px] shadow-lg border border-white/10`}>
                             {Number(restaurant.rating) > 0 ? Number(restaurant.rating).toFixed(1) : "NEW"}

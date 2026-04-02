@@ -78,6 +78,28 @@ const formatTime12Hour = (value) => {
   return `${String(hour12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${period}`
 }
 
+const normalizeImageUrl = (image) => {
+  if (!image) return ""
+  if (typeof image === "string") return image
+  if (typeof image === "object") return image.url || image.secure_url || ""
+  return ""
+}
+
+const getPrimaryRestaurantImage = (restaurant, fallback = "") => {
+  const coverImages = Array.isArray(restaurant?.coverImages) ? restaurant.coverImages : []
+  const firstCoverImage = coverImages.map(normalizeImageUrl).find(Boolean)
+  if (firstCoverImage) return firstCoverImage
+  const menuImages = Array.isArray(restaurant?.menuImages) ? restaurant.menuImages : []
+  const firstMenuImage = menuImages.map(normalizeImageUrl).find(Boolean)
+  if (firstMenuImage) return firstMenuImage
+  return (
+    normalizeImageUrl(restaurant?.profileImage) ||
+    normalizeImageUrl(restaurant?.logo) ||
+    normalizeImageUrl(restaurant?.restaurantImage) ||
+    fallback
+  )
+}
+
 
 export default function RestaurantsList() {
   const navigate = useNavigate()
@@ -232,7 +254,7 @@ export default function RestaurantsList() {
             approvalStatus: normalizeApprovalStatus(restaurant),
             isActive: restaurant.isActive !== false,
             rating: restaurant.ratings?.average || restaurant.rating || 0,
-            logo: typeof restaurant.profileImage === "string" ? restaurant.profileImage : (restaurant.profileImage?.url || restaurant.logo || PLACEHOLDER_40),
+            logo: getPrimaryRestaurantImage(restaurant, PLACEHOLDER_40),
             originalData: restaurant,
           }))
           if (!cancelled) setRestaurants(mappedRestaurants)
@@ -749,7 +771,7 @@ export default function RestaurantsList() {
     const source = getDetailsEditSource()
     setDetailsForm(buildDetailsFormFromRestaurant(source))
     setProfileImageFile(null)
-    setProfileImagePreview(source?.profileImage?.url || source?.logo || "")
+    setProfileImagePreview(getPrimaryRestaurantImage(source))
     setIsEditingLocation(true)
     setIsEditingDetails(true)
   }
@@ -827,7 +849,7 @@ export default function RestaurantsList() {
                 zone: updatedRestaurant.location?.area || updatedRestaurant.location?.city || item.zone,
                 isActive: updatedRestaurant.isActive !== false,
                 approvalStatus: normalizeApprovalStatus(updatedRestaurant),
-                logo: updatedRestaurant.profileImage?.url || item.logo,
+                logo: getPrimaryRestaurantImage(updatedRestaurant, item.logo),
                 originalData: {
                   ...(item.originalData || {}),
                   ...updatedRestaurant,
@@ -978,7 +1000,7 @@ export default function RestaurantsList() {
   }
 
   return (
-    <div className="p-4 lg:p-6 bg-slate-50 min-h-screen">
+    <div className="h-full overflow-y-auto bg-slate-50 p-4 lg:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Page Header */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
@@ -1453,10 +1475,11 @@ export default function RestaurantsList() {
               {!loadingDetails && !isEditingDetails && (restaurantDetails || selectedRestaurant) && (() => {
                 const r = restaurantDetails || selectedRestaurant?.originalData || selectedRestaurant
                 const detailsApprovalStatus = normalizeApprovalStatus(r)
-                const profileImgUrl = typeof r?.profileImage === "string" ? r.profileImage : (r?.profileImage?.url || r?.logo || r?.restaurantImage)
+                const profileImgUrl = getPrimaryRestaurantImage(r)
+                const coverImages = Array.isArray(r?.coverImages) ? r.coverImages.map(normalizeImageUrl).filter(Boolean) : []
                 const hasFlatAddress = r?.addressLine1 || r?.area || r?.city || r?.state || r?.pincode
                 const flatAddress = [r?.addressLine1, r?.addressLine2, r?.area, r?.city, r?.state, r?.pincode, r?.landmark].filter(Boolean).join(", ")
-                const menuImages = Array.isArray(r?.menuImages) ? r.menuImages.filter(Boolean) : []
+                const menuImages = Array.isArray(r?.menuImages) ? r.menuImages.map(normalizeImageUrl).filter(Boolean) : []
                 const cuisinesList =
                   (Array.isArray(r?.cuisines) && r.cuisines.length ? r.cuisines : null) ||
                   (Array.isArray(r?.onboarding?.step2?.cuisines) && r.onboarding.step2.cuisines.length ? r.onboarding.step2.cuisines : null) ||
@@ -1689,7 +1712,7 @@ export default function RestaurantsList() {
                   </div>
 
                   {/* Media */}
-                  {(profileImgUrl || menuImages.length > 0) && (
+                  {(profileImgUrl || coverImages.length > 0 || menuImages.length > 0) && (
                     <div className="pt-6 border-t border-slate-200">
                       <h4 className="text-lg font-semibold text-slate-900 mb-4">Media</h4>
                       <div className="space-y-4">
@@ -1706,6 +1729,33 @@ export default function RestaurantsList() {
                               <span>View Profile Image</span>
                               <ExternalLink className="w-3 h-3" />
                             </a>
+                          </div>
+                        )}
+                        {coverImages.length > 0 && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-2">Restaurant Photos</p>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                              {coverImages.map((url, idx) => (
+                                <a
+                                  key={`${url}-${idx}`}
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="relative aspect-4/5 rounded-lg overflow-hidden border border-slate-200 bg-slate-50 hover:border-slate-300"
+                                  title="Open restaurant photo"
+                                >
+                                  <img
+                                    src={url}
+                                    alt={`Restaurant ${idx + 1}`}
+                                    className="w-full h-full object-cover"
+                                    loading="lazy"
+                                    onError={(e) => {
+                                      e.target.style.display = "none"
+                                    }}
+                                  />
+                                </a>
+                              ))}
+                            </div>
                           </div>
                         )}
                         {menuImages.length > 0 && (

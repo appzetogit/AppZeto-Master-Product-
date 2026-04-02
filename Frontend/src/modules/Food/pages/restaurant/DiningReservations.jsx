@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Calendar, Clock, Users, Search, MessageSquare, CheckCircle2, Clock4, UploadCloud, ImagePlus, ChevronDown, ChevronUp, Sparkles, MapPin, Phone, Info } from "lucide-react"
+import { Calendar, Clock, Users, Search, MessageSquare, CheckCircle2, Clock4, UploadCloud, ImagePlus, ChevronDown, ChevronUp, Sparkles, MapPin, Phone, Info, X } from "lucide-react"
 import { diningAPI, restaurantAPI } from "@food/api"
 import Loader from "@food/components/Loader"
 import { Badge } from "@food/components/ui/badge"
@@ -33,12 +33,15 @@ const getProfilePhotoUrl = (restaurant) => {
     return String(candidate?.url || "").trim()
 }
 
+const getCoverImages = (restaurant) => {
+    const base = Array.isArray(restaurant?.coverImages) ? restaurant.coverImages : []
+    return base
+        .map(normalizeImageEntry)
+        .filter(Boolean)
+}
+
 const getMenuImages = (restaurant) => {
-    const base = Array.isArray(restaurant?.menuImages)
-        ? restaurant.menuImages
-        : Array.isArray(restaurant?.coverImages)
-            ? restaurant.coverImages
-            : []
+    const base = Array.isArray(restaurant?.menuImages) ? restaurant.menuImages : []
 
     return base
         .map(normalizeImageEntry)
@@ -71,9 +74,12 @@ export default function DiningReservations() {
     const [restaurant, setRestaurant] = useState(null)
     const [searchTerm, setSearchTerm] = useState("")
     const [restaurantPhoto, setRestaurantPhoto] = useState("")
+    const [restaurantPhotos, setRestaurantPhotos] = useState([])
     const [menuPhotos, setMenuPhotos] = useState([])
     const [uploadingRestaurantPhoto, setUploadingRestaurantPhoto] = useState(false)
     const [uploadingMenuPhotos, setUploadingMenuPhotos] = useState(false)
+    const [removingRestaurantPhoto, setRemovingRestaurantPhoto] = useState(false)
+    const [removingMenuPhoto, setRemovingMenuPhoto] = useState(false)
     const [uploadMessage, setUploadMessage] = useState("")
     const [uploadError, setUploadError] = useState("")
     const [activeSection, setActiveSection] = useState("reservations")
@@ -82,7 +88,10 @@ export default function DiningReservations() {
 
     const syncRestaurantMediaState = (restaurantData) => {
         setRestaurant(restaurantData || null)
-        setRestaurantPhoto(getProfilePhotoUrl(restaurantData))
+        const coverImages = getCoverImages(restaurantData)
+        const profileImage = getProfilePhotoUrl(restaurantData)
+        setRestaurantPhotos(coverImages)
+        setRestaurantPhoto(coverImages[0]?.url || profileImage)
         setMenuPhotos(getMenuImages(restaurantData))
     }
 
@@ -117,22 +126,22 @@ export default function DiningReservations() {
     }, [])
 
     const handleRestaurantPhotoUpload = async (event) => {
-        const file = event.target.files?.[0]
-        if (!file) return
+        const files = Array.from(event.target.files || [])
+        if (files.length === 0) return
 
         setUploadError("")
         setUploadMessage("")
         setUploadingRestaurantPhoto(true)
 
         try {
-            await restaurantAPI.uploadProfileImage(file)
+            await restaurantAPI.uploadCoverImages(files)
             const refreshedResponse = await restaurantAPI.getCurrentRestaurant()
             const refreshedRestaurant = getRestaurantFromResponse(refreshedResponse)
             syncRestaurantMediaState(refreshedRestaurant)
-            setUploadMessage("Restaurant photo updated successfully.")
+            setUploadMessage(`Uploaded ${files.length} restaurant photo(s) successfully.`)
         } catch (error) {
             debugError("Error uploading restaurant photo:", error)
-            setUploadError(error?.response?.data?.message || "Failed to upload restaurant photo.")
+            setUploadError(error?.response?.data?.message || "Failed to upload restaurant photos.")
         } finally {
             setUploadingRestaurantPhoto(false)
             event.target.value = ""
@@ -148,49 +157,41 @@ export default function DiningReservations() {
         setUploadingMenuPhotos(true)
 
         try {
-            const uploadedImages = []
-            const failedUploads = []
+            await restaurantAPI.uploadMenuImages(files)
+            const refreshedResponse = await restaurantAPI.getCurrentRestaurant()
+            syncRestaurantMediaState(getRestaurantFromResponse(refreshedResponse))
+            setUploadMessage(`Uploaded ${files.length} menu photo(s) successfully.`)
+        } catch (error) {
+            debugError("Error saving menu photos:", error)
+            setUploadError(error?.response?.data?.message || "Failed to upload menu photos.")
+        } finally {
+            setUploadingMenuPhotos(false)
+            event.target.value = ""
+        }
+    }
 
-            for (const file of files) {
-                try {
-                    const uploadResponse = await restaurantAPI.uploadMenuImage(file)
-                    const imageCandidate =
-                        normalizeImageEntry(uploadResponse?.data?.data?.menuImage) ||
-                        normalizeImageEntry(uploadResponse?.data?.data?.menuImages?.[0])
+    const handleRemoveRestaurantPhoto = async (photoUrl) => {
+        if (!photoUrl || removingRestaurantPhoto) return
 
-                    if (imageCandidate) {
-                        uploadedImages.push(imageCandidate)
-                    } else {
-                        failedUploads.push(file.name)
-                    }
-                } catch (uploadError) {
-                    debugError("Menu image upload failed:", uploadError)
-                    failedUploads.push(file.name)
-                }
-            }
+        setUploadError("")
+        setUploadMessage("")
+        setRemovingRestaurantPhoto(true)
 
-            if (uploadedImages.length === 0) {
-                setUploadError("No menu photos were uploaded. Please try again.")
-                return
-            }
+        try {
+            const nextCoverImages = restaurantPhotos.filter((photo) => photo.url !== photoUrl)
+            const currentProfileImage = getProfilePhotoUrl(restaurant)
+            const nextPrimaryPhoto = nextCoverImages[0]?.url || ""
+            const shouldClearProfileImage = !nextPrimaryPhoto && currentProfileImage === photoUrl
 
-            const existingImages = getMenuImages(restaurant)
-            const mergedImages = [...existingImages]
-
-            uploadedImages.forEach((img) => {
-                if (!mergedImages.find((existing) => existing.url === img.url)) {
-                    mergedImages.push(img)
-                }
-            })
-
-            const profileResponse = await restaurantAPI.updateProfile({
-                menuImages: mergedImages.map((img) => ({
-                    url: img.url,
-                    ...(img.publicId ? { publicId: img.publicId } : {}),
+            const response = await restaurantAPI.updateProfile({
+                coverImages: nextCoverImages.map((photo) => ({
+                    url: photo.url,
+                    ...(photo.publicId ? { publicId: photo.publicId } : {}),
                 })),
+                ...(shouldClearProfileImage ? { profileImage: "" } : {}),
             })
 
-            const updatedRestaurant = getRestaurantFromResponse(profileResponse)
+            const updatedRestaurant = getRestaurantFromResponse(response)
             if (updatedRestaurant) {
                 syncRestaurantMediaState(updatedRestaurant)
             } else {
@@ -198,17 +199,45 @@ export default function DiningReservations() {
                 syncRestaurantMediaState(getRestaurantFromResponse(refreshedResponse))
             }
 
-            if (failedUploads.length > 0) {
-                setUploadMessage(`Uploaded ${uploadedImages.length} photo(s), but ${failedUploads.length} failed.`)
-            } else {
-                setUploadMessage(`Uploaded ${uploadedImages.length} menu photo(s) successfully.`)
-            }
+            setUploadMessage("Restaurant photo removed successfully.")
         } catch (error) {
-            debugError("Error saving menu photos:", error)
-            setUploadError(error?.response?.data?.message || "Failed to upload menu photos.")
+            debugError("Error removing restaurant photo:", error)
+            setUploadError(error?.response?.data?.message || "Failed to remove restaurant photo.")
         } finally {
-            setUploadingMenuPhotos(false)
-            event.target.value = ""
+            setRemovingRestaurantPhoto(false)
+        }
+    }
+
+    const handleRemoveMenuPhoto = async (photoUrl) => {
+        if (!photoUrl || removingMenuPhoto) return
+
+        setUploadError("")
+        setUploadMessage("")
+        setRemovingMenuPhoto(true)
+
+        try {
+            const nextMenuPhotos = menuPhotos.filter((photo) => photo.url !== photoUrl)
+            const response = await restaurantAPI.updateProfile({
+                menuImages: nextMenuPhotos.map((photo) => ({
+                    url: photo.url,
+                    ...(photo.publicId ? { publicId: photo.publicId } : {}),
+                })),
+            })
+
+            const updatedRestaurant = getRestaurantFromResponse(response)
+            if (updatedRestaurant) {
+                syncRestaurantMediaState(updatedRestaurant)
+            } else {
+                const refreshedResponse = await restaurantAPI.getCurrentRestaurant()
+                syncRestaurantMediaState(getRestaurantFromResponse(refreshedResponse))
+            }
+
+            setUploadMessage("Menu photo removed successfully.")
+        } catch (error) {
+            debugError("Error removing menu photo:", error)
+            setUploadError(error?.response?.data?.message || "Failed to remove menu photo.")
+        } finally {
+            setRemovingMenuPhoto(false)
         }
     }
 
@@ -436,18 +465,19 @@ export default function DiningReservations() {
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
                         <div className="flex items-start justify-between gap-4">
                             <div>
-                                <h2 className="text-lg font-bold text-slate-900">Restaurant Photo</h2>
-                                <p className="text-sm text-slate-500 mt-1">Upload and replace your main restaurant photo.</p>
+                                <h2 className="text-lg font-bold text-slate-900">Restaurant Photos</h2>
+                                <p className="text-sm text-slate-500 mt-1">Add multiple restaurant photos. The first one will be used as the main preview.</p>
                             </div>
                             <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold cursor-pointer hover:bg-slate-800 transition-colors">
                                 <UploadCloud className="w-4 h-4" />
-                                {uploadingRestaurantPhoto ? "Uploading..." : "Upload"}
+                                {uploadingRestaurantPhoto ? "Uploading..." : "Add Photos"}
                                 <input
                                     type="file"
                                     className="hidden"
                                     accept="image/*"
+                                    multiple
                                     onChange={handleRestaurantPhotoUpload}
-                                    disabled={uploadingRestaurantPhoto}
+                                    disabled={uploadingRestaurantPhoto || removingRestaurantPhoto}
                                 />
                             </label>
                         </div>
@@ -466,6 +496,46 @@ export default function DiningReservations() {
                                 </div>
                             )}
                         </div>
+
+                        {restaurantPhotos.length > 0 && (
+                            <div className="mt-4 grid grid-cols-3 sm:grid-cols-4 gap-3">
+                                {restaurantPhotos.map((photo, index) => (
+                                    <button
+                                        key={`${photo.url}-${index}`}
+                                        type="button"
+                                        onClick={() => setRestaurantPhoto(photo.url)}
+                                        className={`relative h-20 rounded-lg overflow-hidden border bg-slate-50 transition-all ${restaurantPhoto === photo.url ? "border-slate-900 ring-2 ring-slate-200" : "border-slate-200"}`}
+                                    >
+                                        <img
+                                            src={photo.url}
+                                            alt={`Restaurant photo ${index + 1}`}
+                                            className="w-full h-full object-cover"
+                                        />
+                                        <span className="absolute inset-x-0 bottom-0 bg-black/45 px-1 py-0.5 text-[10px] font-semibold text-white">
+                                            {restaurantPhoto === photo.url ? "Main" : `Photo ${index + 1}`}
+                                        </span>
+                                        <span
+                                            role="button"
+                                            tabIndex={0}
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                handleRemoveRestaurantPhoto(photo.url)
+                                            }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === "Enter" || e.key === " ") {
+                                                    e.preventDefault()
+                                                    e.stopPropagation()
+                                                    handleRemoveRestaurantPhoto(photo.url)
+                                                }
+                                            }}
+                                            className="absolute right-1 top-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/95 text-rose-600 shadow-sm"
+                                        >
+                                            <X className="h-3.5 w-3.5" />
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
@@ -483,7 +553,7 @@ export default function DiningReservations() {
                                     accept="image/*"
                                     multiple
                                     onChange={handleMenuPhotosUpload}
-                                    disabled={uploadingMenuPhotos}
+                                    disabled={uploadingMenuPhotos || removingMenuPhoto}
                                 />
                             </label>
                         </div>
@@ -491,8 +561,16 @@ export default function DiningReservations() {
                         {menuPhotos.length > 0 ? (
                             <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
                                 {menuPhotos.map((photo, index) => (
-                                    <div key={`${photo.url}-${index}`} className="h-24 rounded-lg overflow-hidden border border-slate-200 bg-slate-50">
+                                    <div key={`${photo.url}-${index}`} className="relative h-24 rounded-lg overflow-hidden border border-slate-200 bg-slate-50">
                                         <img src={photo.url} alt={`Menu photo ${index + 1}`} className="w-full h-full object-cover" />
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRemoveMenuPhoto(photo.url)}
+                                            className="absolute right-1 top-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/95 text-rose-600 shadow-sm"
+                                            disabled={removingMenuPhoto}
+                                        >
+                                            <X className="h-3.5 w-3.5" />
+                                        </button>
                                     </div>
                                 ))}
                             </div>

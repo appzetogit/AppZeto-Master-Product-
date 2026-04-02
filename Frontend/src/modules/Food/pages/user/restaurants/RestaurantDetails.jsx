@@ -96,7 +96,6 @@ function RestaurantDetailsContent() {
   const [selectedTimeSlot, setSelectedTimeSlot] = useState(null)
   const [expandedCoupons, setExpandedCoupons] = useState(new Set())
   const [showMenuSheet, setShowMenuSheet] = useState(false)
-  const [showLargeOrderMenu, setShowLargeOrderMenu] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [availabilityTick, setAvailabilityTick] = useState(Date.now())
@@ -466,6 +465,12 @@ function RestaurantDetailsContent() {
           const onboardingStep2 = actualRestaurant?.onboarding?.step2 || apiRestaurant?.onboarding?.step2 || {}
           const onboardingStep4 = actualRestaurant?.onboarding?.step4 || apiRestaurant?.onboarding?.step4 || {}
           const normalizedProfileImage = actualRestaurant?.profileImage || apiRestaurant?.profileImage || onboardingStep2?.profileImageUrl || null
+          const normalizedCoverImages =
+            Array.isArray(actualRestaurant?.coverImages) && actualRestaurant.coverImages.length > 0
+              ? actualRestaurant.coverImages
+              : Array.isArray(apiRestaurant?.coverImages) && apiRestaurant.coverImages.length > 0
+                ? apiRestaurant.coverImages
+                : []
           const normalizedMenuImages =
             Array.isArray(actualRestaurant?.menuImages) && actualRestaurant.menuImages.length > 0
               ? actualRestaurant.menuImages
@@ -495,7 +500,9 @@ function RestaurantDetailsContent() {
             distance: calculatedDistance || actualRestaurant?.distance || apiRestaurant?.distance || actualRestaurant?.distanceFromUser || apiRestaurant?.distanceFromUser || "1.2 km",
             location: formattedAddress,
             locationObject: locationObj, // Store full location object for reference
-            image: normalizedProfileImage?.url
+            image: normalizedCoverImages?.[0]?.url
+              || normalizedCoverImages?.[0]
+              || normalizedProfileImage?.url
               || normalizedProfileImage
               || (normalizedMenuImages.length > 0
                 ? (normalizedMenuImages[0]?.url || normalizedMenuImages[0])
@@ -537,6 +544,7 @@ function RestaurantDetailsContent() {
             outletTimings: actualRestaurant?.outletTimings || apiRestaurant?.outletTimings || null,
             cuisines: Array.isArray(actualRestaurant?.cuisines) ? actualRestaurant.cuisines : (Array.isArray(apiRestaurant?.cuisines) ? apiRestaurant.cuisines : (Array.isArray(onboardingStep2?.cuisines) ? onboardingStep2.cuisines : [])),
             profileImage: normalizedProfileImage,
+            coverImages: normalizedCoverImages,
             menuImages: normalizedMenuImages,
             // Menu sections for display (will be populated from menu API)
             menuSections: [],
@@ -2865,30 +2873,6 @@ function RestaurantDetailsContent() {
                           </div>
                         </button>
                       ))}
-                    </div>
-
-                    {/* Large Order Menu Section */}
-                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800">
-                      <button
-                        className="w-full flex items-center justify-between py-3 px-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                        onClick={() => setShowLargeOrderMenu(!showLargeOrderMenu)}
-                      >
-                        <span className="text-base font-semibold text-gray-900 dark:text-white">
-                          LARGE ORDER MENU
-                        </span>
-                        <ChevronDown
-                          className={`h-4 w-4 text-gray-500 dark:text-gray-400 transition-transform ${showLargeOrderMenu ? "rotate-180" : ""
-                            }`}
-                        />
-                      </button>
-                      {showLargeOrderMenu && (
-                        <div className="mt-2 space-y-1 pl-4">
-                          {/* Add large order menu items here if needed */}
-                          <p className="text-sm text-gray-500 dark:text-gray-400 py-2">
-                            Large order options coming soon
-                          </p>
-                        </div>
-                      )}
                     </div>
                   </div>
 

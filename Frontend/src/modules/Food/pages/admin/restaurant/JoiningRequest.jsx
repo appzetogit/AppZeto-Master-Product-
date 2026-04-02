@@ -264,6 +264,12 @@ export default function JoiningRequest() {
     setRestaurantDetails(null)
   }
 
+  const getNormalizedImageUrl = (image) => {
+    if (!image) return ""
+    if (typeof image === "string") return image
+    return image?.url || ""
+  }
+
   return (
     <div className="p-4 lg:p-6 bg-slate-50 min-h-screen">
       <div className="max-w-7xl mx-auto">
@@ -409,9 +415,11 @@ export default function JoiningRequest() {
                           >
                             <img
                               src={
-                                typeof request.profileImage === "string"
+                                getNormalizedImageUrl(request?.coverImages?.[0]) ||
+                                (typeof request.profileImage === "string"
                                   ? request.profileImage
-                                  : (request.profileImage?.url || request.profileImageUrl?.url || request.restaurantImage) || "https://via.placeholder.com/40?text=" + (request.restaurantName?.slice(0, 2) || "R").toUpperCase()
+                                  : (request.profileImage?.url || request.profileImageUrl?.url || request.restaurantImage)) ||
+                                "https://via.placeholder.com/40?text=" + (request.restaurantName?.slice(0, 2) || "R").toUpperCase()
                               }
                               alt={request.restaurantName || "Restaurant"}
                               className="w-full h-full object-cover"
@@ -676,7 +684,10 @@ export default function JoiningRequest() {
               )}
               {!loadingDetails && (restaurantDetails || selectedRequest) && (() => {
                 const r = restaurantDetails || selectedRequest
-                const profileImgUrl = typeof r?.profileImage === "string" ? r.profileImage : (r?.profileImage?.url || r?.profileImageUrl?.url || r?.restaurantImage)
+                const restaurantPhotoList = Array.isArray(r?.coverImages) ? r.coverImages.filter(Boolean) : []
+                const profileImgUrl =
+                  getNormalizedImageUrl(restaurantPhotoList[0]) ||
+                  (typeof r?.profileImage === "string" ? r.profileImage : (r?.profileImage?.url || r?.profileImageUrl?.url || r?.restaurantImage))
                 const addressParts = [
                   r?.addressLine1,
                   r?.addressLine2,
@@ -858,6 +869,35 @@ export default function JoiningRequest() {
                     </div>
 
                   {/* Registration Documents – flat schema (PAN, GST, FSSAI, Bank) */}
+                  {restaurantPhotoList.length > 0 && (
+                    <div className="pt-6 border-t border-slate-200">
+                      <h4 className="text-lg font-semibold text-slate-900 mb-4">Restaurant Photos</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        {restaurantPhotoList.map((restaurantImg, idx) => {
+                          const imgUrl = getNormalizedImageUrl(restaurantImg)
+                          return imgUrl ? (
+                            <a
+                              key={idx}
+                              href={imgUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="rounded-lg overflow-hidden border border-slate-200 hover:border-blue-500 transition-colors"
+                            >
+                              <img
+                                src={imgUrl}
+                                alt={`Restaurant ${idx + 1}`}
+                                className="w-full h-32 object-cover"
+                                onError={(e) => {
+                                  e.target.src = "https://via.placeholder.com/200"
+                                }}
+                              />
+                            </a>
+                          ) : null
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {(hasFlatDocs || r?.onboarding?.step3) && (
                     <div className="pt-6 border-t border-slate-200">
                       <h4 className="text-lg font-semibold text-slate-900 mb-4">Registration Documents</h4>

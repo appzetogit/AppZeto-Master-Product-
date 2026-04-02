@@ -10,6 +10,8 @@ import {
     updateRestaurantAcceptingOrdersController,
     uploadRestaurantProfileImageController,
     uploadRestaurantMenuImageController,
+    uploadRestaurantCoverImagesController,
+    uploadRestaurantMenuImagesController,
     getRestaurantComplaintsController
 } from '../controllers/restaurant.controller.js';
 import {
@@ -99,6 +101,20 @@ router.post(
     requireRestaurant,
     upload.single('file'),
     uploadRestaurantMenuImageController
+);
+router.post(
+    '/profile/cover-images',
+    authMiddleware,
+    requireRestaurant,
+    upload.array('files', 20),
+    uploadRestaurantCoverImagesController
+);
+router.post(
+    '/profile/menu-images',
+    authMiddleware,
+    requireRestaurant,
+    upload.array('files', 20),
+    uploadRestaurantMenuImagesController
 );
 
 // Categories (restaurant dashboard). Read-only for item creation, CRUD for Menu Categories page.

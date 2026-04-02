@@ -79,6 +79,20 @@ function getRestaurantZone(restaurant) {
 }
 
 function getRestaurantImage(restaurant) {
+    const coverImage = Array.isArray(restaurant?.coverImages)
+        ? restaurant.coverImages
+            .map((image) => (typeof image === 'string' ? image : image?.url || ''))
+            .find(Boolean)
+        : '';
+    if (coverImage) return coverImage;
+
+    const menuImage = Array.isArray(restaurant?.menuImages)
+        ? restaurant.menuImages
+            .map((image) => (typeof image === 'string' ? image : image?.url || ''))
+            .find(Boolean)
+        : '';
+    if (menuImage) return menuImage;
+
     const value = restaurant?.profileImage;
     if (!value) return '';
     if (typeof value === 'string') return value;
@@ -226,7 +240,7 @@ export async function listDiningRestaurantsAdmin() {
     const [restaurants, diningDocs, categories] = await Promise.all([
         FoodRestaurant.find({})
             .sort({ createdAt: -1 })
-            .select('restaurantName ownerName ownerPhone profileImage location area city status rating pureVegRestaurant diningSettings')
+            .select('restaurantName ownerName ownerPhone profileImage coverImages menuImages location area city status rating pureVegRestaurant diningSettings')
             .lean(),
         FoodDiningRestaurant.find({})
             .select('restaurantId categoryIds primaryCategoryId isEnabled maxGuests pureVegRestaurant')
@@ -343,7 +357,7 @@ export async function listDiningRestaurantsPublic(query = {}) {
     const diningDocs = await FoodDiningRestaurant.find(filter)
         .populate({
             path: 'restaurantId',
-            select: 'restaurantName restaurantNameNormalized ownerName ownerPhone profileImage menuImages cuisines location area city status rating diningSettings estimatedDeliveryTime estimatedDeliveryTimeMinutes featuredDish featuredPrice offer openingTime closingTime openDays isAcceptingOrders costForTwo',
+            select: 'restaurantName restaurantNameNormalized ownerName ownerPhone profileImage coverImages menuImages cuisines location area city status rating diningSettings estimatedDeliveryTime estimatedDeliveryTimeMinutes featuredDish featuredPrice offer openingTime closingTime openDays isAcceptingOrders costForTwo',
             match: cityValue
                 ? {
                     $or: [

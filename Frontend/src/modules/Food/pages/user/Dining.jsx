@@ -207,7 +207,11 @@ export default function Dining() {
             ? restaurant.cuisines.join(", ")
             : "Multi-cuisine",
           image: String(
+            restaurant?.coverImages?.[0]?.url ||
+            restaurant?.coverImages?.[0] ||
             restaurant?.coverImage ||
+            restaurant?.menuImages?.[0]?.url ||
+            restaurant?.menuImages?.[0] ||
             restaurant?.profileImage?.url ||
             restaurant?.profileImage ||
             ""

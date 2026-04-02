@@ -942,6 +942,28 @@ export const restaurantAPI = {
       contextModule: "restaurant",
     });
   },
+  uploadCoverImages: (files = []) => {
+    const normalizedFiles = Array.from(files || []).filter(Boolean);
+    if (normalizedFiles.length === 0) {
+      return Promise.reject(new Error("At least one file is required"));
+    }
+    const formData = new FormData();
+    normalizedFiles.forEach((file) => formData.append("files", file));
+    return apiClient.post("/food/restaurant/profile/cover-images", formData, {
+      contextModule: "restaurant",
+    });
+  },
+  uploadMenuImages: (files = []) => {
+    const normalizedFiles = Array.from(files || []).filter(Boolean);
+    if (normalizedFiles.length === 0) {
+      return Promise.reject(new Error("At least one file is required"));
+    }
+    const formData = new FormData();
+    normalizedFiles.forEach((file) => formData.append("files", file));
+    return apiClient.post("/food/restaurant/profile/menu-images", formData, {
+      contextModule: "restaurant",
+    });
+  },
   /** Public Offers for users (global/selected restaurant) */
   getPublicOffers: () => apiClient.get("/food/restaurant/offers"),
   /** Backward-compat helper used by Cart: returns coupons array for an item by adapting public offers */

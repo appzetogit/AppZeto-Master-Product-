@@ -279,7 +279,7 @@ const RestaurantImageCarousel = React.memo(
 
       touchEndX.current = e.changedTouches[0].clientX;
       const diff = touchStartX.current - touchEndX.current;
-      const minSwipeDistance = 50; // Minimum distance for swipe
+      const minSwipeDistance = 85; // Keep card swipe less sensitive on mobile
 
       if (Math.abs(diff) > minSwipeDistance) {
         if (diff > 0) {
@@ -311,7 +311,7 @@ const RestaurantImageCarousel = React.memo(
           </div>
         )}
 
-        <div className="absolute inset-0 transition-transform duration-500 ease-out group-hover:scale-110">
+        <div className="absolute inset-0 transition-transform duration-700 ease-out group-hover:scale-110">
           {renderSrc && (
             <img
               ref={imageElementRef}
@@ -616,13 +616,19 @@ export default function Home() {
     (source) => {
       if (!source) return [];
 
-      if (Array.isArray(source)) {
-        return source
-          .flatMap((entry) => buildRestaurantImageCandidates(entry))
-          .filter(Boolean);
-      }
+      const normalizedImages = (Array.isArray(source)
+        ? source.flatMap((entry) => buildRestaurantImageCandidates(entry))
+        : buildRestaurantImageCandidates(source)
+      )
+        .filter(Boolean)
+        .map((value) => String(value).trim())
+        .filter(Boolean);
 
-      return buildRestaurantImageCandidates(source);
+      // De-duplicate image urls while preserving order.
+      return normalizedImages.filter(
+        (value, index) => normalizedImages.indexOf(value) === index,
+      );
+
     },
     [buildRestaurantImageCandidates],
   );
@@ -1507,35 +1513,26 @@ export default function Home() {
                   : "Multi-cuisine";
 
               // Legacy-safe image extraction (supports old schema variants).
-              const coverImages = [
-                ...extractImages(restaurant.coverImages),
-                ...extractImages(restaurant.coverImage),
-              ];
+              const coverImages = extractImages([
+                ...(Array.isArray(restaurant.coverImages) ? restaurant.coverImages : [restaurant.coverImages]).filter(Boolean),
+                restaurant.coverImage,
+              ]);
 
-              const profileImageCandidates = [
+              const profileImageCandidates = extractImages([
                 ...buildRestaurantImageCandidates(restaurant.profileImage),
                 ...buildRestaurantImageCandidates(
                   restaurant.onboarding?.step2?.profileImageUrl,
                 ),
                 ...buildRestaurantImageCandidates(restaurant.image),
                 ...buildRestaurantImageCandidates(restaurant.imageUrl),
-              ];
+              ]);
               const profileImageUrl = profileImageCandidates[0] || "";
-
-              const menuFallbackImages =
-                coverImages.length === 0 && profileImageCandidates.length === 0
-                  ? [
-                      ...extractImages(restaurant.menuImages),
-                      ...extractImages(restaurant.onboarding?.step2?.menuImageUrls),
-                    ]
-                  : [];
 
               const allImages = Array.from(
                 new Set(
                   [
                     ...coverImages,
                     ...profileImageCandidates,
-                    ...menuFallbackImages,
                   ].filter(Boolean),
                 ),
               );
@@ -2090,11 +2087,13 @@ export default function Home() {
         Array.isArray(restaurant?.cuisines) && restaurant.cuisines.length > 0
           ? restaurant.cuisines[0]
           : "Multi-cuisine";
-      const imageCandidates = [
-        ...extractImages(restaurant?.coverImages),
-        ...extractImages(restaurant?.profileImage),
-        ...extractImages(restaurant?.menuImages),
-      ];
+      const imageCandidates = extractImages([
+        ...(Array.isArray(restaurant?.coverImages)
+          ? restaurant.coverImages
+          : [restaurant?.coverImages]
+        ).filter(Boolean),
+        restaurant?.profileImage,
+      ]);
       const image = imageCandidates[0] || foodImages[0];
 
       return {

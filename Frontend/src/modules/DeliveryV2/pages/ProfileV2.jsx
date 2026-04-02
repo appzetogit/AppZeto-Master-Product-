@@ -5,7 +5,6 @@ import {
   ArrowRight,
   Bike,
   Ticket,
-  Bell,
   ChevronRight,
   Share2,
   LogOut,
@@ -27,12 +26,8 @@ export const ProfileV2 = () => {
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [referralReward, setReferralReward] = useState(0)
-  const [showAlertSoundPopup, setShowAlertSoundPopup] = useState(false)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [logoutSubmitting, setLogoutSubmitting] = useState(false)
-  const [selectedAlertSound, setSelectedAlertSound] = useState(() => {
-    return localStorage.getItem('delivery_alert_sound') || 'zomato_tone'
-  })
 
   // Fetch profile data
   useEffect(() => {
@@ -179,20 +174,6 @@ export const ProfileV2 = () => {
           </div>
 
           {/* Partner options Section */}
-          <div>
-            <h3 className="text-gray-400 text-[10px] font-black uppercase tracking-[0.2em] mb-3 px-1">Partner options</h3>
-            <div 
-              onClick={() => setShowAlertSoundPopup(true)}
-              className="bg-white rounded-xl p-4 flex items-center justify-between cursor-pointer active:bg-gray-50 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <Bell className="w-5 h-5 text-gray-700" />
-                <span className="text-sm font-bold text-gray-900">Order alert sound</span>
-              </div>
-              <ArrowRight className="w-5 h-5 text-gray-300" />
-            </div>
-          </div>
-
           {/* Logout Section */}
           <div className="pt-4">
             <div 
@@ -235,46 +216,6 @@ export const ProfileV2 = () => {
               >
                 {logoutSubmitting ? "Logging out..." : "Yes"}
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Order Alert Sound Popup */}
-      {showAlertSoundPopup && (
-        <div 
-          className="fixed inset-0 bg-black/60 z-[1000] flex items-end justify-center"
-          onClick={() => setShowAlertSoundPopup(false)}
-        >
-          <div 
-            className="bg-white w-full max-w-md rounded-t-[2rem] shadow-2xl animate-in slide-in-from-bottom duration-300 pb-8"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between p-6 border-b border-gray-50">
-              <h3 className="text-lg font-black text-gray-900 uppercase tracking-tight">Order alert sound</h3>
-              <button onClick={() => setShowAlertSoundPopup(false)} className="p-2 bg-gray-50 rounded-full text-gray-400"><X className="w-6 h-6" /></button>
-            </div>
-            <div className="p-6 space-y-4">
-              {['original', 'zomato_tone'].map((sound) => (
-                <label key={sound} className="flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-2xl cursor-pointer transition-colors group">
-                  <span className="text-sm font-bold text-gray-900 capitalize">{sound.replace('_', ' ')}</span>
-                  <input
-                    type="radio"
-                    name="alertSound"
-                    value={sound}
-                    checked={selectedAlertSound === sound}
-                    onChange={(e) => {
-                      setSelectedAlertSound(e.target.value)
-                      localStorage.setItem('delivery_alert_sound', e.target.value)
-                    }}
-                    className="w-5 h-5 accent-black"
-                  />
-                </label>
-              ))}
-              <button 
-                onClick={() => setShowAlertSoundPopup(false)}
-                className="w-full h-14 bg-black text-white rounded-xl font-bold uppercase tracking-widest shadow-xl mt-4"
-              >Ok</button>
             </div>
           </div>
         </div>

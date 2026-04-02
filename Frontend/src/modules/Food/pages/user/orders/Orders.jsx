@@ -775,7 +775,7 @@ Order again from this restaurant in the ${companyName} app.`
                       {order.restaurantId && (
                         <Link to={`/user/restaurants/${order.restaurantId}`}>
                           <button className="text-xs text-[#EB590E] font-medium flex items-center mt-1 hover:text-[#D94F0C]">
-                            View menu <span className="ml-0.5">?</span>
+                            View menu <span className="ml-0.5">&gt;</span>
                           </button>
                         </Link>
                       )}
@@ -943,16 +943,16 @@ Order again from this restaurant in the ${companyName} app.`
                       </p>
                     )}
                     {isDelivered && !paymentFailed && (
-                      <p className="text-xs font-medium text-green-600 mt-1">? Delivered</p>
+                      <p className="text-xs font-medium text-green-600 mt-1">Delivered</p>
                     )}
                     {isRestaurantCancelled && (
-                      <p className="text-xs font-medium text-red-500 mt-1">? Restaurant Cancelled</p>
+                      <p className="text-xs font-medium text-red-500 mt-1">Restaurant Cancelled</p>
                     )}
                     {isUserCancelled && (
-                      <p className="text-xs font-medium text-gray-500 mt-1">? Cancelled by you</p>
+                      <p className="text-xs font-medium text-gray-500 mt-1">Cancelled by you</p>
                     )}
                     {isCancelled && !isRestaurantCancelled && !isUserCancelled && (
-                      <p className="text-xs font-medium text-gray-500 mt-1">? Cancelled</p>
+                      <p className="text-xs font-medium text-gray-500 mt-1">Cancelled</p>
                     )}
                   </div>
                   <div className="flex items-center ml-4">
@@ -1010,7 +1010,7 @@ Order again from this restaurant in the ${companyName} app.`
                         onClick={() => handleOpenRating(order)}
                         className="text-xs text-[#EB590E] font-medium mt-0.5 flex items-center"
                       >
-                        Rate restaurant & delivery <span className="ml-0.5">?</span>
+                        Rate restaurant & delivery <span className="ml-0.5">&gt;</span>
                       </button>
                     </div>
                   ) : (

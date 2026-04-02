@@ -61,12 +61,12 @@ export const ActionSlider = ({
     <div 
       ref={containerRef}
       className={`relative w-full h-[68px] rounded-full p-1.5 overflow-hidden transition-all duration-300 ${
-        disabled ? 'bg-gray-100' : 'bg-gray-950 shadow-lg shadow-black/10'
+        'bg-gray-950 shadow-lg shadow-black/10'
       }`}
     >
       {/* Background Track */}
-      <div className={`absolute inset-0 flex items-center justify-center font-bold text-xs uppercase tracking-[0.2em] transition-opacity duration-300 ${
-        isSuccess ? 'opacity-0' : 'opacity-40 text-white'
+      <div className={`absolute inset-y-0 left-[76px] right-5 flex items-center justify-center text-center font-bold text-[11px] uppercase tracking-[0.14em] leading-none whitespace-nowrap transition-opacity duration-300 ${
+        isSuccess ? 'opacity-0' : disabled ? 'text-white/70' : 'text-white/88'
       }`}>
         {disabled ? 'Action Locked' : label}
       </div>
@@ -89,7 +89,7 @@ export const ActionSlider = ({
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-x-0 inset-y-0 flex items-center justify-center text-white font-bold text-sm uppercase tracking-widest z-30"
+            className="absolute inset-y-0 left-[76px] right-5 flex items-center justify-center text-center text-white font-bold text-sm uppercase tracking-[0.14em] leading-none z-30"
           >
             {successLabel}
           </motion.div>

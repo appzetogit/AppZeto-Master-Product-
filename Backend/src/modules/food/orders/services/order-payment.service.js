@@ -19,11 +19,14 @@ import {
 } from './order.helpers.js';
 
 async function syncRazorpayQrPayment(orderDoc) {
-  if (!orderDoc?.payment) return orderDoc?.payment;
-  if (orderDoc.payment.method !== 'razorpay_qr') return orderDoc.payment;
-  if (orderDoc.payment.status === 'paid') return orderDoc.payment;
+  // Phase 2: avoid relying on FoodOrder.payment as the source of truth.
+  const tx = await FoodTransaction.findOne({ orderId: orderDoc?._id }).lean();
+  const payment = tx?.payment || orderDoc?.payment || null;
+  if (!payment) return null;
+  if (payment.method !== 'razorpay_qr') return payment;
+  if (payment.status === 'paid') return payment;
 
-  const paymentLinkId = orderDoc.payment?.qr?.paymentLinkId;
+  const paymentLinkId = payment?.qr?.paymentLinkId;
   if (!paymentLinkId || !isRazorpayConfigured()) return orderDoc.payment;
 
   let link;
@@ -41,20 +44,23 @@ async function syncRazorpayQrPayment(orderDoc) {
   const linkStatus = String(link?.status || '').toLowerCase();
   if (!linkStatus) return orderDoc.payment;
 
-  orderDoc.payment.qr = {
-    ...(orderDoc.payment.qr?.toObject?.() || orderDoc.payment.qr || {}),
-    status: linkStatus,
-  };
+  // Write back to FoodTransaction (ledger) only.
+  await FoodTransaction.updateOne(
+    { orderId: orderDoc?._id },
+    {
+      $set: {
+        'payment.qr.status': linkStatus,
+        'payment.status': ['paid', 'captured', 'authorized'].includes(linkStatus)
+          ? 'paid'
+          : ['expired', 'cancelled', 'canceled', 'failed'].includes(linkStatus)
+            ? 'failed'
+            : (payment.status || 'pending_qr'),
+      },
+    },
+  );
 
-  if (['paid', 'captured', 'authorized'].includes(linkStatus)) {
-    orderDoc.payment.status = 'paid';
-    await orderDoc.save();
-  } else if (['expired', 'cancelled', 'canceled', 'failed'].includes(linkStatus)) {
-    orderDoc.payment.status = 'failed';
-    await orderDoc.save();
-  }
-
-  return orderDoc.payment;
+  const updatedTx = await FoodTransaction.findOne({ orderId: orderDoc?._id }).lean();
+  return updatedTx?.payment || payment;
 }
 
 export async function createCollectQr(
@@ -76,11 +82,13 @@ export async function createCollectQr(
   ) {
     throw new ForbiddenError('Not your order');
   }
-  if (order.payment.method !== 'cash' && order.payment.status === 'paid') {
+  const tx = await FoodTransaction.findOne({ orderId: order._id }).lean();
+  const payment = tx?.payment || order.payment || {};
+  if (payment.method !== 'cash' && payment.status === 'paid') {
     throw new ValidationError('Order already paid');
   }
 
-  const amountDue = order.payment.amountDue ?? order.pricing?.total ?? 0;
+  const amountDue = payment.amountDue ?? tx?.pricing?.total ?? order.pricing?.total ?? 0;
   if (amountDue < 1) throw new ValidationError('No amount due');
   if (!isRazorpayConfigured()) {
     throw new ValidationError('QR payment not configured');
@@ -97,25 +105,28 @@ export async function createCollectQr(
     customerPhone: customerInfo.phone || user.phone,
   });
 
-  await FoodOrder.findByIdAndUpdate(order._id, {
-    $set: {
-      'payment.method': 'razorpay_qr',
-      'payment.status': 'pending_qr',
-      'payment.qr': {
-        paymentLinkId: link.id,
-        shortUrl: link.short_url,
-        imageUrl: link.short_url,
-        status: link.status || 'created',
-        expiresAt: link.expire_by ? new Date(link.expire_by * 1000) : null,
+  // Phase 2: write QR collection state into FoodTransaction only.
+  await FoodTransaction.updateOne(
+    { orderId: order._id },
+    {
+      $set: {
+        paymentMethod: 'razorpay_qr',
+        'payment.method': 'razorpay_qr',
+        'payment.status': 'pending_qr',
+        'payment.qr': {
+          paymentLinkId: link.id,
+          shortUrl: link.short_url,
+          imageUrl: link.short_url,
+          status: link.status || 'created',
+          expiresAt: link.expire_by ? new Date(link.expire_by * 1000) : null,
+        },
       },
     },
-  });
+  );
 
-  const updated = await FoodOrder.findById(order._id)
-    .select('orderId restaurantId userId riderEarning payment pricing')
-    .lean();
+  const updatedTx = await FoodTransaction.findOne({ orderId: order._id }).lean();
 
-  if (updated) {
+  if (updatedTx) {
     await foodTransactionService.updateTransactionStatus(
       order._id,
       'cod_collect_qr_created',
@@ -129,7 +140,7 @@ export async function createCollectQr(
 
   enqueueOrderEvent('collect_qr_created', {
     orderMongoId: String(orderId),
-    orderId: updated?.orderId || null,
+    orderId: order?.orderId || null,
     deliveryPartnerId,
     paymentLinkId: link.id,
     shortUrl: link.short_url,
@@ -159,7 +170,7 @@ export async function getPaymentStatus(orderId, deliveryPartnerId) {
   if (!identity) throw new ValidationError('Order id required');
 
   const order = await FoodOrder.findOne(identity).select(
-    'payment dispatch riderEarning platformProfit pricing',
+    'dispatch riderEarning platformProfit',
   );
   if (!order) throw new NotFoundError('Order not found');
   if (
@@ -168,24 +179,20 @@ export async function getPaymentStatus(orderId, deliveryPartnerId) {
     throw new ForbiddenError('Not your order');
   }
 
-  if (order.payment?.method === 'razorpay_qr') {
+  const transaction = await FoodTransaction.findOne({ orderId: order._id }).lean();
+  if (transaction?.payment?.method === 'razorpay_qr') {
     await syncRazorpayQrPayment(order);
   }
-
-  const transaction = await FoodTransaction.findOne({ orderId: order._id }).lean();
   const latestHistory =
     (transaction?.history || []).sort((a, b) => (b.at || 0) - (a.at || 0))[0] ||
     null;
 
   return {
-    payment: {
-      ...(order.payment?.toObject?.() || order.payment || {}),
-      status: order.payment?.status,
-    },
+    payment: transaction?.payment || {},
     latestPaymentSnapshot: latestHistory,
     riderEarning: order.riderEarning ?? 0,
     platformProfit: order.platformProfit ?? 0,
-    pricingTotal: order.pricing?.total ?? 0,
+    pricingTotal: transaction?.pricing?.total ?? 0,
     transactionStatus: transaction?.status ?? null,
   };
 }

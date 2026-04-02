@@ -114,19 +114,17 @@ export const exportReportsToJSON = (data, filename = "report") => {
 
 // Specific export functions for Transaction Report
 export const exportTransactionReportToCSV = (transactions, filename = "transaction_report") => {
-  const headers = ["SI", "Order ID", "Restaurant", "Customer Name", "Total Item Amount", "Item Discount", "Coupon Discount", "Referral Discount", "Discounted Amount", "VAT/Tax", "Delivery Charge", "Order Amount"]
+  const headers = ["SI", "Order ID", "Restaurant", "Customer Name", "Total Item Amount", "Coupon Discount", "VAT/Tax", "Delivery Charge", "Platform Fee", "Order Amount"]
   const rows = transactions.map((transaction, index) => [
     index + 1,
     transaction.orderId,
     transaction.restaurant,
     transaction.customerName,
     transaction.totalItemAmount.toFixed(2),
-    transaction.itemDiscount.toFixed(2),
     transaction.couponDiscount.toFixed(2),
-    transaction.referralDiscount.toFixed(2),
-    transaction.discountedAmount.toFixed(2),
     transaction.vatTax.toFixed(2),
     transaction.deliveryCharge.toFixed(2),
+    Number(transaction.platformFee || 0).toFixed(2),
     transaction.orderAmount.toFixed(2)
   ])
   
@@ -147,19 +145,17 @@ export const exportTransactionReportToCSV = (transactions, filename = "transacti
 }
 
 export const exportTransactionReportToExcel = (transactions, filename = "transaction_report") => {
-  const headers = ["SI", "Order ID", "Restaurant", "Customer Name", "Total Item Amount", "Item Discount", "Coupon Discount", "Referral Discount", "Discounted Amount", "VAT/Tax", "Delivery Charge", "Order Amount"]
+  const headers = ["SI", "Order ID", "Restaurant", "Customer Name", "Total Item Amount", "Coupon Discount", "VAT/Tax", "Delivery Charge", "Platform Fee", "Order Amount"]
   const rows = transactions.map((transaction, index) => [
     index + 1,
     transaction.orderId,
     transaction.restaurant,
     transaction.customerName,
     transaction.totalItemAmount.toFixed(2),
-    transaction.itemDiscount.toFixed(2),
     transaction.couponDiscount.toFixed(2),
-    transaction.referralDiscount.toFixed(2),
-    transaction.discountedAmount.toFixed(2),
     transaction.vatTax.toFixed(2),
     transaction.deliveryCharge.toFixed(2),
+    Number(transaction.platformFee || 0).toFixed(2),
     transaction.orderAmount.toFixed(2)
   ])
   
@@ -180,7 +176,7 @@ export const exportTransactionReportToExcel = (transactions, filename = "transac
 }
 
 export const exportTransactionReportToPDF = (transactions, filename = "transaction_report") => {
-  const headers = ["SI", "Order ID", "Restaurant", "Customer Name", "Total Item Amount", "Item Discount", "Coupon Discount", "Referral Discount", "Discounted Amount", "VAT/Tax", "Delivery Charge", "Order Amount"]
+  const headers = ["SI", "Order ID", "Restaurant", "Customer Name", "Total Item Amount", "Coupon Discount", "VAT/Tax", "Delivery Charge", "Platform Fee", "Order Amount"]
   
   let htmlContent = `
     <!DOCTYPE html>
@@ -213,12 +209,10 @@ export const exportTransactionReportToPDF = (transactions, filename = "transacti
               <td>${transaction.restaurant}</td>
               <td>${transaction.customerName}</td>
               <td>₹${transaction.totalItemAmount.toFixed(2)}</td>
-              <td>₹${transaction.itemDiscount.toFixed(2)}</td>
               <td>₹${transaction.couponDiscount.toFixed(2)}</td>
-              <td>₹${transaction.referralDiscount.toFixed(2)}</td>
-              <td>₹${transaction.discountedAmount.toFixed(2)}</td>
               <td>₹${transaction.vatTax.toFixed(2)}</td>
               <td>₹${transaction.deliveryCharge.toFixed(2)}</td>
+              <td>₹${Number(transaction.platformFee || 0).toFixed(2)}</td>
               <td>₹${transaction.orderAmount.toFixed(2)}</td>
             </tr>
           `).join("")}

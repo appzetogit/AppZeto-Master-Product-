@@ -357,8 +357,6 @@ export async function createOrder(userId, dto) {
     deliveryAddress,
     customerName: dto.customerName || deliveryAddress.fullName || "",
     customerPhone: dto.customerPhone || deliveryAddress.phone || "",
-    pricing: normalizedPricing,
-    payment,
     orderStatus: "created",
     dispatch: { modeAtCreation: dispatchMode, status: "unassigned" },
     statusHistory: [
@@ -386,18 +384,15 @@ export async function createOrder(userId, dto) {
       throw new ValidationError("Amount too low for online payment");
     try {
       const rzOrder = await createRazorpayOrder(amountPaise, "INR", order._id.toString());
-      order.payment.razorpay = {
-        orderId: rzOrder.id,
-        paymentId: "",
-        signature: "",
-      };
-      order.payment.status = "created";
       razorpayPayload = {
         key: getRazorpayKeyId(),
         orderId: rzOrder.id,
         amount: rzOrder.amount,
         currency: rzOrder.currency || "INR",
       };
+      // Store Razorpay order id in local payment snapshot (ledger will store it)
+      payment.razorpay = { orderId: rzOrder.id, paymentId: "", signature: "" };
+      payment.status = "created";
     } catch (err) {
       throw new ValidationError(err?.message || "Payment gateway error");
     }
@@ -417,9 +412,14 @@ export async function createOrder(userId, dto) {
     }
   }
 
-  await foodTransactionService.createInitialTransaction(order);
+  // Phase 2: store financials in ledger only.
+  await foodTransactionService.createInitialTransaction({
+    ...(order.toObject?.() || order),
+    pricing: normalizedPricing,
+    payment,
+  });
 
-  if (paymentMethod === "razorpay" && order.payment?.razorpay?.orderId) {
+  if (paymentMethod === "razorpay" && payment?.razorpay?.orderId) {
     // Audit can still happen here or via FinanceService events
   }
 
@@ -427,8 +427,8 @@ export async function createOrder(userId, dto) {
   try {
     // Notify customer. For online payments, order is created but awaits payment confirmation.
     const isAwaitingOnlinePayment =
-      String(order.payment?.method || "").toLowerCase() === "razorpay" &&
-      String(order.payment?.status || "").toLowerCase() !== "paid";
+      String(paymentMethod || "").toLowerCase() === "razorpay" &&
+      String(payment?.status || "").toLowerCase() !== "paid";
     await notifyOwnersSafely([{ ownerType: "USER", ownerId: userId }], {
       title: isAwaitingOnlinePayment
         ? "Complete Payment to Confirm Order"

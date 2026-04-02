@@ -85,7 +85,7 @@ export async function getRestaurantFinance(restaurantId, query = {}) {
         status: { $in: ['captured', 'authorized'] },
         createdAt: { $gte: nowWindow.start, $lte: nowWindow.end }
     })
-        .populate('orderId', 'orderId createdAt items pricing deliveryState')
+        .populate('orderId', 'orderId createdAt items pricing deliveryState orderStatus')
         .sort({ createdAt: -1 })
         .lean();
 
@@ -105,6 +105,9 @@ export async function getRestaurantFinance(restaurantId, query = {}) {
             orderTotal: orderTotalExclTax,
             totalAmount: tx.amounts?.totalCustomerPaid || 0,
             payout: tx.amounts?.restaurantShare || 0,
+            commission: tx.amounts?.restaurantCommission || 0,
+            paymentMethod: tx.paymentMethod || order?.payment?.method,
+            orderStatus: order?.orderStatus || order?.deliveryState?.currentPhase || order?.deliveryState?.status,
             status: tx.status
         };
     });
@@ -172,7 +175,7 @@ export async function getRestaurantFinance(restaurantId, query = {}) {
             status: { $in: ['captured', 'authorized'] },
             createdAt: { $gte: startDate, $lte: endDate }
         })
-            .populate('orderId', 'orderId createdAt items pricing')
+            .populate('orderId', 'orderId createdAt items pricing deliveryState orderStatus')
             .sort({ createdAt: -1 })
             .lean();
 
@@ -193,6 +196,9 @@ export async function getRestaurantFinance(restaurantId, query = {}) {
                 orderTotal: orderTotalExclTax,
                 totalAmount: tx.amounts?.totalCustomerPaid || 0,
                 payout: tx.amounts?.restaurantShare || 0,
+                commission: tx.amounts?.restaurantCommission || 0,
+                paymentMethod: tx.paymentMethod || order?.payment?.method,
+                orderStatus: order?.orderStatus || order?.deliveryState?.currentPhase || order?.deliveryState?.status,
                 status: tx.status
             };
         });

@@ -36,7 +36,6 @@ export const PayoutV2 = () => {
             id: t._id || t.id,
             amount: t.amount || 0,
             status: t.status || 'Pending',
-            description: t.description || 'Withdrawal request',
             date: new Date(t.date || t.createdAt).toLocaleDateString('en-IN', {
               day: '2-digit',
               month: 'short',
@@ -51,8 +50,7 @@ export const PayoutV2 = () => {
               hour: '2-digit',
               minute: '2-digit'
             }) : null,
-            failureReason: t.failureReason || null,
-            paymentMethod: t.paymentMethod || 'bank_transfer'
+            failureReason: t.failureReason || null
           })));
         }
       } catch (err) {
@@ -109,7 +107,7 @@ export const PayoutV2 = () => {
         >
           <ArrowLeft className="w-5 h-5 text-gray-600" />
         </button>
-        <h1 className="text-lg font-bold text-gray-900">Withdrawal Transactions</h1>
+        <h1 className="text-lg font-bold text-gray-900">Withdrawal History</h1>
       </div>
 
       {/* Main Content */}
@@ -117,7 +115,7 @@ export const PayoutV2 = () => {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-gray-400 mb-4" />
-            <p className="text-gray-600 text-base">Loading transactions...</p>
+            <p className="text-gray-600 text-base">Loading withdrawal history...</p>
           </div>
         ) : withdrawals.length > 0 ? (
           <div className="space-y-4">
@@ -141,9 +139,6 @@ export const PayoutV2 = () => {
                       <p className="text-gray-900 text-xl font-bold mb-1">
                         ₹{withdrawal.amount}
                       </p>
-                      <p className="text-gray-600 text-sm mb-1">
-                        {withdrawal.description}
-                      </p>
                       <p className="text-gray-500 text-[11px] font-medium">
                         Requested: {withdrawal.date}
                       </p>
@@ -159,15 +154,6 @@ export const PayoutV2 = () => {
                       )}
                     </div>
                   </div>
-                  
-                  {/* Payment Method Badge */}
-                  {withdrawal.paymentMethod && (
-                    <div className="mt-3 pt-3 border-t border-gray-100">
-                      <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">
-                        Payment Method: {withdrawal.paymentMethod.replace('_', ' ')}
-                      </span>
-                    </div>
-                  )}
                 </div>
               );
             })}
@@ -177,7 +163,7 @@ export const PayoutV2 = () => {
             <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center mb-6 shadow-sm">
               <Clock className="w-8 h-8 text-gray-200" />
             </div>
-            <p className="text-gray-900 text-lg font-bold mb-2">No withdrawal transactions</p>
+            <p className="text-gray-900 text-lg font-bold mb-2">No withdrawal history</p>
             <p className="text-gray-400 text-sm font-medium">
               You haven't made any withdrawal requests yet. Your withdrawal history will appear here.
             </p>

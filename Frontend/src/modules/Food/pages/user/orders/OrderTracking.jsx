@@ -218,16 +218,18 @@ const DeliveryMap = ({ orderId, order, isVisible, fallbackCustomerCoords = null,
   );
 }
 
-// Section item component - icon container uses overflow-visible so icons are not cut
+// Section item component
 const SectionItem = ({ icon: Icon, iconNode, title, subtitle, onClick, showArrow = true, rightContent }) => (
   <motion.button
     onClick={onClick}
     className="w-full flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors text-left border-b border-dashed border-gray-200 last:border-0"
     whileTap={{ scale: 0.99 }}
   >
-    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 overflow-visible">
+    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
       {iconNode ? (
-        <div className="w-6 h-6 flex-shrink-0 flex items-center justify-center">
+        <div
+          className="w-6 h-6 flex-shrink-0 flex items-center justify-center [&_svg]:w-full [&_svg]:h-full [&_svg]:block"
+        >
           {iconNode}
         </div>
       ) : (
@@ -1578,9 +1580,15 @@ export default function OrderTracking() {
               defaultAddress?.phone ||
               'Phone number not available'
             }
+            showArrow={false}
           />
           <SectionItem
-            iconNode={<div dangerouslySetInnerHTML={{ __html: SAFE_CUSTOMER_PIN }} className="w-8 h-8 scale-110" />}
+            iconNode={
+              <div
+                dangerouslySetInnerHTML={{ __html: SAFE_CUSTOMER_PIN }}
+                className="w-6 h-6 [&_svg]:w-full [&_svg]:h-full [&_svg]:block"
+              />
+            }
             title="Delivery at Location"
             subtitle={(() => {
               // Priority 1: Use order address formattedAddress (live location address)
@@ -1621,6 +1629,7 @@ export default function OrderTracking() {
 
               return 'Add delivery address'
             })()}
+            showArrow={false}
           />
           <SectionItem
             icon={MessageSquare}
@@ -1641,8 +1650,11 @@ export default function OrderTracking() {
           transition={{ delay: 0.75 }}
         >
           <div className="flex items-center gap-3 p-4 border-b border-dashed border-gray-200">
-            <div className="w-12 h-12 rounded-full bg-orange-100 overflow-visible flex items-center justify-center flex-shrink-0 p-1">
-              <div dangerouslySetInnerHTML={{ __html: SAFE_RESTAURANT_PIN }} className="w-full h-full scale-125" />
+            <div className="w-12 h-12 rounded-full bg-orange-100 overflow-hidden flex items-center justify-center flex-shrink-0">
+              <div
+                dangerouslySetInnerHTML={{ __html: SAFE_RESTAURANT_PIN }}
+                className="w-7 h-7 [&_svg]:w-full [&_svg]:h-full [&_svg]:block"
+              />
             </div>
             <div className="flex-1">
               <p className="font-semibold text-gray-900">{order.restaurant}</p>

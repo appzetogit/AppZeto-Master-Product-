@@ -148,6 +148,7 @@ export default function AdminHome() {
   const totalCustomers = dashboardData?.customers?.total || 0
   const pendingOrders = dashboardData?.orderStats?.pending || 0
   const completedOrders = dashboardData?.orderStats?.completed || 0
+  const activeOrdersTotal = pendingOrders
 
   const pieData = orderStats.map((item) => ({
     name: item.label,
@@ -237,8 +238,8 @@ export default function AdminHome() {
             />
             <MetricCard
               title="Orders processed"
-              value={ordersTotal.toLocaleString("en-IN")}
-              helper={`${periodLabel} successful orders`}
+              value={activeOrdersTotal.toLocaleString("en-IN")}
+              helper="Orders currently being processed"
               icon={<Activity className="h-5 w-5 text-amber-600" />}
               accent="bg-amber-200/40"
               path="/admin/food/orders/processing"
@@ -278,7 +279,7 @@ export default function AdminHome() {
             <MetricCard
               title="Total restaurants"
               value={totalRestaurants.toLocaleString("en-IN")}
-              helper="All registered restaurants"
+              helper="Approved restaurants"
               icon={<Store className="h-5 w-5 text-blue-600" />}
               accent="bg-blue-200/40"
               path="/admin/food/restaurants"
@@ -294,7 +295,7 @@ export default function AdminHome() {
             <MetricCard
               title="Total delivery boy"
               value={totalDeliveryBoys.toLocaleString("en-IN")}
-              helper="All delivery partners"
+              helper="Approved delivery partners"
               icon={<Truck className="h-5 w-5 text-indigo-600" />}
               accent="bg-indigo-200/40"
               path="/admin/food/delivery-partners"
@@ -310,7 +311,7 @@ export default function AdminHome() {
             <MetricCard
               title="Total foods"
               value={totalFoods.toLocaleString("en-IN")}
-              helper="Active menu items"
+              helper="Approved menu items"
               icon={<Package className="h-5 w-5 text-purple-600" />}
               accent="bg-purple-200/40"
               path="/admin/food/foods"
@@ -318,7 +319,7 @@ export default function AdminHome() {
             <MetricCard
               title="Total addons"
               value={totalAddons.toLocaleString("en-IN")}
-              helper="Active addon items"
+              helper="Approved addon items"
               icon={<Plus className="h-5 w-5 text-pink-600" />}
               accent="bg-pink-200/40"
               path="/admin/food/addons"

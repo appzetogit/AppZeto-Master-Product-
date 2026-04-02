@@ -1456,7 +1456,8 @@ export default function Cart() {
         quantity: item.quantity || 1,
         image: item.image || "",
         description: item.description || "",
-        isVeg: item.isVeg !== false
+        isVeg: item.isVeg !== false,
+        preparationTime: item.preparationTime
       }))
 
       debugLog("?? Order items to send:", orderItems)
@@ -2576,7 +2577,10 @@ export default function Cart() {
       </div>
 
       {/* Bottom Sticky - Place Order */}
-      <div className="bg-white dark:bg-[#1a1a1a] border-t dark:border-gray-800 shadow-lg z-30 flex-shrink-0 fixed bottom-0 left-0 right-0">
+      <div
+        className="bg-white dark:bg-[#1a1a1a] border-t dark:border-gray-800 shadow-lg z-30 flex-shrink-0 fixed bottom-0 left-0 right-0"
+        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+      >
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 md:py-4">
           <div className="w-full max-w-lg mx-auto space-y-3">
             {/* Pay Using - Slim Pro UI */}
@@ -2735,7 +2739,7 @@ export default function Cart() {
           {/* Order Success Celebration Page */}
           {showOrderSuccess && (
             <div
-              className="fixed inset-0 z-[70] bg-white flex flex-col items-center justify-center h-screen w-screen overflow-hidden"
+              className="fixed inset-0 z-[70] bg-white dark:bg-[#0a0a0a] flex flex-col items-center justify-center h-screen w-screen overflow-hidden"
               style={{ animation: 'fadeIn 0.3s ease-out' }}
             >
               {/* Confetti Background */}
@@ -2765,14 +2769,14 @@ export default function Cart() {
                 >
                   {/* Outer ring animation */}
                   <div
-                    className="absolute inset-0 w-32 h-32 rounded-full border-4 border-green-500"
+                    className="absolute inset-0 w-32 h-32 rounded-full border-4 border-green-500 dark:border-green-400"
                     style={{
                       animation: 'ringPulse 1.5s ease-out infinite',
                       opacity: 0.3
                     }}
                   />
                   {/* Main circle */}
-                  <div className="w-32 h-32 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center shadow-2xl">
+                  <div className="w-32 h-32 bg-gradient-to-br from-green-500 to-green-600 dark:from-green-500 dark:to-emerald-500 rounded-full flex items-center justify-center shadow-2xl shadow-green-200/60 dark:shadow-green-900/40">
                     <svg
                       className="w-16 h-16 text-white"
                       viewBox="0 0 24 24"
@@ -2790,7 +2794,7 @@ export default function Cart() {
                   {[...Array(6)].map((_, i) => (
                     <div
                       key={i}
-                      className="absolute w-2 h-2 bg-yellow-400 rounded-full"
+                      className="absolute w-2 h-2 bg-yellow-400 dark:bg-yellow-300 rounded-full"
                       style={{
                         top: '50%',
                         left: '50%',
@@ -2807,16 +2811,16 @@ export default function Cart() {
                   style={{ animation: 'slideUp 0.5s ease-out 0.6s both' }}
                 >
                   <div className="flex items-center justify-center gap-2 mb-2">
-                    <div className="w-5 h-5 text-red-500">
+                    <div className="w-5 h-5 text-red-500 dark:text-red-400">
                       <svg viewBox="0 0 24 24" fill="currentColor">
                         <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
                       </svg>
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
                       {defaultAddress?.city || "Your Location"}
                     </h2>
                   </div>
-                  <p className="text-gray-500 text-base">
+                  <p className="text-gray-500 dark:text-gray-400 text-base">
                     {defaultAddress ? (formatFullAddress(defaultAddress) || defaultAddress?.formattedAddress || defaultAddress?.address || "Delivery Address") : "Delivery Address"}
                   </p>
                 </div>
@@ -2826,14 +2830,14 @@ export default function Cart() {
                   className="mt-12 text-center"
                   style={{ animation: 'slideUp 0.5s ease-out 0.8s both' }}
                 >
-                  <h3 className="text-3xl font-bold text-[#EB590E] mb-2">Order Placed!</h3>
-                  <p className="text-gray-600">Your delicious food is on its way</p>
+                  <h3 className="text-3xl font-bold text-[#EB590E] dark:text-orange-400 mb-2">Order Placed!</h3>
+                  <p className="text-gray-600 dark:text-gray-300">Your delicious food is on its way</p>
                 </div>
 
                 {/* Action Button */}
                 <button
                   onClick={handleGoToOrders}
-                  className="mt-10 bg-[#EB590E] hover:bg-[#D94F0C] text-white font-semibold py-4 px-12 rounded-xl shadow-lg transition-all hover:shadow-xl hover:scale-105"
+                  className="mt-10 bg-[#EB590E] hover:bg-[#D94F0C] text-white font-semibold py-4 px-12 rounded-xl shadow-lg shadow-orange-200/70 dark:shadow-orange-950/40 transition-all hover:shadow-xl hover:scale-105"
                   style={{ animation: 'slideUp 0.5s ease-out 1s both' }}
                 >
                   Track Your Order
@@ -2858,9 +2862,10 @@ export default function Cart() {
                   animate={{ y: 0 }}
                   exit={{ y: "100%" }}
                   transition={{ type: "spring", damping: 30, stiffness: 350 }}
-                  className="fixed bottom-0 left-0 right-0 bg-white dark:bg-[#1a1a1a] rounded-t-[2rem] z-[101] shadow-2xl overflow-hidden pb-4 max-h-[60vh] md:max-h-[50vh] flex flex-col"
+                  className="fixed bottom-0 left-0 right-0 bg-white dark:bg-[#1a1a1a] rounded-t-[2rem] z-[101] shadow-2xl overflow-hidden max-h-[82vh] md:max-h-[60vh] flex flex-col"
+                  style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
                 >
-                  <div className="p-5 md:p-6 flex flex-col h-full">
+                  <div className="p-5 md:p-6 flex flex-col h-full min-h-0">
                     {/* Compact Drag handle */}
                     <div className="w-10 h-1 bg-gray-200 dark:bg-gray-800 rounded-full mx-auto mb-5" />
 
@@ -2877,7 +2882,7 @@ export default function Cart() {
                       </button>
                     </div>
 
-                    <div className="space-y-3 overflow-y-auto pr-1 custom-scrollbar pb-4 max-h-[45vh]">
+                    <div className="space-y-3 overflow-y-auto pr-1 custom-scrollbar pb-4 flex-1 min-h-0">
                       {[
                         {
                           id: 'razorpay',
@@ -2977,7 +2982,10 @@ export default function Cart() {
                       ))}
                     </div>
 
-                    <div className="mt-auto pt-4 border-t border-gray-100 dark:border-gray-800 flex items-center gap-4">
+                    <div
+                      className="mt-auto pt-4 border-t border-gray-100 dark:border-gray-800 flex items-center gap-4 bg-white dark:bg-[#1a1a1a]"
+                      style={{ paddingBottom: "max(0.25rem, env(safe-area-inset-bottom, 0px))" }}
+                    >
                       <div className="flex-shrink-0">
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-1">Total Pay</p>
                         <p className="text-xl font-black text-[#EB590E] tabular-nums">{RUPEE_SYMBOL}{total.toFixed(0)}</p>

@@ -63,9 +63,10 @@ export async function getRestaurantCommissionSnapshot(orderDoc) {
 
   const rules = await getActiveRestaurantCommissionRules();
   const rule =
-    rules.find(
-      (r) => String(r.restaurantId) === String(restaurantIdRaw)
-    ) || null;
+    rules.find((r) => String(r.restaurantId) === String(restaurantIdRaw)) ||
+    // Fallback: accept legacy docs where restaurantId may be stored under `restaurant` / `restaurant_id`
+    rules.find((r) => String(r.restaurant || r.restaurant_id || '') === String(restaurantIdRaw)) ||
+    null;
 
   if (!rule) {
     return {
@@ -88,7 +89,13 @@ export async function createInitialTransaction(order) {
     // Split logic
     const totalCustomerPaid = order.pricing?.total || 0;
     const riderShare = order.riderEarning || 0;
-    const restaurantCommission = commissionAmount || 0;
+    // Prefer commission already computed & stored on the order (source of truth for this order),
+    // fallback to rule snapshot for older orders.
+    const restaurantCommissionFromOrder = Number(order.pricing?.restaurantCommission);
+    const restaurantCommission =
+        Number.isFinite(restaurantCommissionFromOrder) && restaurantCommissionFromOrder > 0
+            ? restaurantCommissionFromOrder
+            : (commissionAmount || 0);
     const restaurantNet = (order.pricing?.subtotal || 0) + (order.pricing?.packagingFee || 0) - restaurantCommission;
     const platformNetProfit = (order.pricing?.platformFee || 0) + (order.pricing?.deliveryFee || 0) + restaurantCommission - riderShare;
 
@@ -100,6 +107,35 @@ export async function createInitialTransaction(order) {
         deliveryPartnerId: order.dispatch?.deliveryPartnerId,
         paymentMethod: order.payment?.method || 'cash',
         status: order.payment?.status === 'paid' ? 'captured' : 'pending',
+        payment: {
+            method: String(order.payment?.method || 'cash'),
+            status: String(order.payment?.status || 'cod_pending'),
+            amountDue: Number(order.payment?.amountDue ?? order.pricing?.total ?? 0) || 0,
+            razorpay: {
+                orderId: String(order.payment?.razorpay?.orderId || ''),
+                paymentId: String(order.payment?.razorpay?.paymentId || ''),
+                signature: String(order.payment?.razorpay?.signature || ''),
+            },
+            qr: {
+                qrId: String(order.payment?.qr?.qrId || ''),
+                imageUrl: String(order.payment?.qr?.imageUrl || ''),
+                paymentLinkId: String(order.payment?.qr?.paymentLinkId || ''),
+                shortUrl: String(order.payment?.qr?.shortUrl || ''),
+                status: String(order.payment?.qr?.status || ''),
+                expiresAt: order.payment?.qr?.expiresAt || null,
+            }
+        },
+        pricing: {
+            subtotal: Number(order.pricing?.subtotal || 0) || 0,
+            tax: Number(order.pricing?.tax || 0) || 0,
+            packagingFee: Number(order.pricing?.packagingFee || 0) || 0,
+            deliveryFee: Number(order.pricing?.deliveryFee || 0) || 0,
+            platformFee: Number(order.pricing?.platformFee || 0) || 0,
+            restaurantCommission,
+            discount: Number(order.pricing?.discount || 0) || 0,
+            total: Number(order.pricing?.total || 0) || 0,
+            currency: String(order.pricing?.currency || order.currency || 'INR'),
+        },
         amounts: {
             totalCustomerPaid,
             restaurantShare: Math.max(0, restaurantNet),

@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { FoodOrder } from '../../orders/models/order.model.js';
 import { FoodTransaction } from '../../orders/models/foodTransaction.model.js';
 import { FoodDeliveryWithdrawal } from '../models/foodDeliveryWithdrawal.model.js';
+import { FoodDeliveryCashDeposit } from '../models/foodDeliveryCashDeposit.model.js';
 import { FoodDeliveryPartner } from '../models/deliveryPartner.model.js';
 import { DeliveryBonusTransaction } from '../../admin/models/deliveryBonusTransaction.model.js';
 import { getDeliveryCashLimitSettings } from '../../admin/services/admin.service.js';
@@ -24,31 +25,40 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
     const partner = await FoodDeliveryPartner.findById(partnerId).lean();
     if (!partner) throw new ValidationError('Delivery partner not found');
 
-    const [cashLimitSettings, earningsAgg, cashAgg, bonusAgg, withdrawalAgg, withdrawalsList] = await Promise.all([
+    const [cashLimitSettings, earningsAgg, cashCollectedAgg, cashDepositsAgg, bonusAgg, withdrawalAgg, withdrawalsList] = await Promise.all([
         getDeliveryCashLimitSettings(),
         // 1. Total Earnings from Delivered Orders
         FoodOrder.aggregate([
             { $match: { 'dispatch.deliveryPartnerId': partnerId, orderStatus: 'delivered' } },
             { $group: { _id: null, totalEarned: { $sum: { $ifNull: ['$riderEarning', 0] } } } }
         ]),
-        // 2. Cash in Hand (COD orders)
+        // 2. Gross cash collected (COD orders)
         FoodOrder.aggregate([
             { 
                 $match: { 
                     'dispatch.deliveryPartnerId': partnerId, 
                     orderStatus: 'delivered', 
-                    'payment.method': 'cash', 
-                    'payment.status': 'paid' 
+                    'payment.method': 'cash'
                 } 
             },
-            { $group: { _id: null, cashInHand: { $sum: { $ifNull: ['$pricing.total', 0] } } } }
+            { $group: { _id: null, cashCollected: { $sum: { $ifNull: ['$pricing.total', 0] } } } }
         ]),
-        // 3. Admin Bonuses
+        // 3. Cash deposits (deduct from cash-in-hand)
+        FoodDeliveryCashDeposit.aggregate([
+            {
+                $match: {
+                    deliveryPartnerId: partnerId,
+                    status: 'Completed'
+                }
+            },
+            { $group: { _id: null, depositedCash: { $sum: { $ifNull: ['$amount', 0] } } } }
+        ]),
+        // 4. Admin Bonuses
         DeliveryBonusTransaction.aggregate([
             { $match: { deliveryPartnerId: partnerId } },
             { $group: { _id: null, total: { $sum: { $ifNull: ['$amount', 0] } } } }
         ]),
-        // 4. Withdrawal Aggregates (Approved vs Pending)
+        // 5. Withdrawal Aggregates (Approved vs Pending)
         FoodDeliveryWithdrawal.aggregate([
             { $match: { deliveryPartnerId: partnerId } },
             { 
@@ -59,7 +69,7 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
                 } 
             }
         ]),
-        // 5. Recent Withdrawals for History
+        // 6. Recent Withdrawals for History
         FoodDeliveryWithdrawal.find({ deliveryPartnerId: partnerId })
             .sort({ createdAt: -1 })
             .limit(50)
@@ -67,7 +77,9 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
     ]);
 
     const totalEarned = Number(earningsAgg?.[0]?.totalEarned) || 0;
-    const cashInHand = Number(cashAgg?.[0]?.cashInHand) || 0;
+    const grossCashCollected = Number(cashCollectedAgg?.[0]?.cashCollected) || 0;
+    const totalDepositedCash = Number(cashDepositsAgg?.[0]?.depositedCash) || 0;
+    const cashInHand = Math.max(0, grossCashCollected - totalDepositedCash);
     const totalBonus = Number(bonusAgg?.[0]?.total) || 0;
     const totalWithdrawn = Number(withdrawalAgg?.[0]?.totalWithdrawn) || 0;
     const pendingWithdrawals = Number(withdrawalAgg?.[0]?.pendingWithdrawals) || 0;

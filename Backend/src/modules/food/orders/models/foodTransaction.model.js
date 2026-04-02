@@ -22,6 +22,39 @@ const foodTransactionSchema = new mongoose.Schema({
     },
     currency: { type: String, default: 'INR' },
 
+    // Snapshot of order pricing at the time transaction was created
+    pricing: {
+        subtotal: { type: Number, default: 0, min: 0 },
+        tax: { type: Number, default: 0, min: 0 },
+        packagingFee: { type: Number, default: 0, min: 0 },
+        deliveryFee: { type: Number, default: 0, min: 0 },
+        platformFee: { type: Number, default: 0, min: 0 },
+        restaurantCommission: { type: Number, default: 0, min: 0 },
+        discount: { type: Number, default: 0, min: 0 },
+        total: { type: Number, default: 0, min: 0 },
+        currency: { type: String, default: 'INR', trim: true },
+    },
+
+    // Snapshot of payment state at the time of transaction (source of truth for UI)
+    payment: {
+        method: { type: String, default: 'cash', trim: true },
+        status: { type: String, default: 'cod_pending', trim: true },
+        amountDue: { type: Number, default: 0, min: 0 },
+        razorpay: {
+            orderId: { type: String, default: '' },
+            paymentId: { type: String, default: '' },
+            signature: { type: String, default: '' }
+        },
+        qr: {
+            qrId: { type: String, default: '' },
+            imageUrl: { type: String, default: '' },
+            paymentLinkId: { type: String, default: '' },
+            shortUrl: { type: String, default: '' },
+            status: { type: String, default: '' },
+            expiresAt: { type: Date, default: null }
+        }
+    },
+
     // Financial Breakdown (The Split)
     amounts: {
         totalCustomerPaid: { type: Number, required: true, min: 0 },

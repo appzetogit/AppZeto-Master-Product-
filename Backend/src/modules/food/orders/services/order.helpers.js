@@ -164,6 +164,16 @@ export function buildDeliverySocketPayload(orderDoc, restaurantDoc = null) {
   const order = orderDoc?.toObject ? orderDoc.toObject() : orderDoc || {};
   const restaurant = restaurantDoc || order?.restaurantId || null;
   const restaurantLocation = restaurant?.location || {};
+  const deliveryAddress = order?.deliveryAddress || {};
+  const customerAddressParts = [
+    deliveryAddress.street,
+    deliveryAddress.additionalDetails,
+    deliveryAddress.city,
+    deliveryAddress.state,
+    deliveryAddress.zipCode,
+  ]
+    .map((v) => String(v || '').trim())
+    .filter(Boolean);
 
   return {
     orderMongoId:
@@ -199,11 +209,12 @@ export function buildDeliverySocketPayload(orderDoc, restaurantDoc = null) {
       state: restaurantLocation?.state || restaurant?.state || "",
     },
     deliveryAddress: order?.deliveryAddress,
-    customerAddress: order?.deliveryAddress?.formattedAddress || order?.deliveryAddress?.addressLine1 || "",
+    customerAddress: customerAddressParts.length ? customerAddressParts.join(', ') : "",
     customerName: order?.customerName || order?.deliveryAddress?.fullName || order?.deliveryAddress?.name || order?.userId?.name || "",
     customerPhone: order?.customerPhone || order?.deliveryAddress?.phone || order?.userId?.phone || "",
     userName: order?.customerName || order?.deliveryAddress?.fullName || order?.deliveryAddress?.name || order?.userId?.name || "",
     userPhone: order?.customerPhone || order?.deliveryAddress?.phone || order?.userId?.phone || "",
+    note: order?.note || "",
     riderEarning: order?.riderEarning || 0,
     earnings: order?.riderEarning || order?.pricing?.deliveryFee || 0,
     deliveryFee: order?.pricing?.deliveryFee || 0,

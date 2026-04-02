@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { FoodOrder } from '../models/order.model.js';
 import { FoodRestaurant } from '../../restaurant/models/restaurant.model.js';
+import { FoodTransaction } from '../models/foodTransaction.model.js';
 import { FoodDeliveryPartner } from '../../delivery/models/deliveryPartner.model.js';
 import {
   ValidationError,
@@ -56,9 +57,10 @@ function emitOrderUpdate(order, deliveryPartnerId) {
     let riderTitle = 'Order delivered!';
     let riderBody = `Order #${order._id.toString()} has been marked as delivered.`;
 
-    if (order.payment?.method === 'cash') {
+      if (order.payment?.method === 'cash' || order.paymentMethod === 'cash') {
       riderTitle = 'Payment collected!';
-      riderBody = `You have collected Rs ${order.pricing?.total || 0} cash for Order #${order._id.toString()}.`;
+        const amt = order.pricing?.total || order.amounts?.totalCustomerPaid || 0;
+        riderBody = `You have collected Rs ${amt} cash for Order #${order._id.toString()}.`;
     }
 
     void notifyOwnersSafely(
@@ -87,8 +89,8 @@ function emitOrderUpdate(order, deliveryPartnerId) {
           type: 'order_completed',
           orderId: order._id.toString(),
           orderMongoId: order._id?.toString?.() || '',
-          paymentMethod: order.payment?.method,
-          amountCollected: String(order.pricing?.total || 0),
+          paymentMethod: order.payment?.method || order.paymentMethod,
+          amountCollected: String(order.pricing?.total || order.amounts?.totalCustomerPaid || 0),
         },
       },
     );
@@ -98,12 +100,15 @@ function emitOrderUpdate(order, deliveryPartnerId) {
 }
 
 async function syncRazorpayQrPayment(orderDoc) {
-  if (!orderDoc?.payment) return orderDoc?.payment;
-  if (orderDoc.payment.method !== 'razorpay_qr') return orderDoc.payment;
-  if (orderDoc.payment.status === 'paid') return orderDoc.payment;
+  // Phase 2: FoodTransaction is source of truth; avoid relying on FoodOrder.payment.
+  const tx = await FoodTransaction.findOne({ orderId: orderDoc?._id }).lean();
+  const payment = tx?.payment || orderDoc?.payment || null;
+  if (!payment) return null;
+  if (payment.method !== 'razorpay_qr') return payment;
+  if (payment.status === 'paid') return payment;
 
-  const paymentLinkId = orderDoc.payment?.qr?.paymentLinkId;
-  if (!paymentLinkId || !isRazorpayConfigured()) return orderDoc.payment;
+  const paymentLinkId = payment?.qr?.paymentLinkId;
+  if (!paymentLinkId || !isRazorpayConfigured()) return payment;
 
   let link;
   try {
@@ -120,20 +125,22 @@ async function syncRazorpayQrPayment(orderDoc) {
   const linkStatus = String(link?.status || '').toLowerCase();
   if (!linkStatus) return orderDoc.payment;
 
-  orderDoc.payment.qr = {
-    ...(orderDoc.payment.qr?.toObject?.() || orderDoc.payment.qr || {}),
-    status: linkStatus,
-  };
+  await FoodTransaction.updateOne(
+    { orderId: orderDoc?._id },
+    {
+      $set: {
+        'payment.qr.status': linkStatus,
+        'payment.status': ['paid', 'captured', 'authorized'].includes(linkStatus)
+          ? 'paid'
+          : ['expired', 'cancelled', 'canceled', 'failed'].includes(linkStatus)
+            ? 'failed'
+            : (payment.status || 'pending_qr'),
+      },
+    },
+  );
 
-  if (['paid', 'captured', 'authorized'].includes(linkStatus)) {
-    orderDoc.payment.status = 'paid';
-    await orderDoc.save();
-  } else if (['expired', 'cancelled', 'canceled', 'failed'].includes(linkStatus)) {
-    orderDoc.payment.status = 'failed';
-    await orderDoc.save();
-  }
-
-  return orderDoc.payment;
+  const updatedTx = await FoodTransaction.findOne({ orderId: orderDoc?._id }).lean();
+  return updatedTx?.payment || payment;
 }
 
 export async function getCurrentTripDelivery(deliveryPartnerId) {
@@ -157,7 +164,17 @@ export async function getCurrentTripDelivery(deliveryPartnerId) {
     .sort({ updatedAt: -1 })
     .lean();
 
-  return order ? sanitizeOrderForExternal(order) : null;
+  if (!order) return null;
+  const tx = await FoodTransaction.findOne({ orderId: order._id }).lean();
+  const out = sanitizeOrderForExternal(order);
+  if (tx) {
+    out.paymentMethod = tx.payment?.method || tx.paymentMethod || out.paymentMethod;
+    out.payment = tx.payment || out.payment;
+    out.pricing = tx.pricing || out.pricing;
+    out.amounts = tx.amounts || out.amounts;
+    out.transactionStatus = tx.status || out.transactionStatus;
+  }
+  return out;
 }
 
 export async function listOrdersAvailableDelivery(deliveryPartnerId, query) {
@@ -196,7 +213,26 @@ export async function listOrdersAvailableDelivery(deliveryPartnerId, query) {
     FoodOrder.countDocuments(filter),
   ]);
 
-  return buildPaginatedResult({ docs, total, page, limit });
+  const orderIds = (docs || []).map((d) => d?._id).filter(Boolean);
+  const txRows = orderIds.length
+    ? await FoodTransaction.find({ orderId: { $in: orderIds } }).lean()
+    : [];
+  const txByOrderId = new Map(txRows.map((t) => [String(t.orderId), t]));
+
+  const enriched = (docs || []).map((doc) => {
+    const tx = txByOrderId.get(String(doc?._id)) || null;
+    if (!tx) return doc;
+    return {
+      ...doc,
+      paymentMethod: tx.payment?.method || tx.paymentMethod || doc.paymentMethod,
+      payment: tx.payment || doc.payment,
+      pricing: tx.pricing || doc.pricing,
+      amounts: tx.amounts || doc.amounts,
+      transactionStatus: tx.status || doc.transactionStatus,
+    };
+  });
+
+  return buildPaginatedResult({ docs: enriched, total, page, limit });
 }
 
 export async function acceptOrderDelivery(orderId, deliveryPartnerId) {
@@ -346,6 +382,21 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId) {
         io.to(rooms.delivery(deliveryPartnerId)).emit('order_status_update', payload);
         io.to(rooms.restaurant(order.restaurantId)).emit('order_status_update', payload);
         io.to(rooms.user(order.userId)).emit('order_status_update', payload);
+
+        // Notify ALL other delivery partners who were offered this order to dismiss it
+        const offeredPartners = order.dispatch?.offeredTo || [];
+        const claimedPayload = {
+          orderId: order._id.toString(),
+          orderMongoId: order._id?.toString?.(),
+          claimedBy: deliveryPartnerId.toString(),
+        };
+        for (const offer of offeredPartners) {
+          const pid = offer.partnerId?.toString?.();
+          if (pid && pid !== deliveryPartnerId.toString()) {
+            io.to(rooms.delivery(pid)).emit('order_claimed', claimedPayload);
+          }
+        }
+        logger.info(`[DeliveryDispatch] Broadcasted order_claimed to ${offeredPartners.length - 1} other partners for order ${order._id.toString()}`);
       }
 
       await notifyOwnersSafely(
@@ -716,18 +767,18 @@ export async function completeDelivery(orderId, deliveryPartnerId, body = {}) {
   }
 
   const from = order.orderStatus;
-  const prevPayStatus = order.payment.status;
-  const payMethod = order.payment.method;
+  const tx = await FoodTransaction.findOne({ orderId: order._id }).lean();
+  const prevPayStatus = String(tx?.payment?.status || order?.payment?.status || '');
+  const payMethod = String(tx?.payment?.method || order?.payment?.method || order?.paymentMethod || '');
 
   if (payMethod === 'razorpay_qr') {
-    await syncRazorpayQrPayment(order);
-    if (order.payment.status !== 'paid') {
+    const syncedPayment = await syncRazorpayQrPayment(order);
+    if (String(syncedPayment?.status || '').toLowerCase() !== 'paid') {
       throw new ValidationError('QR payment not verified yet');
     }
   }
 
   order.orderStatus = 'delivered';
-  order.payment.status = 'paid';
   order.deliveryState = {
     ...(order.deliveryState?.toObject?.() || order.deliveryState || {}),
     currentPhase: 'delivered',

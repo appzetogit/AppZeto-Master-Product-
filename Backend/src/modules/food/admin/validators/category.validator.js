@@ -1,10 +1,20 @@
 import { z } from 'zod';
 import { ValidationError } from '../../../../core/auth/errors.js';
 
+const booleanQuerySchema = z.preprocess((value) => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (normalized === 'true') return true;
+        if (normalized === 'false') return false;
+    }
+    return value;
+}, z.boolean());
+
 const listSchema = z.object({
     search: z.string().optional(),
     zoneId: z.string().optional(),
-    isApproved: z.coerce.boolean().optional(),
+    isApproved: booleanQuerySchema.optional(),
     approvalStatus: z.enum(['pending', 'approved', 'rejected']).optional(),
     page: z.coerce.number().int().min(1).optional(),
     limit: z.coerce.number().int().min(1).max(1000).optional()

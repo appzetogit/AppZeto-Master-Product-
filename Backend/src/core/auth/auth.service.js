@@ -434,35 +434,31 @@ export const logout = async (refreshToken, fcmToken, platform) => {
     throw new ValidationError("Refresh token is required");
   }
 
-  const tokenDoc = await FoodRefreshToken.findOne({ token: refreshToken });
-
-  if (tokenDoc && fcmToken) {
-    // Try to remove FCM token from the user if provided
+  // 1. Remove specific FCM token from ALL collections if provided
+  if (fcmToken) {
+    console.log(`[FCM-Logout] Starting logout-driven token removal: platform=${platform}, tokenPreview=${fcmToken?.slice(0, 10)}...`);
+    
+    // We try to remove the token from all 4 possible models regardless of the user ID, 
+    // ensuring no stale connections are left across any role or app the user was logged into.
+    const field = platform === "mobile" ? "fcmTokenMobile" : "fcmTokens";
+    const models = [FoodUser, FoodRestaurant, FoodDeliveryPartner, FoodAdmin];
+    
     try {
-      const user = await FoodUser.findById(tokenDoc.userId);
-      if (user) {
-        let isModified = false;
-        if (platform === "mobile" && Array.isArray(user.fcmTokenMobile)) {
-          const originalLength = user.fcmTokenMobile.length;
-          user.fcmTokenMobile = user.fcmTokenMobile.filter(
-            (t) => t !== fcmToken,
-          );
-          if (user.fcmTokenMobile.length !== originalLength) isModified = true;
-        } else if (Array.isArray(user.fcmTokens)) {
-          const originalLength = user.fcmTokens.length;
-          user.fcmTokens = user.fcmTokens.filter((t) => t !== fcmToken);
-          if (user.fcmTokens.length !== originalLength) isModified = true;
-        }
-
-        if (isModified) {
-          await user.save();
-        }
-      }
+      await Promise.all(
+        models.map((model) =>
+          model.updateMany(
+            { [field]: fcmToken },
+            { $pull: { [field]: fcmToken } },
+          ),
+        ),
+      );
+      console.log("[FCM-Logout] Token removed from all collections successfully");
     } catch (err) {
-      logger?.warn?.({ err }, "Failed to remove FCM token during logout");
+      logger.warn({ err }, "Failed to remove FCM token from all collections during logout");
     }
   }
 
+  // 2. Invalidate the refresh token (standard logout procedure)
   const deleted = await FoodRefreshToken.deleteOne({ token: refreshToken });
   return { invalidated: deleted.deletedCount > 0 };
 };

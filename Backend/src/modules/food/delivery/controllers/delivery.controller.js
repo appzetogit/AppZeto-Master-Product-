@@ -1,6 +1,8 @@
+import mongoose from 'mongoose';
 import { registerDeliveryPartner, updateDeliveryPartnerProfile, updateDeliveryPartnerBankDetails, listSupportTicketsByPartner, createSupportTicket, getSupportTicketByIdAndPartner, updateDeliveryPartnerDetails, updateDeliveryPartnerProfilePhotoBase64, updateDeliveryAvailability, getDeliveryPartnerWallet, getDeliveryPartnerEarnings, getDeliveryPartnerTripHistory, getDeliveryPocketDetails, getActiveEarningAddonsForPartner } from '../services/delivery.service.js';
 import { getDeliveryPartnerWalletEnhanced, requestDeliveryWithdrawal } from '../services/deliveryFinance.service.js';
 import { getDeliveryCashLimitSettings, getDeliveryEmergencyHelp } from '../../admin/services/admin.service.js';
+import { DeliveryBonusTransaction } from '../../admin/models/deliveryBonusTransaction.model.js';
 import { validateDeliveryRegisterDto, validateDeliveryProfileUpdateDto, validateDeliveryBankDetailsDto } from '../validators/delivery.validator.js';
 import { sendResponse } from '../../../../utils/response.js';
 import { getDeliveryReferralStats } from '../services/deliveryReferral.service.js';
@@ -114,6 +116,34 @@ export const updateAvailabilityController = async (req, res, next) => {
 export const getWalletController = async (req, res, next) => {
     try {
         const deliveryPartnerId = req.user?.userId;
+        const requestedTypeRaw = String(req.query?.type || '').trim().toLowerCase();
+        const rawLimit = Number.parseInt(String(req.query?.limit || ''), 10);
+        const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 200) : 50;
+
+        if (requestedTypeRaw === 'bonus') {
+            if (!deliveryPartnerId || !mongoose.Types.ObjectId.isValid(deliveryPartnerId)) {
+                return sendResponse(res, 200, 'Wallet fetched successfully', { wallet: { transactions: [] } });
+            }
+
+            const wallet = await getDeliveryPartnerWalletEnhanced(deliveryPartnerId);
+            const bonusList = await DeliveryBonusTransaction.find({ deliveryPartnerId })
+                .sort({ createdAt: -1 })
+                .limit(limit)
+                .lean();
+
+            wallet.transactions = (bonusList || []).map((b) => ({
+                id: b._id,
+                type: 'bonus',
+                amount: b.amount || 0,
+                status: 'Completed',
+                date: b.createdAt,
+                description: b.reference || 'Bonus',
+                transactionId: b.transactionId
+            }));
+
+            return sendResponse(res, 200, 'Wallet fetched successfully', { wallet });
+        }
+
         const wallet = await getDeliveryPartnerWalletEnhanced(deliveryPartnerId);
         return sendResponse(res, 200, 'Wallet fetched successfully', { wallet });
     } catch (error) {

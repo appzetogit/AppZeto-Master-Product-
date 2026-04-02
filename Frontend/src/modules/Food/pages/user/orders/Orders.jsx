@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { ArrowLeft, Search, MoreVertical, ChevronRight, Star, RotateCcw, AlertCircle, Loader2, Clock } from "lucide-react"
+import { ArrowLeft, Search, MoreVertical, ChevronRight, Star, RotateCcw, AlertCircle, Loader2, Clock, X, Share2, MessageCircle, Send, Copy, Mail, MessagesSquare, Link2 } from "lucide-react"
 import { orderAPI } from "@food/api"
+import { useCart } from "@food/context/CartContext"
 import { toast } from "sonner"
 import { getCompanyNameAsync } from "@food/utils/businessSettings"
 const debugLog = (...args) => {}
@@ -11,11 +12,14 @@ const debugError = (...args) => {}
 
 export default function Orders() {
   const navigate = useNavigate()
+  const { replaceCart } = useCart()
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [ratingModal, setRatingModal] = useState({ open: false, order: null })
   const [activeMenuOrderId, setActiveMenuOrderId] = useState(null)
+  const [showShareModal, setShowShareModal] = useState(false)
+  const [sharePayload, setSharePayload] = useState(null)
   const [selectedRestaurantRating, setSelectedRestaurantRating] = useState(null)
   const [selectedDeliveryRating, setSelectedDeliveryRating] = useState(null)
   const [restaurantFeedbackText, setRestaurantFeedbackText] = useState("")
@@ -300,6 +304,7 @@ export default function Orders() {
               paymentMethod: order.payment?.method || order.paymentMethod,
               restaurant: order.restaurantId?.restaurantName || order.restaurantId?.name || order.restaurantName || 'Restaurant',
               restaurantId: order.restaurantId?._id || order.restaurantId,
+              restaurantSlug: order.restaurantId?.slug || null,
               restaurantImage: order.restaurantId?.profileImage?.url || order.restaurantId?.profileImage || null,
               restaurantLocation: order.restaurantId?.location?.area || order.restaurantId?.location?.city || order.address?.city || order.deliveryAddress?.city || '',
               restaurantRating,
@@ -404,12 +409,41 @@ export default function Orders() {
 
   // Handle reorder
   const handleReorder = (order) => {
-    // Navigate to restaurant page or cart
-    if (order.restaurantId) {
-      navigate(`/user/restaurants/${order.restaurantId}`)
-    } else {
-      toast.info('Restaurant information not available')
+    const restaurantTarget = order.restaurantSlug || order.restaurantId
+
+    if (!restaurantTarget || !order.items?.length) {
+      toast.info('Order items or restaurant information not available')
+      return
     }
+
+    const reorderItems = order.items
+      .map((item, index) => {
+        const itemId = item.id || item.itemId || item._id
+        if (!itemId) return null
+
+        return {
+          id: itemId,
+          name: item.name || item.foodName || "Item",
+          price: Number(item.price) || 0,
+          image: item.image || "",
+          restaurant: order.restaurant || "Restaurant",
+          restaurantId: order.restaurantId,
+          description: item.description || "",
+          isVeg: item.isVeg !== false,
+          quantity: Math.max(1, Number(item.quantity) || 1),
+          reorderIndex: index,
+        }
+      })
+      .filter(Boolean)
+
+    if (!reorderItems.length) {
+      toast.error("No reorderable items found in this order")
+      return
+    }
+
+    replaceCart(reorderItems)
+    toast.success("Items added to cart")
+    navigate(`/food/user/restaurants/${restaurantTarget}`)
   }
 
   // Three-dots menu handlers
@@ -417,28 +451,118 @@ export default function Orders() {
     setActiveMenuOrderId((current) => (current === orderId ? null : orderId))
   }
 
+  const openShareModal = (payload) => {
+    setSharePayload(payload)
+    setShowShareModal(true)
+  }
+
+  const tryNativeShare = async (payload) => {
+    if (typeof navigator === "undefined" || !navigator.share) return false
+    try {
+      await navigator.share(payload)
+      return true
+    } catch (error) {
+      if (error?.name === "AbortError") return true
+      return false
+    }
+  }
+
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success("Link copied to clipboard!")
+    } catch (error) {
+      const textArea = document.createElement("textarea")
+      textArea.value = text
+      textArea.style.position = "fixed"
+      textArea.style.opacity = "0"
+      document.body.appendChild(textArea)
+      textArea.select()
+      try {
+        document.execCommand("copy")
+        toast.success("Link copied to clipboard!")
+      } catch (err) {
+        toast.error("Failed to copy link")
+      }
+      document.body.removeChild(textArea)
+    }
+  }
+
+  const openShareTarget = (target) => {
+    if (!sharePayload?.url) return
+
+    const text = sharePayload.text || ""
+    const url = sharePayload.url
+    const encodedText = encodeURIComponent(text)
+    const encodedUrl = encodeURIComponent(url)
+
+    let shareLink = ""
+
+    if (target === "whatsapp") {
+      shareLink = `https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`
+    } else if (target === "telegram") {
+      shareLink = `https://t.me/share/url?url=${encodedUrl}&text=${encodedText}`
+    } else if (target === "email") {
+      shareLink = `mailto:?subject=${encodeURIComponent(sharePayload.title || "Check this out")}&body=${encodeURIComponent(`${text}\n\n${url}`)}`
+    } else if (target === "sms") {
+      shareLink = `sms:?body=${encodeURIComponent(`${text} ${url}`)}`
+    } else if (target === "facebook") {
+      shareLink = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`
+    } else if (target === "x") {
+      shareLink = `https://twitter.com/intent/tweet?text=${encodeURIComponent(`${text} ${url}`)}`
+    } else if (target === "linkedin") {
+      shareLink = `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`
+    }
+
+    if (shareLink) {
+      window.open(shareLink, "_blank", "noopener,noreferrer")
+      setShowShareModal(false)
+    }
+  }
+
+  const copyShareLink = async () => {
+    if (!sharePayload?.url) return
+    await copyToClipboard(sharePayload.url)
+    setShowShareModal(false)
+  }
+
+  const handleSystemShareFromModal = async () => {
+    if (!sharePayload) return
+    const shared = await tryNativeShare(sharePayload)
+    if (shared) {
+      setShowShareModal(false)
+      toast.success("Shared successfully")
+    }
+  }
+
   const handleShareRestaurant = async (order) => {
     const companyName = await getCompanyNameAsync()
     const location =
       order.restaurantLocation ||
       `${order.address?.city || ""}, ${order.address?.state || ""}`.trim()
+    const restaurantPath = order.restaurantSlug || order.restaurantId
+    const shareUrl = restaurantPath
+      ? `${window.location.origin}/food/user/restaurants/${restaurantPath}`
+      : `${window.location.origin}/food/user/orders/${order.id}`
 
     const shareText = `Check out ${order.restaurant} on ${companyName}.
 Location: ${location || "Location not available"}
 Order again from this restaurant in the ${companyName} app.`
 
+    const payload = {
+      title: order.restaurant,
+      text: shareText,
+      url: shareUrl,
+    }
+
     try {
-      if (navigator.share) {
-        await navigator.share({
-          title: order.restaurant,
-          text: shareText,
-        })
-      } else if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(shareText)
-        toast.success("Restaurant details copied to clipboard")
-      } else {
-        toast.info("Sharing is not supported on this device")
+      const shared = await tryNativeShare(payload)
+      if (shared) {
+        toast.success("Restaurant shared successfully")
+        return
       }
+
+      openShareModal(payload)
     } catch (error) {
       if (error?.name !== "AbortError") {
         debugError("Error sharing restaurant:", error)
@@ -638,6 +762,9 @@ Order again from this restaurant in the ${companyName} app.`
 
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-gray-800 text-lg leading-tight">{order.restaurant}</h3>
+                      <p className="text-[11px] text-gray-500 mt-0.5">
+                        Order ID: <span className="font-semibold text-gray-700">{order.orderId || order.id}</span>
+                      </p>
                       <p className="text-xs text-gray-500 mt-0.5">{location}</p>
                       {order.deliveryPartnerName && (
                         <p className="text-xs text-gray-600 mt-1">
@@ -1035,6 +1162,107 @@ Order again from this restaurant in the ${companyName} app.`
               {ratingSubmitDisabled && (
                 <p className="text-xs text-center text-red-500 mt-2">Please select all required ratings to continue</p>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showShareModal && sharePayload && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 px-4 pb-4 pt-10 sm:items-center">
+          <div className="w-full max-w-sm rounded-3xl bg-white shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">Share restaurant</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Native share available ho to sab supported apps wahan dikhenge</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowShareModal(false)}
+                className="rounded-full p-2 text-gray-500 hover:bg-gray-100"
+                aria-label="Close share modal"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="px-5 py-5 space-y-3">
+              {typeof navigator !== "undefined" && navigator.share && (
+                <button
+                  type="button"
+                  onClick={handleSystemShareFromModal}
+                  className="w-full rounded-2xl bg-[#EB590E] px-4 py-3 text-sm font-semibold text-white flex items-center justify-center gap-2 hover:bg-[#D94F0C] transition-colors"
+                >
+                  <Share2 className="w-4 h-4" />
+                  Share via apps
+                </button>
+              )}
+
+              <div className="grid grid-cols-3 gap-3">
+                <button
+                  type="button"
+                  onClick={() => openShareTarget("whatsapp")}
+                  className="rounded-2xl border border-gray-200 px-3 py-4 text-xs font-medium text-gray-700 flex flex-col items-center gap-2 hover:bg-gray-50"
+                >
+                  <MessageCircle className="w-5 h-5 text-green-600" />
+                  WhatsApp
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openShareTarget("telegram")}
+                  className="rounded-2xl border border-gray-200 px-3 py-4 text-xs font-medium text-gray-700 flex flex-col items-center gap-2 hover:bg-gray-50"
+                >
+                  <Send className="w-5 h-5 text-sky-500" />
+                  Telegram
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openShareTarget("email")}
+                  className="rounded-2xl border border-gray-200 px-3 py-4 text-xs font-medium text-gray-700 flex flex-col items-center gap-2 hover:bg-gray-50"
+                >
+                  <Mail className="w-5 h-5 text-rose-500" />
+                  Email
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openShareTarget("sms")}
+                  className="rounded-2xl border border-gray-200 px-3 py-4 text-xs font-medium text-gray-700 flex flex-col items-center gap-2 hover:bg-gray-50"
+                >
+                  <MessagesSquare className="w-5 h-5 text-violet-500" />
+                  SMS
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openShareTarget("facebook")}
+                  className="rounded-2xl border border-gray-200 px-3 py-4 text-xs font-medium text-gray-700 flex flex-col items-center gap-2 hover:bg-gray-50"
+                >
+                  <Share2 className="w-5 h-5 text-blue-600" />
+                  Facebook
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openShareTarget("x")}
+                  className="rounded-2xl border border-gray-200 px-3 py-4 text-xs font-medium text-gray-700 flex flex-col items-center gap-2 hover:bg-gray-50"
+                >
+                  <Link2 className="w-5 h-5 text-gray-900" />
+                  X
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openShareTarget("linkedin")}
+                  className="rounded-2xl border border-gray-200 px-3 py-4 text-xs font-medium text-gray-700 flex flex-col items-center gap-2 hover:bg-gray-50"
+                >
+                  <Share2 className="w-5 h-5 text-blue-700" />
+                  LinkedIn
+                </button>
+                <button
+                  type="button"
+                  onClick={copyShareLink}
+                  className="rounded-2xl border border-gray-200 px-3 py-4 text-xs font-medium text-gray-700 flex flex-col items-center gap-2 hover:bg-gray-50"
+                >
+                  <Copy className="w-5 h-5 text-gray-600" />
+                  Copy link
+                </button>
+              </div>
             </div>
           </div>
         </div>

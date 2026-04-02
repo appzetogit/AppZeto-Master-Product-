@@ -782,7 +782,7 @@ function RestaurantDetailsContent() {
                     section.items.forEach(item => {
                       // Strict check: isRecommended must be exactly boolean true
                       // This will exclude: false, undefined, null, 0, "", and any other falsy values
-                      if (item.isRecommended === true && typeof item.isRecommended === 'boolean' && item.isAvailable !== false) {
+                      if (isRecommendedItem(item) && item.isAvailable !== false) {
                         recommendedItems.push(item)
                       }
                     })
@@ -794,7 +794,7 @@ function RestaurantDetailsContent() {
                         subsection.items.forEach(item => {
                           // Strict check: isRecommended must be exactly boolean true
                           // This will exclude: false, undefined, null, 0, "", and any other falsy values
-                          if (item.isRecommended === true && typeof item.isRecommended === 'boolean' && item.isAvailable !== false) {
+                          if (isRecommendedItem(item) && item.isAvailable !== false) {
                             recommendedItems.push(item)
                           }
                         })
@@ -1175,7 +1175,8 @@ function RestaurantDetailsContent() {
       restaurantId: validRestaurantId, // Use validated restaurantId
       description: item.description,
       originalPrice: item.originalPrice,
-      isVeg: item.isVeg !== false // Add isVeg property
+      isVeg: item.isVeg !== false, // Add isVeg property
+      preparationTime: item.preparationTime // Add preparationTime property
     }
 
     // Get source position for animation from event target
@@ -1270,6 +1271,10 @@ function RestaurantDetailsContent() {
     if (typeof sectionName !== "string") return false
     const name = sectionName.trim().toLowerCase()
     return name === "recommended for you" || name === "result for your search"
+  }
+
+  const isRecommendedItem = (item) => {
+    return item.isRecommended === true && typeof item.isRecommended === "boolean"
   }
 
   const getSectionDisplayName = (section) => {
@@ -1661,7 +1666,7 @@ function RestaurantDetailsContent() {
         if (item.foodType !== "Non-Veg") return false
       }
 
-      if (filters.highlyReordered && item.isRecommended !== true) return false
+      if (filters.highlyReordered && !isRecommendedItem(item)) return false
       if (filters.spicy && item.isSpicy !== true) return false
 
       return true
@@ -2379,7 +2384,7 @@ function RestaurantDetailsContent() {
                               <h3 className="font-bold text-gray-800 dark:text-white text-lg leading-tight">{item.name}</h3>
 
                               {/* Highly Reordered Progress Bar - Show if recommended */}
-                              {item.isRecommended && (
+                              {isRecommendedItem(item) && (
                                 <div className="flex items-center gap-2 mt-1">
                                   <div className="h-1.5 w-16 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                                     <div className="h-full bg-[#EB590E] w-3/4"></div>
@@ -2600,7 +2605,7 @@ function RestaurantDetailsContent() {
                                         <h3 className="font-bold text-gray-800 dark:text-white text-lg leading-tight">{item.name}</h3>
 
                                         {/* Highly Reordered Progress Bar - Show if recommended */}
-                                        {item.isRecommended && (
+                                        {isRecommendedItem(item) && (
                                           <div className="flex items-center gap-2 mt-1">
                                             <div className="h-1.5 w-16 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                                               <div className="h-full bg-[#EB590E] w-3/4"></div>
@@ -3395,7 +3400,7 @@ function RestaurantDetailsContent() {
                     </p>
 
                     {/* Highly Reordered Progress Bar */}
-                    {selectedItem.isRecommended && (
+                    {isRecommendedItem(selectedItem) && (
                       <div className="flex items-center gap-2 mb-4">
                         <div className="flex-1 h-0.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                           <div className="h-full bg-green-500 dark:bg-green-400 rounded-full" style={{ width: '50%' }} />

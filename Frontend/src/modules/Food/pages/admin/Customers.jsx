@@ -528,20 +528,20 @@ export default function Customers() {
 
       {/* User Details Modal */}
       <Dialog open={showUserDetails} onOpenChange={setShowUserDetails}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto mx-auto">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-slate-900">User Details</DialogTitle>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto mx-auto p-0 gap-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-200">
+            <DialogTitle className="pr-12 text-xl font-bold text-slate-900">User Details</DialogTitle>
           </DialogHeader>
 
           {loadingDetails ? (
-            <div className="py-8 text-center">
+            <div className="px-6 py-8 text-center">
               <div className="text-sm text-slate-500">Loading user details...</div>
             </div>
           ) : userDetails ? (
-            <div className="space-y-4">
+            <div className="space-y-4 px-6 py-5">
               {/* Profile Section */}
-              <div className="bg-slate-50 rounded-lg p-4">
-                <div className="flex items-start gap-4">
+              <div className="bg-slate-50 rounded-xl p-4 sm:p-5">
+                <div className="flex flex-col sm:flex-row sm:items-start gap-4">
                   <div className="w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
                     {userDetails.profileImage ? (
                       <img src={userDetails.profileImage} alt={userDetails.name} className="w-full h-full rounded-full object-cover" />
@@ -549,8 +549,8 @@ export default function Customers() {
                       <User className="w-8 h-8 text-slate-400" />
                     )}
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
                       <h3 className="text-lg font-bold text-slate-900">{userDetails.name}</h3>
                       {userDetails.isActive ? (
                         <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700 flex items-center gap-1">
@@ -565,11 +565,11 @@ export default function Customers() {
                       )}
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-                      <div className="flex items-center gap-2 text-sm text-slate-600">
+                      <div className="flex items-center gap-2 text-sm text-slate-600 min-w-0">
                         <Mail className="w-4 h-4" />
-                        <span>{userDetails.email}</span>
+                        <span className="truncate">{userDetails.email}</span>
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-slate-600">
+                      <div className="flex items-center gap-2 text-sm text-slate-600 min-w-0">
                         <Phone className="w-4 h-4" />
                         <span>{userDetails.phone}</span>
                         {userDetails.phoneVerified && (
@@ -579,10 +579,6 @@ export default function Customers() {
                       <div className="flex items-center gap-2 text-sm text-slate-600">
                         <CalendarIcon className="w-4 h-4" />
                         <span>Joined: {formatDateTime(userDetails.joiningDate)}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-slate-600">
-                        <User className="w-4 h-4" />
-                        <span>Signup: {userDetails.signupMethod || 'N/A'}</span>
                       </div>
                     </div>
                   </div>

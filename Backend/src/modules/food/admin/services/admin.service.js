@@ -365,6 +365,13 @@ export async function getDashboardStats(query = {}) {
         restaurantMatch.zoneId = zoneId;
     }
 
+    const zoneRestaurantIds = zoneId
+        ? await FoodRestaurant.find({ zoneId }).distinct('_id')
+        : null;
+    const zoneScopedRestaurantMatch = zoneId
+        ? { restaurantId: { $in: zoneRestaurantIds || [] } }
+        : {};
+
     const [
         orderTotalsAgg,
         monthlyAgg,
@@ -467,31 +474,56 @@ export async function getDashboardStats(query = {}) {
             },
             { $sort: { '_id.year': 1, '_id.month': 1 } }
         ]),
-        FoodRestaurant.countDocuments(restaurantMatch),
+        FoodRestaurant.countDocuments({ ...restaurantMatch, status: 'approved' }),
         FoodRestaurant.countDocuments({ ...restaurantMatch, status: 'pending' }),
-        FoodDeliveryPartner.countDocuments({}),
+        FoodDeliveryPartner.countDocuments({ status: 'approved' }),
         FoodDeliveryPartner.countDocuments({ status: 'pending' }),
-        FoodItem.countDocuments({}),
-        FoodAddon.countDocuments({}),
-        FoodUser.countDocuments({}),
-        FoodRestaurant.find({ status: 'pending' }).sort({ createdAt: -1 }).limit(5).select('restaurantName createdAt').lean(),
+        FoodItem.countDocuments({ approvalStatus: 'approved', ...zoneScopedRestaurantMatch }),
+        FoodAddon.countDocuments({ approvalStatus: 'approved', isDeleted: { $ne: true }, ...zoneScopedRestaurantMatch }),
+        zoneId
+            ? FoodOrder.distinct('userId', { ...orderMatch, userId: { $ne: null } }).then((ids) => ids.length)
+            : FoodUser.countDocuments({}),
+        FoodRestaurant.find({ ...restaurantMatch, status: 'pending' }).sort({ createdAt: -1 }).limit(5).select('restaurantName createdAt').lean(),
         FoodDeliveryPartner.find({ status: 'pending' }).sort({ createdAt: -1 }).limit(5).select('name createdAt').lean(),
         FoodOrder.find({ 
+            ...orderMatch,
             orderStatus: { $in: PENDING_ORDER_STATUSES },
-            $or: [
-                { "payment.method": { $in: ["cash", "wallet"] } },
-                { "payment.status": { $in: ["paid", "authorized", "captured", "settled", "refunded"] } },
-            ],
         }).sort({ createdAt: -1 }).limit(5).select('orderId createdAt').lean(),
-        FoodOrder.find({ orderStatus: 'delivered' }).sort({ updatedAt: -1 }).limit(5).select('orderId updatedAt').lean(),
+        FoodOrder.find({ ...orderMatch, orderStatus: 'delivered' }).sort({ updatedAt: -1 }).limit(5).select('orderId updatedAt').lean(),
         FoodOrder.find({ 
+            ...orderMatch,
             orderStatus: { $in: CANCELLED_ORDER_STATUSES },
-            $or: [
-                { "payment.method": { $in: ["cash", "wallet"] } },
-                { "payment.status": { $in: ["paid", "authorized", "captured", "settled", "refunded"] } },
-            ],
         }).sort({ updatedAt: -1 }).limit(5).select('orderId updatedAt').lean(),
-        FoodUser.find({}).sort({ createdAt: -1 }).limit(5).select('name createdAt').lean()
+        zoneId
+            ? FoodOrder.aggregate([
+                { $match: { ...orderMatch, userId: { $ne: null } } },
+                { $sort: { createdAt: -1 } },
+                {
+                    $group: {
+                        _id: '$userId',
+                        createdAt: { $first: '$createdAt' }
+                    }
+                },
+                { $sort: { createdAt: -1 } },
+                { $limit: 5 },
+                {
+                    $lookup: {
+                        from: 'food_users',
+                        localField: '_id',
+                        foreignField: '_id',
+                        as: 'user'
+                    }
+                },
+                { $unwind: '$user' },
+                {
+                    $project: {
+                        _id: '$user._id',
+                        name: '$user.name',
+                        createdAt: 1
+                    }
+                }
+            ])
+            : FoodUser.find({}).sort({ createdAt: -1 }).limit(5).select('name createdAt').lean()
     ]);
 
     const liveSignals = [];
@@ -647,7 +679,15 @@ export async function getTransactionReport(query = {}) {
     }
 
     if (search) {
-        match.orderReadableId = { $regex: search, $options: "i" };
+        const searchRegex = new RegExp(String(search).trim(), "i");
+        const matchingOrders = await FoodOrder.find({ orderId: { $regex: searchRegex } })
+            .select('_id')
+            .lean();
+
+        match.$or = [
+            { orderReadableId: { $regex: searchRegex } },
+            { orderId: { $in: matchingOrders.map((order) => order._id) } }
+        ];
     }
 
     let restaurantIds = null;
@@ -678,18 +718,37 @@ export async function getTransactionReport(query = {}) {
     const transactions = transactionRows.map((tx) => {
         const order = tx.orderId || {};
         const pricing = order.pricing || {};
+        const subtotal = Number(pricing.subtotal || 0) || 0;
+        const packagingFee = Number(pricing.packagingFee || 0) || 0;
+        const deliveryFee = Number(pricing.deliveryFee || 0) || 0;
+        const tax = Number(pricing.tax || 0) || 0;
+        const discount = Number(pricing.discount || 0) || 0;
+        const total = Number(pricing.total || 0) || 0;
+
+        // "Platform fee" should come from pricing.platformFee when available.
+        // For older orders where pricing.platformFee isn't stored, derive it from the pricing equation:
+        // total = subtotal + packagingFee + deliveryFee + platformFee + tax - discount
+        const platformFeeDerived = Math.max(
+            0,
+            total - subtotal - packagingFee - deliveryFee - tax + discount
+        );
+        const platformFee =
+            pricing.platformFee !== undefined && pricing.platformFee !== null
+                ? Number(pricing.platformFee || 0) || 0
+                : platformFeeDerived;
         return {
             id: tx._id,
             orderId: tx.orderReadableId || order.orderId || 'N/A',
             restaurant: tx.restaurantId?.restaurantName || 'N/A',
             customerName: tx.userId?.name || 'Guest',
-            totalItemAmount: pricing.subtotal || 0,
+            totalItemAmount: subtotal,
             itemDiscount: pricing.discount || 0,
             couponDiscount: 0, // Placeholder if you add coupon logic
             referralDiscount: 0, // Placeholder
             discountedAmount: Math.max(0, (pricing.subtotal || 0) - (pricing.discount || 0)),
             vatTax: tx.amounts?.taxAmount || pricing.tax || 0,
             deliveryCharge: pricing.deliveryFee || 0,
+            platformFee,
             orderAmount: tx.amounts?.totalCustomerPaid || pricing.total || 0,
             status: tx.status
         };
@@ -767,7 +826,7 @@ export async function getRestaurantReport(query = {}) {
         return null;
     };
 
-    const formatCurrency = (value) => `â‚¹${Number(value || 0).toFixed(2)}`;
+    const formatCurrency = (value) => `\u20B9${Number(value || 0).toFixed(2)}`;
 
     const limit = Math.min(Math.max(parseInt(query.limit, 10) || 1000, 1), 5000);
     const page = Math.max(parseInt(query.page, 10) || 1, 1);
@@ -993,8 +1052,8 @@ export async function getTaxReport(query = {}) {
             sl: index + 1,
             id: item._id,
             incomeSource: item.incomeSource,
-            totalIncome: `â‚¹${item.totalIncome.toFixed(2)}`,
-            totalTax: `â‚¹${item.totalTax.toFixed(2)}`,
+            totalIncome: `\u20B9${item.totalIncome.toFixed(2)}`,
+            totalTax: `\u20B9${item.totalTax.toFixed(2)}`,
             orderCount: item.orderCount
         };
     });
@@ -1002,8 +1061,8 @@ export async function getTaxReport(query = {}) {
     return {
         reports,
         stats: {
-            totalIncome: `â‚¹${stats.totalIncome.toFixed(2)}`,
-            totalTax: `â‚¹${stats.totalTax.toFixed(2)}`
+            totalIncome: `\u20B9${stats.totalIncome.toFixed(2)}`,
+            totalTax: `\u20B9${stats.totalTax.toFixed(2)}`
         }
     };
 }
@@ -1035,8 +1094,8 @@ export async function getTaxReportDetail(restaurantId, query = {}) {
         orders: orders.map(o => ({
             id: o._id,
             orderId: o.orderId,
-            totalAmount: `â‚¹${(o.pricing?.total || 0).toFixed(2)}`,
-            taxAmount: `â‚¹${(o.pricing?.tax || 0).toFixed(2)}`,
+            totalAmount: `\u20B9${(o.pricing?.total || 0).toFixed(2)}`,
+            taxAmount: `\u20B9${(o.pricing?.tax || 0).toFixed(2)}`,
             date: o.createdAt
         }))
     };
@@ -2014,10 +2073,14 @@ export async function getRestaurantAnalytics(restaurantId) {
     if (!restaurantId || !mongoose.Types.ObjectId.isValid(restaurantId)) return null;
     const rId = new mongoose.Types.ObjectId(restaurantId);
 
-    const [restaurant, commissionDoc, orders] = await Promise.all([
+    const [restaurant, commissionDoc, orders, txRows] = await Promise.all([
         FoodRestaurant.findById(rId).lean(),
         FoodRestaurantCommission.findOne({ restaurantId: rId, status: { $ne: false } }).lean(),
-        FoodOrder.find({ restaurantId: rId }).lean()
+        FoodOrder.find({ restaurantId: rId }).lean(),
+        FoodTransaction.find({ restaurantId: rId })
+            .populate('orderId', 'orderStatus createdAt pricing')
+            .sort({ createdAt: -1 })
+            .lean(),
     ]);
 
     if (!restaurant) return null;
@@ -2029,28 +2092,49 @@ export async function getRestaurantAnalytics(restaurantId) {
     const completedOrders = orders.filter(o => o.orderStatus === 'delivered');
     const cancelledOrders = orders.filter(o => ['cancelled_by_user', 'cancelled_by_restaurant', 'cancelled_by_admin'].includes(o.orderStatus));
 
-    const totalRevenue = completedOrders.reduce((sum, o) => sum + (o.pricing?.total || 0), 0);
-    const totalCommission = completedOrders.reduce((sum, o) => sum + (o.platformProfit || o.pricing?.platformFee || 0), 0);
-    const restaurantEarning = totalRevenue - totalCommission;
+    // Money metrics should come from the ledger (FoodTransaction), not FoodOrder.
+    const completedTx = (txRows || []).filter((tx) => {
+        const orderStatus = tx?.orderId?.orderStatus;
+        if (orderStatus) return orderStatus === 'delivered';
+        return tx?.status === 'captured' || tx?.status === 'authorized' || tx?.status === 'settled';
+    });
+
+    const sum = (arr, pick) => (arr || []).reduce((s, it) => s + (Number(pick(it)) || 0), 0);
+
+    // 1) Total order value (gross customer paid)
+    const totalRevenue = sum(completedTx, (tx) => tx?.amounts?.totalCustomerPaid ?? tx?.pricing?.total ?? tx?.orderId?.pricing?.total);
+
+    // 2) Restaurant share (payout to restaurant)
+    const restaurantEarning = sum(completedTx, (tx) => tx?.amounts?.restaurantShare);
+
+    // 3) Restaurant commission paid to admin
+    const totalCommission = sum(completedTx, (tx) => tx?.amounts?.restaurantCommission ?? tx?.pricing?.restaurantCommission);
+
+    // 4) Restaurant profit (in this system, equals restaurant share)
+    const restaurantProfit = restaurantEarning;
 
     const monthlyOrdersList = orders.filter(o => {
         const d = new Date(o.createdAt);
         return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
     });
-    const monthlyCompletedOrders = monthlyOrdersList.filter(o => o.orderStatus === 'delivered');
-    const monthlyProfit = monthlyCompletedOrders.reduce((sum, o) => sum + (o.pricing?.total || 0), 0) -
-        monthlyCompletedOrders.reduce((sum, o) => sum + (o.platformProfit || o.pricing?.platformFee || 0), 0);
+    const monthlyCompletedTx = completedTx.filter((tx) => {
+        const d = new Date(tx?.createdAt || tx?.orderId?.createdAt || 0);
+        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    });
+    const monthlyProfit = sum(monthlyCompletedTx, (tx) => tx?.amounts?.restaurantShare);
 
     const yearlyOrdersList = orders.filter(o => {
         const d = new Date(o.createdAt);
         return d.getFullYear() === currentYear;
     });
-    const yearlyCompletedOrders = yearlyOrdersList.filter(o => o.orderStatus === 'delivered');
-    const yearlyProfit = yearlyCompletedOrders.reduce((sum, o) => sum + (o.pricing?.total || 0), 0) -
-        yearlyCompletedOrders.reduce((sum, o) => sum + (o.platformProfit || o.pricing?.platformFee || 0), 0);
+    const yearlyCompletedTx = completedTx.filter((tx) => {
+        const d = new Date(tx?.createdAt || tx?.orderId?.createdAt || 0);
+        return d.getFullYear() === currentYear;
+    });
+    const yearlyProfit = sum(yearlyCompletedTx, (tx) => tx?.amounts?.restaurantShare);
 
     const totalOrdersCount = orders.length;
-    const avgOrderValue = totalOrdersCount > 0 ? totalRevenue / completedOrders.length || 0 : 0;
+    const avgOrderValue = completedTx.length > 0 ? totalRevenue / completedTx.length : 0;
 
     const uniqueCustomers = new Set(orders.map(o => String(o.userId))).size;
     const customerOrderCounts = orders.reduce((acc, o) => {
@@ -2060,19 +2144,29 @@ export async function getRestaurantAnalytics(restaurantId) {
     }, {});
     const repeatCustomers = Object.values(customerOrderCounts).filter(count => count > 1).length;
 
+    // 5) Restaurant commission percent
+    const commissionType = commissionDoc?.defaultCommission?.type || 'percentage';
+    const commissionValue = Number(commissionDoc?.defaultCommission?.value || 0) || 0;
+    const completedSubtotal = sum(completedTx, (tx) => tx?.pricing?.subtotal ?? tx?.orderId?.pricing?.subtotal);
+    const computedCommissionPercent =
+        commissionType === 'percentage'
+            ? commissionValue
+            : (completedSubtotal > 0 ? (totalCommission / completedSubtotal) * 100 : 0);
+
     const analytics = {
         totalOrders: totalOrdersCount,
         cancelledOrders: cancelledOrders.length,
         completedOrders: completedOrders.length,
         averageRating: Number(restaurant.rating || 0),
         totalRatings: Number(restaurant.totalRatings || 0),
-        commissionPercentage: commissionDoc?.defaultCommission?.value || 0,
+        commissionPercentage: computedCommissionPercent,
         monthlyProfit,
         yearlyProfit,
         averageOrderValue: avgOrderValue,
         totalRevenue,
         totalCommission,
-        restaurantEarning,
+        restaurantEarning, // restaurant share
+        restaurantProfit,
         monthlyOrders: monthlyOrdersList.length,
         yearlyOrders: yearlyOrdersList.length,
         averageMonthlyProfit: monthlyProfit, // Placeholder: can be improved if historical data exists
@@ -2085,7 +2179,25 @@ export async function getRestaurantAnalytics(restaurantId) {
         completionRate: totalOrdersCount > 0 ? (completedOrders.length / totalOrdersCount) * 100 : 0
     };
 
-    return { restaurant, analytics };
+    const paymentSummary = {
+        // Pricing (what customer paid components)
+        subtotal: sum(completedTx, (tx) => tx?.pricing?.subtotal ?? tx?.orderId?.pricing?.subtotal),
+        tax: sum(completedTx, (tx) => tx?.pricing?.tax ?? tx?.amounts?.taxAmount ?? tx?.orderId?.pricing?.tax),
+        packagingFee: sum(completedTx, (tx) => tx?.pricing?.packagingFee ?? tx?.orderId?.pricing?.packagingFee),
+        deliveryFee: sum(completedTx, (tx) => tx?.pricing?.deliveryFee ?? tx?.orderId?.pricing?.deliveryFee),
+        platformFee: sum(completedTx, (tx) => tx?.pricing?.platformFee ?? tx?.orderId?.pricing?.platformFee),
+        discount: sum(completedTx, (tx) => tx?.pricing?.discount ?? tx?.orderId?.pricing?.discount),
+        total: totalRevenue,
+        currency: 'INR',
+
+        // Split (who got what)
+        restaurantShare: restaurantEarning,
+        restaurantCommission: totalCommission,
+        riderShare: sum(completedTx, (tx) => tx?.amounts?.riderShare),
+        platformNetProfit: sum(completedTx, (tx) => tx?.amounts?.platformNetProfit),
+    };
+
+    return { restaurant, analytics, paymentSummary };
 }
 
 export async function getRestaurantMenuById(id) {
@@ -2575,7 +2687,16 @@ export async function getRestaurantAddonsAdmin(query = {}) {
     if (query.search && String(query.search).trim()) {
         const raw = String(query.search).trim().slice(0, 80);
         const term = raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        filter.$or = [{ 'draft.name': { $regex: term, $options: 'i' } }];
+        const matchingRestaurantIds = await FoodRestaurant.find({
+            restaurantName: { $regex: term, $options: 'i' }
+        })
+            .select('_id')
+            .lean();
+
+        filter.$or = [
+            { 'draft.name': { $regex: term, $options: 'i' } },
+            { restaurantId: { $in: matchingRestaurantIds.map((restaurant) => restaurant._id) } }
+        ];
     }
 
     const [list, total] = await Promise.all([
@@ -3607,7 +3728,7 @@ export async function addDeliveryPartnerBonus(body, adminUser) {
             { ownerType: 'DELIVERY_PARTNER', ownerId: body.deliveryPartnerId },
             {
                 title: 'Bonus Credited! ðŸŽŠ',
-                body: `You have received a bonus of â‚¹${body.amount}. ${body.reference || 'Great job!'}`,
+                body: `You have received a bonus of \u20B9${body.amount}. ${body.reference || 'Great job!'}`,
                 image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
                 data: {
                     type: 'bonus_credited',

@@ -231,7 +231,7 @@ const orderSchema = new mongoose.Schema(
         customerPhone: { type: String, default: '', trim: true },
         pricing: {
             type: pricingSchema,
-            required: true
+            required: false
         },
         /**
          * Denormalized payment snapshot for fast reads & legacy clients.
@@ -239,7 +239,7 @@ const orderSchema = new mongoose.Schema(
          */
         payment: {
             type: paymentSchema,
-            required: true
+            required: false
         },
         orderStatus: {
             type: String,

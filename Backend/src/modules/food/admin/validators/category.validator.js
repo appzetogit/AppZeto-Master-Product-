@@ -5,6 +5,7 @@ const listSchema = z.object({
     search: z.string().optional(),
     zoneId: z.string().optional(),
     isApproved: z.coerce.boolean().optional(),
+    approvalStatus: z.enum(['pending', 'approved', 'rejected']).optional(),
     page: z.coerce.number().int().min(1).optional(),
     limit: z.coerce.number().int().min(1).max(1000).optional()
 });
@@ -13,10 +14,15 @@ const upsertSchema = z.object({
     name: z.string().min(1, 'Category name is required').max(200).optional(),
     image: z.string().max(2000).optional(),
     type: z.string().max(100).optional(),
+    foodTypeScope: z.enum(['Veg', 'Non-Veg', 'Both']).optional(),
     zoneId: z.string().max(100).optional(),
     status: z.boolean().optional(),
     isActive: z.boolean().optional(),
     sortOrder: z.coerce.number().int().optional()
+});
+
+const rejectSchema = z.object({
+    reason: z.string().min(1, 'Rejection reason is required').max(500)
 });
 
 export const validateCategoryListQuery = (query) => {
@@ -36,5 +42,13 @@ export const validateCategoryUpsertDto = (body) => {
     // Normalize active flag: frontend uses `status`
     const isActive = d.isActive !== undefined ? d.isActive : (d.status !== undefined ? d.status : undefined);
     return { ...d, isActive };
+};
+
+export const validateCategoryRejectDto = (body) => {
+    const result = rejectSchema.safeParse(body);
+    if (!result.success) {
+        throw new ValidationError(result.error.errors[0]?.message || 'Invalid category rejection data');
+    }
+    return result.data;
 };
 

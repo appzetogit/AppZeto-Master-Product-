@@ -166,6 +166,7 @@ export default function UserOrderDetails() {
 
   const items = Array.isArray(order.items) ? order.items : []
   const pricing = order.pricing || {}
+  const sendsCutlery = order.sendCutlery !== false
 
   const userName = order.userName || ""
   const userPhone = order.userPhone || ""
@@ -270,7 +271,7 @@ export default function UserOrderDetails() {
 
       // Items table
       const tableData = items.map(item => [
-        item.name || 'Item',
+        item.variantName ? `${item.name || 'Item'} (${item.variantName})` : (item.name || 'Item'),
         String(item.quantity || item.qty || 1),
         `?${Number(item.price || 0).toFixed(2)}`,
         `?${Number((item.price || 0) * (item.quantity || item.qty || 1)).toFixed(2)}`
@@ -383,6 +384,17 @@ export default function UserOrderDetails() {
             </button>
           </div>
 
+          <div className="flex items-center gap-2 mb-4">
+            <span
+              className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${sendsCutlery
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  : "bg-orange-50 text-orange-700 border border-orange-200"
+                }`}
+            >
+              {sendsCutlery ? "Send cutlery" : "Don't send cutlery"}
+            </span>
+          </div>
+
           <div className="border-t border-dashed border-gray-200 my-3" />
 
           {/* Items */}
@@ -399,7 +411,7 @@ export default function UserOrderDetails() {
                   />
                 </div>
                 <span className="text-sm text-gray-700 font-medium">
-                  {item.quantity || item.qty || 1} x {item.name}
+                  {item.quantity || item.qty || 1} x {item.name}{item.variantName ? ` (${item.variantName})` : ""}
                 </span>
               </div>
               <span className="text-sm text-gray-800 font-medium">

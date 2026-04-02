@@ -1,5 +1,6 @@
 // src/context/cart-context.jsx
 import { createContext, useContext, useEffect, useMemo, useState } from "react"
+import { buildCartLineId } from "@food/utils/foodVariants"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -65,9 +66,40 @@ const normalizeCartData = (rawCart) => {
         item.product?.image ||
         ""
 
+      const baseItemId =
+        item.itemId ||
+        item.productId ||
+        item.foodId ||
+        item.baseItemId ||
+        item.menuItemId ||
+        item.id ||
+        item._id ||
+        `cart-item-${index}`
+
+      const variantId = item.variantId || item.variant?._id || item.variant?.id || ""
+      const variantName =
+        typeof item.variantName === "string"
+          ? item.variantName
+          : typeof item.variant?.name === "string"
+            ? item.variant.name
+            : ""
+      const parsedVariantPrice = Number(
+        item.variantPrice ?? item.variant?.price ?? item.price,
+      )
+      const lineItemId =
+        item.lineItemId ||
+        item.cartLineId ||
+        buildCartLineId(baseItemId, variantId)
+
       return {
         ...item,
-        id: item.id || item._id || `cart-item-${index}`,
+        id: lineItemId,
+        lineItemId,
+        itemId: String(baseItemId),
+        productId: String(baseItemId),
+        variantId: variantId ? String(variantId) : "",
+        variantName,
+        variantPrice: Number.isFinite(parsedVariantPrice) ? parsedVariantPrice : 0,
         name: item.name || item.product?.name || "Item",
         quantity:
           Number.isFinite(parsedQuantity) && parsedQuantity > 0
@@ -80,6 +112,30 @@ const normalizeCartData = (rawCart) => {
         imageUrl: normalizedImage,
       }
     })
+}
+
+const resolveCartEntryId = (items, itemId, variantId = "") => {
+  const normalizedItemId = String(itemId || "")
+  const safeItems = Array.isArray(items) ? items : []
+
+  const directMatch = safeItems.find((item) => item.id === normalizedItemId)
+  if (directMatch) return directMatch.id
+
+  const preferredId = buildCartLineId(normalizedItemId, variantId)
+
+  const exactMatch = safeItems.find((item) => item.id === preferredId)
+  if (exactMatch) return exactMatch.id
+
+  if (!variantId) {
+    const legacyBaseMatch = safeItems.find(
+      (item) =>
+        String(item.itemId || item.productId || item.id || "") === normalizedItemId &&
+        !String(item.variantId || "").trim(),
+    )
+    if (legacyBaseMatch) return legacyBaseMatch.id
+  }
+
+  return preferredId
 }
 
 export function CartProvider({ children }) {
@@ -243,7 +299,8 @@ export function CartProvider({ children }) {
   const removeFromCart = (itemId, sourcePosition = null, productInfo = null) => {
     setCart((prev) => {
       const safePrev = normalizeCartData(prev)
-      const itemToRemove = safePrev.find((i) => i.id === itemId)
+      const resolvedItemId = resolveCartEntryId(safePrev, itemId)
+      const itemToRemove = safePrev.find((i) => i.id === resolvedItemId)
       if (itemToRemove && sourcePosition && productInfo) {
         // Set last remove event for animation
         setLastRemoveEvent({
@@ -257,15 +314,17 @@ export function CartProvider({ children }) {
         // Clear after animation completes
         setTimeout(() => setLastRemoveEvent(null), 1500)
       }
-      return safePrev.filter((i) => i.id !== itemId)
+      return safePrev.filter((i) => i.id !== resolvedItemId)
     })
   }
 
   const updateQuantity = (itemId, quantity, sourcePosition = null, productInfo = null) => {
+    const safeCart = normalizeCartData(cart)
+    const resolvedItemId = resolveCartEntryId(safeCart, itemId)
     if (quantity <= 0) {
       setCart((prev) => {
         const safePrev = normalizeCartData(prev)
-        const itemToRemove = safePrev.find((i) => i.id === itemId)
+        const itemToRemove = safePrev.find((i) => i.id === resolvedItemId)
         if (itemToRemove && sourcePosition && productInfo) {
           // Set last remove event for animation
           setLastRemoveEvent({
@@ -279,7 +338,7 @@ export function CartProvider({ children }) {
           // Clear after animation completes
           setTimeout(() => setLastRemoveEvent(null), 1500)
         }
-        return safePrev.filter((i) => i.id !== itemId)
+        return safePrev.filter((i) => i.id !== resolvedItemId)
       })
       return
     }
@@ -287,7 +346,7 @@ export function CartProvider({ children }) {
     // When quantity decreases (but not to 0), also trigger removal animation
     setCart((prev) => {
       const safePrev = normalizeCartData(prev)
-      const existingItem = safePrev.find((i) => i.id === itemId)
+      const existingItem = safePrev.find((i) => i.id === resolvedItemId)
       if (existingItem && quantity < existingItem.quantity && sourcePosition && productInfo) {
         // Set last remove event for animation when decreasing quantity
         setLastRemoveEvent({
@@ -301,16 +360,24 @@ export function CartProvider({ children }) {
         // Clear after animation completes
         setTimeout(() => setLastRemoveEvent(null), 1500)
       }
-      return safePrev.map((i) => (i.id === itemId ? { ...i, quantity } : i))
+      return safePrev.map((i) => (i.id === resolvedItemId ? { ...i, quantity } : i))
     })
   }
 
   const getCartCount = () =>
     normalizeCartData(cart).reduce((total, item) => total + (item.quantity || 0), 0)
 
-  const isInCart = (itemId) => normalizeCartData(cart).some((i) => i.id === itemId)
+  const isInCart = (itemId, variantId = "") => {
+    const safeCart = normalizeCartData(cart)
+    const resolvedItemId = resolveCartEntryId(safeCart, itemId, variantId)
+    return safeCart.some((i) => i.id === resolvedItemId)
+  }
 
-  const getCartItem = (itemId) => normalizeCartData(cart).find((i) => i.id === itemId)
+  const getCartItem = (itemId, variantId = "") => {
+    const safeCart = normalizeCartData(cart)
+    const resolvedItemId = resolveCartEntryId(safeCart, itemId, variantId)
+    return safeCart.find((i) => i.id === resolvedItemId) || null
+  }
 
   const clearCart = () => setCart([])
 

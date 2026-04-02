@@ -794,18 +794,19 @@ export default function Cart() {
 
       // Fetch coupons for each item in cart
       for (const cartItem of cart) {
-        if (!cartItem.id) {
+        const couponItemId = cartItem.itemId || cartItem.id
+        if (!couponItemId) {
           debugLog(`[CART-COUPONS] Skipping item without id:`, cartItem)
           continue
         }
 
         try {
-          debugLog(`[CART-COUPONS] Fetching coupons for itemId: ${cartItem.id}, name: ${cartItem.name}`)
-          const response = await restaurantAPI.getCouponsByItemIdPublic(restaurantId, cartItem.id)
+          debugLog(`[CART-COUPONS] Fetching coupons for itemId: ${couponItemId}, name: ${cartItem.name}`)
+          const response = await restaurantAPI.getCouponsByItemIdPublic(restaurantId, couponItemId)
 
           if (response?.data?.success && response?.data?.data?.coupons) {
             const coupons = response.data.data.coupons
-            debugLog(`[CART-COUPONS] Found ${coupons.length} coupons for item ${cartItem.id}`)
+            debugLog(`[CART-COUPONS] Found ${coupons.length} coupons for item ${couponItemId}`)
 
             // Add coupons, avoiding duplicates
             coupons.forEach(coupon => {
@@ -827,7 +828,7 @@ export default function Cart() {
                   discountedPrice: coupon.discountedPrice,
                   customerGroup: coupon.customerGroup || "all",
                   isGlobalCoupon: Boolean(coupon.isGlobalCoupon),
-                  itemId: cartItem.id,
+                  itemId: couponItemId,
                   itemName: cartItem.name,
                 })
               }
@@ -857,9 +858,12 @@ export default function Cart() {
       try {
         setLoadingPricing(true)
         const items = cart.map(item => ({
-          itemId: item.id,
+          itemId: item.itemId || item.id,
           name: item.name,
           price: item.price, // Price should already be in INR
+          variantId: item.variantId || undefined,
+          variantName: item.variantName || undefined,
+          variantPrice: item.variantPrice || item.price,
           quantity: item.quantity || 1,
           image: item.image,
           description: item.description,
@@ -1240,9 +1244,12 @@ export default function Cart() {
     if (cart.length > 0 && hasSavedAddress) {
       try {
         const items = cart.map(item => ({
-          itemId: item.id,
+          itemId: item.itemId || item.id,
           name: item.name,
           price: item.price,
+          variantId: item.variantId || undefined,
+          variantName: item.variantName || undefined,
+          variantPrice: item.variantPrice || item.price,
           quantity: item.quantity || 1,
           image: item.image,
           description: item.description,
@@ -1298,9 +1305,12 @@ export default function Cart() {
 
     try {
       const items = cart.map(item => ({
-        itemId: item.id,
+        itemId: item.itemId || item.id,
         name: item.name,
         price: item.price,
+        variantId: item.variantId || undefined,
+        variantName: item.variantName || undefined,
+        variantPrice: item.variantPrice || item.price,
         quantity: item.quantity || 1,
         image: item.image,
         description: item.description,
@@ -1354,9 +1364,12 @@ export default function Cart() {
     if (cart.length > 0 && hasSavedAddress) {
       try {
         const items = cart.map(item => ({
-          itemId: item.id,
+          itemId: item.itemId || item.id,
           name: item.name,
           price: item.price,
+          variantId: item.variantId || undefined,
+          variantName: item.variantName || undefined,
+          variantPrice: item.variantPrice || item.price,
           quantity: item.quantity || 1,
           image: item.image,
           description: item.description,
@@ -1434,9 +1447,12 @@ export default function Cart() {
       // Include all cart items (main items + addons)
       // Note: Addons are added as separate cart items when user clicks the + button
       const orderItems = cart.map(item => ({
-        itemId: item.id,
+        itemId: item.itemId || item.id,
         name: item.name,
         price: item.price,
+        variantId: item.variantId || undefined,
+        variantName: item.variantName || undefined,
+        variantPrice: item.variantPrice || item.price,
         quantity: item.quantity || 1,
         image: item.image || "",
         description: item.description || "",
@@ -1957,6 +1973,9 @@ export default function Cart() {
 
                       <div className="flex-1 min-w-0">
                         <p className="text-sm md:text-base font-medium text-gray-800 dark:text-gray-200 leading-tight">{item.name}</p>
+                        {item.variantName ? (
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{item.variantName}</p>
+                        ) : null}
                       </div>
 
                       <div className="flex items-center gap-3 md:gap-4">
@@ -2012,7 +2031,9 @@ export default function Cart() {
                   className={`flex items-center gap-2 px-3 md:px-4 py-2 md:py-3 border rounded-lg md:rounded-xl text-sm md:text-base ${sendCutlery ? 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300' : 'border-[#EB590E] dark:border-[#EB590E]/50 text-[#EB590E] dark:text-[#EB590E] bg-[#FFF2EB] dark:bg-[#EB590E]/10'}`}
                 >
                   <Utensils className="h-4 w-4 md:h-5 md:w-5" />
-                  <span className="whitespace-nowrap">{sendCutlery ? "Don't send cutlery" : "No cutlery"}</span>
+                  <span className="whitespace-nowrap">
+                    {sendCutlery ? "Send cutlery" : "Don't send cutlery"}
+                  </span>
                 </button>
               </div>
 

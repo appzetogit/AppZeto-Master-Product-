@@ -33,7 +33,7 @@ const defaultFormData = {
   availabilityTimeStart: "12:01 AM",
   availabilityTimeEnd: "11:57 PM",
   description: "",
-  category: "Varieties",
+  category: "",
   foodType: "Non-Veg",
   discountType: "Percent",
   discountAmount: 0.0,
@@ -47,11 +47,11 @@ const defaultFormData = {
 }
 
 const fallbackCategoryOptions = [
-  { id: "fallback-varieties", name: "Varieties" },
-  { id: "fallback-appetizers", name: "Appetizers" },
-  { id: "fallback-main-course", name: "Main Course" },
-  { id: "fallback-desserts", name: "Desserts" },
-  { id: "fallback-beverages", name: "Beverages" },
+  { id: "fallback-varieties", name: "Varieties", foodTypeScope: "Both" },
+  { id: "fallback-appetizers", name: "Appetizers", foodTypeScope: "Both" },
+  { id: "fallback-main-course", name: "Main Course", foodTypeScope: "Both" },
+  { id: "fallback-desserts", name: "Desserts", foodTypeScope: "Both" },
+  { id: "fallback-beverages", name: "Beverages", foodTypeScope: "Both" },
 ]
 
 export default function EditFoodPage() {
@@ -112,6 +112,7 @@ export default function EditFoodPage() {
             availabilityTimeStart: existingFood.availabilityTimeStart || "12:01 AM",
             availabilityTimeEnd: existingFood.availabilityTimeEnd || "11:57 PM",
             description: existingFood.description || "",
+            category: existingFood.categoryId || existingFood.category || "",
             discountType: existingFood.discountType || "Percent",
             discountAmount: existingFood.discountAmount || 0.0,
             variations: existingFood.variations || [],
@@ -147,6 +148,7 @@ export default function EditFoodPage() {
           .map((category) => ({
             id: category?._id || category?.id,
             name: String(category?.name || "").trim(),
+            foodTypeScope: category?.foodTypeScope || "Both",
           }))
           .filter((category) => category.id && category.name)
 
@@ -155,11 +157,36 @@ export default function EditFoodPage() {
         if (isNewFood && normalized.length > 0) {
           setFormData((prev) => {
             const currentCategory = String(prev.category || "").trim()
-            const hasCurrentCategory = normalized.some((category) => category.name === currentCategory)
-            if (hasCurrentCategory) return prev
+            const matchedCategory = normalized.find(
+              (category) =>
+                String(category.id) === currentCategory ||
+                String(category.name || "").trim() === currentCategory,
+            )
+            if (matchedCategory) {
+              if (String(matchedCategory.id) === currentCategory) return prev
+              return {
+                ...prev,
+                category: matchedCategory.id,
+              }
+            }
             return {
               ...prev,
-              category: normalized[0].name,
+              category: normalized[0].id,
+            }
+          })
+        } else if (normalized.length > 0) {
+          setFormData((prev) => {
+            const currentCategory = String(prev.category || "").trim()
+            if (!currentCategory) return prev
+            const matchedCategory = normalized.find(
+              (category) =>
+                String(category.id) === currentCategory ||
+                String(category.name || "").trim() === currentCategory,
+            )
+            if (!matchedCategory || String(matchedCategory.id) === currentCategory) return prev
+            return {
+              ...prev,
+              category: matchedCategory.id,
             }
           })
         }
@@ -198,10 +225,9 @@ export default function EditFoodPage() {
   }
 
   const handleAddVariation = () => {
-    const newId = Math.max(...formData.variations.map(v => v.id), 0) + 1
     setFormData(prev => ({
       ...prev,
-      variations: [...prev.variations, { id: newId, name: "", price: 0, stock: 0 }]
+      variations: [...prev.variations, { id: `variant-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name: "", price: "" }]
     }))
   }
 
@@ -271,11 +297,22 @@ export default function EditFoodPage() {
     if (!currentCategory) return source
 
     const alreadyPresent = source.some(
-      (category) => String(category?.name || "").trim() === currentCategory,
+      (category) => String(category?.id || "").trim() === currentCategory,
     )
     if (alreadyPresent) return source
 
-    return [{ id: `legacy-${currentCategory}`, name: currentCategory }, ...source]
+    const matchedSection = Array.isArray(menuSections)
+      ? menuSections.find((section) => String(section?.categoryId || section?.id || "") === currentCategory)
+      : null
+
+    return [
+      {
+        id: currentCategory,
+        name: matchedSection?.name || currentCategory,
+        foodTypeScope: "Both",
+      },
+      ...source,
+    ]
   })()
 
   const handleImageUpload = (field, file) => {
@@ -305,16 +342,47 @@ export default function EditFoodPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
-    // Validate required fields
-    if (!formData.name || !formData.image || formData.price <= 0) {
-      alert("Please fill in all required fields (Name, Image, Price)")
+
+    const normalizedVariations = (Array.isArray(formData.variations) ? formData.variations : [])
+      .map((variation) => ({
+        id: String(variation?.id || variation?._id || "").trim(),
+        name: String(variation?.name || "").trim(),
+        price: Number(variation?.price),
+      }))
+      .filter((variation) => variation.name || variation.id || variation.price)
+
+    const hasVariations = normalizedVariations.length > 0
+    const parsedBasePrice = Number(formData.price)
+
+    if (!formData.name || !formData.image) {
+      alert("Please fill in all required fields (Name and Image)")
+      return
+    }
+
+    if (normalizedVariations.some((variation) => !variation.name)) {
+      alert("Each variant must have a name")
+      return
+    }
+
+    if (normalizedVariations.some((variation) => !Number.isFinite(variation.price) || variation.price <= 0)) {
+      alert("Each variant price must be greater than 0")
+      return
+    }
+
+    if (!hasVariations && (!Number.isFinite(parsedBasePrice) || parsedBasePrice <= 0)) {
+      alert("Please enter a valid base price")
       return
     }
 
     // Prepare food data for saving
     const foodDataToSave = {
       ...formData,
+      price: hasVariations ? undefined : parsedBasePrice,
+      variations: normalizedVariations.map((variation) => ({
+        ...(variation.id && !variation.id.startsWith("variant-") ? { _id: variation.id } : {}),
+        name: variation.name,
+        price: variation.price,
+      })),
       // Calculate discount display string if discount exists
       discount: formData.discountAmount > 0 
         ? (formData.discountType === "Percent" 
@@ -322,13 +390,13 @@ export default function EditFoodPage() {
           : formData.discountAmount)
         : null,
       // Calculate originalPrice if discount exists
-      originalPrice: formData.discountAmount > 0 && formData.discountType === "Percent"
-        ? formData.price / (1 - formData.discountAmount / 100)
+      originalPrice: formData.discountAmount > 0 && formData.discountType === "Percent" && !hasVariations
+        ? parsedBasePrice / (1 - formData.discountAmount / 100)
         : null
     }
 
-    const matchedCategory = availableCategories.find(
-      (category) => String(category?.name || "").trim() === String(foodDataToSave.category || "").trim(),
+    const matchedCategory = categoryOptions.find(
+      (category) => String(category?.id || "").trim() === String(foodDataToSave.category || "").trim(),
     )
 
     if (!matchedCategory?.id) {
@@ -337,13 +405,21 @@ export default function EditFoodPage() {
       return
     }
 
+    if (
+      matchedCategory?.foodTypeScope &&
+      matchedCategory.foodTypeScope !== "Both" &&
+      matchedCategory.foodTypeScope !== foodDataToSave.foodType
+    ) {
+      toast.error(`This ${matchedCategory.foodTypeScope} category cannot accept ${foodDataToSave.foodType} food`)
+      return
+    }
+
     if (isNewFood) {
       try {
         const res = await restaurantAPI.createFood({
           ...foodDataToSave,
           categoryId: matchedCategory.id,
-          // Map UI category field into backend categoryName (single source of truth)
-          categoryName: foodDataToSave.category || foodDataToSave.categoryName,
+          categoryName: matchedCategory.name,
         })
         const created = res?.data?.data?.food || res?.data?.food
         window.dispatchEvent(new CustomEvent("foodsChanged"))
@@ -363,7 +439,7 @@ export default function EditFoodPage() {
       const res = await restaurantAPI.updateFood(String(id), {
         ...foodDataToSave,
         categoryId: matchedCategory.id,
-        categoryName: foodDataToSave.category || foodDataToSave.categoryName,
+        categoryName: matchedCategory.name,
       })
       const updated = res?.data?.data?.food || res?.data?.food
       window.dispatchEvent(new CustomEvent("foodsChanged"))
@@ -487,8 +563,8 @@ export default function EditFoodPage() {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff8100] focus:border-transparent outline-none"
                   >
                     {categoryOptions.map((category) => (
-                      <option key={category.id} value={category.name}>
-                        {category.name}
+                      <option key={category.id} value={category.id}>
+                        {category.name}{category.foodTypeScope ? ` (${category.foodTypeScope})` : ""}
                       </option>
                     ))}
                   </select>
@@ -510,7 +586,6 @@ export default function EditFoodPage() {
                   >
                     <option value="Veg">Veg</option>
                     <option value="Non-Veg">Non-Veg</option>
-                    <option value="Vegan">Vegan</option>
                   </select>
                 </div>
               </div>
@@ -523,19 +598,26 @@ export default function EditFoodPage() {
               <h2 className="text-base md:text-lg font-semibold text-gray-900 mb-4">Price Information</h2>
               
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Price ($)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.price}
-                    onChange={(e) => handleInputChange("price", parseFloat(e.target.value) || 0)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff8100] focus:border-transparent outline-none"
-                    required
-                  />
-                </div>
+                {formData.variations.length === 0 ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Base Price (₹)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.price}
+                      onChange={(e) => handleInputChange("price", e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff8100] focus:border-transparent outline-none"
+                      required
+                    />
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-orange-100 bg-orange-50 px-4 py-3 text-sm text-orange-700">
+                    This item uses variants. Customers will see the lowest variant price as "Starting from".
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -641,14 +723,14 @@ export default function EditFoodPage() {
           <Card className="bg-white shadow-sm border-0">
             <CardContent className="p-4 md:p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base md:text-lg font-semibold text-gray-900">Variations</h2>
+                <h2 className="text-base md:text-lg font-semibold text-gray-900">Variants</h2>
                 <button
                   type="button"
                   onClick={handleAddVariation}
                   className="text-[#ff8100] hover:text-[#e67300] flex items-center gap-1 text-sm font-medium"
                 >
                   <Plus className="w-4 h-4" />
-                  Add Variation
+                  Add Variant
                 </button>
               </div>
               
@@ -656,8 +738,8 @@ export default function EditFoodPage() {
                 {formData.variations.map((variation) => (
                   <div key={variation.id} className="border border-gray-200 rounded-lg p-4 space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-700">Variation {variation.id}</span>
-                      {formData.variations.length > 1 && (
+                      <span className="text-sm font-medium text-gray-700">Variant {index + 1}</span>
+                      {formData.variations.length > 0 && (
                         <button
                           type="button"
                           onClick={() => handleRemoveVariation(variation.id)}
@@ -676,32 +758,27 @@ export default function EditFoodPage() {
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff8100] focus:border-transparent outline-none text-sm"
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">Price ($)</label>
+                        <label className="block text-xs text-gray-600 mb-1">Price (₹)</label>
                         <input
                           type="number"
                           step="0.01"
+                          min="0"
                           value={variation.price}
-                          onChange={(e) => handleVariationChange(variation.id, "price", parseFloat(e.target.value) || 0)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff8100] focus:border-transparent outline-none text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-600 mb-1">Stock</label>
-                        <input
-                          type="number"
-                          value={variation.stock}
-                          onChange={(e) => handleVariationChange(variation.id, "stock", parseInt(e.target.value) || 0)}
+                          onChange={(e) => handleVariationChange(variation.id, "price", e.target.value)}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff8100] focus:border-transparent outline-none text-sm"
                         />
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                  ))}
+                </div>
+                {formData.variations.length === 0 && (
+                  <p className="text-sm text-gray-500">
+                    No variants added. This item will use the single base price above.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
 
           {/* Tags */}
           <Card className="bg-white shadow-sm border-0">

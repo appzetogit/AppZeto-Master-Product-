@@ -3,6 +3,7 @@ import { ValidationError } from '../../../../core/auth/errors.js';
 import { FoodRestaurant } from '../models/restaurant.model.js';
 import { FoodItem } from '../../admin/models/food.model.js';
 import { FoodCategory } from '../../admin/models/category.model.js';
+import { getFoodDisplayPrice, serializeFoodVariants } from '../../admin/services/foodVariant.service.js';
 
 const buildMenuFromFoods = async (foods = []) => {
     const categoryIds = Array.from(
@@ -49,7 +50,9 @@ const buildMenuFromFoods = async (foods = []) => {
             category: sectionName,
             name: food.name,
             description: food.description || '',
-            price: food.price ?? 0,
+            price: getFoodDisplayPrice(food),
+            variants: serializeFoodVariants(food.variants),
+            variations: serializeFoodVariants(food.variants),
             image: food.image || '',
             foodType: food.foodType || 'Non-Veg',
             isAvailable: food.isAvailable !== false,

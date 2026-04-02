@@ -344,6 +344,7 @@ const transformOrderForTracking = (apiOrder, previousOrder = null, explicitResta
     },
     items: apiOrder?.items?.map(item => ({
       name: item.name,
+      variantName: item.variantName || '',
       quantity: item.quantity,
       price: item.price
     })) || previousOrder?.items || [],
@@ -1682,7 +1683,7 @@ export default function OrderTracking() {
                       <span className="w-4 h-4 rounded border border-green-600 flex items-center justify-center">
                         <span className="w-2 h-2 rounded-full bg-green-600" />
                       </span>
-                      <span>{item.quantity} x {item.name}</span>
+                      <span>{item.quantity} x {item.name}{item.variantName ? ` (${item.variantName})` : ""}</span>
                     </div>
                   ))}
                 </div>
@@ -1820,6 +1821,9 @@ export default function OrderTracking() {
                       </div>
                       <div className="flex-1">
                         <p className="font-semibold text-gray-900 leading-tight">{item.name}</p>
+                        {item.variantName ? (
+                          <p className="text-sm text-gray-500 mt-0.5">{item.variantName}</p>
+                        ) : null}
                         <p className="text-sm text-gray-500 mt-0.5">Quantity: {item.quantity}</p>
                       </div>
                     </div>

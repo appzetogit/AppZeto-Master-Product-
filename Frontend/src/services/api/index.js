@@ -392,6 +392,18 @@ export const adminAPI = {
       {},
       { contextModule: "admin" },
     ),
+  rejectCategory: (id, reason) =>
+    apiClient.patch(
+      `/food/admin/categories/${String(id)}/reject`,
+      { reason: String(reason || "").trim() },
+      { contextModule: "admin" },
+    ),
+  makeCategoryGlobal: (id) =>
+    apiClient.patch(
+      `/food/admin/categories/${String(id)}/make-global`,
+      {},
+      { contextModule: "admin" },
+    ),
   toggleCategoryStatus: (id) =>
     apiClient.patch(
       `/food/admin/categories/${id}/toggle`,

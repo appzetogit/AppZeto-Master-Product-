@@ -4,6 +4,9 @@ const orderItemSchema = new mongoose.Schema(
     {
         itemId: { type: String, required: true, trim: true },
         name: { type: String, required: true, trim: true },
+        variantId: { type: String, trim: true, default: '' },
+        variantName: { type: String, trim: true, default: '' },
+        variantPrice: { type: Number, min: 0, default: 0 },
         price: { type: Number, required: true, min: 0 },
         quantity: { type: Number, required: true, min: 1 },
         isVeg: { type: Boolean, default: true },

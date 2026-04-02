@@ -286,6 +286,7 @@ export default function Orders() {
               items: (order.items || []).map(item => ({
                 itemId: item.itemId || item._id || item.id,
                 name: item.name || item.foodName || 'Item',
+                variantName: item.variantName || '',
                 quantity: item.quantity || 1,
                 price: item.price || 0,
                 image: item.image || null,
@@ -850,6 +851,9 @@ Order again from this restaurant in the ${companyName} app.`
                                 <span className="text-sm text-gray-800 font-medium block">
                                   {itemQuantity} x {itemName}
                                 </span>
+                                {item.variantName ? (
+                                  <p className="text-xs text-gray-500 mt-0.5">{item.variantName}</p>
+                                ) : null}
                                 {item.description && (
                                   <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{item.description}</p>
                                 )}

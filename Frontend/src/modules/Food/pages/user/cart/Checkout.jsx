@@ -266,6 +266,9 @@ export default function Checkout() {
                         />
                         <div className="flex-1">
                           <p className="font-medium text-sm md:text-base dark:text-gray-200">{item.name}</p>
+                          {item.variantName ? (
+                            <p className="text-xs md:text-sm text-muted-foreground">{item.variantName}</p>
+                          ) : null}
                           <p className="text-xs md:text-sm text-muted-foreground">
                             ₹{(item.price * 83).toFixed(0)} × {item.quantity}
                           </p>

@@ -1,17 +1,55 @@
-import { useState, useMemo, useRef, useEffect } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { motion, AnimatePresence } from "framer-motion"
-import { Search, Download, ChevronDown, Plus, Edit, Trash2, X, Loader2, Upload } from "lucide-react"
-import { Button } from "@food/components/ui/button"
+import { AnimatePresence, motion } from "framer-motion"
+import {
+  BadgeCheck,
+  Download,
+  Globe,
+  Loader2,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react"
 import { adminAPI, uploadAPI } from "@food/api"
 import { API_BASE_URL } from "@food/api/config"
 import { toast } from "sonner"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
-const debugLog = (...args) => {}
-const debugWarn = (...args) => {}
-const debugError = (...args) => {}
 
+const defaultFormData = {
+  name: "",
+  image: "",
+  status: true,
+  type: "",
+  zoneId: "global",
+  foodTypeScope: "Both",
+}
+
+const approvalBadgeClass = (status) => {
+  const value = String(status || "pending").toLowerCase()
+  if (value === "approved") return "bg-emerald-50 text-emerald-700 border-emerald-200"
+  if (value === "rejected") return "bg-rose-50 text-rose-700 border-rose-200"
+  return "bg-amber-50 text-amber-700 border-amber-200"
+}
+
+const scopeBadgeClass = (scope) => {
+  if (scope === "Veg") return "bg-green-50 text-green-700 border-green-200"
+  if (scope === "Non-Veg") return "bg-red-50 text-red-700 border-red-200"
+  return "bg-slate-100 text-slate-700 border-slate-200"
+}
+
+const zoneLabel = (zone) => {
+  if (!zone) return "Global"
+  if (typeof zone === "string") {
+    const value = zone.trim()
+    if (/^[a-f0-9]{24}$/i.test(value)) return `Zone ID ${value.slice(-6)}`
+    return value
+  }
+  return zone?.name || zone?.zoneName || zone?.serviceLocation || "Zone"
+}
 
 export default function Category() {
   const [searchQuery, setSearchQuery] = useState("")
@@ -22,41 +60,27 @@ export default function Category() {
   const [editingCategory, setEditingCategory] = useState(null)
   const [zones, setZones] = useState([])
   const [zonesLoading, setZonesLoading] = useState(false)
-  const [formData, setFormData] = useState({
-    name: "",
-    image: "https://via.placeholder.com/40",
-    status: true,
-    type: "",
-    zoneId: "global",
-  })
+  const [formData, setFormData] = useState(defaultFormData)
   const [selectedImageFile, setSelectedImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState(null)
   const [uploadingImage, setUploadingImage] = useState(false)
   const fileInputRef = useRef(null)
 
-  // Fetch categories from API
   useEffect(() => {
-    // Check if admin is authenticated
-    const adminToken = localStorage.getItem('admin_accessToken')
+    const adminToken = localStorage.getItem("admin_accessToken")
     if (!adminToken) {
-      debugWarn('No admin token found. User may need to login.')
-      toast.error('Please login to access categories')
+      toast.error("Please login to access categories")
       setLoading(false)
       return
     }
-    
-    // Log API base URL for debugging
-    debugLog('API Base URL:', API_BASE_URL)
-    debugLog('Admin Token:', adminToken ? 'Present' : 'Missing')
-    
     fetchCategories()
   }, [])
 
-  // Fetch zones once (for zone-specific categories)
   useEffect(() => {
     let cancelled = false
     setZonesLoading(true)
-    adminAPI.getZones({ limit: 1000 })
+    adminAPI
+      .getZones({ limit: 1000 })
       .then((res) => {
         const list =
           res?.data?.data?.zones ||
@@ -71,329 +95,112 @@ export default function Category() {
       .finally(() => {
         if (!cancelled) setZonesLoading(false)
       })
-    return () => { cancelled = true }
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
-  // Debounced search
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
+    const timer = window.setTimeout(() => {
       fetchCategories()
-    }, 500)
-    return () => clearTimeout(timeoutId)
+    }, 300)
+    return () => window.clearTimeout(timer)
   }, [searchQuery, showPendingOnly])
 
-  // Filters removed (UI + state). Keep only search + CRUD.
+  const filteredCategories = useMemo(() => {
+    const query = String(searchQuery || "").trim().toLowerCase()
+    if (!query) return categories
+    return categories.filter((category) => {
+      const creator = category?.createdByRestaurant?.name || category?.restaurant?.name || ""
+      return (
+        String(category?.name || "").toLowerCase().includes(query) ||
+        String(category?.foodTypeScope || "").toLowerCase().includes(query) ||
+        String(creator || "").toLowerCase().includes(query) ||
+        String(category?.id || "").toLowerCase().includes(query)
+      )
+    })
+  }, [categories, searchQuery])
 
-  // Fetch categories
   const fetchCategories = async () => {
     try {
       setLoading(true)
       const params = {}
       if (searchQuery) params.search = searchQuery
-      if (showPendingOnly) params.isApproved = false
-      
+      if (showPendingOnly) params.approvalStatus = "pending"
+
       const response = await adminAPI.getCategories(params)
-      if (response.data.success) {
-        const list =
-          response?.data?.data?.categories ||
-          response?.data?.categories ||
-          []
-        setCategories(
-          Array.isArray(list)
-            ? list.map((c) => ({
-                ...c,
-                id: String(c?.id || c?._id || ""),
-                _id: c?._id || c?.id,
-                status: c?.status !== undefined ? Boolean(c.status) : c?.isActive !== false,
-                isActive: c?.isActive !== undefined ? Boolean(c.isActive) : c?.status !== false,
-                zoneId: c?.zoneId || null,
-                isApproved: c?.isApproved !== false,
-                restaurant: c?.restaurant || null,
-              }))
-            : []
-        )
-      } else {
-        toast.error(response.data.message || 'Failed to load categories')
-        setCategories([])
-      }
+      const list = response?.data?.data?.categories || response?.data?.categories || []
+      setCategories(Array.isArray(list) ? list : [])
     } catch (error) {
-      // More detailed error logging
-      debugError('Error fetching categories:', error)
-      debugError('Error details:', {
-        message: error.message,
-        code: error.code,
-        response: error.response ? {
-          status: error.response.status,
-          statusText: error.response.statusText,
-          data: error.response.data
-        } : null,
-        request: error.request ? {
-          url: error.config?.url,
-          method: error.config?.method,
-          baseURL: error.config?.baseURL
-        } : null
-      })
-      
-      if (error.response) {
-        // Server responded with error status
-        const status = error.response.status
-        const errorData = error.response.data
-        
-        if (status === 401) {
-          toast.error('Authentication required. Please login again.')
-        } else if (status === 403) {
-          toast.error('Access denied. You do not have permission.')
-        } else if (status === 404) {
-          toast.error('Categories endpoint not found. Please check backend server.')
-        } else if (status >= 500) {
-          toast.error('Server error. Please try again later.')
-        } else {
-          toast.error(errorData?.message || `Error ${status}: Failed to load categories`)
-        }
-      } else if (error.request) {
-        // Request was made but no response received
-        debugError('Network error - No response from server')
-        debugError('Request URL:', error.config?.baseURL + error.config?.url)
-        toast.error('Cannot connect to server. Please check if backend is running on ' + API_BASE_URL.replace('/api', ''))
+      if (error?.response?.status === 401) {
+        toast.error("Authentication required. Please login again.")
+      } else if (error?.response?.status === 403) {
+        toast.error("Access denied. You do not have permission.")
+      } else if (error?.response?.status === 404) {
+        toast.error("Categories endpoint not found. Please check backend server.")
+      } else if (error?.code === "ERR_NETWORK" || error?.message === "Network Error") {
+        toast.error("Cannot connect to server. Please check if backend is running on " + API_BASE_URL.replace("/api", ""))
       } else {
-        // Something else happened
-        debugError('Request setup error:', error.message)
-        toast.error(error.message || 'Failed to load categories')
+        toast.error(error?.response?.data?.message || "Failed to load categories")
       }
-      
       setCategories([])
     } finally {
       setLoading(false)
     }
   }
 
-  const filteredCategories = useMemo(() => {
-    let result = [...categories]
-    
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim()
-      result = result.filter(cat =>
-        cat.name?.toLowerCase().includes(query) ||
-        cat.id?.toString().includes(query)
-      )
-    }
-
-    return result
-  }, [categories, searchQuery])
-
-  const handleToggleStatus = async (id) => {
-    try {
-      const response = await adminAPI.toggleCategoryStatus(String(id))
-      if (response.data.success) {
-        toast.success('Category status updated successfully')
-        // Update local state immediately for better UX
-        setCategories(prevCategories =>
-          prevCategories.map(cat =>
-            String(cat.id) === String(id) ? { ...cat, status: !cat.status } : cat
-          )
-        )
-        // Refresh from server to ensure consistency
-        setTimeout(() => fetchCategories(), 500)
-      }
-    } catch (error) {
-      debugError('Error toggling status:', error)
-      const errorMessage = error.response?.data?.message || 'Failed to update category status'
-      toast.error(errorMessage)
-    }
-  }
-
-  const handleApprove = async (id) => {
-    try {
-      const response = await adminAPI.approveCategory(String(id))
-      if (response?.data?.success) {
-        toast.success('Category approved successfully')
-        setCategories(prev =>
-          prev.map(cat =>
-            String(cat.id) === String(id) ? { ...cat, isApproved: true } : cat
-          )
-        )
-        if (showPendingOnly) {
-          setTimeout(() => fetchCategories(), 300)
-        }
-      } else {
-        toast.error(response?.data?.message || 'Failed to approve category')
-      }
-    } catch (error) {
-      debugError('Error approving category:', error)
-      toast.error(error.response?.data?.message || 'Failed to approve category')
-    }
-  }
-
-
-  const handleDelete = async (id) => {
-    const categoryName = categories.find(cat => String(cat.id) === String(id))?.name || 'this category'
-    if (window.confirm(`Are you sure you want to delete "${categoryName}"? This action cannot be undone.`)) {
-      try {
-        const response = await adminAPI.deleteCategory(String(id))
-        if (response.data.success) {
-          toast.success('Category deleted successfully')
-          // Remove from local state immediately for better UX
-          setCategories(prevCategories => prevCategories.filter(cat => String(cat.id) !== String(id)))
-          // Refresh from server to ensure consistency
-          setTimeout(() => fetchCategories(), 500)
-        }
-      } catch (error) {
-        debugError('Error deleting category:', error)
-        const errorMessage = error.response?.data?.message || 'Failed to delete category'
-        toast.error(errorMessage)
-      }
-    }
-  }
-
-  const handleEdit = (category) => {
-    setEditingCategory(category)
-    const zid = category?.zoneId
-    const zoneIdValue =
-      typeof zid === "string"
-        ? zid
-        : (zid?._id || zid?.id || "")
-    setFormData({
-      name: category.name || "",
-      image: category.image || "https://via.placeholder.com/40",
-      status: category.status !== undefined ? category.status : true,
-      type: category.type || "",
-      zoneId: zoneIdValue || "global",
-    })
+  const resetModal = () => {
+    setIsModalOpen(false)
+    setEditingCategory(null)
+    setFormData(defaultFormData)
     setSelectedImageFile(null)
-    setImagePreview(category.image || null)
-    setIsModalOpen(true)
+    setImagePreview(null)
+    if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
   const handleAddNew = () => {
     setEditingCategory(null)
-    setFormData({
-      name: "",
-      image: "https://via.placeholder.com/40",
-      status: true,
-      type: "",
-      zoneId: "global",
-    })
+    setFormData(defaultFormData)
     setSelectedImageFile(null)
     setImagePreview(null)
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ""
-    }
     setIsModalOpen(true)
   }
 
-  const handleExportPDF = () => {
-    try {
-      const doc = new jsPDF()
-      
-      // Add title
-      doc.setFontSize(18)
-      doc.setTextColor(30, 30, 30)
-      doc.text('Category List', 14, 20)
-      
-      // Add date
-      doc.setFontSize(10)
-      doc.setTextColor(100, 100, 100)
-      const date = new Date().toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      })
-      doc.text(`Generated on: ${date}`, 14, 28)
-      
-      // Prepare table data
-      const zoneLabel = (z) => {
-        if (!z) return "Global"
-        if (typeof z === "string") return z
-        return z?.name || z?.zoneName || z?.serviceLocation || "Zone"
-      }
+  const handleEdit = (category) => {
+    setEditingCategory(category)
+    const zoneIdValue =
+      typeof category?.zoneId === "string"
+        ? category.zoneId
+        : category?.zoneId?._id || category?.zoneId?.id || "global"
 
-      const tableData = filteredCategories.map((category, index) => [
-        category.sl || index + 1,
-        category.name || 'N/A',
-        zoneLabel(category.zoneId),
-        category.type || 'N/A',
-        category.status ? 'Active' : 'Inactive',
-        category.id || 'N/A'
-      ])
-      
-      // Add table
-      autoTable(doc, {
-        startY: 35,
-        head: [['SL', 'Category Name', 'Zone', 'Type', 'Status', 'ID']],
-        body: tableData,
-        theme: 'striped',
-        headStyles: {
-          fillColor: [59, 130, 246], // Blue color
-          textColor: 255,
-          fontStyle: 'bold',
-          fontSize: 10
-        },
-        bodyStyles: {
-          fontSize: 9,
-          textColor: [30, 30, 30]
-        },
-        alternateRowStyles: {
-          fillColor: [245, 247, 250]
-        },
-        styles: {
-          cellPadding: 5,
-          lineColor: [200, 200, 200],
-          lineWidth: 0.5
-        },
-        columnStyles: {
-          0: { cellWidth: 20 }, // SL
-          1: { cellWidth: 55 }, // Category Name
-          2: { cellWidth: 40 }, // Zone
-          3: { cellWidth: 40 }, // Type
-          4: { cellWidth: 30 }, // Status
-          5: { cellWidth: 45 }  // ID
-        }
-      })
-      
-      // Add footer
-      const pageCount = doc.internal.pages.length - 1
-      for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i)
-        doc.setFontSize(8)
-        doc.setTextColor(150, 150, 150)
-        doc.text(
-          `Page ${i} of ${pageCount}`,
-          doc.internal.pageSize.getWidth() / 2,
-          doc.internal.pageSize.getHeight() - 10,
-          { align: 'center' }
-        )
-      }
-      
-      // Save PDF
-      const fileName = `Categories_${new Date().toISOString().split('T')[0]}.pdf`
-      doc.save(fileName)
-      
-      toast.success('PDF exported successfully!')
-    } catch (error) {
-      debugError('Error exporting PDF:', error)
-      toast.error('Failed to export PDF')
-    }
+    setFormData({
+      name: category?.name || "",
+      image: category?.image || "",
+      status: category?.status !== false,
+      type: category?.type || "",
+      zoneId: zoneIdValue || "global",
+      foodTypeScope: category?.foodTypeScope || "Both",
+    })
+    setSelectedImageFile(null)
+    setImagePreview(category?.image || null)
+    setIsModalOpen(true)
   }
 
-  const handleImageSelect = (e) => {
-    const file = e.target.files?.[0]
+  const handleImageSelect = (event) => {
+    const file = event.target.files?.[0]
     if (!file) return
 
-    // Validate file type
     const allowedTypes = ["image/png", "image/jpeg", "image/jpg", "image/webp"]
     if (!allowedTypes.includes(file.type)) {
       toast.error("Invalid file type. Please upload PNG, JPG, JPEG, or WEBP.")
       return
     }
-
-    // Validate file size (max 5MB)
-    const maxSize = 5 * 1024 * 1024 // 5MB
-    if (file.size > maxSize) {
+    if (file.size > 5 * 1024 * 1024) {
       toast.error("File size exceeds 5MB limit.")
       return
     }
 
-    // Set file and create preview
     setSelectedImageFile(file)
     const reader = new FileReader()
     reader.onloadend = () => {
@@ -402,114 +209,158 @@ export default function Category() {
     reader.readAsDataURL(file)
   }
 
-  const handleRemoveImage = () => {
-    setSelectedImageFile(null)
-    setImagePreview(null)
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ""
+  const handleToggleStatus = async (id) => {
+    try {
+      const response = await adminAPI.toggleCategoryStatus(String(id))
+      if (response?.data?.success) {
+        toast.success("Category status updated successfully")
+        fetchCategories()
+      }
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Failed to update category status")
     }
   }
 
-  const handleCloseModal = () => {
-    setIsModalOpen(false)
-    setEditingCategory(null)
-    setSelectedImageFile(null)
-    setImagePreview(null)
-    setFormData({
-      name: "",
-      image: "https://via.placeholder.com/40",
-      status: true,
-      type: "",
-      zoneId: "global",
-    })
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ""
+  const handleApprove = async (id) => {
+    try {
+      const response = await adminAPI.approveCategory(String(id))
+      if (response?.data?.success) {
+        toast.success("Category approved successfully")
+        fetchCategories()
+      }
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Failed to approve category")
     }
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
+  const handleReject = async (category) => {
+    const reason = window.prompt(`Reject "${category?.name}" with a reason:`)
+    if (reason == null) return
+    if (!String(reason).trim()) {
+      toast.error("Rejection reason is required")
+      return
+    }
+
+    try {
+      const response = await adminAPI.rejectCategory(String(category?.id || category?._id), reason)
+      if (response?.data?.success) {
+        toast.success("Category rejected successfully")
+        fetchCategories()
+      }
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Failed to reject category")
+    }
+  }
+
+  const handleMakeGlobal = async (category) => {
+    if (!window.confirm(`Make "${category?.name}" global for every restaurant?`)) return
+
+    try {
+      const response = await adminAPI.makeCategoryGlobal(String(category?.id || category?._id))
+      if (response?.data?.success) {
+        toast.success("Category is now global")
+        fetchCategories()
+      }
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Failed to make category global")
+    }
+  }
+
+  const handleDelete = async (id) => {
+    const categoryName = categories.find((category) => String(category?.id) === String(id))?.name || "this category"
+    if (!window.confirm(`Delete "${categoryName}"? This action cannot be undone.`)) return
+
+    try {
+      const response = await adminAPI.deleteCategory(String(id))
+      if (response?.data?.success) {
+        toast.success("Category deleted successfully")
+        fetchCategories()
+      }
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Failed to delete category")
+    }
+  }
+
+  const handleExportPDF = () => {
+    try {
+      const doc = new jsPDF()
+      doc.setFontSize(18)
+      doc.setTextColor(30, 30, 30)
+      doc.text("Category List", 14, 20)
+      doc.setFontSize(10)
+      doc.setTextColor(100, 100, 100)
+      doc.text(`Generated on: ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}`, 14, 28)
+
+      const tableData = filteredCategories.map((category, index) => [
+        index + 1,
+        category?.name || "N/A",
+        category?.foodTypeScope || "Both",
+        category?.isGlobal ? "Global" : "Private",
+        zoneLabel(category?.zoneId),
+        category?.approvalStatus || "pending",
+      ])
+
+      autoTable(doc, {
+        startY: 35,
+        head: [["SL", "Category", "Diet Scope", "Visibility", "Zone", "Approval"]],
+        body: tableData,
+        theme: "striped",
+        headStyles: {
+          fillColor: [59, 130, 246],
+          textColor: 255,
+          fontStyle: "bold",
+          fontSize: 10,
+        },
+        bodyStyles: {
+          fontSize: 9,
+          textColor: [30, 30, 30],
+        },
+      })
+
+      doc.save(`Categories_${new Date().toISOString().split("T")[0]}.pdf`)
+      toast.success("PDF exported successfully!")
+    } catch {
+      toast.error("Failed to export PDF")
+    }
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+
     try {
       setUploadingImage(true)
+      let imageUrl = String(formData.image || "").trim()
 
-      let imageUrl = formData.image && formData.image !== 'https://via.placeholder.com/40'
-        ? formData.image
-        : ""
-
-      // Upload image first (backend does not parse multipart for categories)
       if (selectedImageFile) {
         const uploadRes = await uploadAPI.uploadMedia(selectedImageFile, { folder: "appzeto/categories" })
-        const d = uploadRes?.data?.data || uploadRes?.data
-        imageUrl = d?.url || imageUrl
+        const payload = uploadRes?.data?.data || uploadRes?.data
+        imageUrl = payload?.url || imageUrl
       }
 
       const payload = {
-        name: formData.name,
-        type: formData.type,
+        name: String(formData.name || "").trim(),
+        type: String(formData.type || "").trim(),
         status: Boolean(formData.status),
         image: imageUrl || undefined,
         zoneId: formData.zoneId || "global",
+        foodTypeScope: formData.foodTypeScope,
       }
-
-      debugLog('Sending category data:', {
-        name: formData.name,
-        type: formData.type,
-        status: formData.status,
-        hasImageFile: !!selectedImageFile,
-        imageUrl: formData.image
-      })
 
       if (editingCategory) {
         const response = await adminAPI.updateCategory(editingCategory.id, payload)
-        debugLog('Category update response:', response.data)
-        if (response.data.success) {
-          toast.success('Category updated successfully')
-          // Update local state immediately for better UX
-          const updatedCategory = response.data.data.category
-          setCategories(prevCategories =>
-            prevCategories.map(cat =>
-              cat.id === editingCategory.id
-                ? { ...cat, ...updatedCategory, id: updatedCategory.id || cat.id }
-                : cat
-            )
-          )
-        }
+        if (response?.data?.success) toast.success("Category updated successfully")
       } else {
         const response = await adminAPI.createCategory(payload)
-        debugLog('Category create response:', response.data)
-        if (response.data.success) {
-          toast.success('Category created successfully')
-        }
+        if (response?.data?.success) toast.success("Category created successfully")
       }
-      
-      // Close modal and reset form
-      handleCloseModal()
-      
-      // Refresh from server to ensure consistency
-      setTimeout(() => fetchCategories(), 500)
+
+      resetModal()
+      fetchCategories()
     } catch (error) {
-      debugError('Error saving category:', error)
-      debugError('Error details:', {
-        message: error.message,
-        code: error.code,
-        response: error.response ? {
-          status: error.response.status,
-          statusText: error.response.statusText,
-          data: error.response.data
-        } : null,
-        request: error.request ? {
-          url: error.config?.url,
-          method: error.config?.method,
-          baseURL: error.config?.baseURL
-        } : null
-      })
-      
-      if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
-        toast.error('Cannot connect to server. Please check if backend is running on ' + API_BASE_URL.replace('/api', ''))
-      } else if (error.response) {
-        toast.error(error.response.data?.message || `Error ${error.response.status}: Failed to save category`)
+      if (error?.code === "ERR_NETWORK" || error?.message === "Network Error") {
+        toast.error("Cannot connect to server. Please check if backend is running on " + API_BASE_URL.replace("/api", ""))
       } else {
-        toast.error(error.message || 'Failed to save category')
+        toast.error(error?.response?.data?.message || "Failed to save category")
       }
     } finally {
       setUploadingImage(false)
@@ -517,444 +368,377 @@ export default function Category() {
   }
 
   return (
-    <div className="p-4 lg:p-6 bg-slate-50 min-h-screen">
-      {/* Header Section */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-lg bg-linear-to-br from-orange-400 to-orange-600 flex items-center justify-center">
-            <div className="grid grid-cols-2 gap-0.5">
-              <div className="w-2 h-2 bg-white rounded-sm"></div>
-              <div className="w-2 h-2 bg-white rounded-sm"></div>
-              <div className="w-2 h-2 bg-white rounded-sm"></div>
-              <div className="w-2 h-2 bg-white rounded-sm"></div>
-            </div>
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900">Category</h1>
-        </div>
-
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold text-slate-900">Category List</h2>
-            <span className="px-3 py-1 rounded-full text-sm font-semibold bg-slate-100 text-slate-700">
-              {filteredCategories.length}
-            </span>
+    <div className="min-h-screen bg-slate-50 p-4 lg:p-6">
+      <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Categories</h1>
+            <p className="mt-2 max-w-2xl text-sm text-slate-500">
+              Restaurant-created categories now move through approval, rejection, and optional globalization before every
+              restaurant can use them.
+            </p>
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 rounded-full border border-slate-200 p-1">
               <button
                 type="button"
                 onClick={() => setShowPendingOnly(false)}
-                className={`px-3 py-2 rounded-full text-xs font-semibold border transition-colors ${
-                  !showPendingOnly
-                    ? "bg-slate-900 text-white border-slate-900"
-                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                }`}
+                className={`rounded-full px-3 py-2 text-xs font-semibold ${!showPendingOnly ? "bg-slate-900 text-white" : "text-slate-600"}`}
               >
                 All
               </button>
               <button
                 type="button"
                 onClick={() => setShowPendingOnly(true)}
-                className={`px-3 py-2 rounded-full text-xs font-semibold border transition-colors ${
-                  showPendingOnly
-                    ? "bg-amber-600 text-white border-amber-600"
-                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                }`}
+                className={`rounded-full px-3 py-2 text-xs font-semibold ${showPendingOnly ? "bg-amber-600 text-white" : "text-slate-600"}`}
               >
-                Pending approvals
+                Pending
               </button>
             </div>
-            <div className="relative flex-1 sm:flex-initial min-w-[200px]">
+
+            <div className="relative min-w-[220px]">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="Ex : Categories"
+                placeholder="Search categories"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 pr-4 py-2.5 w-full text-sm rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400"
+                onChange={(event) => setSearchQuery(event.target.value)}
+                className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-10 pr-4 text-sm outline-none focus:border-slate-900"
               />
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             </div>
 
-            <button 
+            <button
               onClick={handleExportPDF}
               disabled={filteredCategories.length === 0}
-              className="px-4 py-2.5 text-sm font-medium rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Download className="w-4 h-4" />
-              <span>Export</span>
-              <ChevronDown className="w-3 h-3" />
+              <Download className="h-4 w-4" />
+              Export
             </button>
 
-            <button 
+            <button
               onClick={handleAddNew}
-              className="px-4 py-2.5 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2 transition-all shadow-sm"
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white"
             >
-              <Plus className="w-4 h-4" />
-              <span>Add New Category</span>
+              <Plus className="h-4 w-4" />
+              Add Category
             </button>
           </div>
         </div>
       </div>
 
-      {/* Filters removed */}
-
-      {/* Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="overflow-x-hidden">
-          <table className="w-full">
-            <thead className="bg-slate-50 border-b border-slate-200">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="min-w-full table-fixed">
+            <thead className="border-b border-slate-200 bg-slate-50">
               <tr>
-                <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
-                  SL
-                </th>
-                <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
-                  Image
-                </th>
-                <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
-                  Title
-                </th>
-                <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
-                  Zone
-                </th>
-                <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
-                  Type
-                </th>
-                <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
-                  Approval
-                </th>
-                <th className="px-6 py-4 text-center text-[10px] font-bold text-slate-700 uppercase tracking-wider">
-                  Action
-                </th>
+                <th className="w-[25%] px-5 py-4 text-left text-[11px] font-bold uppercase tracking-wider text-slate-600">Category</th>
+                <th className="w-[17%] px-4 py-4 text-left text-[11px] font-bold uppercase tracking-wider text-slate-600">Owner</th>
+                <th className="w-[15%] px-4 py-4 text-left text-[11px] font-bold uppercase tracking-wider text-slate-600">Zone</th>
+                <th className="w-[10%] px-4 py-4 text-center text-[11px] font-bold uppercase tracking-wider text-slate-600">Diet</th>
+                <th className="w-[10%] px-4 py-4 text-center text-[11px] font-bold uppercase tracking-wider text-slate-600">Status</th>
+                <th className="w-[13%] px-4 py-4 text-left text-[11px] font-bold uppercase tracking-wider text-slate-600">Approval</th>
+                <th className="w-[20%] px-5 py-4 text-right text-[11px] font-bold uppercase tracking-wider text-slate-600">Actions</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-20 text-center">
-                    <div className="flex flex-col items-center justify-center">
-                      <Loader2 className="w-8 h-8 animate-spin text-blue-600 mb-2" />
-                      <p className="text-sm text-slate-500">Loading categories...</p>
-                    </div>
+                  <td colSpan={7} className="px-6 py-20 text-center">
+                    <Loader2 className="mx-auto h-8 w-8 animate-spin text-blue-600" />
+                    <p className="mt-2 text-sm text-slate-500">Loading categories...</p>
                   </td>
                 </tr>
               ) : filteredCategories.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-20 text-center">
-                    <div className="flex flex-col items-center justify-center">
-                      <p className="text-lg font-semibold text-slate-700 mb-1">No Data Found</p>
-                      <p className="text-sm text-slate-500">No categories match your search</p>
-                    </div>
+                  <td colSpan={7} className="px-6 py-20 text-center">
+                    <p className="text-lg font-semibold text-slate-700">No categories found</p>
+                    <p className="mt-1 text-sm text-slate-500">Try a different search or create a new category.</p>
                   </td>
                 </tr>
               ) : (
-                filteredCategories.map((category, index) => (
-                  <tr
-                    key={category.id}
-                    className="hover:bg-slate-50 transition-colors"
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm font-medium text-slate-700">{category.sl || index + 1}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 flex items-center justify-center">
-                        <img
-                          src={category.image}
-                          alt={category.name}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.target.src = "https://via.placeholder.com/40"
-                          }}
-                        />
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm font-medium text-slate-900">{category.name}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm font-medium text-slate-700">
-                        {category.zoneId?.name || category.zoneId?.zoneName || (category.zoneId ? 'Zone' : 'Global')}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm font-medium text-slate-700">{category.type || 'N/A'}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <button
-                        onClick={() => handleToggleStatus(category.id)}
-                        disabled={loading}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-                          category.status
-                            ? "bg-blue-600"
-                            : "bg-slate-300"
-                        }`}
-                        title={category.status ? "Click to deactivate" : "Click to activate"}
-                      >
-                        <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                            category.status ? "translate-x-6" : "translate-x-1"
-                          }`}
-                        />
-                      </button>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {category.isApproved ? (
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-[11px] font-semibold bg-green-50 text-green-700 border border-green-100">
-                          Approved
-                        </span>
-                      ) : (
-                        <div className="space-y-1">
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-100">
-                            Pending
-                          </span>
-                          {category.restaurant?.name && (
-                            <div className="text-[11px] text-slate-500">
-                              Requested by {category.restaurant.name}
+                filteredCategories.map((category) => {
+                  const creatorName = category?.createdByRestaurant?.name || category?.restaurant?.name || "Admin"
+                  const approvalStatus = category?.approvalStatus || "pending"
+                  const isRestaurantCategory = Boolean(category?.createdByRestaurantId || category?.restaurantId)
+                  const zoneText = zoneLabel(category?.zoneId)
+
+                  return (
+                    <tr key={category.id} className="align-top hover:bg-slate-50/80">
+                      <td className="px-5 py-5">
+                        <div className="flex items-start gap-3">
+                          <div className="h-11 w-11 overflow-hidden rounded-2xl bg-slate-100">
+                            {category?.image ? (
+                              <img src={category.image} alt={category.name} className="h-full w-full object-cover" />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-sm font-bold text-slate-500">
+                                {String(category?.name || "C").slice(0, 1).toUpperCase()}
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-lg font-semibold leading-6 text-slate-900">{category?.name || "-"}</p>
+                            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                              <span>{category?.type || "No type"}</span>
+                              <span className="text-slate-300">•</span>
+                              <span>Items linked: {category?.itemCount || 0}</span>
                             </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-5 text-sm text-slate-600">
+                        <div className="space-y-1">
+                          <p className="font-medium leading-6 text-slate-800">{creatorName}</p>
+                          <p className="text-xs text-slate-400">
+                            {category?.isGlobal ? "Global category" : "Private to creator"}
+                          </p>
+                          {category?.isGlobal && isRestaurantCategory && (
+                            <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-semibold text-sky-700">
+                              <Globe className="mr-1 h-3.5 w-3.5" />
+                              Shared
+                            </span>
                           )}
                         </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        {!category.isApproved && (
-                          <button
-                            onClick={() => handleApprove(category.id)}
-                            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-600 text-white hover:bg-amber-700 transition-colors"
-                            title="Approve"
-                          >
-                            Approve
-                          </button>
-                        )}
+                      </td>
+                      <td className="px-4 py-5">
+                        <div className="max-w-[180px]">
+                          <p className="truncate text-sm font-medium text-slate-700" title={zoneText}>
+                            {zoneText}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="px-4 py-5 text-center">
+                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${scopeBadgeClass(category?.foodTypeScope)}`}>
+                          {category?.foodTypeScope || "Both"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-5 text-center">
                         <button
-                          onClick={() => handleEdit(category)}
-                          className="p-1.5 rounded text-blue-600 hover:bg-blue-50 transition-colors"
-                          title="Edit"
+                          onClick={() => handleToggleStatus(category.id)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full ${category?.status ? "bg-blue-600" : "bg-slate-300"}`}
+                          title={category?.status ? "Deactivate" : "Activate"}
                         >
-                          <Edit className="w-4 h-4" />
+                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${category?.status ? "translate-x-6" : "translate-x-1"}`} />
                         </button>
-                        <button
-                          onClick={() => handleDelete(category.id)}
-                          className="p-1.5 rounded text-red-600 hover:bg-red-50 transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                      <td className="px-4 py-5">
+                        <div className="space-y-2">
+                          <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${approvalBadgeClass(approvalStatus)}`}>
+                            {approvalStatus === "approved" && <BadgeCheck className="mr-1 h-3.5 w-3.5" />}
+                            {approvalStatus.charAt(0).toUpperCase() + approvalStatus.slice(1)}
+                          </span>
+                          {category?.rejectionReason && (
+                            <p className="max-w-[180px] text-xs leading-5 text-rose-600">{category.rejectionReason}</p>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-5 py-5">
+                        <div className="flex flex-col items-end gap-2">
+                          <div className="flex flex-wrap justify-end gap-2">
+                            {approvalStatus !== "approved" && (
+                              <button
+                                onClick={() => handleApprove(category.id)}
+                                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm"
+                              >
+                                Approve
+                              </button>
+                            )}
+                            {isRestaurantCategory && approvalStatus !== "rejected" && (
+                              <button
+                                onClick={() => handleReject(category)}
+                                className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm"
+                              >
+                                Reject
+                              </button>
+                            )}
+                            {isRestaurantCategory && !category?.isGlobal && approvalStatus === "approved" && (
+                              <button
+                                onClick={() => handleMakeGlobal(category)}
+                                className="rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm"
+                              >
+                                Make Global
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => handleEdit(category)}
+                              className="rounded-lg p-2 text-blue-600 hover:bg-blue-50"
+                              title="Edit"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(category.id)}
+                              className="rounded-lg p-2 text-rose-600 hover:bg-rose-50"
+                              title="Delete"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Filters removed */}
-
-      {/* Create/Edit Category Modal */}
       {typeof window !== "undefined" &&
         createPortal(
           <AnimatePresence>
             {isModalOpen && (
-              <div className="fixed inset-0 z-200">
-                {/* Backdrop */}
-                <div 
-                  className="absolute inset-0 bg-black/50" 
-                  onClick={handleCloseModal}
-                />
-                
-                {/* Modal Content */}
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto"
-                >
-                  {/* Header */}
-                  <div className="flex items-center justify-between px-6 py-4 border-b">
-                    <h2 className="text-xl font-bold text-slate-900">
-                      {editingCategory ? 'Edit Category' : 'Add New Category'}
-                    </h2>
-                    <button 
-                      onClick={handleCloseModal}
-                      className="p-1 rounded hover:bg-slate-100 transition-colors"
-                    >
-                      <X className="w-5 h-5 text-slate-500" />
-                    </button>
-                  </div>
-                  
-                  {/* Form */}
-                  <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Zone *
-                      </label>
-                      <select
-                        value={formData.zoneId}
-                        onChange={(e) => setFormData({ ...formData, zoneId: e.target.value })}
-                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                      >
-                        <option value="global">Global (all zones)</option>
-                        {zonesLoading && (
-                          <option value="" disabled>Loading zones...</option>
-                        )}
-                        {zones.map((z) => {
-                          const id = String(z?._id || z?.id || "")
-                          const label = z?.name || z?.zoneName || z?.serviceLocation || id
-                          return (
-                            <option key={id} value={id}>
-                              {label}
-                            </option>
-                          )
-                        })}
-                      </select>
-                      <p className="text-xs text-slate-500 mt-1">
-                        Pick a zone to make this category visible only there.
-                      </p>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Category Type *
-                      </label>
-                      <select
-                        required
-                        value={formData.type}
-                        onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                      >
-                        <option value="">Select category type</option>
-                        <option value="Starters">Starters</option>
-                        <option value="Main course">Main course</option>
-                        <option value="Desserts">Desserts</option>
-                        <option value="Beverages">Beverages</option>
-                        <option value="Varieties">Varieties</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Category Name *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Enter category name"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Category Image
-                      </label>
-                      <div className="space-y-3">
-                        {/* Image Preview */}
-                        {(imagePreview || formData.image) && (
-                          <div className="relative w-32 h-32 rounded-lg overflow-hidden border border-slate-300">
-                            <img
-                              src={imagePreview || formData.image}
-                              alt="Category preview"
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                e.target.src = "https://via.placeholder.com/128"
-                              }}
-                            />
-                            {imagePreview && (
-                              <button
-                                type="button"
-                                onClick={handleRemoveImage}
-                                className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                        )}
-                        
-                        {/* File Input */}
-                        <div className="flex items-center gap-3">
-                          <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="image/png,image/jpeg,image/jpg,image/webp"
-                            onChange={handleImageSelect}
-                            className="hidden"
-                            id="category-image-upload"
-                          />
-                          <label
-                            htmlFor="category-image-upload"
-                            className="flex items-center gap-2 px-4 py-2 border border-slate-300 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors"
-                          >
-                            <Upload className="w-4 h-4 text-slate-600" />
-                            <span className="text-sm text-slate-700">
-                              {imagePreview ? 'Change Image' : 'Upload Image'}
-                            </span>
-                          </label>
-                          {uploadingImage && (
-                            <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
-                          )}
-                        </div>
+              <div className="fixed inset-0 z-[200]">
+                <div className="absolute inset-0 bg-black/50" onClick={resetModal} />
+                <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-6">
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="flex w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-xl max-h-[min(720px,calc(100vh-32px))]"
+                  >
+                    <div className="flex items-center justify-between border-b px-6 py-4">
+                      <div>
+                        <h2 className="text-xl font-bold text-slate-900">{editingCategory ? "Edit Category" : "Add Category"}</h2>
                         <p className="text-xs text-slate-500">
-                          Supported formats: PNG, JPG, JPEG, WEBP (Max 5MB)
+                          Admin categories are approved immediately. Restaurant-created categories can also be updated here.
                         </p>
                       </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        id="status"
-                        checked={formData.status}
-                        onChange={(e) => setFormData({ ...formData, status: e.target.checked })}
-                        className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
-                      />
-                      <label htmlFor="status" className="text-sm font-medium text-slate-700">
-                        Active Status
-                      </label>
-                    </div>
-
-                    {/* Footer */}
-                    <div className="flex items-center gap-3 pt-4">
-                      <button
-                        type="button"
-                        onClick={handleCloseModal}
-                        className="flex-1 px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                      >
-                        {editingCategory ? 'Update' : 'Create'}
+                      <button onClick={resetModal} className="rounded-lg p-1 hover:bg-slate-100">
+                        <X className="h-5 w-5 text-slate-500" />
                       </button>
                     </div>
-                  </form>
-                </motion.div>
+
+                    <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+                      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
+                        <div>
+                          <label className="mb-2 block text-sm font-medium text-slate-700">Zone</label>
+                          <select
+                            value={formData.zoneId}
+                            onChange={(event) => setFormData((prev) => ({ ...prev, zoneId: event.target.value }))}
+                            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-slate-900"
+                          >
+                            <option value="global">Global (all zones)</option>
+                            {zonesLoading && <option value="" disabled>Loading zones...</option>}
+                            {zones.map((zone) => {
+                              const id = String(zone?._id || zone?.id || "")
+                              const label = zone?.name || zone?.zoneName || zone?.serviceLocation || id
+                              return (
+                                <option key={id} value={id}>
+                                  {label}
+                                </option>
+                              )
+                            })}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="mb-2 block text-sm font-medium text-slate-700">Diet Scope</label>
+                          <select
+                            value={formData.foodTypeScope}
+                            onChange={(event) => setFormData((prev) => ({ ...prev, foodTypeScope: event.target.value }))}
+                            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-slate-900"
+                          >
+                            <option value="Veg">Veg</option>
+                            <option value="Non-Veg">Non-Veg</option>
+                            <option value="Both">Both</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="mb-2 block text-sm font-medium text-slate-700">Category Type</label>
+                          <input
+                            type="text"
+                            value={formData.type}
+                            onChange={(event) => setFormData((prev) => ({ ...prev, type: event.target.value }))}
+                            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
+                            placeholder="Examples: Starters, Desserts, Drinks"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="mb-2 block text-sm font-medium text-slate-700">Category Name</label>
+                          <input
+                            type="text"
+                            required
+                            value={formData.name}
+                            onChange={(event) => setFormData((prev) => ({ ...prev, name: event.target.value }))}
+                            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
+                            placeholder="Enter category name"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="mb-2 block text-sm font-medium text-slate-700">Category Image</label>
+                          <div className="space-y-3">
+                            {(imagePreview || formData.image) && (
+                              <div className="relative h-32 w-32 overflow-hidden rounded-2xl border border-slate-300">
+                                <img
+                                  src={imagePreview || formData.image}
+                                  alt="Category preview"
+                                  className="h-full w-full object-cover"
+                                />
+                              </div>
+                            )}
+                            <div className="flex items-center gap-3">
+                              <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/png,image/jpeg,image/jpg,image/webp"
+                                onChange={handleImageSelect}
+                                className="hidden"
+                                id="category-image-upload"
+                              />
+                              <label
+                                htmlFor="category-image-upload"
+                                className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700"
+                              >
+                                <Upload className="h-4 w-4" />
+                                {imagePreview ? "Change Image" : "Upload Image"}
+                              </label>
+                              {uploadingImage && <Loader2 className="h-5 w-5 animate-spin text-blue-600" />}
+                            </div>
+                          </div>
+                        </div>
+
+                        <label className="flex items-center gap-3 text-sm font-medium text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={formData.status}
+                            onChange={(event) => setFormData((prev) => ({ ...prev, status: event.target.checked }))}
+                            className="h-4 w-4 rounded border-slate-300"
+                          />
+                          Active Status
+                        </label>
+                      </div>
+
+                      <div className="flex items-center gap-3 border-t bg-white px-6 py-4">
+                        <button
+                          type="button"
+                          onClick={resetModal}
+                          className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-slate-700"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="flex-1 rounded-xl bg-blue-600 px-4 py-3 text-white"
+                        >
+                          {editingCategory ? "Update" : "Create"}
+                        </button>
+                      </div>
+                    </form>
+                  </motion.div>
+                </div>
               </div>
             )}
           </AnimatePresence>,
-          document.body
+          document.body,
         )}
-
-      <style>{`
-        @keyframes slideUp {
-          0% {
-            transform: translateY(100%);
-          }
-          100% {
-            transform: translateY(0);
-          }
-        }
-      `}</style>
     </div>
   )
 }
-

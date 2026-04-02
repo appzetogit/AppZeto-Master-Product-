@@ -5,6 +5,7 @@ import { adminAPI, uploadAPI } from "@food/api"
 import { toast } from "sonner"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@food/components/ui/dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@food/components/ui/popover"
+import { getFoodDisplayPrice, getFoodVariants } from "@food/utils/foodVariants"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -16,11 +17,18 @@ const createFoodForm = () => ({
   categoryName: "",
   name: "",
   price: "",
+  variants: [],
   description: "",
   image: "",
   foodType: "Non-Veg",
   isAvailable: true,
   preparationTime: "",
+})
+
+const createVariantDraft = (variant = {}) => ({
+  id: String(variant?.id || variant?._id || `variant-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`),
+  name: String(variant?.name || ""),
+  price: variant?.price != null ? String(variant.price) : "",
 })
 
 export default function FoodsList() {
@@ -124,7 +132,8 @@ export default function FoodsList() {
               restaurantName: f.restaurantName || "Unknown Restaurant",
               categoryId: String(f.categoryId || ""),
               categoryName: f.categoryName || "",
-              price: f.price || 0,
+              price: getFoodDisplayPrice(f),
+              variants: getFoodVariants(f),
               foodType: f.foodType || "Non-Veg",
               approvalStatus: f.approvalStatus || "approved",
               description: f.description || "",
@@ -263,6 +272,7 @@ export default function FoodsList() {
       categoryName: String(food.categoryName || ""),
       name: String(food.name || ""),
       price: String(food.price || ""),
+      variants: getFoodVariants(food).map(createVariantDraft),
       description: String(food.description || ""),
       image: String(food.image || ""),
       foodType: String(food.foodType || "Non-Veg"),
@@ -308,6 +318,29 @@ export default function FoodsList() {
     }
   }, [showFoodFormModal])
 
+  const handleVariantChange = (variantId, field, value) => {
+    setFoodForm((prev) => ({
+      ...prev,
+      variants: (Array.isArray(prev.variants) ? prev.variants : []).map((variant) =>
+        variant.id === variantId ? { ...variant, [field]: value } : variant,
+      ),
+    }))
+  }
+
+  const handleAddVariant = () => {
+    setFoodForm((prev) => ({
+      ...prev,
+      variants: [...(Array.isArray(prev.variants) ? prev.variants : []), createVariantDraft()],
+    }))
+  }
+
+  const handleRemoveVariant = (variantId) => {
+    setFoodForm((prev) => ({
+      ...prev,
+      variants: (Array.isArray(prev.variants) ? prev.variants : []).filter((variant) => variant.id !== variantId),
+    }))
+  }
+
   const handleFoodFormSubmit = async () => {
     if (!foodForm.restaurantId) {
       toast.error("Please select a restaurant")
@@ -322,9 +355,29 @@ export default function FoodsList() {
       return
     }
 
+    const normalizedVariants = (Array.isArray(foodForm.variants) ? foodForm.variants : [])
+      .map((variant) => ({
+        id: String(variant?.id || variant?._id || "").trim(),
+        name: String(variant?.name || "").trim(),
+        price: Number(variant?.price),
+      }))
+      .filter((variant) => variant.id || variant.name || variant.price)
+
+    const hasVariants = normalizedVariants.length > 0
     const parsedPrice = Number(foodForm.price)
-    if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
-      toast.error("Price must be greater than 0")
+
+    if (normalizedVariants.some((variant) => !variant.name)) {
+      toast.error("Each variant must have a name")
+      return
+    }
+
+    if (normalizedVariants.some((variant) => !Number.isFinite(variant.price) || variant.price <= 0)) {
+      toast.error("Each variant price must be greater than 0")
+      return
+    }
+
+    if (!hasVariants && (!Number.isFinite(parsedPrice) || parsedPrice <= 0)) {
+      toast.error("Base price must be greater than 0")
       return
     }
 
@@ -347,7 +400,12 @@ export default function FoodsList() {
         categoryId: foodForm.categoryId || undefined,
         categoryName: String(foodForm.categoryName || "").trim(),
         name: foodForm.name.trim(),
-        price: parsedPrice,
+        price: hasVariants ? undefined : parsedPrice,
+        variants: normalizedVariants.map((variant) => ({
+          ...(variant.id && !variant.id.startsWith("variant-") ? { _id: variant.id } : {}),
+          name: variant.name,
+          price: variant.price,
+        })),
         description: foodForm.description.trim(),
         image: imageUrl,
         foodType: foodForm.foodType === "Veg" ? "Veg" : "Non-Veg",
@@ -655,11 +713,24 @@ export default function FoodsList() {
               </div>
               <div className="grid grid-cols-2 gap-4 text-sm bg-slate-50 border border-slate-200 rounded-lg p-4">
                 <p><span className="font-semibold text-slate-700">Restaurant:</span> <span className="text-slate-900">{selectedFood.restaurantName || "-"}</span></p>
-                <p><span className="font-semibold text-slate-700">Price:</span> <span className="text-slate-900">{"\u20B9"}{selectedFood.price}</span></p>
+                <p><span className="font-semibold text-slate-700">Price:</span> <span className="text-slate-900">{selectedFood.variants?.length ? `Starting from \u20B9${selectedFood.price}` : `\u20B9${selectedFood.price}`}</span></p>
                 <p><span className="font-semibold text-slate-700">Category:</span> <span className="text-slate-900">{selectedFood.categoryName || "-"}</span></p>
                 <p><span className="font-semibold text-slate-700">Food Type:</span> <span className="text-slate-900">{selectedFood.foodType || "-"}</span></p>
                 <p><span className="font-semibold text-slate-700">Approval:</span> <span className="text-slate-900 capitalize">{selectedFood.approvalStatus || "-"}</span></p>
               </div>
+              {selectedFood.variants?.length ? (
+                <div className="rounded-lg border border-slate-200 bg-white p-4">
+                  <p className="text-sm font-semibold text-slate-800 mb-2">Variants</p>
+                  <div className="space-y-2">
+                    {selectedFood.variants.map((variant) => (
+                      <div key={variant.id || variant._id} className="flex items-center justify-between text-sm text-slate-700">
+                        <span>{variant.name}</span>
+                        <span className="font-semibold text-slate-900">{"\u20B9"}{variant.price}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               {selectedFood.description && (
                 <p className="text-sm text-slate-700 leading-relaxed">
                   <span className="font-semibold text-slate-800">Description:</span> {selectedFood.description}
@@ -771,15 +842,19 @@ export default function FoodsList() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Price</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Base Price</label>
                 <input
                   type="number"
                   min="0"
                   step="0.01"
                   value={foodForm.price}
                   onChange={(e) => setFoodForm((prev) => ({ ...prev, price: e.target.value }))}
-                  className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white"
+                  disabled={(foodForm.variants || []).length > 0}
+                  className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white disabled:bg-slate-100 disabled:text-slate-400"
                 />
+                {(foodForm.variants || []).length > 0 ? (
+                  <p className="mt-1 text-xs text-slate-500">Variants are active, so customers will see the lowest variant price as the starting price.</p>
+                ) : null}
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Food Type</label>
@@ -857,6 +932,63 @@ export default function FoodsList() {
                 onChange={(e) => setFoodForm((prev) => ({ ...prev, description: e.target.value }))}
                 className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white resize-none"
               />
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Variants</p>
+                  <p className="text-xs text-slate-500">Optional. Add multiple names and prices such as Half, Full, Small, or Large.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddVariant}
+                  className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-white px-3 py-1.5 text-xs font-semibold text-sky-700 hover:bg-sky-50"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add variant
+                </button>
+              </div>
+              {(foodForm.variants || []).length ? (
+                <div className="space-y-3">
+                  {(foodForm.variants || []).map((variant, index) => (
+                    <div key={variant.id} className="grid grid-cols-[1fr_auto] gap-3 rounded-lg border border-slate-200 bg-white p-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-slate-600 mb-1">Variant name</label>
+                          <input
+                            type="text"
+                            value={variant.name}
+                            onChange={(e) => handleVariantChange(variant.id, "name", e.target.value)}
+                            placeholder={index === 0 ? "Full" : "Half"}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-600 mb-1">Variant price</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={variant.price}
+                            onChange={(e) => handleVariantChange(variant.id, "price", e.target.value)}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveVariant(variant.id)}
+                        className="self-start rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-rose-500"
+                        aria-label="Remove variant"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-500">No variants added. This food will use the single base price.</p>
+              )}
             </div>
             <div className="flex justify-end">
               <button

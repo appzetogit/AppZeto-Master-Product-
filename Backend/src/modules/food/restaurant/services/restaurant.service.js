@@ -209,6 +209,23 @@ const zoneToPolygon = (zoneDoc) => {
     return { type: 'Polygon', coordinates: [ring] };
 };
 
+const notifyAdminsAboutRestaurantProfileReview = async (restaurantId, restaurantName) => {
+    try {
+        const { notifyAdminsSafely } = await import('../../../../core/notifications/firebase.service.js');
+        void notifyAdminsSafely({
+            title: 'Restaurant Profile Updated',
+            body: `Restaurant "${restaurantName || 'Unknown Restaurant'}" updated its profile and is pending approval again.`,
+            data: {
+                type: 'restaurant_profile_updated',
+                subType: 'restaurant',
+                id: String(restaurantId)
+            }
+        });
+    } catch (e) {
+        console.error('Failed to notify admins of restaurant profile resubmission:', e);
+    }
+};
+
 export const registerRestaurant = async (payload, files) => {
     const {
         restaurantName,
@@ -474,6 +491,14 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
         throw new ValidationError('Invalid restaurant id');
     }
 
+    const currentRestaurant = await FoodRestaurant.findById(restaurantId)
+        .select('restaurantName restaurantNameNormalized ownerPhone ownerPhoneDigits ownerPhoneLast10 primaryContactNumber status')
+        .lean();
+
+    if (!currentRestaurant) {
+        throw new ValidationError('Restaurant not found');
+    }
+
     const update = {};
 
     // Owner/contact fields (used by restaurant Contact Details screens)
@@ -510,14 +535,31 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
         if (!digits || digits.length < 8) {
             throw new ValidationError('Owner phone is invalid');
         }
-        update.ownerPhone = digits;
-        update.ownerPhoneDigits = digits;
-        update.ownerPhoneLast10 = last10 || undefined;
+
+        const currentOwnerPhoneDigits =
+            currentRestaurant.ownerPhoneDigits ||
+            normalizePhone(currentRestaurant.ownerPhone).digits ||
+            '';
+
+        if (digits !== currentOwnerPhoneDigits) {
+            update.ownerPhone = digits;
+            update.ownerPhoneDigits = digits;
+            update.ownerPhoneLast10 = last10 || undefined;
+        }
     }
 
     if (body.primaryContactNumber !== undefined) {
         const { digits } = normalizePhone(body.primaryContactNumber);
-        update.primaryContactNumber = digits || String(body.primaryContactNumber || '').trim();
+        const normalizedPrimaryContact =
+            digits || String(body.primaryContactNumber || '').trim();
+        const currentPrimaryContact =
+            currentRestaurant.primaryContactNumber != null
+                ? String(currentRestaurant.primaryContactNumber).trim()
+                : '';
+
+        if (normalizedPrimaryContact !== currentPrimaryContact) {
+            update.primaryContactNumber = normalizedPrimaryContact;
+        }
     }
 
     if (body.pureVegRestaurant !== undefined) {
@@ -571,8 +613,15 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
         if (!name) {
             throw new ValidationError('Restaurant name cannot be empty');
         }
-        update.restaurantName = name;
-        update.restaurantNameNormalized = normalizeName(name) || undefined;
+        const normalizedName = normalizeName(name) || undefined;
+        const currentName = String(currentRestaurant.restaurantName || '').trim();
+        const currentNormalizedName =
+            currentRestaurant.restaurantNameNormalized || normalizeName(currentName) || undefined;
+
+        if (name !== currentName || normalizedName !== currentNormalizedName) {
+            update.restaurantName = name;
+            update.restaurantNameNormalized = normalizedName;
+        }
     }
 
     if (body.cuisines !== undefined) {
@@ -728,10 +777,19 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
         return getCurrentRestaurantProfile(restaurantId);
     }
 
+    update.status = 'pending';
+
     try {
         const doc = await FoodRestaurant.findByIdAndUpdate(
             restaurantId,
-            { $set: update },
+            {
+                $set: update,
+                $unset: {
+                    approvedAt: 1,
+                    rejectedAt: 1,
+                    rejectionReason: 1
+                }
+            },
             {
                 new: true,
                 runValidators: true,
@@ -782,6 +840,13 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
                 ].join(' ')
             }
         ).lean();
+
+        if (currentRestaurant.status !== 'pending') {
+            const restaurantNameForNotification =
+                update.restaurantName || currentRestaurant.restaurantName || doc?.restaurantName;
+            void notifyAdminsAboutRestaurantProfileReview(restaurantId, restaurantNameForNotification);
+        }
+
         return toRestaurantProfile(doc);
     } catch (err) {
         if (err && err.code === 11000) {
@@ -795,14 +860,34 @@ export const uploadRestaurantProfileImage = async (restaurantId, file) => {
     if (!restaurantId) throw new ValidationError('Invalid restaurant id');
     if (!file?.buffer) throw new ValidationError('Image file is required');
 
+    const currentRestaurant = await FoodRestaurant.findById(restaurantId)
+        .select('restaurantName status')
+        .lean();
+    if (!currentRestaurant) throw new ValidationError('Restaurant not found');
+
     const url = await uploadImageBuffer(file.buffer, 'food/restaurants/profile');
     const doc = await FoodRestaurant.findByIdAndUpdate(
         restaurantId,
-        { $set: { profileImage: url } },
+        {
+            $set: {
+                profileImage: url,
+                status: 'pending'
+            },
+            $unset: {
+                approvedAt: 1,
+                rejectedAt: 1,
+                rejectionReason: 1
+            }
+        },
         { new: true, projection: 'profileImage restaurantName cuisines location menuImages addressLine1 addressLine2 area city state pincode landmark ownerName ownerEmail ownerPhone primaryContactNumber pureVegRestaurant openingTime closingTime openDays status createdAt updatedAt' }
     ).lean();
 
     if (!doc) throw new ValidationError('Restaurant not found');
+
+    if (currentRestaurant.status !== 'pending') {
+        void notifyAdminsAboutRestaurantProfileReview(restaurantId, currentRestaurant.restaurantName || doc.restaurantName);
+    }
+
     return { profileImage: { url } };
 };
 

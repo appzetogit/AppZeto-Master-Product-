@@ -989,26 +989,13 @@ export default function HubMenu() {
       return
     }
     
-    try {
-      // Categories are managed via /food/restaurant/categories (NOT /menu).
-      // Create the category record so it shows up across the dashboard.
-      await restaurantAPI.createCategory({ name: newCategoryName.trim() })
+    toast.message('Finish category setup on Menu Categories so you can choose veg, non-veg, or both before admin approval.')
+    navigate('/restaurant/menu-categories', {
+      state: {
+        draftCategoryName: newCategoryName.trim(),
+      }
+    })
 
-      toast.success('Category added successfully!')
-
-      // The menu is generated from food items; the new section will appear once an item is created in it.
-      navigate('/restaurant/hub-menu/item/new', {
-        state: {
-          category: newCategoryName.trim(),
-          isNewCategory: true,
-        }
-      })
-    } catch (error) {
-      debugError('Error adding category:', error)
-      toast.error(error.response?.data?.message || 'Failed to add category')
-    }
-    
-    // Close popup and reset
     setIsAddCategoryPopupOpen(false)
     setNewCategoryName("")
   }

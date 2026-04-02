@@ -4,6 +4,9 @@ import { ValidationError } from '../../../../core/auth/errors.js';
 const orderItemSchema = z.object({
     itemId: z.string().min(1, 'Item id required'),
     name: z.string().min(1, 'Item name required'),
+    variantId: z.string().optional(),
+    variantName: z.string().optional(),
+    variantPrice: z.number().min(0).optional(),
     price: z.number().min(0),
     quantity: z.number().int().min(1),
     isVeg: z.boolean().optional().default(true),

@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import * as adminService from '../services/admin.service.js';
-import { validateCategoryListQuery, validateCategoryUpsertDto } from '../validators/category.validator.js';
+import { validateCategoryListQuery, validateCategoryRejectDto, validateCategoryUpsertDto } from '../validators/category.validator.js';
 import { validateCreateOfferDto, validateUpdateOfferCartVisibilityDto } from '../validators/offer.validator.js';
 import { validateAddDeliveryBonusDto } from '../validators/deliveryBonus.validator.js';
 import { validateCheckCompletionsDto, validateEarningAddonHistoryActionDto, validateEarningAddonUpsertDto, validateToggleEarningAddonStatusDto } from '../validators/earningAddon.validator.js';
@@ -470,6 +470,39 @@ export async function approveCategory(req, res, next) {
             return res.status(404).json({ success: false, message: 'Category not found or already approved' });
         }
         res.status(200).json({ success: true, message: 'Category approved successfully', data: { category: updated } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function rejectCategory(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid category id' });
+        }
+        const body = validateCategoryRejectDto(req.body || {});
+        const updated = await adminService.rejectCategory(id, body.reason);
+        if (!updated) {
+            return res.status(404).json({ success: false, message: 'Category not found' });
+        }
+        res.status(200).json({ success: true, message: 'Category rejected successfully', data: { category: updated } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function makeCategoryGlobal(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid category id' });
+        }
+        const updated = await adminService.makeCategoryGlobal(id);
+        if (!updated) {
+            return res.status(404).json({ success: false, message: 'Category not found' });
+        }
+        res.status(200).json({ success: true, message: 'Category is now global', data: { category: updated } });
     } catch (error) {
         next(error);
     }

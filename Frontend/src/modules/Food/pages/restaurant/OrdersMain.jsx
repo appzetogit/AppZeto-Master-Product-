@@ -1646,12 +1646,16 @@ export default function OrdersMain() {
         doc.text(noteLines, 20, yPos + 7);
       }
 
-      // Send cutlery
-      if (orderToPrint.sendCutlery) {
-        yPos += 15;
-        doc.setFont("helvetica", "normal");
-        doc.text("? Send cutlery requested", 20, yPos);
-      }
+      // Cutlery preference
+      yPos += 15;
+      doc.setFont("helvetica", "normal");
+      doc.text(
+        orderToPrint.sendCutlery === false
+          ? "? Don't send cutlery"
+          : "? Send cutlery requested",
+        20,
+        yPos,
+      );
 
       // Footer
       const pageHeight = doc.internal.pageSize.height;
@@ -2249,26 +2253,37 @@ export default function OrdersMain() {
                     </AnimatePresence>
                   </div>
 
-                  {/* Send cutlery */}
-                  {(popupOrder || newOrder)?.sendCutlery && (
-                    <div className="mb-4 flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-                      <svg
-                        className="w-5 h-5 text-gray-600"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24">
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
-                        />
-                      </svg>
-                      <span className="text-sm text-gray-700">
-                        Send cutlery
-                      </span>
-                    </div>
-                  )}
+                  {/* Cutlery preference */}
+                  <div
+                    className={`mb-4 flex items-center gap-2 rounded-lg p-3 ${(popupOrder || newOrder)?.sendCutlery === false
+                        ? "bg-orange-50"
+                        : "bg-gray-50"
+                      }`}>
+                    <svg
+                      className={`h-5 w-5 ${(popupOrder || newOrder)?.sendCutlery === false
+                          ? "text-orange-600"
+                          : "text-gray-600"
+                        }`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
+                      />
+                    </svg>
+                    <span
+                      className={`text-sm font-medium ${(popupOrder || newOrder)?.sendCutlery === false
+                          ? "text-orange-700"
+                          : "text-gray-700"
+                        }`}>
+                      {(popupOrder || newOrder)?.sendCutlery === false
+                        ? "Don't send cutlery"
+                        : "Send cutlery"}
+                    </span>
+                  </div>
 
                   {/* Total bill */}
                   <div className="mb-4 flex items-center justify-between py-3 border-y border-gray-200">

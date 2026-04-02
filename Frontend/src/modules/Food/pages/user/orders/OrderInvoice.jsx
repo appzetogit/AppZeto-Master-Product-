@@ -264,6 +264,9 @@ export default function OrderInvoice() {
                               />
                               <div className="min-w-0 flex-1">
                                 <span className="font-medium block">{item.name}</span>
+                                {item.variantName ? (
+                                  <span className="text-xs text-gray-500">{item.variantName}</span>
+                                ) : null}
                                 <span className="text-muted-foreground sm:hidden text-xs">
                                   Qty: {item.quantity} � ${item.price.toFixed(2)}
                                 </span>

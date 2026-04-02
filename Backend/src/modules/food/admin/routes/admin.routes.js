@@ -79,6 +79,8 @@ router.patch('/categories/:id', adminController.updateCategory);
 router.delete('/categories/:id', adminController.deleteCategory);
 router.patch('/categories/:id/toggle', adminController.toggleCategoryStatus);
 router.patch('/categories/:id/approve', adminController.approveCategory);
+router.patch('/categories/:id/reject', adminController.rejectCategory);
+router.patch('/categories/:id/make-global', adminController.makeCategoryGlobal);
 
 // ----- Restaurant Add-ons Approval -----
 router.get('/addons', addonsApprovalController.getRestaurantAddons);

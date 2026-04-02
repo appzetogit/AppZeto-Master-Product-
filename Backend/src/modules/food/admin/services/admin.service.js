@@ -31,6 +31,19 @@ import { FoodRestaurantWithdrawal } from '../../restaurant/models/foodRestaurant
 import { FoodDeliveryWithdrawal } from '../../delivery/models/foodDeliveryWithdrawal.model.js';
 import { FoodDeliveryWallet } from '../../delivery/models/deliveryWallet.model.js';
 import { FoodDeliveryCashDeposit } from '../../delivery/models/foodDeliveryCashDeposit.model.js';
+import {
+    backfillLegacyCategoryWorkflow,
+    categoryAllowsFoodType,
+    normalizeCategoryFoodTypeScope,
+    serializeCategoryForResponse
+} from '../../shared/categoryWorkflow.js';
+import {
+    extractRawFoodVariants,
+    getFoodDisplayPrice,
+    hasFoodVariants,
+    normalizeFoodVariantsInput,
+    serializeFoodVariants
+} from './foodVariant.service.js';
 
 const parseBooleanLike = (value, fieldName) => {
     if (typeof value === 'boolean') return value;
@@ -2432,9 +2445,34 @@ export async function getCategories(query) {
             filter.zoneId = new mongoose.Types.ObjectId(zid);
         }
     }
-    if (query.isApproved !== undefined) {
-        // Backward compatible: treat missing isApproved as approved.
-        filter.isApproved = query.isApproved === true ? { $ne: false } : false;
+    if (query.approvalStatus) {
+        const approvalStatus = String(query.approvalStatus);
+        if (approvalStatus === 'pending') {
+            filter.$and = [...(filter.$and || []), {
+                $or: [
+                    { approvalStatus: 'pending' },
+                    { approvalStatus: { $exists: false }, isApproved: false }
+                ]
+            }];
+        } else {
+            filter.approvalStatus = approvalStatus;
+        }
+    } else if (query.isApproved !== undefined) {
+        if (query.isApproved === true) {
+            filter.$and = [...(filter.$and || []), {
+                $or: [
+                    { approvalStatus: 'approved' },
+                    { approvalStatus: { $exists: false }, isApproved: { $ne: false } }
+                ]
+            }];
+        } else {
+            filter.$and = [...(filter.$and || []), {
+                $or: [
+                    { approvalStatus: 'pending' },
+                    { approvalStatus: { $exists: false }, isApproved: false }
+                ]
+            }];
+        }
     }
 
     const [list, total] = await Promise.all([
@@ -2442,34 +2480,32 @@ export async function getCategories(query) {
             .sort({ sortOrder: 1, createdAt: -1 })
             .skip(skip)
             .limit(limit)
-            .populate('zoneId', 'name zoneName isActive')
-            .populate('restaurantId', 'restaurantName ownerName ownerPhone')
             .lean(),
         FoodCategory.countDocuments(filter)
     ]);
 
-    const categories = list.map((c) => ({
-        id: c._id,
-        name: c.name,
-        image: c.image || '',
-        type: c.type || '',
-        status: c.isActive !== false,
-        isActive: c.isActive !== false,
-        isApproved: c.isApproved !== false,
-        restaurantId: c.restaurantId?._id ? String(c.restaurantId._id) : (c.restaurantId ? String(c.restaurantId) : null),
-        restaurant: c.restaurantId?._id
-            ? {
-                _id: c.restaurantId._id,
-                name: c.restaurantId.restaurantName || '',
-                ownerName: c.restaurantId.ownerName || '',
-                ownerPhone: c.restaurantId.ownerPhone || ''
-            }
-            : null,
-        zoneId: c.zoneId || null,
-        sortOrder: c.sortOrder || 0,
-        createdAt: c.createdAt,
-        updatedAt: c.updatedAt
+    const statsById = await backfillLegacyCategoryWorkflow(list);
+    const restaurantIds = Array.from(
+        new Set(
+            list
+                .flatMap((category) => [category?.restaurantId, category?.createdByRestaurantId])
+                .map((value) => (value ? String(value) : ''))
+                .filter(Boolean)
+        )
+    );
+    const restaurants = restaurantIds.length
+        ? await FoodRestaurant.find({ _id: { $in: restaurantIds } })
+            .select('restaurantName ownerName ownerPhone')
+            .lean()
+        : [];
+    const restaurantMap = new Map(restaurants.map((restaurant) => [String(restaurant._id), restaurant]));
+
+    const hydratedList = list.map((category) => ({
+        ...category,
+        restaurantId: category?.restaurantId ? restaurantMap.get(String(category.restaurantId)) || category.restaurantId : category.restaurantId,
+        createdByRestaurantId: category?.createdByRestaurantId ? restaurantMap.get(String(category.createdByRestaurantId)) || category.createdByRestaurantId : category.createdByRestaurantId
     }));
+    const categories = hydratedList.map((category) => serializeCategoryForResponse(category, { includeCounts: true, statsById }));
 
     return { categories, total, page, limit };
 }
@@ -2481,6 +2517,7 @@ export async function createCategory(body) {
         name,
         image: typeof body.image === 'string' ? body.image.trim() : '',
         type: typeof body.type === 'string' ? body.type.trim() : '',
+        foodTypeScope: normalizeCategoryFoodTypeScope(body.foodTypeScope, 'Both'),
         zoneId:
             body.zoneId && String(body.zoneId).trim()
                 ? (() => {
@@ -2493,8 +2530,12 @@ export async function createCategory(body) {
         isActive: body.isActive !== false,
         sortOrder: Number.isFinite(Number(body.sortOrder)) ? Number(body.sortOrder) : 0,
         // Admin-created categories are globally available immediately.
+        approvalStatus: 'approved',
         isApproved: true,
-        restaurantId: undefined
+        approvedAt: new Date(),
+        rejectionReason: '',
+        restaurantId: undefined,
+        createdByRestaurantId: undefined
     });
     await doc.save();
     return doc.toObject();
@@ -2502,22 +2543,91 @@ export async function createCategory(body) {
 
 export async function approveCategory(id) {
     if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
-    const updated = await FoodCategory.findOneAndUpdate(
-        { _id: id, isApproved: { $ne: true } },
-        { $set: { isApproved: true } },
-        { new: true }
-    ).lean();
-    return updated || null;
+    const doc = await FoodCategory.findById(id);
+    if (!doc) return null;
+
+    if (!doc.createdByRestaurantId && doc.restaurantId) {
+        doc.createdByRestaurantId = doc.restaurantId;
+    }
+    doc.approvalStatus = 'approved';
+    doc.isApproved = true;
+    doc.approvedAt = new Date();
+    doc.rejectedAt = undefined;
+    doc.rejectionReason = '';
+    await doc.save();
+    return doc.toObject();
+}
+
+export async function rejectCategory(id, reason) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+    const doc = await FoodCategory.findById(id);
+    if (!doc) return null;
+    if (!doc.restaurantId && !doc.createdByRestaurantId) {
+        throw new ValidationError('Only restaurant-created categories can be rejected');
+    }
+
+    if (!doc.createdByRestaurantId && doc.restaurantId) {
+        doc.createdByRestaurantId = doc.restaurantId;
+    }
+    doc.approvalStatus = 'rejected';
+    doc.isApproved = false;
+    doc.rejectionReason = String(reason || '').trim();
+    doc.rejectedAt = new Date();
+    doc.approvedAt = undefined;
+    await doc.save();
+    return doc.toObject();
+}
+
+export async function makeCategoryGlobal(id) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+    const doc = await FoodCategory.findById(id);
+    if (!doc) return null;
+
+    if (!doc.restaurantId && !doc.createdByRestaurantId) {
+        return doc.toObject();
+    }
+    if (String(doc.approvalStatus || '') !== 'approved' && doc.isApproved !== true) {
+        throw new ValidationError('Only approved categories can be made global');
+    }
+
+    doc.createdByRestaurantId = doc.createdByRestaurantId || doc.restaurantId;
+    doc.restaurantId = undefined;
+    doc.zoneId = undefined;
+    doc.approvalStatus = 'approved';
+    doc.isApproved = true;
+    doc.rejectionReason = '';
+    doc.globalizedAt = new Date();
+    doc.approvedAt = doc.approvedAt || new Date();
+    await doc.save();
+    return doc.toObject();
 }
 
 export async function updateCategory(id, body) {
     if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
     const doc = await FoodCategory.findById(id);
     if (!doc) return null;
+
+    const nextFoodTypeScope = body.foodTypeScope !== undefined
+        ? normalizeCategoryFoodTypeScope(body.foodTypeScope, doc.foodTypeScope || 'Both')
+        : normalizeCategoryFoodTypeScope(doc.foodTypeScope, 'Both');
+
+    if (body.foodTypeScope !== undefined && nextFoodTypeScope !== 'Both') {
+        const incompatibleFoods = await FoodItem.countDocuments({
+            categoryId: doc._id,
+            foodType: nextFoodTypeScope === 'Veg' ? 'Non-Veg' : 'Veg'
+        });
+        if (incompatibleFoods > 0) {
+            throw new ValidationError(`This category already has ${incompatibleFoods} food item(s) outside the selected diet scope`);
+        }
+    }
+
     if (body.name !== undefined) doc.name = String(body.name || '').trim();
     if (body.image !== undefined) doc.image = String(body.image || '').trim();
     if (body.type !== undefined) doc.type = String(body.type || '').trim();
-    if (body.zoneId !== undefined) {
+    if (body.foodTypeScope !== undefined) doc.foodTypeScope = nextFoodTypeScope;
+    if (!doc.restaurantId && doc.createdByRestaurantId) {
+        doc.zoneId = undefined;
+    } else if (body.zoneId !== undefined) {
         const raw = String(body.zoneId || '').trim();
         if (!raw || raw === 'global') {
             doc.zoneId = undefined;
@@ -2528,12 +2638,19 @@ export async function updateCategory(id, body) {
     }
     if (body.isActive !== undefined) doc.isActive = body.isActive !== false;
     if (body.sortOrder !== undefined) doc.sortOrder = Number(body.sortOrder) || 0;
+    if (!doc.createdByRestaurantId && doc.restaurantId) {
+        doc.createdByRestaurantId = doc.restaurantId;
+    }
     await doc.save();
     return doc.toObject();
 }
 
 export async function deleteCategory(id) {
     if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+    const inUse = await FoodItem.countDocuments({ categoryId: id });
+    if (inUse > 0) {
+        throw new ValidationError('Cannot delete category while it has items');
+    }
     const deleted = await FoodCategory.findByIdAndDelete(id).lean();
     return deleted ? { id } : null;
 }
@@ -2543,6 +2660,9 @@ export async function toggleCategoryStatus(id) {
     const doc = await FoodCategory.findById(id);
     if (!doc) return null;
     doc.isActive = !doc.isActive;
+    if (!doc.createdByRestaurantId && doc.restaurantId) {
+        doc.createdByRestaurantId = doc.restaurantId;
+    }
     await doc.save();
     return doc.toObject();
 }
@@ -2796,7 +2916,9 @@ export async function getFoods(query) {
         categoryName: f.categoryName || '',
         name: f.name,
         description: f.description || '',
-        price: f.price || 0,
+        price: getFoodDisplayPrice(f),
+        variants: serializeFoodVariants(f.variants),
+        variations: serializeFoodVariants(f.variants),
         image: f.image || '',
         foodType: f.foodType || 'Non-Veg',
         isAvailable: f.isAvailable !== false,
@@ -2809,35 +2931,133 @@ export async function getFoods(query) {
     return { foods, total, page, limit };
 }
 
+const resolveAdminFoodCategory = async ({ categoryId, categoryName, foodType, pureVegRestaurant }) => {
+    let resolvedCategoryId = null;
+    let resolvedCategoryName = typeof categoryName === 'string' ? categoryName.trim() : '';
+    let categoryDoc = null;
+
+    if (categoryId) {
+        if (!mongoose.Types.ObjectId.isValid(categoryId)) {
+            throw new ValidationError('Invalid category id');
+        }
+        categoryDoc = await FoodCategory.findById(categoryId)
+            .select('name foodTypeScope')
+            .lean();
+        if (!categoryDoc?._id) {
+            throw new ValidationError('Category not found');
+        }
+        resolvedCategoryId = categoryDoc._id;
+        resolvedCategoryName = categoryDoc.name || resolvedCategoryName;
+    }
+
+    if (!resolvedCategoryName) {
+        throw new ValidationError('Category is required');
+    }
+
+    if (categoryDoc?.foodTypeScope) {
+        if (pureVegRestaurant && String(categoryDoc.foodTypeScope || '') !== 'Veg') {
+            throw new ValidationError('Pure veg restaurants can only use veg categories');
+        }
+        if (!categoryAllowsFoodType(categoryDoc.foodTypeScope, foodType)) {
+            throw new ValidationError(`This ${categoryDoc.foodTypeScope} category cannot accept ${foodType} food`);
+        }
+    }
+
+    return {
+        categoryId: resolvedCategoryId,
+        categoryName: resolvedCategoryName
+    };
+};
+
+const getAdminFoodCreatePricing = (body = {}) => {
+    const variants = normalizeFoodVariantsInput(extractRawFoodVariants(body));
+    if (variants.length > 0) {
+        return {
+            price: getFoodDisplayPrice({ variants }),
+            variants
+        };
+    }
+
+    const price = Number(body.price);
+    if (!Number.isFinite(price) || price <= 0) throw new ValidationError('Price must be greater than 0');
+    return {
+        price,
+        variants: []
+    };
+};
+
+const getAdminFoodUpdatedPricing = (existing = {}, body = {}) => {
+    const variantsTouched = body.variants !== undefined || body.variations !== undefined;
+    const existingHasVariants = hasFoodVariants(existing);
+    const update = {};
+
+    if (variantsTouched) {
+        const variants = normalizeFoodVariantsInput(extractRawFoodVariants(body));
+        update.variants = variants;
+
+        if (variants.length > 0) {
+            update.price = getFoodDisplayPrice({ variants });
+            return update;
+        }
+
+        const nextBasePrice = body.price !== undefined ? Number(body.price) : Number(existingHasVariants ? NaN : existing.price);
+        if (!Number.isFinite(nextBasePrice) || nextBasePrice <= 0) {
+            throw new ValidationError('Base price must be greater than 0 when variants are removed');
+        }
+        update.price = nextBasePrice;
+        return update;
+    }
+
+    if (body.price !== undefined) {
+        if (existingHasVariants) {
+            throw new ValidationError('Update variants instead of base price for foods with variants');
+        }
+        const price = Number(body.price);
+        if (!Number.isFinite(price) || price <= 0) throw new ValidationError('Price must be greater than 0');
+        update.price = price;
+    }
+
+    return update;
+};
+
 export async function createFood(body) {
     const restaurantId = body.restaurantId;
     if (!restaurantId || !mongoose.Types.ObjectId.isValid(restaurantId)) {
         throw new ValidationError('Valid restaurantId is required');
     }
+    const restaurant = await FoodRestaurant.findById(restaurantId)
+        .select('pureVegRestaurant')
+        .lean();
+    if (!restaurant?._id) {
+        throw new ValidationError('Restaurant not found');
+    }
     const name = typeof body.name === 'string' ? body.name.trim() : '';
     if (!name) throw new ValidationError('Food name is required');
-    const price = Number(body.price);
-    if (!Number.isFinite(price) || price <= 0) throw new ValidationError('Price must be greater than 0');
-
-    let categoryId = null;
-    let categoryName = typeof body.categoryName === 'string' ? body.categoryName.trim() : '';
-    if (body.categoryId && mongoose.Types.ObjectId.isValid(body.categoryId)) {
-        categoryId = body.categoryId;
-        const cat = await FoodCategory.findById(categoryId).select('name').lean();
-        if (cat?.name) categoryName = cat.name;
+    const foodType = body.foodType === 'Veg' ? 'Veg' : 'Non-Veg';
+    if (restaurant.pureVegRestaurant === true && foodType !== 'Veg') {
+        throw new ValidationError('Pure veg restaurants can only use veg foods');
     }
+    const { price, variants } = getAdminFoodCreatePricing(body);
+
+    let categoryName = typeof body.categoryName === 'string' ? body.categoryName.trim() : '';
     if (!categoryName && typeof body.category === 'string') categoryName = body.category.trim();
-    if (!categoryName) throw new ValidationError('Category is required');
+    const { categoryId, categoryName: resolvedCategoryName } = await resolveAdminFoodCategory({
+        categoryId: body.categoryId,
+        categoryName,
+        foodType,
+        pureVegRestaurant: restaurant.pureVegRestaurant === true
+    });
 
     const doc = new FoodItem({
         restaurantId,
         categoryId,
-        categoryName,
+        categoryName: resolvedCategoryName,
         name,
         description: typeof body.description === 'string' ? body.description.trim() : '',
         price,
+        variants,
         image: typeof body.image === 'string' ? body.image.trim() : '',
-        foodType: body.foodType === 'Veg' ? 'Veg' : 'Non-Veg',
+        foodType,
         isAvailable: body.isAvailable !== false,
         preparationTime: typeof body.preparationTime === 'string' ? body.preparationTime.trim() : '',
         approvalStatus: 'approved'
@@ -2850,25 +3070,37 @@ export async function updateFood(id, body) {
     if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
     const doc = await FoodItem.findById(id);
     if (!doc) return null;
+    const restaurant = await FoodRestaurant.findById(doc.restaurantId)
+        .select('pureVegRestaurant')
+        .lean();
+    if (!restaurant?._id) {
+        throw new ValidationError('Restaurant not found');
+    }
     if (body.name !== undefined) doc.name = String(body.name || '').trim();
     if (body.description !== undefined) doc.description = String(body.description || '').trim();
-    if (body.price !== undefined) {
-        const price = Number(body.price);
-        if (!Number.isFinite(price) || price <= 0) throw new ValidationError('Price must be greater than 0');
-        doc.price = price;
+    const targetFoodType = body.foodType !== undefined ? (body.foodType === 'Veg' ? 'Veg' : 'Non-Veg') : (doc.foodType === 'Veg' ? 'Veg' : 'Non-Veg');
+    if (restaurant.pureVegRestaurant === true && targetFoodType !== 'Veg') {
+        throw new ValidationError('Pure veg restaurants can only use veg foods');
     }
+    const pricingUpdate = getAdminFoodUpdatedPricing(doc.toObject(), body);
+    if (pricingUpdate.price !== undefined) doc.price = pricingUpdate.price;
+    if (pricingUpdate.variants !== undefined) doc.variants = pricingUpdate.variants;
     if (body.image !== undefined) doc.image = String(body.image || '').trim();
-    if (body.foodType !== undefined) doc.foodType = body.foodType === 'Veg' ? 'Veg' : 'Non-Veg';
+    if (body.foodType !== undefined) doc.foodType = targetFoodType;
     if (body.isAvailable !== undefined) doc.isAvailable = body.isAvailable !== false;
     if (body.preparationTime !== undefined) doc.preparationTime = String(body.preparationTime || '').trim();
-    if (body.categoryId !== undefined && mongoose.Types.ObjectId.isValid(body.categoryId)) {
-        doc.categoryId = body.categoryId;
-        const cat = await FoodCategory.findById(body.categoryId).select('name').lean();
-        if (cat?.name) doc.categoryName = cat.name;
-    } else if (body.categoryName !== undefined) {
-        doc.categoryName = String(body.categoryName || '').trim();
-    } else if (body.category !== undefined) {
-        doc.categoryName = String(body.category || '').trim();
+    if (body.categoryId !== undefined || body.categoryName !== undefined || body.category !== undefined || body.foodType !== undefined) {
+        const nextCategoryName = body.categoryName !== undefined
+            ? String(body.categoryName || '').trim()
+            : (body.category !== undefined ? String(body.category || '').trim() : doc.categoryName);
+        const { categoryId, categoryName } = await resolveAdminFoodCategory({
+            categoryId: body.categoryId !== undefined ? body.categoryId : doc.categoryId,
+            categoryName: nextCategoryName,
+            foodType: targetFoodType,
+            pureVegRestaurant: restaurant.pureVegRestaurant === true
+        });
+        doc.categoryId = categoryId;
+        doc.categoryName = categoryName;
     }
     await doc.save();
     return doc.toObject();

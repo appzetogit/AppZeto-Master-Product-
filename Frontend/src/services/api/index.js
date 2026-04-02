@@ -2279,11 +2279,22 @@ const normalizeRestaurantShape = (restaurant) => {
   return {
     _id: restaurant?._id || restaurant?.id || null,
     id: restaurant?.id || restaurant?._id || null,
+    restaurantId: restaurant?.restaurantId || restaurant?._id || restaurant?.id || null,
+    restaurantNameNormalized:
+      restaurant?.restaurantNameNormalized || restaurant?.slug || "",
     slug: restaurant?.slug || "",
     name: normalizeName(restaurant),
     restaurantName: restaurant?.restaurantName || normalizeName(restaurant),
     profileImage: restaurant?.profileImage || null,
+    coverImages: Array.isArray(restaurant?.coverImages)
+      ? restaurant.coverImages
+      : [],
+    menuImages: Array.isArray(restaurant?.menuImages) ? restaurant.menuImages : [],
     image:
+      restaurant?.coverImages?.[0]?.url ||
+      restaurant?.coverImages?.[0] ||
+      restaurant?.menuImages?.[0]?.url ||
+      restaurant?.menuImages?.[0] ||
       restaurant?.image ||
       restaurant?.profileImage?.url ||
       (typeof restaurant?.profileImage === "string"
@@ -2291,6 +2302,36 @@ const normalizeRestaurantShape = (restaurant) => {
         : ""),
     location: restaurant?.location || null,
   };
+};
+
+const collectRestaurantBookingKeys = (restaurantCandidate) => {
+  if (!restaurantCandidate) return [];
+
+  const raw =
+    typeof restaurantCandidate === "object"
+      ? restaurantCandidate
+      : { _id: restaurantCandidate, id: restaurantCandidate, restaurantId: restaurantCandidate };
+
+  const values = [
+    raw?._id,
+    raw?.id,
+    raw?.restaurantId,
+    raw?.slug,
+    raw?.restaurantNameNormalized,
+    raw?.restaurant?._id,
+    raw?.restaurant?.id,
+    raw?.restaurant?.restaurantId,
+    raw?.restaurant?.slug,
+    raw?.restaurant?.restaurantNameNormalized,
+  ];
+
+  return Array.from(
+    new Set(
+      values
+        .map((value) => String(value || "").trim())
+        .filter(Boolean),
+    ),
+  );
 };
 
 const buildLocalBookingId = () =>
@@ -2380,24 +2421,20 @@ export const diningAPI = {
 
     return Promise.resolve({ data: { success: true, data: filtered } });
   },
-  getRestaurantBookings: (restaurantId) => {
-    const id = String(restaurantId || "").trim();
+  getRestaurantBookings: (restaurantRef) => {
+    const keys = collectRestaurantBookingKeys(restaurantRef);
     const bookings = getStoredBookings();
 
     const filtered = bookings
       .filter((booking) => {
-        if (!id) return false;
-        return (
-          String(booking?.restaurantId || "") === id ||
-          String(
-            booking?.restaurant?._id ||
-              booking?.restaurant?.id ||
-              booking?.restaurant?.restaurantId ||
-              booking?.restaurant?.restaurant?._id ||
-              booking?.restaurant?.restaurant?.id ||
-              "",
-          ) === id
-        );
+        if (keys.length === 0) return false;
+        const bookingKeys = collectRestaurantBookingKeys({
+          restaurantId: booking?.restaurantId,
+          ...(booking?.restaurant && typeof booking.restaurant === "object"
+            ? booking.restaurant
+            : {}),
+        });
+        return bookingKeys.some((value) => keys.includes(value));
       })
       .sort(byLatest);
 

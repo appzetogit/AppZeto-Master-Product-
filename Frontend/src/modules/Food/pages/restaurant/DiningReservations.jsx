@@ -108,7 +108,7 @@ export default function DiningReservations() {
                     if (restaurantId) {
                         syncRestaurantMediaState(resData)
                         // Then get its bookings
-                        const bookingsResponse = await diningAPI.getRestaurantBookings(restaurantId)
+                        const bookingsResponse = await diningAPI.getRestaurantBookings(resData)
                         if (bookingsResponse.data.success) {
                             setBookings(Array.isArray(bookingsResponse.data.data) ? bookingsResponse.data.data : [])
                         }

@@ -554,7 +554,7 @@ function TableBookings() {
         const restaurantId = restaurant?._id || restaurant?.id;
 
         if (restaurantId) {
-          const response = await diningAPI.getRestaurantBookings(restaurantId);
+          const response = await diningAPI.getRestaurantBookings(restaurant);
           if (isMounted && response.data.success) {
             setBookings(response.data.data);
           }

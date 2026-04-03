@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import { Search, Download, ChevronDown, Eye, Settings, ArrowUpDown, Loader2, Star, Building2, User, FileText, Phone, Mail, MapPin, ShieldX, Trash2, Plus, ArrowRight } from "lucide-react"
+import { Search, Download, ChevronDown, Eye, Settings, ArrowUpDown, Loader2, Star, Building2, User, FileText, Phone, Mail, MapPin, ShieldX, Trash2, ArrowRight } from "lucide-react"
 import { adminAPI } from "@food/api"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@food/components/ui/dropdown-menu"
 import { exportRestaurantsToPDF } from "@food/components/admin/restaurants/restaurantsExportUtils"
@@ -218,13 +218,6 @@ export default function DiningList() {
                         <div className="flex items-center gap-3">
                             <h1 className="text-2xl font-bold text-slate-900">Dining List</h1>
                         </div>
-                        <button
-                            onClick={() => navigate("/admin/food/restaurants/add")}
-                            className="px-4 py-2.5 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 transition-all shadow-sm hover:shadow"
-                        >
-                            <Plus className="w-4 h-4" />
-                            <span>Add Restaurant</span>
-                        </button>
                     </div>
                     <p className="text-slate-500">Manage restaurants available for dining.</p>
                 </div>
@@ -244,13 +237,6 @@ export default function DiningList() {
                             <p className="text-slate-500 max-w-sm mb-8">
                                 Get started by adding your first restaurant to the dining management system.
                             </p>
-                            <button
-                                onClick={() => navigate("/admin/food/restaurants/add")}
-                                className="px-6 py-3 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 transition-all shadow-md"
-                            >
-                                <Plus className="w-5 h-5" />
-                                <span>Register First Restaurant</span>
-                            </button>
                         </div>
                     ) : (
                         <>

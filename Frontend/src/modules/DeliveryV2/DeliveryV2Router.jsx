@@ -7,7 +7,6 @@ import Loader from "@food/components/Loader";
 const Welcome = lazy(() => import("./pages/auth/Welcome"))
 const SignIn = lazy(() => import("./pages/auth/SignIn"))
 const OTP = lazy(() => import("./pages/auth/OTP"))
-const Signup = lazy(() => import("./pages/auth/Signup"))
 const SignupStep1 = lazy(() => import("./pages/auth/SignupStep1"))
 const SignupStep2 = lazy(() => import("./pages/auth/SignupStep2"))
 
@@ -40,7 +39,7 @@ const DeliveryV2Router = () => {
         <Route path="welcome" element={<Welcome />} />
         <Route path="login" element={<SignIn />} />
         <Route path="otp" element={<OTP />} />
-        <Route path="signup" element={<Signup />} />
+        <Route path="signup" element={<Navigate to="/food/delivery/login" replace />} />
         <Route path="signup/details" element={<SignupStep1 />} />
         <Route path="signup/documents" element={<SignupStep2 />} />
         <Route path="terms" element={<TermsAndConditionsV2 />} />

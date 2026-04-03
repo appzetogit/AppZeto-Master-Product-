@@ -21,10 +21,13 @@ export const ViewSupportTicketV2 = () => {
     const fetchTicket = async () => {
       try {
         setLoading(true);
-        // Using getSupportTickets and filtering for simplicity, or building specific GET
-        const response = await deliveryAPI.getSupportTickets();
+        const response = await deliveryAPI.getSupportTicketById(ticketId);
         if (response?.data?.success) {
-          const found = response.data.data.tickets.find(t => t._id === ticketId);
+          const found =
+            response?.data?.data?.ticket ||
+            response?.data?.data ||
+            response?.data?.ticket ||
+            null;
           setTicket(found);
         }
       } catch (error) {
@@ -92,6 +95,11 @@ export const ViewSupportTicketV2 = () => {
                <p className="text-xs text-orange-600 font-bold leading-relaxed italic">
                  {ticket.adminResponse || "Our support team is currently reviewing your ticket. You'll receive a notification once there is an update."}
                </p>
+               {ticket.respondedAt && (
+                 <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                   Updated {new Date(ticket.respondedAt).toLocaleString()}
+                 </p>
+               )}
             </div>
          </div>
 

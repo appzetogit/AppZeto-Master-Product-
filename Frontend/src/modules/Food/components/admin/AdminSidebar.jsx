@@ -346,19 +346,26 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
   }, [searchQuery])
 
   const isActive = (path, allPaths = []) => {
-    if (path === "/admin") {
-      return location.pathname === path
+    const currentPath = location.pathname.replace(/\/+$/, "") || "/"
+    const targetPath = String(path || "").replace(/\/+$/, "") || "/"
+    const matchesPath = (candidatePath) =>
+      currentPath === candidatePath || currentPath.startsWith(`${candidatePath}/`)
+
+    if (targetPath === "/admin" || targetPath === "/admin/food") {
+      return currentPath === targetPath
     }
 
     // For subItems, check if this is the most specific match
     if (allPaths.length > 0) {
       // Sort paths by length (longest first) to find most specific match
       const sortedPaths = [...allPaths].sort((a, b) => b.length - a.length)
-      const bestMatch = sortedPaths.find(p => location.pathname.startsWith(p))
-      return bestMatch === path
+      const bestMatch = sortedPaths.find((candidatePath) =>
+        matchesPath(String(candidatePath || "").replace(/\/+$/, "") || "/")
+      )
+      return (String(bestMatch || "").replace(/\/+$/, "") || "/") === targetPath
     }
 
-    return location.pathname.startsWith(path)
+    return matchesPath(targetPath)
   }
 
   useEffect(() => {
@@ -606,7 +613,7 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
       `}</style>
       <div
         className={cn(
-          "admin-sidebar-scroll bg-neutral-950 border-r border-neutral-800/60 h-screen fixed left-0 top-0 overflow-y-auto z-50",
+          "bg-neutral-950 border-r border-neutral-800/60 h-screen fixed left-0 top-0 z-50 flex flex-col overflow-hidden",
           "transform transition-all duration-300 ease-in-out",
           "lg:translate-x-0",
           isOpen ? "translate-x-0" : "-translate-x-full",
@@ -614,7 +621,7 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
         )}
       >
         {/* Header with Logo and Brand */}
-        <div className="px-3 py-3 border-b border-neutral-800/60 bg-neutral-900 animate-[fadeIn_0.4s_ease-out]">
+        <div className="shrink-0 px-3 py-3 border-b border-neutral-800/60 bg-neutral-900 animate-[fadeIn_0.4s_ease-out]">
           <div className="flex items-center justify-between mb-3">
             {!isCollapsed && (
               <div className="flex items-center gap-2 animate-[slideIn_0.3s_ease-out]">
@@ -720,7 +727,7 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
         </div>
 
         {/* Navigation Menu */}
-        <nav className="px-3 py-3 space-y-2">
+        <nav className="admin-sidebar-scroll flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-3 py-3 space-y-2">
           {filteredMenuData.length === 0 && searchQuery.trim() ? (
             <div className="px-3 py-12 text-left animate-[fadeIn_0.4s_ease-out]">
               <p className="text-neutral-300 text-sm font-medium text-left">No menu items found</p>

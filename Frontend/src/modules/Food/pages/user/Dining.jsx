@@ -146,7 +146,14 @@ export default function Dining() {
   const [categories, setCategories] = useState([])
   const [restaurantList, setRestaurantList] = useState([])
   const [loading, setLoading] = useState(true)
-  const [diningHeroBanner, setDiningHeroBanner] = useState(null)
+  const [diningHeroBanners, setDiningHeroBanners] = useState([])
+  const [currentBannerIndex, setCurrentBannerIndex] = useState(0)
+  const autoSlideIntervalRef = useRef(null)
+  const touchStartXRef = useRef(0)
+  const touchStartYRef = useRef(0)
+  const touchEndXRef = useRef(0)
+  const touchEndYRef = useRef(0)
+  const isBannerSwipingRef = useRef(false)
 
   useEffect(() => {
     const fetchDiningData = async () => {
@@ -158,13 +165,28 @@ export default function Dining() {
           diningAPI.getRestaurants(location?.city ? { city: location.city } : {}),
         ])
 
-        const heroImage = String(bannerResponse?.data?.data?.banners?.[0]?.imageUrl || "").trim()
-        setDiningHeroBanner(heroImage || null)
+        const heroBanners = Array.isArray(bannerResponse?.data?.data?.banners)
+          ? bannerResponse.data.data.banners
+              .map((banner, index) => {
+                const imageUrl = String(banner?.imageUrl || "").trim()
+                if (!imageUrl) return null
+
+                return {
+                  id: String(banner?._id || banner?.id || `dining-banner-${index}`),
+                  imageUrl,
+                  tagline: String(banner?.title || banner?.tagline || "").trim(),
+                  promoCode: String(banner?.ctaText || banner?.promoCode || "").trim(),
+                }
+              })
+              .filter(Boolean)
+          : []
+
+        setDiningHeroBanners(heroBanners)
         setCategories(cats?.data?.success ? (cats.data.data || []) : [])
         setRestaurantList(rests?.data?.success ? (rests.data.data || []) : [])
       } catch (error) {
         debugError("Failed to fetch dining data", error)
-        setDiningHeroBanner(null)
+        setDiningHeroBanners([])
         setCategories([])
         setRestaurantList([])
       } finally {
@@ -231,6 +253,41 @@ export default function Dining() {
         }
       })
   }, [restaurantList, location])
+
+  const categoryRestaurantKeys = useMemo(() => {
+    const keySet = new Set()
+
+    normalizedRestaurantList.forEach((restaurant) => {
+      const rawCategories = []
+
+      if (Array.isArray(restaurant?.categories)) {
+        rawCategories.push(...restaurant.categories)
+      }
+
+      if (restaurant?.diningSettings?.diningType) {
+        rawCategories.push(restaurant.diningSettings.diningType)
+      }
+
+      rawCategories.forEach((category) => {
+        if (typeof category === "string") {
+          const normalized = slugifyValue(category)
+          if (normalized) keySet.add(normalized)
+          return
+        }
+
+        if (category && typeof category === "object") {
+          const slug = slugifyValue(category?.slug || category?.name || category?.title || "")
+          if (slug) keySet.add(slug)
+        }
+      })
+    })
+
+    return keySet
+  }, [normalizedRestaurantList])
+
+  const filteredCategories = useMemo(() => {
+    return safeCategories.filter((category) => categoryRestaurantKeys.has(category.slug))
+  }, [safeCategories, categoryRestaurantKeys])
 
   const nearbyPopularRestaurants = useMemo(() => {
     const within10Km = normalizedRestaurantList
@@ -303,6 +360,89 @@ export default function Dining() {
 
     return filtered
   }, [nearbyPopularRestaurants, activeFilters, selectedCuisine, sortBy])
+
+  useEffect(() => {
+    setCurrentBannerIndex((prev) => {
+      if (diningHeroBanners.length === 0) return 0
+      return Math.min(prev, diningHeroBanners.length - 1)
+    })
+  }, [diningHeroBanners.length])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    diningHeroBanners.forEach((banner) => {
+      if (!banner?.imageUrl) return
+      const img = new window.Image()
+      img.src = banner.imageUrl
+    })
+  }, [diningHeroBanners])
+
+  const startBannerAutoSlide = useCallback(() => {
+    if (autoSlideIntervalRef.current) {
+      clearInterval(autoSlideIntervalRef.current)
+    }
+
+    if (diningHeroBanners.length <= 1) return
+
+    autoSlideIntervalRef.current = setInterval(() => {
+      if (!isBannerSwipingRef.current) {
+        setCurrentBannerIndex((prev) => (prev + 1) % diningHeroBanners.length)
+      }
+    }, 3500)
+  }, [diningHeroBanners.length])
+
+  const resetBannerAutoSlide = useCallback(() => {
+    startBannerAutoSlide()
+  }, [startBannerAutoSlide])
+
+  useEffect(() => {
+    startBannerAutoSlide()
+
+    return () => {
+      if (autoSlideIntervalRef.current) {
+        clearInterval(autoSlideIntervalRef.current)
+      }
+    }
+  }, [startBannerAutoSlide])
+
+  const handleBannerTouchStart = useCallback((event) => {
+    if (diningHeroBanners.length <= 1) return
+    touchStartXRef.current = event.touches[0].clientX
+    touchStartYRef.current = event.touches[0].clientY
+    touchEndXRef.current = event.touches[0].clientX
+    touchEndYRef.current = event.touches[0].clientY
+    isBannerSwipingRef.current = true
+  }, [diningHeroBanners.length])
+
+  const handleBannerTouchMove = useCallback((event) => {
+    if (!isBannerSwipingRef.current) return
+    touchEndXRef.current = event.touches[0].clientX
+    touchEndYRef.current = event.touches[0].clientY
+  }, [])
+
+  const handleBannerTouchEnd = useCallback(() => {
+    if (!isBannerSwipingRef.current || diningHeroBanners.length <= 1) {
+      isBannerSwipingRef.current = false
+      return
+    }
+
+    const deltaX = touchEndXRef.current - touchStartXRef.current
+    const deltaY = Math.abs(touchEndYRef.current - touchStartYRef.current)
+    const minSwipeDistance = 40
+
+    if (Math.abs(deltaX) > minSwipeDistance && Math.abs(deltaX) > deltaY) {
+      setCurrentBannerIndex((prev) => {
+        if (deltaX > 0) {
+          return (prev - 1 + diningHeroBanners.length) % diningHeroBanners.length
+        }
+        return (prev + 1) % diningHeroBanners.length
+      })
+      resetBannerAutoSlide()
+    }
+
+    isBannerSwipingRef.current = false
+  }, [diningHeroBanners.length, resetBannerAutoSlide])
 
 
   const handleSearchFocus = useCallback(() => {
@@ -387,15 +527,65 @@ export default function Dining() {
           transition={{ duration: 0.6, ease: "easeOut" }}
           className="relative w-full h-[30vh] sm:h-[35vh] lg:h-[40vh] rounded-2xl overflow-hidden shadow-lg"
         >
-          {diningHeroBanner ? (
-            <OptimizedImage
-              src={diningHeroBanner}
-              alt="Dining Banner"
-              className="w-full h-full"
-              objectFit="cover"
-              priority={true}
-              sizes="100vw"
-            />
+          {diningHeroBanners.length > 0 ? (
+            <div
+              className="relative h-full w-full"
+              onTouchStart={handleBannerTouchStart}
+              onTouchMove={handleBannerTouchMove}
+              onTouchEnd={handleBannerTouchEnd}
+            >
+              <div
+                className="flex h-full w-full transition-transform duration-500 ease-out"
+                style={{ transform: `translateX(-${currentBannerIndex * 100}%)` }}
+              >
+                {diningHeroBanners.map((banner, index) => (
+                  <div key={banner.id} className="relative h-full w-full shrink-0">
+                    <OptimizedImage
+                      src={banner.imageUrl}
+                      alt={`Dining Banner ${index + 1}`}
+                      className="w-full h-full"
+                      objectFit="cover"
+                      priority={index === 0}
+                      sizes="100vw"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/25 to-transparent" />
+                    <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5 md:p-6 lg:p-8">
+                      <div className="max-w-[75%] rounded-2xl bg-black/20 px-3 py-3 text-white backdrop-blur-sm sm:px-4 md:px-5">
+                        {banner.promoCode && (
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-white/85 sm:text-xs">
+                            {banner.promoCode}
+                          </p>
+                        )}
+                        {banner.tagline && (
+                          <h2 className="mt-2 text-lg font-bold leading-tight sm:text-2xl md:text-3xl">
+                            {banner.tagline}
+                          </h2>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {diningHeroBanners.length > 1 && (
+                <div className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/25 px-3 py-1.5 backdrop-blur-sm">
+                  {diningHeroBanners.map((banner, index) => (
+                    <button
+                      key={`${banner.id}-dot`}
+                      type="button"
+                      aria-label={`Go to dining banner ${index + 1}`}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        setCurrentBannerIndex(index)
+                        resetBannerAutoSlide()
+                      }}
+                      className={`h-2 rounded-full transition-all duration-300 ${
+                        currentBannerIndex === index ? "w-5 bg-white" : "w-2 bg-white/55"
+                      }`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           ) : (
             <div className={`relative h-full w-full bg-[radial-gradient(circle_at_top_left,_rgba(235,89,14,0.22),_transparent_35%),linear-gradient(135deg,#fff5e8_0%,#fffdf9_55%,#ffe3cf_100%)] ${shimmerClassName}`}>
               <div className="absolute inset-0 bg-[linear-gradient(120deg,transparent_0%,rgba(235,89,14,0.05)_35%,transparent_70%)]" />
@@ -439,7 +629,7 @@ export default function Dining() {
               ? loadingCategoryCards.map((key, index) => (
                 <DiningCategorySkeleton key={key} index={index} />
               ))
-              : safeCategories.map((category, index) => (
+              : filteredCategories.map((category, index) => (
               <Link
                 key={category._id || category.id}
                 to={`/user/dining/${category.slug}`}

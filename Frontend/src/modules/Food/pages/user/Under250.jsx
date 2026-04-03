@@ -86,13 +86,20 @@ export default function Under250() {
     dragging: false,
   })
   const [categories, setCategories] = useState([])
-  const [bannerImage, setBannerImage] = useState(null)
+  const [bannerImages, setBannerImages] = useState([])
   const [loadingBanner, setLoadingBanner] = useState(true)
+  const [currentBannerIndex, setCurrentBannerIndex] = useState(0)
   const [under250Restaurants, setUnder250Restaurants] = useState([])
   const [loadingRestaurants, setLoadingRestaurants] = useState(true)
   const [hasScrolledPastBanner, setHasScrolledPastBanner] = useState(false)
   const bannerShellRef = useRef(null)
   const stickyHeaderRef = useRef(null)
+  const autoSlideIntervalRef = useRef(null)
+  const touchStartXRef = useRef(0)
+  const touchStartYRef = useRef(0)
+  const touchEndXRef = useRef(0)
+  const touchEndYRef = useRef(0)
+  const isBannerSwipingRef = useRef(false)
 
   const sortOptions = [
     { id: null, label: 'Relevance' },
@@ -230,18 +237,102 @@ export default function Under250() {
         if (cancelled) return
         const data = res?.data?.data
         const list = Array.isArray(data?.banners) ? data.banners : (Array.isArray(data) ? data : [])
-        const first = list[0]
-        const img = first && typeof first.imageUrl === 'string' ? first.imageUrl : null
-        setBannerImage(img)
+        const images = list
+          .map((banner) => (typeof banner?.imageUrl === "string" ? banner.imageUrl.trim() : ""))
+          .filter(Boolean)
+        setBannerImages(images)
       })
       .catch(() => {
-        if (!cancelled) setBannerImage(null)
+        if (!cancelled) setBannerImages([])
       })
       .finally(() => {
         if (!cancelled) setLoadingBanner(false)
       })
     return () => { cancelled = true }
   }, [])
+
+  useEffect(() => {
+    setCurrentBannerIndex((prev) => {
+      if (bannerImages.length === 0) return 0
+      return Math.min(prev, bannerImages.length - 1)
+    })
+  }, [bannerImages.length])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    bannerImages.forEach((src) => {
+      if (!src) return
+      const img = new window.Image()
+      img.src = src
+    })
+  }, [bannerImages])
+
+  const startBannerAutoSlide = useCallback(() => {
+    if (autoSlideIntervalRef.current) {
+      clearInterval(autoSlideIntervalRef.current)
+    }
+
+    if (bannerImages.length <= 1) return
+
+    autoSlideIntervalRef.current = setInterval(() => {
+      if (!isBannerSwipingRef.current) {
+        setCurrentBannerIndex((prev) => (prev + 1) % bannerImages.length)
+      }
+    }, 3500)
+  }, [bannerImages.length])
+
+  const resetBannerAutoSlide = useCallback(() => {
+    startBannerAutoSlide()
+  }, [startBannerAutoSlide])
+
+  useEffect(() => {
+    startBannerAutoSlide()
+
+    return () => {
+      if (autoSlideIntervalRef.current) {
+        clearInterval(autoSlideIntervalRef.current)
+      }
+    }
+  }, [startBannerAutoSlide])
+
+  const handleBannerTouchStart = useCallback((event) => {
+    if (bannerImages.length <= 1) return
+    touchStartXRef.current = event.touches[0].clientX
+    touchStartYRef.current = event.touches[0].clientY
+    touchEndXRef.current = event.touches[0].clientX
+    touchEndYRef.current = event.touches[0].clientY
+    isBannerSwipingRef.current = true
+  }, [bannerImages.length])
+
+  const handleBannerTouchMove = useCallback((event) => {
+    if (!isBannerSwipingRef.current) return
+    touchEndXRef.current = event.touches[0].clientX
+    touchEndYRef.current = event.touches[0].clientY
+  }, [])
+
+  const handleBannerTouchEnd = useCallback(() => {
+    if (!isBannerSwipingRef.current || bannerImages.length <= 1) {
+      isBannerSwipingRef.current = false
+      return
+    }
+
+    const deltaX = touchEndXRef.current - touchStartXRef.current
+    const deltaY = Math.abs(touchEndYRef.current - touchStartYRef.current)
+    const minSwipeDistance = 40
+
+    if (Math.abs(deltaX) > minSwipeDistance && Math.abs(deltaX) > deltaY) {
+      setCurrentBannerIndex((prev) => {
+        if (deltaX > 0) {
+          return (prev - 1 + bannerImages.length) % bannerImages.length
+        }
+        return (prev + 1) % bannerImages.length
+      })
+      resetBannerAutoSlide()
+    }
+
+    isBannerSwipingRef.current = false
+  }, [bannerImages.length, resetBannerAutoSlide])
 
   // Fetch restaurants with dishes under ?250 from backend
   useEffect(() => {
@@ -760,19 +851,51 @@ export default function Under250() {
         className="relative w-full overflow-hidden h-[clamp(240px,42vw,520px)] md:-mt-40"
       >
         {/* Banner Image */}
-        {bannerImage && (
-          <div className="absolute top-0 left-0 right-0 bottom-0 z-0 overflow-hidden">
-            <OptimizedImage
-              src={bannerImage}
-              alt="Under 250 Banner"
-              className="w-full h-full"
-              objectFit="cover"
-              priority={true}
-              sizes="100vw"
-            />
+        {bannerImages.length > 0 && (
+          <div
+            className="absolute inset-0 z-0 overflow-hidden"
+            onTouchStart={handleBannerTouchStart}
+            onTouchMove={handleBannerTouchMove}
+            onTouchEnd={handleBannerTouchEnd}
+          >
+            <div
+              className="flex h-full w-full transition-transform duration-500 ease-out"
+              style={{ transform: `translateX(-${currentBannerIndex * 100}%)` }}
+            >
+              {bannerImages.map((bannerImage, index) => (
+                <div key={`${bannerImage}-${index}`} className="relative h-full w-full shrink-0">
+                  <OptimizedImage
+                    src={bannerImage}
+                    alt={`Under 250 Banner ${index + 1}`}
+                    className="w-full h-full"
+                    objectFit="cover"
+                    priority={index === 0}
+                    sizes="100vw"
+                  />
+                </div>
+              ))}
+            </div>
+            {bannerImages.length > 1 && (
+              <div className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/25 px-3 py-1.5 backdrop-blur-sm">
+                {bannerImages.map((_, index) => (
+                  <button
+                    key={`banner-dot-${index}`}
+                    type="button"
+                    aria-label={`Go to banner ${index + 1}`}
+                    onClick={() => {
+                      setCurrentBannerIndex(index)
+                      resetBannerAutoSlide()
+                    }}
+                    className={`h-2 rounded-full transition-all duration-300 ${
+                      currentBannerIndex === index ? "w-5 bg-white" : "w-2 bg-white/55"
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
-        {!bannerImage && !loadingBanner && (
+        {bannerImages.length === 0 && !loadingBanner && (
           <div className="absolute top-0 left-0 right-0 bottom-0 z-0 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950 dark:to-amber-950 overflow-hidden" />
         )}
       </div>

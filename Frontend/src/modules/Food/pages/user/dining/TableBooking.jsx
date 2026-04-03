@@ -207,9 +207,14 @@ export default function TableBooking() {
   if (loading) return <Loader />
   if (!restaurant) return <div className="p-6 text-center">Restaurant not found</div>
 
-  const canProceed = Boolean(restaurant && selectedSlot && selectedDate && selectedGuests)
+  const isDiningEnabled = restaurant?.diningSettings?.isEnabled !== false
+  const canProceed = Boolean(isDiningEnabled && restaurant && selectedSlot && selectedDate && selectedGuests)
 
   const handleProceed = () => {
+    if (!isDiningEnabled) {
+      toast.error("Dining bookings are currently paused for this restaurant.")
+      return
+    }
     if (!canProceed) {
       toast.error("Please select date, time, and guests to continue.")
       return
@@ -261,6 +266,13 @@ export default function TableBooking() {
       </div>
 
       <div className="mx-auto -mt-4 max-w-md space-y-4 px-4">
+        {!isDiningEnabled && (
+          <section className="rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+            <p className="text-sm font-semibold text-amber-900">Dining bookings are paused by this restaurant.</p>
+            <p className="mt-1 text-xs text-amber-800">You can still view details, but new table bookings are disabled right now.</p>
+          </section>
+        )}
+
         <section className="rounded-[22px] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
           <div className="flex items-center justify-between gap-3">
             <span className="text-sm font-medium text-[#2f3545]">Select number of guests</span>
@@ -381,7 +393,11 @@ export default function TableBooking() {
                 : "bg-[#a4abba] text-white/95"
             }`}
           >
-            {canProceed ? "Proceed to confirmation" : "Select a time slot to proceed"}
+            {!isDiningEnabled
+              ? "Dining paused"
+              : canProceed
+                ? "Proceed to confirmation"
+                : "Select a time slot to proceed"}
           </Button>
         </div>
       </div>

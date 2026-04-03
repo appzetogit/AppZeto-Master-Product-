@@ -910,6 +910,16 @@ export const restaurantAPI = {
         restaurantCurrentCacheTime = Date.now();
         return res;
       }),
+  updateDiningSettings: (body) =>
+    apiClient
+      .patch("/food/restaurant/dining-settings", body ?? {}, {
+        contextModule: "restaurant",
+      })
+      .then((res) => {
+        restaurantCurrentCached = res;
+        restaurantCurrentCacheTime = Date.now();
+        return res;
+      }),
   /** PATCH /food/restaurant/availability. Body: { isAcceptingOrders: boolean } */
   updateAcceptingOrders: (isAcceptingOrders) =>
     apiClient

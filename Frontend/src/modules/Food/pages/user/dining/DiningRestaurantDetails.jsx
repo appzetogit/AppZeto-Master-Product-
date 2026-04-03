@@ -187,6 +187,7 @@ export default function DiningRestaurantDetails() {
   const reviewCount = restaurant?.totalRatings || restaurant?.reviewCount || restaurant?.reviewsCount || 0
   const openingTime = formatTimeLabel(restaurant?.openingTime || restaurant?.diningSettings?.openingTime || "12:00")
   const closingTime = formatTimeLabel(restaurant?.closingTime || restaurant?.diningSettings?.closingTime || "23:59")
+  const isDiningEnabled = restaurant?.diningSettings?.isEnabled !== false
   const topTabs = [
     { id: "prebook", label: "Pre-book offers", target: "restaurant-prebook" },
     { id: "walkin", label: "Walk-in offers", target: "restaurant-prebook" },
@@ -244,6 +245,7 @@ export default function DiningRestaurantDetails() {
   }
 
   const handleContinueBooking = () => {
+    if (!isDiningEnabled) return
     setIsBookingSheetOpen(false)
     navigate(`/food/user/dining/book/${slug}`, {
       state: {
@@ -317,22 +319,33 @@ export default function DiningRestaurantDetails() {
           </div>
         </div>
 
-        <div className="px-3 pb-1 pt-3">
-          <div className="grid grid-cols-[1.62fr_0.72fr_0.72fr] gap-2.5">
-            <button
-              onClick={() => setIsBookingSheetOpen(true)}
-              className="flex h-[52px] items-center justify-center gap-2 rounded-full border border-[#f1ebee] bg-white px-3 text-[15px] font-medium text-[#2b2118] shadow-[0_10px_24px_rgba(15,23,42,0.05)]"
-            >
+          <div className="px-3 pb-1 pt-3">
+            <div className="grid grid-cols-[1.62fr_0.72fr_0.72fr] gap-2.5">
+              <button
+                onClick={() => isDiningEnabled && setIsBookingSheetOpen(true)}
+                disabled={!isDiningEnabled}
+                className={`flex h-[52px] items-center justify-center gap-2 rounded-full border px-3 text-[15px] font-medium shadow-[0_10px_24px_rgba(15,23,42,0.05)] transition-opacity ${
+                  isDiningEnabled
+                    ? "border-[#f1ebee] bg-white text-[#2b2118]"
+                    : "cursor-not-allowed border-[#f2d7da] bg-[#fff5f6] text-[#c06a79] opacity-80"
+                }`}
+              >
               <Ticket className="h-[15px] w-[15px] text-[#ef4c62]" />
-              <span>Book a table</span>
-            </button>
-            <button className="flex h-[52px] items-center justify-center rounded-full border border-[#f1ebee] bg-white text-[#ef4c62] shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
-              <Tag className="h-[15px] w-[15px]" />
-            </button>
-            <button className="flex h-[52px] items-center justify-center rounded-full border border-[#f1ebee] bg-white text-[#ef4c62] shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
-              <Clock3 className="h-[15px] w-[15px]" />
-            </button>
-          </div>
+              <span>{isDiningEnabled ? "Book a table" : "Dining paused"}</span>
+              </button>
+              <button className="flex h-[52px] items-center justify-center rounded-full border border-[#f1ebee] bg-white text-[#ef4c62] shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+                <Tag className="h-[15px] w-[15px]" />
+              </button>
+              <button className="flex h-[52px] items-center justify-center rounded-full border border-[#f1ebee] bg-white text-[#ef4c62] shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+                <Clock3 className="h-[15px] w-[15px]" />
+              </button>
+            </div>
+
+            {!isDiningEnabled && (
+              <div className="mt-3 rounded-[18px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Dining bookings are currently turned off by the restaurant.
+              </div>
+            )}
 
           <div className="mt-4 overflow-hidden rounded-[18px] bg-[linear-gradient(180deg,#fff0ce,#fff8ea)] px-4 py-4 shadow-[0_8px_24px_rgba(238,184,68,0.22)]">
             <div className="flex items-center justify-between gap-3">
@@ -509,10 +522,15 @@ export default function DiningRestaurantDetails() {
       <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-[#ebe5da] bg-white/95 p-4 backdrop-blur-xl">
         <div className="mx-auto max-w-md">
           <Button
-            onClick={() => setIsBookingSheetOpen(true)}
-            className="h-12 w-full rounded-2xl border border-[#f3b4be] bg-white text-[17px] font-medium text-[#ef4c62] hover:bg-[#fff6f8]"
+            onClick={() => isDiningEnabled && setIsBookingSheetOpen(true)}
+            disabled={!isDiningEnabled}
+            className={`h-12 w-full rounded-2xl border text-[17px] font-medium transition-colors ${
+              isDiningEnabled
+                ? "border-[#f3b4be] bg-white text-[#ef4c62] hover:bg-[#fff6f8]"
+                : "cursor-not-allowed border-[#f2d7da] bg-[#fff5f6] text-[#c06a79] opacity-80"
+            }`}
           >
-            Book a table
+            {isDiningEnabled ? "Book a table" : "Dining paused"}
           </Button>
         </div>
       </div>

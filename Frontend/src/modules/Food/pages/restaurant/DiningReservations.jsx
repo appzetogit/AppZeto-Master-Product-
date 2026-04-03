@@ -4,6 +4,7 @@ import { Calendar, Clock, Users, Search, MessageSquare, CheckCircle2, Clock4, Up
 import { diningAPI, restaurantAPI } from "@food/api"
 import Loader from "@food/components/Loader"
 import { Badge } from "@food/components/ui/badge"
+import { toast } from "sonner"
 const debugError = (...args) => {}
 
 const getRestaurantFromResponse = (response) =>
@@ -85,6 +86,11 @@ export default function DiningReservations() {
     const [activeSection, setActiveSection] = useState("reservations")
     const [activeView, setActiveView] = useState("priority")
     const [showMediaPanel, setShowMediaPanel] = useState(false)
+    const [diningEnabled, setDiningEnabled] = useState(false)
+    const [maxGuestsLimit, setMaxGuestsLimit] = useState(6)
+    const [savingDiningSettings, setSavingDiningSettings] = useState(false)
+    const [diningSettingsMessage, setDiningSettingsMessage] = useState("")
+    const [diningSettingsError, setDiningSettingsError] = useState("")
 
     const syncRestaurantMediaState = (restaurantData) => {
         setRestaurant(restaurantData || null)
@@ -93,6 +99,8 @@ export default function DiningReservations() {
         setRestaurantPhotos(coverImages)
         setRestaurantPhoto(coverImages[0]?.url || profileImage)
         setMenuPhotos(getMenuImages(restaurantData))
+        setDiningEnabled(Boolean(restaurantData?.diningSettings?.isEnabled))
+        setMaxGuestsLimit(Math.max(1, parseInt(restaurantData?.diningSettings?.maxGuests, 10) || 6))
     }
 
     useEffect(() => {
@@ -238,6 +246,40 @@ export default function DiningReservations() {
             setUploadError(error?.response?.data?.message || "Failed to remove menu photo.")
         } finally {
             setRemovingMenuPhoto(false)
+        }
+    }
+
+    const handleSaveDiningSettings = async () => {
+        if (!restaurant || savingDiningSettings) return
+
+        const nextMaxGuests = Math.max(1, parseInt(maxGuestsLimit, 10) || 1)
+        const nextDiningSettings = {
+            ...(restaurant?.diningSettings || {}),
+            isEnabled: Boolean(diningEnabled),
+            maxGuests: nextMaxGuests,
+            diningType: restaurant?.diningSettings?.diningType || "family-dining",
+        }
+
+        setDiningSettingsError("")
+        setDiningSettingsMessage("")
+        setSavingDiningSettings(true)
+
+        try {
+            const response = await restaurantAPI.updateDiningSettings(nextDiningSettings)
+
+            const updatedRestaurant = getRestaurantFromResponse(response)
+            if (updatedRestaurant) {
+                syncRestaurantMediaState(updatedRestaurant)
+            }
+
+            setDiningSettingsMessage("Dining settings saved successfully.")
+            toast.success("Dining settings updated")
+        } catch (error) {
+            debugError("Error saving dining settings:", error)
+            setDiningSettingsError(error?.response?.data?.message || "Failed to save dining settings.")
+            toast.error(error?.response?.data?.message || "Failed to save dining settings")
+        } finally {
+            setSavingDiningSettings(false)
         }
     }
 
@@ -582,6 +624,71 @@ export default function DiningReservations() {
                         )}
                     </div>
                 </div>
+                )}
+
+                {activeSection === "reservations" && (
+                    <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                            <div className="max-w-xl">
+                                <p className="text-xs font-bold uppercase tracking-[0.22em] text-slate-400">Dining Controls</p>
+                                <h2 className="mt-1 text-lg font-black text-slate-900">Manage dining availability and booking limit</h2>
+                                <p className="mt-1 text-sm text-slate-500">
+                                    These settings update the same dining profile the guest booking flow reads, so restaurant changes are reflected on the user side too.
+                                </p>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-3">
+                                <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2">
+                                    <span className={`h-2.5 w-2.5 rounded-full ${diningEnabled ? "bg-emerald-500" : "bg-rose-500"}`} />
+                                    <span className="text-sm font-semibold text-slate-700">
+                                        {diningEnabled ? "Dining enabled" : "Dining paused"}
+                                    </span>
+                                </div>
+
+                                <div className="inline-flex items-center gap-3 rounded-full border border-slate-200 bg-white px-4 py-2">
+                                    <span className="text-sm font-medium text-slate-700">Turn dining on/off</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setDiningEnabled((prev) => !prev)}
+                                        className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${diningEnabled ? "bg-emerald-600" : "bg-slate-300"}`}
+                                        aria-pressed={diningEnabled}
+                                    >
+                                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200 ${diningEnabled ? "translate-x-6" : "translate-x-1"}`} />
+                                    </button>
+                                </div>
+
+                                <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2">
+                                    <span className="text-sm font-medium text-slate-700">Customer limit</span>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max="20"
+                                        value={maxGuestsLimit}
+                                        onChange={(e) => setMaxGuestsLimit(e.target.value)}
+                                        className="w-20 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-center text-sm font-semibold text-slate-900 outline-none focus:border-blue-500"
+                                    />
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={handleSaveDiningSettings}
+                                    disabled={savingDiningSettings}
+                                    className="rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    {savingDiningSettings ? "Saving..." : "Save settings"}
+                                </button>
+                            </div>
+                        </div>
+
+                        {(diningSettingsMessage || diningSettingsError) && (
+                            <div className={`mt-4 rounded-xl border px-4 py-3 text-sm font-medium ${diningSettingsError
+                                ? "border-rose-200 bg-rose-50 text-rose-700"
+                                : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                }`}>
+                                {diningSettingsError || diningSettingsMessage}
+                            </div>
+                        )}
+                    </div>
                 )}
 
                 {(uploadMessage || uploadError) && (

@@ -92,6 +92,16 @@ export default function DeliverySupportTickets() {
 
       if (response?.data?.success) {
         toast.success("Ticket updated successfully!")
+        const updatedTicket =
+          response?.data?.data?.ticket ||
+          response?.data?.ticket ||
+          {
+            ...selectedTicket,
+            adminResponse: responseText.trim(),
+            respondedAt: new Date().toISOString(),
+            status: selectedTicket.status === 'open' ? 'in_progress' : selectedTicket.status,
+          }
+        setSelectedTicket(updatedTicket)
         setIsResponseOpen(false)
         setResponseText("")
         await fetchTickets()
@@ -304,6 +314,13 @@ export default function DeliverySupportTickets() {
                         >
                           <Eye className="w-4 h-4 text-gray-600" />
                         </button>
+                        <button
+                          onClick={() => handleRespond(ticket)}
+                          className="p-2 hover:bg-blue-50 rounded-lg transition-colors"
+                          title={ticket.adminResponse ? "Edit Response" : "Send Response"}
+                        >
+                          <Edit className="w-4 h-4 text-blue-600" />
+                        </button>
                         {ticket.status !== 'closed' && (
                           <select
                             value={ticket.status}
@@ -329,13 +346,14 @@ export default function DeliverySupportTickets() {
 
       {/* View Ticket Dialog - Full Details */}
       <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
-        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader className="pb-4 border-b border-gray-200">
+        <DialogContent className="flex w-[calc(100%-2rem)] max-w-[600px] max-h-[85vh] flex-col overflow-hidden border border-slate-200 bg-white p-0 shadow-2xl">
+          <DialogHeader className="border-b border-slate-200 px-6 py-5 pr-14">
             <DialogTitle className="text-xl font-semibold text-gray-900">Ticket Details</DialogTitle>
             <p className="text-sm text-gray-600 mt-1">Complete information about the support ticket</p>
           </DialogHeader>
           {selectedTicket && (
-            <div className="space-y-6 py-4">
+            <div className="flex-1 overflow-y-auto px-6 py-5">
+              <div className="space-y-6">
               {/* Ticket Information Section */}
               <div>
                 <div className="flex items-center gap-3 mb-4">
@@ -444,6 +462,12 @@ export default function DeliverySupportTickets() {
               {/* Action Buttons */}
               {selectedTicket.status !== 'closed' && (
                 <div className="flex flex-col sm:flex-row gap-3 pt-5 border-t border-gray-200">
+                  <button
+                    onClick={() => handleRespond(selectedTicket)}
+                    className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors shadow-sm"
+                  >
+                    {selectedTicket.adminResponse ? "Edit Response" : "Send Response"}
+                  </button>
                   {selectedTicket.status === 'in_progress' && (
                     <button
                       onClick={() => {
@@ -466,6 +490,7 @@ export default function DeliverySupportTickets() {
                   </button>
                 </div>
               )}
+              </div>
             </div>
           )}
         </DialogContent>
@@ -473,34 +498,50 @@ export default function DeliverySupportTickets() {
 
       {/* Respond Dialog */}
       <Dialog open={isResponseOpen} onOpenChange={setIsResponseOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Respond to Ticket</DialogTitle>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-[560px] overflow-hidden border border-slate-200 bg-white p-0 shadow-2xl">
+          <DialogHeader className="border-b border-slate-200 px-6 py-5 pr-14">
+            <DialogTitle className="text-xl font-semibold text-slate-900">
+              Respond to Ticket
+            </DialogTitle>
+            {selectedTicket && (
+              <div className="mt-2 space-y-1">
+                <p className="text-sm font-medium text-slate-600">
+                  {selectedTicket.ticketId ? `#${selectedTicket.ticketId}` : "Support Ticket"}
+                </p>
+                <p className="text-sm text-slate-500 line-clamp-2">
+                  {selectedTicket.subject || "Send an update that the delivery partner can see."}
+                </p>
+              </div>
+            )}
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 px-6 py-5">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="mb-2 block text-sm font-medium text-slate-700">
                 Response
               </label>
               <Textarea
                 value={responseText}
                 onChange={(e) => setResponseText(e.target.value)}
                 placeholder="Enter your response..."
-                rows={5}
+                rows={6}
+                className="min-h-[180px] resize-y rounded-xl border-slate-300 bg-white px-4 py-3 text-sm leading-6 text-slate-800 shadow-sm focus-visible:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-100"
               />
+              <p className="mt-2 text-xs text-slate-500">
+                This message will be visible to the delivery partner in their support ticket.
+              </p>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="border-t border-slate-200 px-6 py-4">
             <button
               onClick={() => setIsResponseOpen(false)}
-              className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
             >
               Cancel
             </button>
             <button
               onClick={handleUpdateTicket}
               disabled={updating || !responseText.trim()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="flex min-w-[140px] items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {updating ? (
                 <>
@@ -517,5 +558,3 @@ export default function DeliverySupportTickets() {
     </div>
   )
 }
-
-

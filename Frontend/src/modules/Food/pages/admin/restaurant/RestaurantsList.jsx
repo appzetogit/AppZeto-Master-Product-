@@ -1261,17 +1261,6 @@ export default function RestaurantsList() {
                               <Eye className="w-4 h-4" />
                             </button>
                             <button
-                              onClick={() => {
-                                const restaurantId = restaurant._id || restaurant.id || restaurant.restaurantId
-                                if (!restaurantId) return
-                                navigate(`/admin/food/restaurants/edit/${restaurantId}`)
-                              }}
-                              className="p-1.5 rounded text-indigo-600 hover:bg-indigo-50 transition-colors"
-                              title="Edit Restaurant"
-                            >
-                              <Settings className="w-4 h-4" />
-                            </button>
-                            <button
                               onClick={() => handleBanRestaurant(restaurant)}
                               className={`p-1.5 rounded transition-colors ${!restaurant.isActive
                                 ? "text-green-600 hover:bg-green-50"

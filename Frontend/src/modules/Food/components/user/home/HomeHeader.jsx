@@ -94,6 +94,12 @@ export default function HomeHeader({
 
   const unreadCount = notifications.filter(n => !n.read).length + broadcastUnreadCount;
 
+  const primaryLocationText =
+    savedAddressText ||
+    location?.area ||
+    location?.city ||
+    "Select Location";
+
   const handleDeleteNotification = (id, source = "local") => {
     if (source === "broadcast") {
       dismissBroadcastNotification(id);
@@ -139,7 +145,7 @@ export default function HomeHeader({
               <ChevronDown className="h-3 w-3 text-white/80" />
             </div>
             <span className="text-sm font-bold text-white truncate max-w-[200px] drop-shadow-sm">
-              {location?.area || location?.city || savedAddressText || "Select Location"}
+              {primaryLocationText}
             </span>
           </div>
         </div>

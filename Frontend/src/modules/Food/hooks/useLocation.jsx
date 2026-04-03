@@ -1352,6 +1352,35 @@ export function useLocation() {
     clearTimeout(updateTimerRef.current)
   }
 
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined
+
+    const applyExternalLocationUpdate = (event) => {
+      try {
+        const nextLocation =
+          event?.detail?.location ||
+          JSON.parse(window.localStorage.getItem("userLocation") || "null")
+
+        if (!nextLocation || typeof nextLocation !== "object") return
+
+        setLocation(nextLocation)
+        setPermissionGranted(
+          Number.isFinite(Number(nextLocation.latitude)) &&
+            Number.isFinite(Number(nextLocation.longitude))
+        )
+        setLoading(false)
+        setError(null)
+      } catch (err) {
+        debugWarn("Failed to apply external location update:", err)
+      }
+    }
+
+    window.addEventListener("userLocationUpdated", applyExternalLocationUpdate)
+    return () => {
+      window.removeEventListener("userLocationUpdated", applyExternalLocationUpdate)
+    }
+  }, [])
+
   /* ===================== INIT ===================== */
   useEffect(() => {
     // Load stored location first for IMMEDIATE display (no loading state)

@@ -3,6 +3,7 @@ import { ValidationError } from '../../../../core/auth/errors.js';
 import { FoodRestaurant } from '../../restaurant/models/restaurant.model.js';
 import { FoodDiningCategory } from '../models/diningCategory.model.js';
 import { FoodDiningRestaurant } from '../models/diningRestaurant.model.js';
+import { FoodZone } from '../../admin/models/zone.model.js';
 
 const slugify = (value) =>
     String(value || '')
@@ -76,6 +77,41 @@ function getRestaurantZone(restaurant) {
         restaurant?.city ||
         'N/A'
     );
+}
+
+function zoneToPolygon(zoneDoc) {
+    const coords = Array.isArray(zoneDoc?.coordinates) ? zoneDoc.coordinates : [];
+    if (coords.length < 3) return null;
+
+    const ring = coords
+        .map((coord) => [Number(coord.longitude), Number(coord.latitude)])
+        .filter((pair) => pair.every((value) => Number.isFinite(value)));
+
+    if (ring.length < 3) return null;
+
+    const first = ring[0];
+    const last = ring[ring.length - 1];
+    if (first[0] !== last[0] || first[1] !== last[1]) {
+        ring.push(first);
+    }
+
+    return { type: 'Polygon', coordinates: [ring] };
+}
+
+async function buildRestaurantZoneMatch(zoneIdRaw) {
+    const trimmedZoneId = String(zoneIdRaw || '').trim();
+    if (!trimmedZoneId || !mongoose.Types.ObjectId.isValid(trimmedZoneId)) {
+        return null;
+    }
+
+    const zoneClauses = [{ zoneId: new mongoose.Types.ObjectId(trimmedZoneId) }];
+    const zoneDoc = await FoodZone.findOne({ _id: trimmedZoneId, isActive: true }).lean();
+    const polygon = zoneToPolygon(zoneDoc);
+    if (polygon) {
+        zoneClauses.push({ location: { $geoWithin: { $geometry: polygon } } });
+    }
+
+    return { $or: zoneClauses };
 }
 
 function getRestaurantImage(restaurant) {
@@ -340,6 +376,7 @@ export async function listDiningRestaurantsPublic(query = {}) {
     const filter = { isEnabled: true };
     const categoryValue = String(query.category || '').trim();
     const cityValue = String(query.city || '').trim();
+    const zoneMatch = await buildRestaurantZoneMatch(query.zoneId);
 
     if (categoryValue) {
         const category = await FoodDiningCategory.findOne({
@@ -354,18 +391,26 @@ export async function listDiningRestaurantsPublic(query = {}) {
         filter.categoryIds = category._id;
     }
 
+    const restaurantMatch = {
+        ...(cityValue
+            ? {
+                $or: [
+                    { city: { $regex: cityValue, $options: 'i' } },
+                    { 'location.city': { $regex: cityValue, $options: 'i' } }
+                ]
+            }
+            : {})
+    };
+
+    if (zoneMatch) {
+        restaurantMatch.$and = [...(restaurantMatch.$and || []), zoneMatch];
+    }
+
     const diningDocs = await FoodDiningRestaurant.find(filter)
         .populate({
             path: 'restaurantId',
             select: 'restaurantName restaurantNameNormalized ownerName ownerPhone profileImage coverImages menuImages cuisines location area city status rating diningSettings estimatedDeliveryTime estimatedDeliveryTimeMinutes featuredDish featuredPrice offer openingTime closingTime openDays isAcceptingOrders costForTwo',
-            match: cityValue
-                ? {
-                    $or: [
-                        { city: { $regex: cityValue, $options: 'i' } },
-                        { 'location.city': { $regex: cityValue, $options: 'i' } }
-                    ]
-                }
-                : {}
+            match: restaurantMatch
         })
         .populate('categoryIds', 'name slug imageUrl')
         .lean();

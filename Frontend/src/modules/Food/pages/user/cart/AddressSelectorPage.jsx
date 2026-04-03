@@ -45,6 +45,58 @@ const getAddressIcon = (address) => {
   return Home
 }
 
+const buildLocationPayloadFromAddress = (address) => {
+  if (!address || typeof address !== "object") return null
+
+  const coordinates = Array.isArray(address.location?.coordinates)
+    ? address.location.coordinates
+    : []
+  const longitude = Number(
+    coordinates[0] ?? address.longitude ?? address.lng ?? null,
+  )
+  const latitude = Number(
+    coordinates[1] ?? address.latitude ?? address.lat ?? null,
+  )
+
+  const street = String(address.street || "").trim()
+  const area = String(address.additionalDetails || address.area || "").trim()
+  const city = String(address.city || "").trim()
+  const state = String(address.state || "").trim()
+  const zipCode = String(address.zipCode || address.postalCode || "").trim()
+  const formattedAddress =
+    String(address.formattedAddress || "").trim() ||
+    [area, street, city, state, zipCode].filter(Boolean).join(", ") ||
+    [street, city, state].filter(Boolean).join(", ")
+
+  return {
+    label: address.label || "Home",
+    latitude: Number.isFinite(latitude) ? latitude : undefined,
+    longitude: Number.isFinite(longitude) ? longitude : undefined,
+    street,
+    area,
+    city,
+    state,
+    zipCode,
+    postalCode: zipCode,
+    address: [street, city].filter(Boolean).join(", ") || formattedAddress,
+    formattedAddress,
+  }
+}
+
+const persistSelectedLocation = (locationData) => {
+  if (!locationData) return
+  try {
+    localStorage.setItem("userLocation", JSON.stringify(locationData))
+    window.dispatchEvent(
+      new CustomEvent("userLocationUpdated", {
+        detail: { location: locationData },
+      }),
+    )
+  } catch {
+    // Ignore storage/event sync errors so selection still works.
+  }
+}
+
 export default function AddressSelectorPage() {
   const navigate = useNavigate()
   const goBack = useAppBackNavigation()
@@ -216,6 +268,7 @@ export default function AddressSelectorPage() {
       if (loc?.latitude) {
         const newPos = [loc.latitude, loc.longitude]
         setMapPosition(newPos)
+        persistSelectedLocation(loc)
         
         // Explicitly pan the map to center the user location
         if (googleMapRef.current) {
@@ -236,6 +289,7 @@ export default function AddressSelectorPage() {
     const id = getAddressId(address)
     if (id) {
       await setDefaultAddress(id)
+      persistSelectedLocation(buildLocationPayloadFromAddress(address))
       try { localStorage.setItem("deliveryAddressMode", "saved") } catch {}
       toast.success("Address selected")
       handleBack()
@@ -354,6 +408,7 @@ export default function AddressSelectorPage() {
       if (created) {
         const id = getAddressId(created)
         if (id) await setDefaultAddress(id)
+        persistSelectedLocation(buildLocationPayloadFromAddress(created || payload))
         try { localStorage.setItem("deliveryAddressMode", "saved") } catch {}
         toast.success("Address saved")
         handleBack()

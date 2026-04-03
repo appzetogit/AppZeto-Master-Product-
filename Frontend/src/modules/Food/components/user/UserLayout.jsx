@@ -79,10 +79,16 @@ export function useLocationSelector() {
 
 function LocationSelectorProvider({ children }) {
   const navigate = useNavigate()
+  const location = useLocation()
 
   const openLocationSelector = () => {
-    // Navigate to the standalone address selector page
-    navigate("/food/user/cart/address-selector")
+    const currentPath = `${location.pathname || ""}${location.search || ""}${location.hash || ""}` || "/food/user"
+    navigate("/food/user/address-selector", {
+      state: {
+        from: currentPath,
+        backTo: currentPath,
+      },
+    })
   }
 
   const closeLocationSelector = () => { }

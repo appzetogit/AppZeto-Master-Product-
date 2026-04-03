@@ -95,6 +95,10 @@ const resolveBackPath = ({ pathname, search, state }) => {
     return "/food/user/cart"
   }
 
+  if (normalizedPath === "/user/address-selector") {
+    return explicitBackPath || "/food/user"
+  }
+
   if (/^\/user\/collections\/[^/]+$/.test(normalizedPath)) {
     return "/food/user/collections"
   }

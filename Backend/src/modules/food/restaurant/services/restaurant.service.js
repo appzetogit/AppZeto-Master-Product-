@@ -217,6 +217,22 @@ const zoneToPolygon = (zoneDoc) => {
     return { type: 'Polygon', coordinates: [ring] };
 };
 
+const buildZoneRestaurantFilter = async (zoneIdRaw) => {
+    const trimmedZoneId = String(zoneIdRaw || '').trim();
+    if (!trimmedZoneId || !mongoose.Types.ObjectId.isValid(trimmedZoneId)) {
+        return null;
+    }
+
+    const zoneClauses = [{ zoneId: new mongoose.Types.ObjectId(trimmedZoneId) }];
+    const zoneDoc = await FoodZone.findOne({ _id: trimmedZoneId, isActive: true }).lean();
+    const polygon = zoneToPolygon(zoneDoc);
+    if (polygon) {
+        zoneClauses.push({ location: { $geoWithin: { $geometry: polygon } } });
+    }
+
+    return { $or: zoneClauses };
+};
+
 const notifyAdminsAboutRestaurantProfileReview = async (restaurantId, restaurantName) => {
     try {
         const { notifyAdminsSafely } = await import('../../../../core/notifications/firebase.service.js');
@@ -1184,15 +1200,9 @@ export const listApprovedRestaurants = async (query = {}) => {
     }
 
     // Optional zone polygon filter (when restaurant.zoneId is not set yet).
-    const zoneIdRaw = String(query.zoneId || '').trim();
-    if (zoneIdRaw && mongoose.Types.ObjectId.isValid(zoneIdRaw)) {
-        // Try fast path (precomputed restaurant.zoneId).
-        filter.$or = [{ zoneId: new mongoose.Types.ObjectId(zoneIdRaw) }];
-        const zoneDoc = await FoodZone.findOne({ _id: zoneIdRaw, isActive: true }).lean();
-        const polygon = zoneToPolygon(zoneDoc);
-        if (polygon) {
-            filter.$or.push({ location: { $geoWithin: { $geometry: polygon } } });
-        }
+    const zoneFilter = await buildZoneRestaurantFilter(query.zoneId);
+    if (zoneFilter) {
+        filter.$and = [...(filter.$and || []), zoneFilter];
     }
 
     const lat = toFiniteNumber(query.lat);

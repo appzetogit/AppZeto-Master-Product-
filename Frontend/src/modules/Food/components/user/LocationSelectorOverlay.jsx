@@ -46,6 +46,20 @@ const getAddressIcon = (address) => {
   return Home
 }
 
+const syncSelectedLocation = (locationData) => {
+  if (!locationData) return
+  try {
+    localStorage.setItem("userLocation", JSON.stringify(locationData))
+    window.dispatchEvent(
+      new CustomEvent("userLocationUpdated", {
+        detail: { location: locationData },
+      })
+    )
+  } catch {
+    // Ignore sync issues and keep selector flow working.
+  }
+}
+
 export default function LocationSelectorOverlay({ isOpen, onClose }) {
   const { location, loading, requestLocation } = useGeoLocation()
   const { addresses = [], addAddress, updateAddress, setDefaultAddress, userProfile } = useProfile()
@@ -1988,6 +2002,33 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
       const savedAddressId = getAddressId(savedAddress) || existingAddressId
       if (savedAddressId) {
         setDefaultAddress(savedAddressId)
+        syncSelectedLocation({
+          label: savedAddress?.label || addressToSave?.label || normalizedLabel,
+          city: savedAddress?.city || addressToSave?.city || "",
+          state: savedAddress?.state || addressToSave?.state || "",
+          address:
+            [
+              savedAddress?.street || addressToSave?.street,
+              savedAddress?.city || addressToSave?.city,
+            ]
+              .filter(Boolean)
+              .join(", "),
+          area: savedAddress?.additionalDetails || addressToSave?.additionalDetails || "",
+          zipCode: savedAddress?.zipCode || addressToSave?.zipCode || "",
+          latitude: savedAddress?.latitude || addressToSave?.latitude || mapPosition[0],
+          longitude: savedAddress?.longitude || addressToSave?.longitude || mapPosition[1],
+          formattedAddress:
+            savedAddress?.formattedAddress ||
+            [
+              savedAddress?.additionalDetails || addressToSave?.additionalDetails,
+              savedAddress?.street || addressToSave?.street,
+              savedAddress?.city || addressToSave?.city,
+              savedAddress?.state || addressToSave?.state,
+              savedAddress?.zipCode || addressToSave?.zipCode,
+            ]
+              .filter(Boolean)
+              .join(", "),
+        })
         // User saved an address; prefer saved delivery address in Cart.
         try {
           localStorage.setItem("deliveryAddressMode", "saved")
@@ -2082,7 +2123,7 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
         longitude,
         formattedAddress: `${address.street}, ${address.city}, ${address.state}`
       }
-      localStorage.setItem("userLocation", JSON.stringify(locationData))
+      syncSelectedLocation(locationData)
 
       // Update map position to show selected address
       setMapPosition([latitude, longitude])

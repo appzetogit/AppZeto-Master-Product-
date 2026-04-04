@@ -1423,13 +1423,20 @@ export const publicGetOnce = (url, config = {}) => {
 
 const getPublicRestaurantsOnce = (params = {}, config = {}) => {
   const { noCache, ...axiosConfig } = config || {};
+  const normalizedParams = { ...(params || {}) };
+  if (!normalizedParams.zoneId && typeof window !== "undefined") {
+    const storedZoneId = window.localStorage?.getItem("userZoneId");
+    if (storedZoneId) {
+      normalizedParams.zoneId = storedZoneId;
+    }
+  }
   if (noCache) {
     return apiClient.get("/food/restaurant/restaurants", {
-      params: { limit: 1000, ...params },
+      params: { limit: 1000, ...normalizedParams },
       ...axiosConfig,
     });
   }
-  const keyParams = { limit: 1000, ...params };
+  const keyParams = { limit: 1000, ...normalizedParams };
   // `_ts` is an explicit cache-buster in many call sites; ignore it for dedupe purposes.
   if (keyParams && typeof keyParams === "object") {
     delete keyParams._ts;
@@ -1437,7 +1444,7 @@ const getPublicRestaurantsOnce = (params = {}, config = {}) => {
   const key = `restaurants:${stableStringify(keyParams)}`;
   return publicRestaurantsCache.getOrCreate(key, () =>
     apiClient.get("/food/restaurant/restaurants", {
-      params: { limit: 1000, ...params },
+      params: { limit: 1000, ...normalizedParams },
       ...axiosConfig,
     }),
   );
@@ -2417,8 +2424,18 @@ const byLatest = (a, b) =>
 export const diningAPI = {
   getCategories: (params = {}) =>
     apiClient.get("/food/dining/categories/public", { params }),
-  getRestaurants: (params = {}) =>
-    apiClient.get("/food/dining/restaurants/public", { params }),
+  getRestaurants: (params = {}) => {
+    const normalizedParams = { ...(params || {}) };
+    if (!normalizedParams.zoneId && typeof window !== "undefined") {
+      const storedZoneId = window.localStorage?.getItem("userZoneId");
+      if (storedZoneId) {
+        normalizedParams.zoneId = storedZoneId;
+      }
+    }
+    return apiClient.get("/food/dining/restaurants/public", {
+      params: normalizedParams,
+    });
+  },
   getHeroBanners: () => apiClient.get("/food/hero-banners/dining/public"),
   getRestaurantBySlug: (slug) =>
     apiClient.get(`/food/restaurant/restaurants/${String(slug)}`),

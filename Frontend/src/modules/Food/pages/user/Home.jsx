@@ -1419,12 +1419,11 @@ export default function Home() {
           params.trusted = "true";
         }
 
-        // IMPORTANT:
-        // Do NOT send zoneId here by default.
-        // Backend treats zoneId as a hard filter (only restaurants in that zone / polygon),
-        // but homepage UX is "show all restaurants; optionally style out-of-zone".
-        // If in future you add an explicit "Show only my zone" toggle, then pass params.zoneId.
-        // Note: We show all restaurants regardless of zone, but apply grayscale styling if user is out of service
+        // Homepage must refetch immediately when the selected/current address
+        // resolves to a different delivery zone.
+        if (zoneId) {
+          params.zoneId = zoneId;
+        }
 
         debugLog("Fetching restaurants with params:", params);
         const response = await restaurantAPI.getRestaurants(params);
@@ -1715,7 +1714,13 @@ export default function Home() {
         }
       }
     },
-    [extractImages, buildRestaurantImageCandidates, location?.latitude, location?.longitude],
+    [
+      extractImages,
+      buildRestaurantImageCandidates,
+      location?.latitude,
+      location?.longitude,
+      zoneId,
+    ],
   );
 
   const applyFiltersAndRefetch = useCallback(
@@ -2209,57 +2214,47 @@ export default function Home() {
     const fromSettings = Array.isArray(recommendedRestaurantsFromSettings)
       ? recommendedRestaurantsFromSettings
       : [];
+    const fetchedRestaurants = Array.isArray(restaurantsData)
+      ? restaurantsData
+      : [];
+    const fetchedByMongoId = new Map(
+      fetchedRestaurants.map((restaurant) => [
+        String(restaurant.mongoId || restaurant.id || ""),
+        restaurant,
+      ]),
+    );
 
-    // Primary source: restaurants returned by landing settings API (already admin-selected).
-    const fromSettingsMapped = fromSettings.map((restaurant) => {
-      const restaurantId = restaurant?._id ? String(restaurant._id) : "";
-      const cuisine =
-        Array.isArray(restaurant?.cuisines) && restaurant.cuisines.length > 0
-          ? restaurant.cuisines[0]
-          : "Multi-cuisine";
-      const imageCandidates = [
-        ...extractImages(restaurant?.coverImages),
-        ...extractImages(restaurant?.profileImage),
-        ...extractImages(restaurant?.menuImages),
-      ];
-      const image = imageCandidates[0] || foodImages[0];
-
-      return {
-        id: restaurant?.restaurantId || restaurantId,
-        mongoId: restaurantId,
-        name: getRestaurantDisplayName(restaurant),
-        cuisine,
-        rating: Number(restaurant?.rating) || 0,
-        distance: "",
-        deliveryTime: "",
-        image: normalizeImageUrl(image) || foodImages[0],
-        images: imageCandidates.length > 0 ? imageCandidates : [foodImages[0]],
-        slug: restaurant?.slug || restaurant?.restaurantId || restaurantId,
-        offer: null,
-        pureVegRestaurant: restaurant?.pureVegRestaurant === true,
-        isActive: true,
-        isAcceptingOrders: true,
-      };
-    });
+    // Only use admin-selected/settings restaurants if they also exist in the
+    // current zone-filtered fetched restaurant list.
+    const settingsOrderedFetched = fromSettings
+      .map((restaurant) => {
+        const restaurantId = String(
+          restaurant?._id || restaurant?.restaurantId || "",
+        );
+        return fetchedByMongoId.get(restaurantId) || null;
+      })
+      .filter(Boolean);
 
     // Keep admin-selected order when IDs exist.
     const orderedFromSettings = hasIds
       ? idsInOrder
           .map((id) =>
-            fromSettingsMapped.find(
-              (restaurant) => String(restaurant.mongoId) === id,
+            fetchedByMongoId.get(String(id)) ||
+            settingsOrderedFetched.find(
+              (restaurant) => String(restaurant.mongoId || restaurant.id) === id,
             ),
           )
           .filter(Boolean)
-      : fromSettingsMapped;
+      : settingsOrderedFetched;
 
-    // Fallback: if settings payload misses some entries, recover them from fetched restaurant list by ID.
+    // Fallback: if settings payload misses some entries, recover them from the
+    // already zone-filtered fetched restaurant list by ID.
     const existingIds = new Set(
       orderedFromSettings.map((restaurant) =>
         String(restaurant.mongoId || restaurant.id),
       ),
     );
-    const fromFetchedMissing = (restaurantsData || []).filter((restaurant) => {
+    const fromFetchedMissing = fetchedRestaurants.filter((restaurant) => {
       const mongoId = String(restaurant.mongoId || "");
       return (
         hasIds && idsInOrder.includes(mongoId) && !existingIds.has(mongoId)
@@ -2273,8 +2268,6 @@ export default function Home() {
     recommendedRestaurantIds,
     recommendedRestaurantsFromSettings,
     restaurantsData,
-    extractImages,
-    normalizeImageUrl,
     matchesVegMode,
   ]);
 
@@ -2513,6 +2506,7 @@ export default function Home() {
           activeTab={activeTab}
           setActiveTab={handleTabChange}
           location={location}
+          savedAddressText={savedAddressText}
           handleLocationClick={handleLocationClick}
           handleSearchFocus={handleSearchFocus}
           placeholderIndex={placeholderIndex}

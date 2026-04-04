@@ -1,7 +1,43 @@
 import { FoodRestaurant } from '../../restaurant/models/restaurant.model.js';
 import { FoodItem } from '../../admin/models/food.model.js';
 import { FoodCategory } from '../../admin/models/category.model.js';
+import { FoodZone } from '../../admin/models/zone.model.js';
 import mongoose from 'mongoose';
+
+const zoneToPolygon = (zoneDoc) => {
+    const coords = Array.isArray(zoneDoc?.coordinates) ? zoneDoc.coordinates : [];
+    if (coords.length < 3) return null;
+
+    const ring = coords
+        .map((coord) => [Number(coord.longitude), Number(coord.latitude)])
+        .filter((pair) => pair.every((value) => Number.isFinite(value)));
+
+    if (ring.length < 3) return null;
+
+    const first = ring[0];
+    const last = ring[ring.length - 1];
+    if (first[0] !== last[0] || first[1] !== last[1]) {
+        ring.push(first);
+    }
+
+    return { type: 'Polygon', coordinates: [ring] };
+};
+
+const buildZoneRestaurantConstraint = async (zoneIdRaw) => {
+    const trimmedZoneId = String(zoneIdRaw || '').trim();
+    if (!trimmedZoneId || !mongoose.Types.ObjectId.isValid(trimmedZoneId)) {
+        return null;
+    }
+
+    const zoneClauses = [{ zoneId: new mongoose.Types.ObjectId(trimmedZoneId) }];
+    const zoneDoc = await FoodZone.findOne({ _id: trimmedZoneId, isActive: true }).lean();
+    const polygon = zoneToPolygon(zoneDoc);
+    if (polygon) {
+        zoneClauses.push({ location: { $geoWithin: { $geometry: polygon } } });
+    }
+
+    return { $or: zoneClauses };
+};
 
 /**
  * Unified Search Service
@@ -32,8 +68,9 @@ export const searchUnified = async (query = {}, options = {}) => {
     
     console.log(`[Search-Service] Querying with term: "${term}", categoryId: "${categoryId}", zoneId: "${zoneId}"`);
 
-    if (zoneId && mongoose.Types.ObjectId.isValid(zoneId)) {
-        restaurantFilter.zoneId = new mongoose.Types.ObjectId(zoneId);
+    const zoneConstraint = await buildZoneRestaurantConstraint(zoneId);
+    if (zoneConstraint) {
+        restaurantFilter.$and = [...(restaurantFilter.$and || []), zoneConstraint];
     }
 
     if (isVeg === 'true') {
@@ -164,17 +201,6 @@ export const searchUnified = async (query = {}, options = {}) => {
             zoneFiltered: !!(zoneId && mongoose.Types.ObjectId.isValid(zoneId))
         }
     };
-
-    // FALLBACK: If results are empty and a zoneId was provided, try one more time without zoneId 
-    // to ensure user sees SOMETHING if their current zone has no matches.
-    if (results.length === 0 && zoneId && mongoose.Types.ObjectId.isValid(zoneId)) {
-        console.log(`[Search-Service] No results in zone ${zoneId}. Trying global fallback...`);
-        const fallbackResults = await searchUnified({ ...query, zoneId: null }, options);
-        if (fallbackResults.data.total > 0) {
-            fallbackResults.data.wasFallback = true;
-            return fallbackResults;
-        }
-    }
 
     return finalResult;
 };

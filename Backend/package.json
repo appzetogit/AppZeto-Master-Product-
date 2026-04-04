@@ -14,6 +14,7 @@
     "worker:payment": "node src/queues/workers/payment.worker.js",
     "migrate:fcm-tokens": "node scripts/migrate-fcm-tokens-to-profile-models.js",
     "migrate:order-payments": "node scripts/migrate-orders-to-transactions.js",
+    "migrate:seller-quick-shared": "node scripts/migrate-seller-quick-commerce-to-shared.js",
     "cleanup:legacy-collections": "node scripts/cleanup-legacy-collections.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

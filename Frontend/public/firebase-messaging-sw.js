@@ -76,16 +76,15 @@ async function hasVisibleClientForTarget(payload = {}) {
 
 async function loadFirebaseWebConfig() {
   const candidates = [
+    "/firebase-web-config.json",
     "/api/v1/food/public/env",
-    "/api/v1/env/public",
-    "/api/env/public",
   ];
   for (const url of candidates) {
     try {
       const response = await fetch(url, { cache: "no-store" });
       if (!response.ok) continue;
       const json = await response.json();
-      const data = (json && json.data) || {};
+      const data = url.endsWith(".json") ? (json || {}) : ((json && json.data) || {});
       const config = {
         apiKey: sanitize(data.VITE_FIREBASE_API_KEY || data.FIREBASE_API_KEY),
         authDomain: sanitize(data.VITE_FIREBASE_AUTH_DOMAIN || data.FIREBASE_AUTH_DOMAIN),

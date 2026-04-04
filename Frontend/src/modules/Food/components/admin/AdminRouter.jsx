@@ -122,9 +122,15 @@ const LandingPageManagement = lazy(() => import("@food/pages/admin/system/Landin
 const DiningManagement = lazy(() => import("@food/pages/admin/system/DiningManagement"));
 const DiningList = lazy(() => import("@food/pages/admin/system/DiningList"));
 const EditRestaurant = lazy(() => import("@food/pages/admin/restaurant/EditRestaurant"));
+const QuickCommerceDashboard = lazy(() => import("@food/pages/admin/quick-commerce/QuickCommerceDashboard"));
+const QuickCommerceOrders = lazy(() => import("@food/pages/admin/quick-commerce/QuickCommerceOrders"));
+const QuickCommerceVendors = lazy(() => import("@food/pages/admin/quick-commerce/QuickCommerceVendors"));
+const QuickCommerceCategories = lazy(() => import("@food/pages/admin/quick-commerce/QuickCommerceCategories"));
+const QuickCommerceProducts = lazy(() => import("@food/pages/admin/quick-commerce/QuickCommerceProducts"));
 const AdminLogin = lazy(() => import("@food/pages/admin/auth/AdminLogin"));
 const AdminSignup = lazy(() => import("@food/pages/admin/auth/AdminSignup"));
 const AdminForgotPassword = lazy(() => import("@food/pages/admin/auth/AdminForgotPassword"));
+const QuickCommerceAdminRoutes = lazy(() => import("@/modules/quickCommerce/admin/routes"));
 
 export default function AdminRouter() {
   return (
@@ -137,6 +143,15 @@ export default function AdminRouter() {
         <Route path="signup" element={<AdminSignup />} />
 
         {/* Protected Routes - With Layout */}
+        <Route
+          path="quick-commerce/*"
+          element={
+            <ProtectedRoute>
+              <QuickCommerceAdminRoutes />
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           element={
             <ProtectedRoute>
@@ -294,8 +309,6 @@ export default function AdminRouter() {
           {/* TAXI ADMIN - Placeholder for future implementation */}
           <Route path="taxi/*" element={<div className="p-8 text-center text-gray-500 bg-white min-h-[50vh] flex items-center justify-center border rounded-xl m-4">Taxi Administration - Coming Soon</div>} />
 
-          {/* QUICK COMMERCE ADMIN - Placeholder for future implementation */}
-          <Route path="quick-commerce/*" element={<div className="p-8 text-center text-gray-500 bg-white min-h-[50vh] flex items-center justify-center border rounded-xl m-4">Quick Commerce Administration - Coming Soon</div>} />
         </Route>
 
         {/* Redirect unknown admin routes to food admin */}

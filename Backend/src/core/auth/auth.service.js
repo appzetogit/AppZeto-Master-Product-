@@ -5,6 +5,7 @@ import { FoodAdmin } from "../admin/admin.model.js";
 import { AdminResetOtp } from "../admin/adminResetOtp.model.js";
 import { FoodRestaurant } from "../../modules/food/restaurant/models/restaurant.model.js";
 import { FoodDeliveryPartner } from "../../modules/food/delivery/models/deliveryPartner.model.js";
+import { Seller } from "../../modules/quick-commerce/seller/models/seller.model.js";
 import { FoodReferralSettings } from "../../modules/food/admin/models/referralSettings.model.js";
 import { FoodReferralLog } from "../../modules/food/admin/models/referralLog.model.js";
 import { createOrUpdateOtp, verifyOtp } from "../otp/otp.service.js";
@@ -22,6 +23,7 @@ const ROLES = {
   RESTAURANT: "RESTAURANT",
   DELIVERY_PARTNER: "DELIVERY_PARTNER",
   ADMIN: "ADMIN",
+  SELLER: "SELLER",
 };
 
 export const requestUserOtp = async (phone) => {
@@ -244,7 +246,6 @@ export const requestRestaurantOtp = async (phone) => {
     throw new ValidationError("Phone is required");
   }
   const otp = await createOrUpdateOtp(phone);
-  // Only expose OTP in response when in default/dev mode — never in production with real SMS
   const shouldExposeOtp =
     config.nodeEnv !== "production" || config.useDefaultOtp;
   return shouldExposeOtp ? { otp } : {};
@@ -605,6 +606,36 @@ export const getProfile = async (userId, role) => {
                 number: partner.vehicleNumber,
               }
             : null,
+      };
+      break;
+    }
+    case ROLES.SELLER: {
+      const seller = await Seller.findById(id).lean();
+      if (!seller) break;
+
+      profile = {
+        ...seller,
+        name: seller.name || "Seller",
+        shopName: seller.shopName || seller.name || "Store",
+        phone: seller.phoneLast10 || seller.phone || "",
+        email: seller.email || "",
+        role: "seller",
+        location: seller.location || null,
+        serviceRadius:
+          typeof seller.serviceRadius === "number" ? seller.serviceRadius : 5,
+        isVerified: seller.isVerified !== false,
+        isActive: seller.isActive !== false,
+        approved: seller.approved !== false,
+        approvalStatus:
+          seller.approvalStatus ||
+          (seller.approved === false ? "pending" : "approved"),
+        onboardingSubmitted: seller.onboardingSubmitted === true,
+        approvalNotes: seller.approvalNotes || "",
+        approvedAt: seller.approvedAt || null,
+        rejectedAt: seller.rejectedAt || null,
+        bankInfo: seller.bankInfo || {},
+        documents: seller.documents || {},
+        shopInfo: seller.shopInfo || {},
       };
       break;
     }

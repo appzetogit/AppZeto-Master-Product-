@@ -164,6 +164,8 @@ const toRestaurantProfile = (doc) => {
         upiId: doc.upiId || '',
         upiQrImage: doc.upiQrImage ? { url: doc.upiQrImage } : null,
         pureVegRestaurant: Boolean(doc.pureVegRestaurant),
+        zoneId: doc.zoneId ? String(doc.zoneId?._id || doc.zoneId) : '',
+        zoneName: doc.zoneId?.name || doc.zoneId?.zoneName || doc.zoneId?.serviceLocation || '',
         profileImage: doc.profileImage ? { url: doc.profileImage } : null,
         menuImages,
         coverImages,
@@ -171,6 +173,9 @@ const toRestaurantProfile = (doc) => {
         closingTime: normalizeRestaurantTime(doc.closingTime) || null,
         openDays: Array.isArray(doc.openDays) ? doc.openDays : [],
         estimatedDeliveryTime: doc.estimatedDeliveryTime || '',
+        featuredDish: doc.featuredDish || '',
+        featuredPrice: doc.featuredPrice ?? null,
+        offer: doc.offer || '',
         estimatedDeliveryTimeMinutes:
             Number.isFinite(Number(doc.estimatedDeliveryTimeMinutes))
                 ? Number(doc.estimatedDeliveryTimeMinutes)
@@ -285,7 +290,9 @@ export const registerRestaurant = async (payload, files) => {
         accountNumber,
         ifscCode,
         accountHolderName,
-        accountType
+        accountType,
+        featuredDish,
+        offer
     } = payload;
 
     if (!ownerPhone) {
@@ -390,6 +397,9 @@ export const registerRestaurant = async (payload, files) => {
             ifscCode,
             accountHolderName,
             accountType,
+            estimatedDeliveryTime: estimatedDeliveryTime || '',
+            featuredDish: featuredDish || '',
+            offer: offer || '',
             menuImages,
             ...images
         });
@@ -445,6 +455,7 @@ export const getCurrentRestaurantProfile = async (restaurantId) => {
                 'upiId',
                 'upiQrImage',
                 'pureVegRestaurant',
+                'zoneId',
                 'profileImage',
                 'coverImages',
                 'menuImages',
@@ -452,6 +463,9 @@ export const getCurrentRestaurantProfile = async (restaurantId) => {
                 'closingTime',
                 'openDays',
                 'estimatedDeliveryTime',
+                'featuredDish',
+                'featuredPrice',
+                'offer',
                 'estimatedDeliveryTimeMinutes',
                 'diningSettings',
                 'isAcceptingOrders',
@@ -460,6 +474,7 @@ export const getCurrentRestaurantProfile = async (restaurantId) => {
                 'updatedAt'
             ].join(' ')
         )
+        .populate('zoneId', 'name zoneName serviceLocation')
         .lean();
     return toRestaurantProfile(doc);
 };

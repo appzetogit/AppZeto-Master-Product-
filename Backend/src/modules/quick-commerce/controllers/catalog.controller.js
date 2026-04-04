@@ -1,0 +1,243 @@
+import { QuickCategory } from '../models/category.model.js';
+import { QuickProduct } from '../models/product.model.js';
+import { ensureQuickCommerceSeedData } from '../services/seed.service.js';
+import {
+  getQuickCoupons,
+  getQuickExperienceSections,
+  getQuickHeroConfig,
+  getQuickOfferSections,
+  getQuickOffers,
+  getQuickSettings,
+} from '../services/content.service.js';
+
+const setNoCache = (res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+};
+
+const approvedOrLegacyFilter = {
+  $or: [
+    { approvalStatus: { $exists: false } },
+    { approvalStatus: 'approved' },
+  ],
+};
+
+const publicCategoryFilter = {
+  isActive: true,
+  $and: [
+    {
+      $or: [
+        { type: { $ne: 'subcategory' } },
+        approvedOrLegacyFilter,
+      ],
+    },
+  ],
+};
+
+const publicProductFilter = {
+  isActive: true,
+  ...approvedOrLegacyFilter,
+};
+
+const mapCategory = (category) => ({
+  id: category._id,
+  _id: category._id,
+  name: category.name,
+  slug: category.slug,
+  image: category.image,
+  status: category.status || (category.isActive ? 'active' : 'inactive'),
+  type: category.type || 'header',
+  parentId: category.parentId || null,
+  iconId: category.iconId || '',
+  headerColor: category.headerColor || category.accentColor,
+  handlingFees: Number(category.handlingFees || 0),
+  adminCommission: Number(category.adminCommission || 0),
+  color: category.accentColor,
+  approvalStatus: category.approvalStatus || 'approved',
+});
+
+const mapProduct = (product) => ({
+  id: product._id,
+  _id: product._id,
+  name: product.name,
+  slug: product.slug,
+  image: product.mainImage || product.image,
+  mainImage: product.mainImage || product.image,
+  galleryImages: Array.isArray(product.galleryImages) ? product.galleryImages : [],
+  categoryId: product.categoryId,
+  subcategoryId: product.subcategoryId || null,
+  headerId: product.headerId || null,
+  price: product.price,
+  salePrice: product.salePrice || 0,
+  originalPrice: product.mrp,
+  weight: product.unit,
+  unit: product.unit,
+  stock: Number(product.stock || 0),
+  status: product.status || (product.isActive ? 'active' : 'inactive'),
+  brand: product.brand || '',
+  description: product.description || '',
+  tags: Array.isArray(product.tags) ? product.tags : [],
+  variants: Array.isArray(product.variants) ? product.variants : [],
+  deliveryTime: product.deliveryTime,
+  rating: product.rating,
+  badge: product.badge,
+  approvalStatus: product.approvalStatus || 'approved',
+});
+
+export const getHomeData = async (req, res) => {
+  setNoCache(res);
+  await ensureQuickCommerceSeedData();
+
+  const pageType = req.query?.pageType || 'home';
+  const headerId = req.query?.headerId || null;
+
+  const [categories, products, settings, heroConfig, experienceSections, offerSections] = await Promise.all([
+    QuickCategory.find(publicCategoryFilter).sort({ sortOrder: 1, name: 1 }).lean(),
+    QuickProduct.find(publicProductFilter).sort({ createdAt: -1 }).limit(18).lean(),
+    getQuickSettings(),
+    getQuickHeroConfig({ pageType, headerId }),
+    getQuickExperienceSections({ pageType, headerId }),
+    getQuickOfferSections(),
+  ]);
+
+  const fallbackHero = {
+    title: 'Blinkit style quick delivery',
+    subtitle: 'Groceries delivered in minutes',
+    banners: {
+      items: [
+        {
+          imageUrl: '/assets/ExperienceBanner.png',
+          title: '',
+          subtitle: '',
+          linkType: 'none',
+          linkValue: '',
+          status: 'active',
+        },
+      ],
+    },
+    categoryIds: categories.slice(0, 5).map((category) => String(category._id)),
+  };
+
+  const fallbackSections = [
+    {
+      _id: 'best-sellers-section',
+      title: 'Best Sellers',
+      displayType: 'products',
+      config: {
+        products: {
+          productIds: products.slice(0, 6).map((product) => String(product._id)),
+          rows: 1,
+          columns: 2,
+          singleRowScrollable: true,
+        },
+      },
+    },
+  ];
+
+  const resolvedHero = heroConfig
+    ? {
+        ...heroConfig,
+        banners: heroConfig.banners || { items: [] },
+        categoryIds: Array.isArray(heroConfig.categoryIds) ? heroConfig.categoryIds : [],
+      }
+    : fallbackHero;
+
+  const resolvedSections = experienceSections.length ? experienceSections : fallbackSections;
+
+  const homeData = {
+    settings: settings || {},
+    categories: categories.map(mapCategory),
+    bestSellers: products.map(mapProduct),
+    hero: resolvedHero,
+    sections: resolvedSections,
+    offerSections,
+  };
+
+  // Partial returns for specialized frontend calls
+  if (req.path.includes('/hero')) {
+    return res.json({ success: true, result: resolvedHero });
+  }
+
+  if (req.path.includes('/experience')) {
+    return res.json({ success: true, result: resolvedSections });
+  }
+
+  if (req.path.includes('/offer-sections')) {
+    return res.json({ success: true, results: offerSections });
+  }
+
+  return res.json({
+    success: true,
+    result: homeData,
+  });
+};
+
+export const getCoupons = async (_req, res) => {
+  setNoCache(res);
+  const coupons = await getQuickCoupons();
+  return res.json({ success: true, results: coupons });
+};
+
+export const getOffers = async (_req, res) => {
+  setNoCache(res);
+  const offers = await getQuickOffers();
+  return res.json({ success: true, results: offers });
+};
+
+export const getCategories = async (_req, res) => {
+  setNoCache(res);
+  await ensureQuickCommerceSeedData();
+  const categories = await QuickCategory.find(publicCategoryFilter).sort({ sortOrder: 1, name: 1 }).lean();
+  return res.json({ success: true, results: categories.map(mapCategory) });
+};
+
+export const getProducts = async (req, res) => {
+  setNoCache(res);
+  await ensureQuickCommerceSeedData();
+
+  const { categoryId, search, limit } = req.query;
+  const query = { ...publicProductFilter };
+
+  if (categoryId) query.categoryId = categoryId;
+  if (search) query.name = { $regex: String(search).trim(), $options: 'i' };
+
+  const parsedLimit = Number(limit) > 0 ? Math.min(Number(limit), 100) : 50;
+  const products = await QuickProduct.find(query).sort({ createdAt: -1 }).limit(parsedLimit).lean();
+
+  return res.json({
+    success: true,
+    result: {
+      items: products.map(mapProduct),
+    },
+  });
+};
+
+export const getProductById = async (req, res) => {
+  setNoCache(res);
+  await ensureQuickCommerceSeedData();
+
+  const product = await QuickProduct.findOne({ _id: req.params.productId, ...publicProductFilter }).lean();
+
+  if (!product) {
+    return res.status(404).json({ success: false, message: 'Product not found' });
+  }
+
+  return res.json({ success: true, result: mapProduct(product) });
+};
+
+export const getProductReviews = async (req, res) => {
+  setNoCache(res);
+  await ensureQuickCommerceSeedData();
+
+  const product = await QuickProduct.findOne({ _id: req.params.productId, ...publicProductFilter }).lean();
+
+  if (!product) {
+    return res.status(404).json({ success: false, message: 'Product not found' });
+  }
+
+  return res.json({
+    success: true,
+    results: [],
+  });
+};

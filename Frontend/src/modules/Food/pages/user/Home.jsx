@@ -1,4 +1,4 @@
-import { useSearchParams, Link, useNavigate } from "react-router-dom";
+import { useSearchParams, Link, useNavigate, useLocation as useRouterLocation } from "react-router-dom";
 import React, {
   useRef,
   useEffect,
@@ -93,9 +93,14 @@ import { API_BASE_URL } from "@food/api/config";
 import OptimizedImage from "@food/components/OptimizedImage";
 import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability";
 import HomeHeader from "@food/components/user/home/HomeHeader";
-import QuickSection from "@food/components/user/home/QuickSection";
+import QuickCommerceHomePage from "../../../quickCommerce/user/pages/Home";
+import { CartProvider as QuickCartProvider } from "../../../quickCommerce/user/context/CartContext";
+import { LocationProvider as QuickLocationProvider } from "../../../quickCommerce/user/context/LocationContext";
+import { ProductDetailProvider as QuickProductDetailProvider } from "../../../quickCommerce/user/context/ProductDetailContext";
+import { WishlistProvider as QuickWishlistProvider } from "../../../quickCommerce/user/context/WishlistContext";
+import { CartAnimationProvider as QuickCartAnimationProvider } from "../../../quickCommerce/user/context/CartAnimationContext";
 import PromoRow from "@food/components/user/home/PromoRow";
-import FestBanner from "@food/components/user/home/FestBanner";
+// import FestBanner from "@food/components/user/home/FestBanner";
 
 // Explore More Icons
 import exploreOffers from "@food/assets/explore more icons/offers.png";
@@ -103,6 +108,7 @@ import exploreGourmet from "@food/assets/explore more icons/gourmet.png";
 import exploreTop10 from "@food/assets/explore more icons/top 10.png";
 import exploreCollection from "@food/assets/explore more icons/collection.png";
 
+// Import local banners
 // Banner images for hero carousel - will be fetched from API
 
 // Animated placeholder for search - moved outside component to prevent recreation
@@ -136,13 +142,7 @@ const getRestaurantDisplayName = (restaurant) => {
 
 // Restaurant Image Carousel Component
 const RestaurantImageCarousel = React.memo(
-  ({
-    restaurant,
-    priority = false,
-    backendOrigin = "",
-    className = "h-48 sm:h-56 md:h-60 lg:h-64 xl:h-72",
-    roundedClass = "rounded-t-md",
-  }) => {
+  ({ restaurant, priority = false, backendOrigin = "" }) => {
     const webviewSessionKeyRef = useRef(WEBVIEW_SESSION_CACHE_BUSTER);
     const imageElementRef = useRef(null);
 
@@ -279,7 +279,7 @@ const RestaurantImageCarousel = React.memo(
 
       touchEndX.current = e.changedTouches[0].clientX;
       const diff = touchStartX.current - touchEndX.current;
-      const minSwipeDistance = 85; // Keep card swipe less sensitive on mobile
+      const minSwipeDistance = 50; // Minimum distance for swipe
 
       if (Math.abs(diff) > minSwipeDistance) {
         if (diff > 0) {
@@ -297,11 +297,9 @@ const RestaurantImageCarousel = React.memo(
       touchEndX.current = 0;
     };
 
-    const showMultipleImages = images.length > 1;
-
     return (
       <div
-        className={`relative ${className} w-full overflow-hidden ${roundedClass} flex-shrink-0 group`}
+        className="relative h-48 sm:h-56 md:h-60 lg:h-64 xl:h-72 w-full overflow-hidden rounded-t-md flex-shrink-0 group"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}>
@@ -311,7 +309,7 @@ const RestaurantImageCarousel = React.memo(
           </div>
         )}
 
-        <div className="absolute inset-0 transition-transform duration-700 ease-out group-hover:scale-110">
+        <div className="absolute inset-0 transition-transform duration-500 ease-out group-hover:scale-110">
           {renderSrc && (
             <img
               ref={imageElementRef}
@@ -356,7 +354,7 @@ const RestaurantImageCarousel = React.memo(
         )}
 
         {/* Image Indicators - only show if more than 1 image */}
-        {showMultipleImages && (
+        {images.length > 1 && (
           <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex items-center z-10 -space-x-2">
             {images.map((_, index) => (
               <button
@@ -417,6 +415,7 @@ export default function Home() {
   const [landingCategories, setLandingCategories] = useState([]);
   const [landingExploreMore, setLandingExploreMore] = useState([]);
   const [exploreMoreHeading, setExploreMoreHeading] = useState("Explore More");
+  const [headerVideoUrl, setHeaderVideoUrl] = useState("");
   const [recommendedRestaurantIds, setRecommendedRestaurantIds] = useState([]);
   const [
     recommendedRestaurantsFromSettings,
@@ -489,7 +488,7 @@ export default function Home() {
           const parsed = new URL(normalizedInput, window.location.origin);
 
           // In mobile production, localhost/127.0.0.1 inside image URLs is unreachable.
-          // Use BACKEND_ORIGIN (API server) for image host, not frontend host�uploads are served by the backend.
+          // Use BACKEND_ORIGIN (API server) for image host, not frontend host - uploads are served by the backend.
           if (
             appHost &&
             appHost !== "localhost" &&
@@ -616,19 +615,13 @@ export default function Home() {
     (source) => {
       if (!source) return [];
 
-      const normalizedImages = (Array.isArray(source)
-        ? source.flatMap((entry) => buildRestaurantImageCandidates(entry))
-        : buildRestaurantImageCandidates(source)
-      )
-        .filter(Boolean)
-        .map((value) => String(value).trim())
-        .filter(Boolean);
+      if (Array.isArray(source)) {
+        return source
+          .flatMap((entry) => buildRestaurantImageCandidates(entry))
+          .filter(Boolean);
+      }
 
-      // De-duplicate image urls while preserving order.
-      return normalizedImages.filter(
-        (value, index) => normalizedImages.indexOf(value) === index,
-      );
-
+      return buildRestaurantImageCandidates(source);
     },
     [buildRestaurantImageCandidates],
   );
@@ -845,6 +838,7 @@ export default function Home() {
         const images = list
           .map((b) => (b && typeof b.imageUrl === "string" ? b.imageUrl : ""))
           .filter(Boolean);
+        
         setHeroBannerImages(images);
         setHeroBannersData(list);
         setCurrentBannerIndex(0);
@@ -897,6 +891,7 @@ export default function Home() {
         );
         const settings = settingsRes?.data?.data || {};
         setExploreMoreHeading(settings.exploreMoreHeading || "Explore More");
+        setHeaderVideoUrl(settings.headerVideoUrl || "");
         setRecommendedRestaurantIds(settings.recommendedRestaurantIds || []);
         setRecommendedRestaurantsFromSettings(
           settings.recommendedRestaurants || [],
@@ -906,6 +901,7 @@ export default function Home() {
         if (!cancelled) {
           setLandingExploreMore([]);
           setExploreMoreHeading("Explore More");
+          setHeaderVideoUrl("");
           setRecommendedRestaurantsFromSettings([]);
         }
       })
@@ -1066,7 +1062,7 @@ export default function Home() {
   const [activeFilterTab, setActiveFilterTab] = useState("sort");
   const categoryScrollRef = useRef(null);
   const gsapAnimationsRef = useRef([]);
-  // Show skeletons immediately while loading — delayed toggles caused visible layout swap (CLS).
+  // Show skeletons immediately while loading â€” delayed toggles caused visible layout swap (CLS).
   const showBannerSkeleton = loadingBanners;
   const showCategorySkeleton = loadingRealCategories || loadingMenuCategories;
   const showExploreSkeleton = loadingLandingConfig;
@@ -1275,7 +1271,28 @@ export default function Home() {
   const userPoints = 99;
 
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
-  const [activeTab, setActiveTab] = useState("food");
+  const routerLocation = useRouterLocation();
+  const currentTabFromPath = routerLocation.pathname.endsWith("/quick") ? "quick" : "food";
+  const [activeTab, setActiveTab] = useState(currentTabFromPath);
+  const [quickThemeColor, setQuickThemeColor] = useState("#67c6f5");
+
+  // Sync activeTab with URL changes (e.g. back/forward button)
+  useEffect(() => {
+    const isQuick = routerLocation.pathname.endsWith("/quick");
+    const targetTab = isQuick ? "quick" : "food";
+    if (activeTab !== targetTab) {
+      setActiveTab(targetTab);
+    }
+  }, [routerLocation.pathname]);
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    if (tab === "quick") {
+      navigate("/food/user/quick");
+    } else {
+      navigate("/food/user");
+    }
+  };
 
 
   // Simple filter toggle function
@@ -1512,26 +1529,38 @@ export default function Home() {
                   : "Multi-cuisine";
 
               // Legacy-safe image extraction (supports old schema variants).
-              const coverImages = extractImages([
-                ...(Array.isArray(restaurant.coverImages) ? restaurant.coverImages : [restaurant.coverImages]).filter(Boolean),
-                restaurant.coverImage,
-              ]);
+              const coverImages = [
+                ...extractImages(restaurant.coverImages),
+                ...extractImages(restaurant.coverImage),
+              ];
 
-              const profileImageCandidates = extractImages([
+              // Fallback to menu images when cover images are absent.
+              const fallbackImages = extractImages(restaurant.menuImages);
+
+              // Some early records only have onboarding step2 media.
+              const onboardingMenuImages = extractImages(
+                restaurant.onboarding?.step2?.menuImageUrls,
+              );
+
+              const profileImageCandidates = [
                 ...buildRestaurantImageCandidates(restaurant.profileImage),
                 ...buildRestaurantImageCandidates(
                   restaurant.onboarding?.step2?.profileImageUrl,
                 ),
                 ...buildRestaurantImageCandidates(restaurant.image),
                 ...buildRestaurantImageCandidates(restaurant.imageUrl),
-              ]);
+              ];
               const profileImageUrl = profileImageCandidates[0] || "";
 
+              // Prefer directly updated admin/profile image first, then legacy arrays.
+              // This keeps banner stable across location/offline state changes.
               const allImages = Array.from(
                 new Set(
                   [
-                    ...coverImages,
                     ...profileImageCandidates,
+                    ...coverImages,
+                    ...fallbackImages,
+                    ...onboardingMenuImages,
                   ].filter(Boolean),
                 ),
               );
@@ -1549,12 +1578,7 @@ export default function Home() {
                   ? restaurant.cuisines
                   : [],
                 rating: Number(restaurant.rating) || 0,
-                deliveryTime:
-                  restaurant.deliveryTime ||
-                  restaurant.estimatedDeliveryTime ||
-                  (restaurant.estimatedDeliveryTimeMinutes
-                    ? `${restaurant.estimatedDeliveryTimeMinutes} mins`
-                    : deliveryTime),
+                deliveryTime: deliveryTime,
                 distance: distance,
                 distanceInKm: distanceInKm, // Store numeric distance for sorting
                 image: image,
@@ -1578,8 +1602,8 @@ export default function Home() {
                   : [],
                 deliveryTimings: restaurant.deliveryTimings || null,
                 outletTimings: restaurant.outletTimings || null,
-                openingTime: restaurant.openingTime || restaurant?.deliveryTimings?.openingTime || null,
-                closingTime: restaurant.closingTime || restaurant?.deliveryTimings?.closingTime || null,
+                openingTime: restaurant.openingTime || null,
+                closingTime: restaurant.closingTime || null,
               };
             },
           );
@@ -1603,21 +1627,7 @@ export default function Home() {
                 return aAvailable ? -1 : 1; // Available restaurants come first
               }
 
-              // Apply secondary sort based on sortBy filter
-              if (filters.sortBy === "price-low") {
-                return (a.featuredPrice || 0) - (b.featuredPrice || 0);
-              }
-              if (filters.sortBy === "price-high") {
-                return (b.featuredPrice || 0) - (a.featuredPrice || 0);
-              }
-              if (filters.sortBy === "rating-high") {
-                return (b.rating || 0) - (a.rating || 0);
-              }
-              if (filters.sortBy === "rating-low") {
-                return (a.rating || 0) - (b.rating || 0);
-              }
-
-              // Default: sort by distance
+              // If both have same availability, sort by distance
               const aDistance =
                 a.distanceInKm !== null ? a.distanceInKm : Infinity;
               const bDistance =
@@ -1647,7 +1657,6 @@ export default function Home() {
                   const outletResponse =
                     await restaurantAPI.getOutletTimingsByRestaurantId(
                       restaurant.mongoId,
-                      { noCache: true },
                     );
                   const outletTimings =
                     outletResponse?.data?.data?.outletTimings ||
@@ -2010,12 +2019,133 @@ export default function Home() {
     [vegMode],
   );
 
-    // Filter restaurants and foods based on active filters
+  // Filter restaurants and foods based on active filters
   const filteredRestaurants = useMemo(() => {
-    // Rely on API data which is already filtered and sorted by the backend.
-    // We only apply client-side Veg Mode filtering here.
-    return (restaurantsData || []).filter(matchesVegMode);
-  }, [restaurantsData, matchesVegMode]);
+    // Use only API data - no mock data fallback
+    let filtered = [...restaurantsData];
+
+    filtered = filtered.filter(matchesVegMode);
+
+    // Apply filters
+    if (activeFilters.has("price-under-200")) {
+      filtered = filtered.filter(
+        (r) => r.priceRange === "$" || r.priceRange === "$$",
+      );
+    }
+    if (activeFilters.has("price-under-500")) {
+      filtered = filtered.filter((r) => r.priceRange !== "$$$");
+    }
+    if (activeFilters.has("delivery-under-30")) {
+      filtered = filtered.filter((r) => {
+        const timeMatch = r.deliveryTime.match(/(\d+)/);
+        return timeMatch && parseInt(timeMatch[1]) <= 30;
+      });
+    }
+    if (activeFilters.has("delivery-under-45")) {
+      filtered = filtered.filter((r) => {
+        const timeMatch = r.deliveryTime.match(/(\d+)/);
+        return timeMatch && parseInt(timeMatch[1]) <= 45;
+      });
+    }
+    if (activeFilters.has("rating-35-plus")) {
+      filtered = filtered.filter((r) => r.rating >= 3.5);
+    }
+    if (activeFilters.has("rating-4-plus")) {
+      filtered = filtered.filter((r) => r.rating >= 4.0);
+    }
+    if (activeFilters.has("rating-45-plus")) {
+      filtered = filtered.filter((r) => r.rating >= 4.5);
+    }
+    if (activeFilters.has("distance-under-1km")) {
+      filtered = filtered.filter((r) => {
+        const distMatch = r.distance.match(/(\d+\.?\d*)/);
+        return distMatch && parseFloat(distMatch[1]) <= 1.0;
+      });
+    }
+    if (activeFilters.has("distance-under-2km")) {
+      filtered = filtered.filter((r) => {
+        const distMatch = r.distance.match(/(\d+\.?\d*)/);
+        return distMatch && parseFloat(distMatch[1]) <= 2.0;
+      });
+    }
+    if (activeFilters.has("delivery-under-45")) {
+      filtered = filtered.filter((r) => {
+        const timeMatch = r.deliveryTime.match(/(\d+)/);
+        return timeMatch && parseInt(timeMatch[1]) <= 45;
+      });
+    }
+    if (activeFilters.has("top-rated")) {
+      filtered = filtered.filter((r) => r.rating >= 4.5);
+    }
+    if (activeFilters.has("trusted")) {
+      filtered = filtered.filter((r) => r.rating >= 4.0);
+    }
+    if (activeFilters.has("has-offers")) {
+      filtered = filtered.filter((r) => r.offer && r.offer.length > 0);
+    }
+    if (selectedCuisine) {
+      filtered = filtered.filter((r) => r.cuisine === selectedCuisine);
+    }
+
+    // Apply sorting
+    if (sortBy === "price-low") {
+      filtered.sort((a, b) => {
+        const aPrice = a.priceRange === "$" ? 1 : a.priceRange === "$$" ? 2 : 3;
+        const bPrice = b.priceRange === "$" ? 1 : b.priceRange === "$$" ? 2 : 3;
+        return aPrice - bPrice;
+      });
+    } else if (sortBy === "price-high") {
+      filtered.sort((a, b) => {
+        const aPrice = a.priceRange === "$" ? 1 : a.priceRange === "$$" ? 2 : 3;
+        const bPrice = b.priceRange === "$" ? 1 : b.priceRange === "$$" ? 2 : 3;
+        return bPrice - aPrice;
+      });
+    } else if (sortBy === "rating-high") {
+      filtered.sort((a, b) => b.rating - a.rating);
+    } else if (sortBy === "rating-low") {
+      filtered.sort((a, b) => a.rating - b.rating);
+    } else {
+      // Default sorting: Available restaurants first, then by distance (nearby first)
+      // This ensures all restaurants in zone are shown, but nearby ones appear first
+      filtered.sort((a, b) => {
+        // Available restaurants first, then unavailable
+        const aAvailable = getRestaurantAvailabilityStatus(
+          a,
+          new Date(availabilityTick),
+          { ignoreOperationalStatus: true },
+        ).isOpen;
+        const bAvailable = getRestaurantAvailabilityStatus(
+          b,
+          new Date(availabilityTick),
+          { ignoreOperationalStatus: true },
+        ).isOpen;
+
+        if (aAvailable !== bAvailable) {
+          return aAvailable ? -1 : 1; // Available restaurants come first
+        }
+
+        // If both have same availability, sort by distance
+        const aDistance =
+          a.distanceInKm !== null && a.distanceInKm !== undefined
+            ? a.distanceInKm
+            : Infinity;
+        const bDistance =
+          b.distanceInKm !== null && b.distanceInKm !== undefined
+            ? b.distanceInKm
+            : Infinity;
+        return aDistance - bDistance;
+      });
+    }
+
+    return filtered;
+  }, [
+    restaurantsData,
+    matchesVegMode,
+    activeFilters,
+    selectedCuisine,
+    sortBy,
+    availabilityTick,
+  ]);
 
   const restaurantLazyLoadResetKey = useMemo(() => {
     const activeFilterKey = Array.from(activeFilters).sort().join("|");
@@ -2153,32 +2283,32 @@ export default function Home() {
   }, [openLocationSelector]);
 
   const handleSearchFocus = useCallback(() => {
-    navigate("/food/user/search");
-  }, [navigate]);
+    // Sync heroSearch with global searchValue when opening overlay
+    if (heroSearch) {
+      setSearchValue(heroSearch);
+    }
+    openSearch();
+  }, [heroSearch, openSearch, setSearchValue]);
 
   const handleSearchClose = useCallback(() => {
     closeSearch();
     setHeroSearch("");
   }, [closeSearch]);
 
-  // Removed GSAP animations - using CSS and ScrollReveal components instead for better performance
-  // Auto-scroll removed - manual scroll only
-
-  // Animated placeholder cycling - same as RestaurantDetails highlight offer animation
+  // Animated placeholder cycling
   useEffect(() => {
     const interval = setInterval(() => {
       setPlaceholderIndex((prev) => (prev + 1) % placeholders.length);
-    }, 2000); // Change placeholder every 2 seconds (same as RestaurantDetails)
-
+    }, 2000);
     return () => clearInterval(interval);
-  }, []); // placeholders is a constant, no need for dependency
+  }, []);
 
   // Memoized Hero Banner Component for better perf
   const HeroBannerSection = useMemo(() => {
     if (showBannerSkeleton) {
       return (
-        <div className="px-4 py-2">
-          <HeroBannerSkeleton className="h-28 sm:h-36 lg:h-44 rounded-2xl" />
+        <div className="h-full w-full">
+          <HeroBannerSkeleton className="h-full w-full" />
         </div>
       );
     }
@@ -2186,11 +2316,11 @@ export default function Home() {
     if (heroBannerImages.length === 0) return null;
 
     return (
-      <div className="px-4 py-2">
+      <div className="h-full w-full">
         <div
           ref={heroShellRef}
           data-home-hero-shell="true"
-          className="relative w-full overflow-hidden aspect-[1.85/1] rounded-2xl shadow-sm group cursor-pointer bg-white"
+          className="relative w-full h-full overflow-hidden bg-white"
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
@@ -2215,25 +2345,42 @@ export default function Home() {
                 className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent skew-x-[-20deg] w-[150%] h-full"
               />
             </div>
-            {heroBannerImages.map((image, index) => (
-              <div
-                key={`${index}-${image}`}
-                className="absolute inset-0 transition-opacity duration-700 ease-in-out"
-                style={{
-                  opacity: currentBannerIndex === index ? 1 : 0,
-                  zIndex: currentBannerIndex === index ? 2 : 1,
-                  pointerEvents: "none",
-                }}>
-                <img
-                  src={image}
-                  alt={`Hero Banner ${index + 1}`}
-                  className="h-full w-full object-cover"
-                  loading={index === currentBannerIndex ? "eager" : "lazy"}
-                  fetchPriority={index === currentBannerIndex ? "high" : "low"}
-                  draggable={false}
-                />
-              </div>
-            ))}
+            {heroBannerImages.map((image, index) => {
+              const bannerData = heroBannersData[index];
+              const isVideo = bannerData?.type === 'video' || (typeof image === 'string' && image.toLowerCase().endsWith('.mp4'));
+
+              return (
+                <div
+                  key={`${index}-${image}`}
+                  className="absolute inset-0 transition-opacity duration-700 ease-in-out"
+                  style={{
+                    opacity: currentBannerIndex === index ? 1 : 0,
+                    zIndex: currentBannerIndex === index ? 2 : 1,
+                    pointerEvents: "none",
+                  }}>
+                  {isVideo ? (
+                    <video
+                      src={image}
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      className="h-full w-full object-cover"
+                      style={{ filter: "brightness(0.95)" }}
+                    />
+                  ) : (
+                    <img
+                      src={image}
+                      alt={`Hero Banner ${index + 1}`}
+                      className="h-full w-full object-cover"
+                      loading={index === currentBannerIndex ? "eager" : "lazy"}
+                      fetchPriority={index === currentBannerIndex ? "high" : "low"}
+                      draggable={false}
+                    />
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           <button
@@ -2251,7 +2398,7 @@ export default function Home() {
             aria-label={`Open hero banner ${currentBannerIndex + 1}`}
           />
 
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 px-3 py-1.5 bg-black/20 backdrop-blur-md rounded-full border border-white/10 z-30">
+          <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex gap-1.5 px-3 py-1.5 bg-black/20 backdrop-blur-md rounded-full border border-white/10 z-30">
             {heroBannerImages.map((_, index) => (
               <button
                 key={index}
@@ -2274,6 +2421,11 @@ export default function Home() {
   const CategoryRailSection = useMemo(() => {
     return (
       <section className="space-y-1 sm:space-y-1.5 lg:space-y-2 min-h-[108px] sm:min-h-[120px]">
+        <div className="px-4 pt-1 sm:px-4">
+          <p className="text-lg sm:text-xl font-bold text-neutral-900 tracking-tight leading-none mt-1">
+            What's on your mind?
+          </p>
+        </div>
         <div
           ref={categoryScrollRef}
           className="flex gap-3 sm:gap-4 lg:gap-5 overflow-x-auto overflow-y-visible scrollbar-hide scroll-smooth px-2 sm:px-3 py-2 sm:py-3"
@@ -2300,7 +2452,7 @@ export default function Home() {
             displayCategories.slice(0, 12).map((category, index) => (
               <Link
                 key={category.id || index}
-                to={`/food/user/category/${category.slug || category.name.toLowerCase().replace(/\s+/g, "-")}`}
+                to={`/user/category/${category.slug || category.name.toLowerCase().replace(/\s+/g, "-")}`}
                 className="flex-shrink-0 flex flex-col items-center gap-2 group transition-all duration-300 hover:-translate-y-1"
                 style={{ animation: `fade-in-up 0.5s ease-out forwards ${index * 0.05}s`, opacity: 0 }}
               >
@@ -2322,7 +2474,7 @@ export default function Home() {
           {displayCategories.length > 12 && !showCategorySkeleton && (
             <div 
               className="flex-shrink-0 flex flex-col items-center gap-2 cursor-pointer group"
-              onClick={() => navigate("/food/user/categories")}
+              onClick={() => setShowAllCategoriesModal(true)}
             >
               <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-orange-50 dark:bg-orange-950 flex items-center justify-center border border-orange-100 group-hover:border-[#EB590E] transition-all">
                 <Plus className="w-6 h-6 text-[#EB590E]" />
@@ -2336,7 +2488,6 @@ export default function Home() {
   }, [displayCategories, showCategorySkeleton, navigate]);
 
   return (
-
     <div className="relative min-h-screen bg-white dark:bg-[#0a0a0a] pb-16 md:pb-6 overflow-x-clip">
       {shouldShowOutOfZoneHome && (
         <div className="fixed inset-0 z-[90] pointer-events-none">
@@ -2349,409 +2500,167 @@ export default function Home() {
         </div>
       )}
 
-      <div
-        className={
-          shouldShowOutOfZoneHome
-            ? "grayscale opacity-70 transition-all duration-300"
-            : "transition-all duration-300"
-        }>
-        {/* Unified Background for Entire Page - Vibrant Food Theme */}
-        <div className="absolute top-0 left-0 right-0 bottom-0 pointer-events-none overflow-hidden z-0">
-          {/* Main Background */}
-          <div className="absolute inset-0 bg-white dark:bg-[#0a0a0a]"></div>
-          {/* Background Elements - Reduced to 2 blobs with CSS animations for better performance */}
-          <div className="absolute inset-0 overflow-hidden opacity-20">
-            {/* Top right blob - CSS animation */}
-            <div
-              style={{
-                animation: "blob 8s ease-in-out infinite",
-                willChange: "transform",
-              }}
-            />
-            {/* Bottom left blob - CSS animation */}
-            <div
-              style={{
-                animation: "blob-reverse 10s ease-in-out infinite",
-                willChange: "transform",
-              }}
-            />
-          </div>
-          {/* CSS keyframes for animations */}
-          <style>{`
-          @keyframes blob {
-            0%, 100% {
-              transform: translate(0, 0) scale(1);
-            }
-            50% {
-              transform: translate(50px, -30px) scale(1.2);
-            }
+      {/* Main Header - Mobile Only */}
+      <div className="md:hidden relative overflow-x-clip z-[50]">
+        <HomeHeader 
+          activeTab={activeTab}
+          setActiveTab={handleTabChange}
+          location={location}
+          savedAddressText={savedAddressText}
+          handleLocationClick={handleLocationClick}
+          handleSearchFocus={handleSearchFocus}
+          placeholderIndex={placeholderIndex}
+          placeholders={placeholders}
+          vegMode={vegMode}
+          onVegModeChange={handleVegModeChange}
+          quickThemeColor={quickThemeColor}
+          bannerContent={
+            headerVideoUrl ? (
+              <video
+                src={headerVideoUrl}
+                autoPlay
+                loop
+                muted
+                playsInline
+                className="h-[132%] w-[124%] max-w-none -translate-y-4 scale-[0.9] object-cover object-center"
+              />
+            ) : null
           }
-          @keyframes blob-reverse {
-            0%, 100% {
-              transform: translate(0, 0) scale(1);
-            }
-            50% {
-              transform: translate(-40px, 40px) scale(1.3);
-            }
-          }
-          @keyframes fade-in {
-            from {
-              opacity: 0;
-              transform: translateY(20px);
-            }
-            to {
-              opacity: 1;
-              transform: translateY(0);
-            }
-          }
-          @keyframes gradient {
-            0%, 100% {
-              background-position: 0% 50%;
-            }
-            50% {
-              background-position: 100% 50%;
-            }
-          }
-          @keyframes fade-in-up {
-            from {
-              opacity: 0;
-              transform: translateY(20px);
-            }
-            to {
-              opacity: 1;
-              transform: translateY(0);
-            }
-          }
-          @keyframes wiggle {
-            0%, 100% {
-              transform: rotate(0deg);
-            }
-            25% {
-              transform: rotate(10deg);
-            }
-            75% {
-              transform: rotate(-10deg);
-            }
-          }
-          @keyframes placeholderFade {
-            0% {
-              opacity: 0;
-              transform: translateY(20px);
-            }
-            100% {
-              opacity: 0.6;
-              transform: translateY(0);
-            }
-          }
-          @keyframes gradientShift {
-            0%, 100% {
-              background-position: 0% 50%;
-            }
-            50% {
-              background-position: 100% 50%;
-            }
-          }
-          @keyframes slideUp {
-            0% {
-              opacity: 0;
-              transform: translateY(15px);
-            }
-            100% {
-              opacity: 1;
-              transform: translateY(0);
-            }
-          }
-          .red-header-bg {
-            background-color: #ef4f5f;
-            background-image: linear-gradient(180deg, #ef4f5f 0%, #e03546 100%);
-          }
-        `}</style>
-        </div>
+        />
+      </div>
 
-        <div className="md:hidden relative overflow-x-clip">
-          <HomeHeader 
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            location={location}
-            handleLocationClick={handleLocationClick}
-            handleSearchFocus={handleSearchFocus}
-            placeholderIndex={placeholderIndex}
-            placeholders={placeholders}
-          />
+      <AnimatePresence mode="wait">
+        {activeTab === "food" ? (
+          <motion.div
+            key="food-content"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="bg-white dark:bg-[#0a0a0a]"
+          >
+            <div className="relative z-10">
+              {CategoryRailSection}
+              {recommendedForYouRestaurants.length > 0 && (
+                <motion.section
+                  className="content-auto pt-1 sm:pt-2"
+                  initial={false}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <h2 className="text-xs sm:text-sm lg:text-base font-semibold text-gray-400 dark:text-gray-500 tracking-widest uppercase mb-2 sm:mb-3 px-4">
+                    Recommended For You
+                  </h2>
 
-          <AnimatePresence mode="wait">
-            {activeTab === "food" ? (
-              <motion.div
-                key="food-content"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className="bg-white dark:bg-[#0a0a0a]"
-              >
-                {/* Flavour Fest Banner */}
-                <FestBanner />
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 px-4">
+                    {recommendedForYouRestaurants.map((restaurant, index) => {
+                      const restaurantSlug =
+                        restaurant.slug ||
+                        restaurant.name.toLowerCase().replace(/\s+/g, "-");
 
-                {/* Promo Row */}
-                <div className="relative z-20 -mt-4">
-                  <PromoRow 
-                    handleVegModeChange={handleVegModeChange}
-                    navigate={navigate}
-                    isVegMode={vegMode}
-                    toggleRef={vegModeToggleRef}
-                  />
-                </div>
-
-                {/* "What's on your mind today?" Section */}
-                <div className="px-4 py-6 space-y-6 bg-white dark:bg-[#0a0a0a]">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white min-w-0 flex-shrink leading-tight">What's on your mind today?</h2>
-                    <div className="h-[1px] bg-gray-100 dark:bg-gray-800 flex-1"></div>
-                    <Link to="/food/user/categories" className="text-sm font-bold text-gray-400 dark:text-gray-500 flex items-center gap-0.5 whitespace-nowrap shrink-0">
-                      View All <ArrowDownUp className="h-3 w-3 rotate-90" />
-                    </Link>
-                  </div>
-                  
-                  <div className="grid grid-cols-4 gap-y-8 gap-x-4">
-                    {displayCategories.slice(0, 8).map((category, index) => (
-                      <Link 
-                        key={category.id || index}
-                        to={`/food/user/category/${category.slug}`}
-                        className="flex flex-col items-center gap-2 group"
-                      >
-                        <div className="relative w-full aspect-square rounded-full overflow-hidden shadow-sm border border-gray-100 dark:border-gray-800 bg-white dark:bg-[#1a1a1a] group-active:scale-95 transition-all duration-300">
-                          {/* Shining Glint Effect */}
-                          <div className="absolute inset-0 z-10 pointer-events-none overflow-hidden">
-                            <motion.div 
-                              animate={{ 
-                                x: ['-200%', '200%'],
-                              }}
-                              transition={{ 
-                                duration: 2, 
-                                repeat: Infinity, 
-                                repeatDelay: 3 + index * 0.5,
-                                ease: "easeInOut"
-                              }}
-                              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent skew-x-[-20deg] w-[150%] h-full"
-                            />
-                          </div>
-                      
-                          <OptimizedImage 
-                            src={category.image} 
-                            alt={category.name} 
-                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                          />
-                        </div>
-                        <span className="text-[11px] font-bold text-gray-700 dark:text-gray-300 text-center leading-tight">
-                          {category.name}
-                        </span>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Admin Hero Banners Section - Now below categories */}
-                {HeroBannerSection}
-
-                {/* Filters Sticky Sidebar Header */}
-                <section className="py-3 px-4 bg-white sticky top-[0px] z-[40] -mx-4 w-[calc(100%+2rem)] border-b border-gray-100 shadow-sm">
-                  <div
-                    className="flex items-center gap-2 overflow-x-auto scrollbar-hide px-4"
-                    style={{
-                      scrollbarWidth: "none",
-                      msOverflowStyle: "none",
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setIsFilterOpen(true)}
-                      className="h-9 px-4 rounded-full flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 font-bold transition-all bg-white dark:bg-[#1a1a1a] border border-gray-200 shadow-sm active:scale-95"
-                    >
-                      <SlidersHorizontal className="h-4 w-4 text-black" />
-                      <span className="text-xs font-bold text-black dark:text-white uppercase tracking-tight">
-                        Filters
-                      </span>
-                    </button>
-
-                    {[
-                      { id: "delivery-under-30", label: "Under 30 mins" },
-                      { id: "delivery-under-45", label: "Under 45 mins" },
-                      { id: "distance-under-1km", label: "Under 1km", icon: MapPin },
-                      { id: "distance-under-2km", label: "Under 2km", icon: MapPin },
-                    ].map((filter) => {
-                      const Icon = filter.icon;
-                      const isActive = activeFilters.has(filter.id);
                       return (
-                        <button
-                          key={filter.id}
-                          type="button"
-                          onClick={() => {
-                            const nextFilters = new Set(activeFilters);
-                            if (nextFilters.has(filter.id)) {
-                              nextFilters.delete(filter.id);
-                            } else {
-                              nextFilters.add(filter.id);
-                            }
-                            setActiveFilters(nextFilters);
-                            void applyFiltersAndRefetch(
-                              nextFilters,
-                              sortBy,
-                              selectedCuisine,
-                            );
-                          }}
-                          className={`h-9 px-4 rounded-full flex items-center gap-2 whitespace-nowrap flex-shrink-0 transition-all font-bold shadow-sm active:scale-95 ${
-                            isActive
-                              ? "bg-[#EB590E] text-white border border-[#EB590E] hover:bg-orange-700"
-                              : "bg-white dark:bg-[#1a1a1a] border border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300"
-                          }`}
+                        <motion.div
+                          key={`recommended-${restaurant.mongoId || restaurant.id || restaurantSlug}`}
+                          initial={{ opacity: 0, y: 12 }}
+                          whileInView={{ opacity: 1, y: 0 }}
+                          viewport={{ once: true }}
+                          transition={{ duration: 0.35, delay: index * 0.05 }}
                         >
-                          {Icon && (
-                            <Icon
-                              className={`h-3.5 w-3.5 ${isActive ? "fill-white" : ""}`}
-                            />
-                          )}
-                          <span className="text-xs font-bold tracking-tight">
-                            {filter.label}
-                          </span>
-                        </button>
+                          <Link
+                            to={`/user/restaurants/${restaurantSlug}`}
+                            className="block rounded-[20px] overflow-hidden border border-gray-100 dark:border-gray-800 bg-white dark:bg-[#1a1a1a] shadow-sm hover:shadow-md transition-shadow"
+                          >
+                            <div className="relative h-24 sm:h-28 md:h-32 bg-gray-50">
+                              <img
+                                src={restaurant.image}
+                                alt={restaurant.name}
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                              />
+                              <div className={`absolute bottom-2 left-2 px-2 py-0.5 rounded-lg ${Number(restaurant.rating) > 0 ? "bg-black/80 backdrop-blur-md text-white font-medium" : "bg-gray-200/90 text-gray-600 font-medium"} text-[10px] shadow-lg border border-white/10`}>
+                                {Number(restaurant.rating) > 0 ? Number(restaurant.rating).toFixed(1) : "NEW"}
+                              </div>
+                            </div>
+                            <div className="p-2.5">
+                              <p className="text-sm font-semibold text-gray-900 dark:text-white truncate tracking-tight">
+                                {restaurant.name}
+                              </p>
+                              <p className="text-[10px] text-orange-600 font-bold mt-1 flex items-center gap-1 uppercase tracking-wider">
+                                <Flame className="w-3.5 h-3.5 fill-orange-600" />
+                                Near & Fast
+                              </p>
+                            </div>
+                          </Link>
+                        </motion.div>
                       );
                     })}
                   </div>
-                </section>
-
-              </motion.div>
-            ) : (
-              <motion.div
-                key="quick-content"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.3 }}
-              >
-                <QuickSection />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-          {recommendedForYouRestaurants.length > 0 && (
-            <motion.section
-              className="content-auto pt-1 sm:pt-2"
-              initial={false}
-              animate={{ opacity: 1, y: 0 }}>
-              <h2 className="text-xs sm:text-sm lg:text-base font-semibold text-gray-400 dark:text-gray-500 tracking-widest uppercase mb-2 sm:mb-3 px-4">
-                Recommended For You
-              </h2>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 px-4">
-                {recommendedForYouRestaurants.map((restaurant, index) => {
-                  const restaurantSlug =
-                    restaurant.slug ||
-                    restaurant.name.toLowerCase().replace(/\s+/g, "-");
-                  return (
-                    <motion.div
-                      key={`recommended-${restaurant.mongoId || restaurant.id || restaurantSlug}`}
-                      initial={{ opacity: 0, y: 12 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 0.35, delay: index * 0.05 }}>
-                      <Link
-                        to={`/user/restaurants/${restaurantSlug}`}
-                        className="block rounded-[20px] overflow-hidden border border-gray-100 dark:border-gray-800 bg-white dark:bg-[#1a1a1a] shadow-sm hover:shadow-md transition-shadow">
-                        <div className="relative h-24 sm:h-28 md:h-32 bg-gray-50">
-                          <RestaurantImageCarousel
-                            restaurant={restaurant}
-                            backendOrigin={BACKEND_ORIGIN}
-                            className="h-24 sm:h-28 md:h-32"
-                            roundedClass="rounded-t-[20px]"
-                          />
-                          <div className={`absolute bottom-2 left-2 px-2 py-0.5 rounded-lg ${Number(restaurant.rating) > 0 ? "bg-black/80 backdrop-blur-md text-white font-medium" : "bg-gray-200/90 text-gray-600 font-medium"} text-[10px] shadow-lg border border-white/10`}>
-                            {Number(restaurant.rating) > 0 ? Number(restaurant.rating).toFixed(1) : "NEW"}
-                          </div>
-                        </div>
-                        <div className="p-2.5">
-                          <p className="text-sm font-semibold text-gray-900 dark:text-white truncate tracking-tight">
-                            {restaurant.name}
-                          </p>
-                          <p className="text-[10px] text-orange-600 font-bold mt-1 flex items-center gap-1 uppercase tracking-wider">
-                            <Flame className="w-3.5 h-3.5 fill-orange-600" />
-                            Near & Fast
-                          </p>
-                        </div>
-                      </Link>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            </motion.section>
-          )}
-
-          {/* Explore More Section */}
-          <motion.section
-            className="content-auto pt-2 sm:pt-3 lg:pt-4"
-            initial={false}
-            animate={{ opacity: 1, y: 0 }}>
-            <h2 className="text-xs sm:text-sm lg:text-base font-semibold text-gray-400 dark:text-gray-500 tracking-widest uppercase mb-2 sm:mb-3 lg:mb-4 px-4">
-              {exploreMoreHeading}
-            </h2>
-            <div
-              className="flex gap-4 overflow-x-auto scrollbar-hide pb-2 lg:pb-3 min-h-[132px] w-full px-4"
-              style={{
-                scrollbarWidth: "none",
-                msOverflowStyle: "none",
-              }}>
-              {showExploreSkeleton ? (
-                <div className="w-full min-w-full shrink-0">
-                  <ExploreGridSkeleton />
-                </div>
-              ) : (
-                finalExploreItems.map((item, index) => (
-                  <motion.div
-                    key={item.id}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    whileInView={{ opacity: 1, scale: 1 }}
-                    viewport={{ once: true }}
-                    transition={{
-                      duration: 0.4,
-                      delay: index * 0.08,
-                    }}
-                    whileHover={{ y: -5 }}
-                    whileTap={{ scale: 0.95 }}>
-                    <Link
-                      to={item.href}
-                      className="flex-shrink-0">
-                      <div className="flex flex-col items-center gap-3 w-24 sm:w-28 group">
-                        <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-white dark:bg-[#1a1a1a] flex items-center justify-center shadow-[0_4px_15px_-3px_rgba(0,0,0,0.08)] group-hover:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.12)] transition-all duration-500 overflow-hidden p-3 border border-gray-100 dark:border-gray-800 group-hover:border-orange-500/30">
-                          {/* Colorful Glow Background */}
-                          <div className={`absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity duration-500 bg-gradient-to-br ${index % 3 === 0 ? 'from-orange-500 to-red-500' : index % 3 === 1 ? 'from-blue-500 to-purple-500' : 'from-green-500 to-teal-500'}`} />
-                          
-                          {/* Shine Effect */}
-                          <div className="absolute inset-0 z-10 pointer-events-none overflow-hidden">
-                            <motion.div 
-                              animate={{ x: ['-200%', '200%'] }}
-                              transition={{ duration: 2.5, repeat: Infinity, repeatDelay: 4 + index * 0.5 }}
-                              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent skew-x-[-20deg] w-[150%]"
-                            />
-                          </div>
-
-                          <OptimizedImage
-                            src={item.image}
-                            alt={item.label}
-                            className="w-full h-full object-contain relative z-10 transition-transform duration-500 group-hover:scale-110"
-                            width={112}
-                            height={112}
-                          />
-                        </div>
-                        <span className="text-[11px] font-medium text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition-colors text-center tracking-wide">
-                          {item.label}
-                        </span>
-                      </div>
-                    </Link>
-                  </motion.div>
-                ))
+                </motion.section>
               )}
-            </div>
-          </motion.section>
+
+              <motion.section
+                className="content-auto pt-2 sm:pt-3 lg:pt-4"
+                initial={false}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <h2 className="text-xs sm:text-sm lg:text-base font-semibold text-gray-400 dark:text-gray-500 tracking-widest uppercase mb-2 sm:mb-3 lg:mb-4 px-4">
+                  {exploreMoreHeading}
+                </h2>
+                <div
+                  className="flex gap-4 overflow-x-auto scrollbar-hide pb-2 lg:pb-3 min-h-[132px] w-full px-4"
+                  style={{
+                    scrollbarWidth: "none",
+                    msOverflowStyle: "none",
+                  }}
+                >
+                  {showExploreSkeleton ? (
+                    <div className="w-full min-w-full shrink-0">
+                      <ExploreGridSkeleton />
+                    </div>
+                  ) : (
+                    finalExploreItems.map((item, index) => (
+                      <motion.div
+                        key={item.id}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        whileInView={{ opacity: 1, scale: 1 }}
+                        viewport={{ once: true }}
+                        transition={{
+                          duration: 0.4,
+                          delay: index * 0.08,
+                        }}
+                        whileHover={{ y: -5 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        <Link to={item.href} className="flex-shrink-0">
+                          <div className="flex flex-col items-center gap-3 w-24 sm:w-28 group">
+                            <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-white dark:bg-[#1a1a1a] flex items-center justify-center shadow-[0_4px_15px_-3px_rgba(0,0,0,0.08)] group-hover:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.12)] transition-all duration-500 overflow-hidden p-3 border border-gray-100 dark:border-gray-800 group-hover:border-orange-500/30">
+                              <div className={`absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity duration-500 bg-gradient-to-br ${index % 3 === 0 ? 'from-orange-500 to-red-500' : index % 3 === 1 ? 'from-blue-500 to-purple-500' : 'from-green-500 to-teal-500'}`} />
+
+                              <div className="absolute inset-0 z-10 pointer-events-none overflow-hidden">
+                                <motion.div
+                                  animate={{ x: ['-200%', '200%'] }}
+                                  transition={{ duration: 2.5, repeat: Infinity, repeatDelay: 4 + index * 0.5 }}
+                                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent skew-x-[-20deg] w-[150%]"
+                                />
+                              </div>
+
+                              <OptimizedImage
+                                src={item.image}
+                                alt={item.label}
+                                className="w-full h-full object-contain relative z-10 transition-transform duration-500 group-hover:scale-110"
+                                width={112}
+                                height={112}
+                              />
+                            </div>
+                            <span className="text-[11px] font-medium text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition-colors text-center tracking-wide">
+                              {item.label}
+                            </span>
+                          </div>
+                        </Link>
+                      </motion.div>
+                    ))
+                  )}
+                </div>
+              </motion.section>
 
           {/* Featured Foods - Horizontal Scroll */}
 
@@ -2886,7 +2795,7 @@ export default function Home() {
                               {/* Featured Dish Badge - Top Left */}
                               <div className="absolute top-4 left-4 flex items-center z-10 transform transition-transform duration-300 group-hover:scale-105">
                                 <div className="bg-black/70 backdrop-blur-lg text-white px-4 py-1.5 rounded-full text-[11px] font-medium tracking-tight flex items-center shadow-2xl border border-white/20">
-                                  {restaurant.featuredDish} • ₹
+                                  {restaurant.featuredDish} â€¢ â‚¹
                                   {restaurant.featuredPrice}
                                 </div>
                               </div>
@@ -2933,9 +2842,7 @@ export default function Home() {
                                           : "Offline"}
                                       </span>
                                       {availability.isOpen &&
-                                        availability.closingCountdownLabel &&
-                                        availability.openingTime &&
-                                        availability.closingTime && (
+                                        availability.closingCountdownLabel && (
                                           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100 text-[10px] font-medium uppercase tracking-wide">
                                             <Timer
                                               className="h-3 w-3 flex-shrink-0"
@@ -3013,6 +2920,46 @@ export default function Home() {
             </div>
           </motion.section>
         </div>
+        </motion.div>
+      ) : activeTab === "quick" ? (
+        <motion.div
+          key="quick-content"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.3 }}
+        >
+          <div className="bg-white">
+            <QuickLocationProvider>
+              <QuickWishlistProvider>
+                <QuickCartProvider>
+                  <QuickCartAnimationProvider>
+                    <QuickProductDetailProvider>
+                      <QuickCommerceHomePage
+                        embedded
+                        onThemeChange={({ color }) => {
+                          if (color) {
+                            setQuickThemeColor(color);
+                          }
+                        }}
+                        embeddedHeaderColor={quickThemeColor}
+                      />
+                    </QuickProductDetailProvider>
+                  </QuickCartAnimationProvider>
+                </QuickCartProvider>
+              </QuickWishlistProvider>
+            </QuickLocationProvider>
+          </div>
+        </motion.div>
+      ) : (
+        <motion.div
+          key="other-content"
+          className="flex flex-col items-center justify-center min-h-[400px] text-gray-400"
+        >
+          <p className="text-sm font-bold uppercase tracking-widest">Coming Soon</p>
+        </motion.div>
+      )}
+    </AnimatePresence>
 
         {/* Filter Modal - Bottom Sheet */}
         <AnimatePresence>
@@ -3066,6 +3013,11 @@ export default function Home() {
                       { id: "rating", label: "Rating", icon: Star },
                       { id: "distance", label: "Distance", icon: MapPin },
                       { id: "price", label: "Dish Price", icon: IndianRupee },
+                      {
+                        id: "cuisine",
+                        label: "Cuisine",
+                        icon: UtensilsCrossed,
+                      },
                       { id: "offers", label: "Offers", icon: BadgePercent },
                       { id: "trust", label: "Trust", icon: ShieldCheck },
                     ].map((tab) => {
@@ -3303,7 +3255,7 @@ export default function Home() {
                           }`}>
                           <span
                             className={`text-sm font-medium ${activeFilters.has("price-under-200") ? "text-[#EB590E]" : "text-gray-700 dark:text-gray-300"}`}>
-                            Under ₹200
+                            Under â‚¹200
                           </span>
                         </button>
                         <button
@@ -3315,73 +3267,118 @@ export default function Home() {
                           }`}>
                           <span
                             className={`text-sm font-medium ${activeFilters.has("price-under-500") ? "text-[#EB590E]" : "text-gray-700 dark:text-gray-300"}`}>
-                            Under ₹500
+                            Under â‚¹500
                           </span>
                         </button>
                       </div>
                     </div>
 
-                    
+                    {/* Cuisine Tab */}
+                    <div
+                      ref={(el) => (filterSectionRefs.current["cuisine"] = el)}
+                      data-section-id="cuisine"
+                      className="space-y-4 mb-8">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                        Cuisine
+                      </h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        {[
+                          "Chinese",
+                          "American",
+                          "Japanese",
+                          "Italian",
+                          "Mexican",
+                          "Indian",
+                          "Asian",
+                          "Seafood",
+                          "Desserts",
+                          "Cafe",
+                          "Healthy",
+                        ].map((cuisine) => (
+                          <button
+                            key={cuisine}
+                            onClick={() =>
+                              setSelectedCuisine(
+                                selectedCuisine === cuisine ? null : cuisine,
+                              )
+                            }
+                            className={`px-4 py-3 rounded-xl border text-center transition-colors ${
+                              selectedCuisine === cuisine
+                                ? "border-[#EB590E] bg-[#FFF2EB] dark:bg-green-900/20"
+                                : "border-gray-200 dark:border-gray-800 hover:border-[#EB590E]"
+                            }`}>
+                            <span
+                              className={`text-sm font-medium ${selectedCuisine === cuisine ? "text-[#EB590E]" : "text-gray-700 dark:text-gray-300"}`}>
+                              {cuisine}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
 
                     {/* Trust Markers Tab */}
-                    <div
-                      ref={(el) => (filterSectionRefs.current["trust"] = el)}
-                      data-section-id="trust"
-                      className="space-y-4 mb-8">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                        Trust Markers
-                      </h3>
-                      <div className="flex flex-col gap-3">
-                        <button
-                          onClick={() => toggleFilter("top-rated")}
-                          className={`px-4 py-3 rounded-xl border text-left transition-colors ${
-                            activeFilters.has("top-rated")
-                              ? "border-[#EB590E] bg-[#FFF2EB] dark:bg-green-900/20"
-                              : "border-gray-200 dark:border-gray-800 hover:border-[#EB590E]"
-                          }`}>
-                          <span
-                            className={`text-sm font-medium ${activeFilters.has("top-rated") ? "text-[#EB590E]" : "text-gray-700 dark:text-gray-300"}`}>
-                            Top Rated
-                          </span>
-                        </button>
-                        <button
-                          onClick={() => toggleFilter("trusted")}
-                          className={`px-4 py-3 rounded-xl border text-left transition-colors ${
-                            activeFilters.has("trusted")
-                              ? "border-[#EB590E] bg-[#FFF2EB] dark:bg-green-900/20"
-                              : "border-gray-200 dark:border-gray-800 hover:border-[#EB590E]"
-                          }`}>
-                          <span
-                            className={`text-sm font-medium ${activeFilters.has("trusted") ? "text-[#EB590E]" : "text-gray-700 dark:text-gray-300"}`}>
-                            Trusted by 1000+ users
-                          </span>
-                        </button>
+                    {activeFilterTab === "trust" && (
+                      <div
+                        ref={(el) => (filterSectionRefs.current["trust"] = el)}
+                        data-section-id="trust"
+                        className="space-y-4 mb-8">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                          Trust Markers
+                        </h3>
+                        <div className="flex flex-col gap-3">
+                          <button
+                            onClick={() => toggleFilter("top-rated")}
+                            className={`px-4 py-3 rounded-xl border text-left transition-colors ${
+                              activeFilters.has("top-rated")
+                                ? "border-[#EB590E] bg-[#FFF2EB] dark:bg-green-900/20"
+                                : "border-gray-200 dark:border-gray-800 hover:border-[#EB590E]"
+                            }`}>
+                            <span
+                              className={`text-sm font-medium ${activeFilters.has("top-rated") ? "text-[#EB590E]" : "text-gray-700 dark:text-gray-300"}`}>
+                              Top Rated
+                            </span>
+                          </button>
+                          <button
+                            onClick={() => toggleFilter("trusted")}
+                            className={`px-4 py-3 rounded-xl border text-left transition-colors ${
+                              activeFilters.has("trusted")
+                                ? "border-[#EB590E] bg-[#FFF2EB] dark:bg-green-900/20"
+                                : "border-gray-200 dark:border-gray-800 hover:border-[#EB590E]"
+                            }`}>
+                            <span
+                              className={`text-sm font-medium ${activeFilters.has("trusted") ? "text-[#EB590E]" : "text-gray-700 dark:text-gray-300"}`}>
+                              Trusted by 1000+ users
+                            </span>
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     {/* Offers Tab */}
-                    <div
-                      ref={(el) => (filterSectionRefs.current["offers"] = el)}
-                      data-section-id="offers"
-                      className="space-y-4 mb-8">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                        Offers
-                      </h3>
-                      <div className="flex flex-col gap-3">
-                        <button
-                          onClick={() => toggleFilter("has-offers")}
-                          className={`px-4 py-3 rounded-xl border text-left transition-colors ${
-                            activeFilters.has("has-offers")
-                              ? "border-[#EB590E] bg-[#FFF2EB] dark:bg-green-900/20"
-                              : "border-gray-200 dark:border-gray-800 hover:border-[#EB590E]"
-                          }`}>
-                          <span
-                            className={`text-sm font-medium ${activeFilters.has("has-offers") ? "text-[#EB590E]" : "text-gray-700 dark:text-gray-300"}`}>
-                            Restaurants with offers
-                          </span>
-                        </button>
+                    {activeFilterTab === "offers" && (
+                      <div
+                        ref={(el) => (filterSectionRefs.current["offers"] = el)}
+                        data-section-id="offers"
+                        className="space-y-4 mb-8">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                          Offers
+                        </h3>
+                        <div className="flex flex-col gap-3">
+                          <button
+                            onClick={() => toggleFilter("has-offers")}
+                            className={`px-4 py-3 rounded-xl border text-left transition-colors ${
+                              activeFilters.has("has-offers")
+                                ? "border-[#EB590E] bg-[#FFF2EB] dark:bg-green-900/20"
+                                : "border-gray-200 dark:border-gray-800 hover:border-[#EB590E]"
+                            }`}>
+                            <span
+                              className={`text-sm font-medium ${activeFilters.has("has-offers") ? "text-[#EB590E]" : "text-gray-700 dark:text-gray-300"}`}>
+                              Restaurants with offers
+                            </span>
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
 

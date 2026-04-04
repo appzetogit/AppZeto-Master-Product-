@@ -4,9 +4,9 @@ const orderItemSchema = new mongoose.Schema(
     {
         itemId: { type: String, required: true, trim: true },
         name: { type: String, required: true, trim: true },
-        variantId: { type: String, trim: true, default: '' },
-        variantName: { type: String, trim: true, default: '' },
-        variantPrice: { type: Number, min: 0, default: 0 },
+        type: { type: String, enum: ['food', 'quick'], required: true },
+        sourceId: { type: String, required: true, trim: true },
+        sourceName: { type: String, default: '', trim: true },
         price: { type: Number, required: true, min: 0 },
         quantity: { type: Number, required: true, min: 1 },
         isVeg: { type: Boolean, default: true },
@@ -16,11 +16,56 @@ const orderItemSchema = new mongoose.Schema(
     { _id: false }
 );
 
+const pickupPointSchema = new mongoose.Schema(
+    {
+        pickupType: { type: String, enum: ['food', 'quick'], required: true },
+        sourceId: { type: String, required: true, trim: true },
+        sourceName: { type: String, default: '', trim: true },
+        address: { type: String, default: '', trim: true },
+        location: {
+            type: { type: String, enum: ['Point'], default: 'Point' },
+            coordinates: { type: [Number], default: undefined }
+        },
+        itemIds: { type: [String], default: [] }
+    },
+    { _id: false }
+);
+
+const dispatchLegSchema = new mongoose.Schema(
+    {
+        legId: { type: String, required: true, trim: true },
+        pickupType: { type: String, enum: ['food', 'quick'], required: true },
+        sourceId: { type: String, required: true, trim: true },
+        sourceName: { type: String, default: '', trim: true },
+        deliveryPartnerId: { type: mongoose.Schema.Types.ObjectId, ref: 'FoodDeliveryPartner', default: null },
+        assignedAt: { type: Date, default: null },
+        partnerCandidates: [{
+            partnerId: { type: mongoose.Schema.Types.ObjectId, ref: 'FoodDeliveryPartner' },
+            distanceKm: { type: Number, min: 0, default: null }
+        }]
+    },
+    { _id: false }
+);
+
+const dispatchPlanSchema = new mongoose.Schema(
+    {
+        strategy: {
+            type: String,
+            enum: ['single', 'split', 'express_split'],
+            default: 'single'
+        },
+        combinedPickupEligible: { type: Boolean, default: false },
+        pickupDistanceKm: { type: Number, default: null },
+        sameDirection: { type: Boolean, default: false },
+        reason: { type: String, default: '', trim: true },
+        legs: { type: [dispatchLegSchema], default: [] }
+    },
+    { _id: false }
+);
+
 const deliveryAddressSchema = new mongoose.Schema(
     {
         label: { type: String, enum: ['Home', 'Office', 'Other'], default: 'Home' },
-        name: { type: String, default: '', trim: true },
-        fullName: { type: String, default: '', trim: true },
         street: { type: String, required: true, trim: true },
         additionalDetails: { type: String, default: '', trim: true },
         city: { type: String, required: true, trim: true },
@@ -101,7 +146,7 @@ const paymentSchema = new mongoose.Schema(
 
 const dispatchSchema = new mongoose.Schema(
     {
-        modeAtCreation: { type: String, enum: ['auto'], default: 'auto' },
+        modeAtCreation: { type: String, enum: ['auto', 'manual'], default: 'manual' },
         status: {
             type: String,
             enum: ['unassigned', 'assigned', 'accepted', 'rejected', 'cancelled'],
@@ -115,8 +160,7 @@ const dispatchSchema = new mongoose.Schema(
             partnerId: { type: mongoose.Schema.Types.ObjectId, ref: 'FoodDeliveryPartner' },
             at: { type: Date, default: Date.now },
             action: { type: String, enum: ['offered', 'rejected', 'timeout'], default: 'offered' }
-        }],
-        dispatchingAt: { type: Date }
+        }]
     },
     { _id: false }
 );
@@ -185,28 +229,36 @@ const deliveryVerificationSchema = new mongoose.Schema(
 
 const orderSchema = new mongoose.Schema(
     {
-        order_id: {
+        orderType: {
             type: String,
-            unique: true,
-            sparse: true,
+            enum: ['food', 'quick','mixed'],
+            default: 'food',
             index: true
         },
-        /** Compatibility alias: satisfies rogue unique index 'orderId_1' found in legacy deployments. */
         orderId: {
             type: String,
+            required: true,
             unique: true,
-            sparse: true,
+            trim: true
+        },
+        sessionId: {
+            type: String,
+            default: '',
+            trim: true,
             index: true
         },
         userId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'FoodUser',
-            required: true
+            default: null
         },
         restaurantId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'FoodRestaurant',
-            required: true
+            required() {
+                return this.orderType === 'food';
+            },
+            default: null
         },
         zoneId: {
             type: mongoose.Schema.Types.ObjectId,
@@ -223,15 +275,19 @@ const orderSchema = new mongoose.Schema(
             required: true,
             validate: (v) => Array.isArray(v) && v.length > 0
         },
+        pickupPoints: {
+            type: [pickupPointSchema],
+            default: []
+        },
         deliveryAddress: {
             type: deliveryAddressSchema,
-            required: true
+            required() {
+                return this.orderType === 'food' || this.orderType === 'quick' || this.orderType === 'mixed';
+            }
         },
-        customerName: { type: String, default: '', trim: true },
-        customerPhone: { type: String, default: '', trim: true },
         pricing: {
             type: pricingSchema,
-            required: false
+            required: true
         },
         /**
          * Denormalized payment snapshot for fast reads & legacy clients.
@@ -239,18 +295,17 @@ const orderSchema = new mongoose.Schema(
          */
         payment: {
             type: paymentSchema,
-            required: false
+            required: true
         },
         orderStatus: {
             type: String,
             enum: [
+                'placed',
                 'created',
                 'confirmed',
                 'preparing',
                 'ready_for_pickup',
-                'reached_pickup',
                 'picked_up',
-                'reached_drop',
                 'delivered',
                 'cancelled_by_user',
                 'cancelled_by_restaurant',
@@ -260,6 +315,10 @@ const orderSchema = new mongoose.Schema(
         },
         dispatch: {
             type: dispatchSchema,
+            default: () => ({})
+        },
+        dispatchPlan: {
+            type: dispatchPlanSchema,
             default: () => ({})
         },
         deliveryState: {
@@ -300,34 +359,20 @@ const orderSchema = new mongoose.Schema(
 
 orderSchema.index({ 'deliveryAddress.location': '2dsphere' });
 orderSchema.index({ lastRiderLocation: '2dsphere' });
+orderSchema.index({ orderType: 1, sessionId: 1, createdAt: -1 });
 orderSchema.index({ userId: 1, createdAt: -1 });
 orderSchema.index({ restaurantId: 1, orderStatus: 1, createdAt: -1 });
 orderSchema.index({ 'dispatch.deliveryPartnerId': 1, orderStatus: 1 });
 orderSchema.index({ 'dispatch.status': 1, orderStatus: 1 });
-orderSchema.index({ 'dispatch.status': 1, orderStatus: 1, updatedAt: -1 });
-orderSchema.index({ 'dispatch.deliveryPartnerId': 1, 'dispatch.status': 1, updatedAt: -1 });
 orderSchema.index({ 'payment.status': 1, createdAt: -1 });
 orderSchema.index({ 'payment.method': 1, createdAt: -1 });
-
-orderSchema.pre('save', async function (next) {
-    if (!this.order_id) {
-        const timestamp = Date.now().toString().slice(-4);
-        const random = Math.floor(100 + Math.random() * 900);
-        this.order_id = `FOD-${timestamp}${random}`;
-    }
-    // Synchronize camelCase alias to satisfy unique index 'orderId_1'
-    if (this.order_id) {
-        this.orderId = this.order_id;
-    }
-    next();
-});
 
 export const FoodOrder = mongoose.model('FoodOrder', orderSchema);
 
 const settingsSchema = new mongoose.Schema(
     {
         key: { type: String, required: true, unique: true, trim: true },
-        dispatchMode: { type: String, enum: ['auto'], default: 'auto' },
+        dispatchMode: { type: String, enum: ['auto', 'manual'], default: 'manual' },
         updatedBy: {
             role: { type: String },
             adminId: { type: mongoose.Schema.Types.ObjectId },

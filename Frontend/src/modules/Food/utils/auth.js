@@ -150,6 +150,10 @@ export function clearModuleAuth(module) {
   localStorage.removeItem(`${module}_refreshToken`);
   localStorage.removeItem(`${module}_authenticated`);
   localStorage.removeItem(`${module}_user`);
+  if (module === "user") {
+    localStorage.removeItem("auth_customer");
+    localStorage.removeItem("accessToken");
+  }
   // Clear cached FCM web token for this module
   localStorage.removeItem(`fcm_web_registered_token_${module}`);
   if (module === "restaurant") {
@@ -250,6 +254,10 @@ export function setAuthData(module, token, user, refreshToken = null) {
     }
 
     localStorage.setItem(tokenKey, token);
+    if (module === "user") {
+      localStorage.setItem("auth_customer", token);
+      localStorage.setItem("accessToken", token);
+    }
     if (refreshToken && typeof refreshToken === "string") {
       localStorage.setItem(refreshTokenKey, refreshToken);
     }
@@ -295,6 +303,10 @@ export function setAuthData(module, token, user, refreshToken = null) {
         localStorage.removeItem('user');
         // Retry storing
         localStorage.setItem(`${module}_accessToken`, token);
+        if (module === "user") {
+          localStorage.setItem("auth_customer", token);
+          localStorage.setItem("accessToken", token);
+        }
         if (refreshToken && typeof refreshToken === "string") {
           localStorage.setItem(`${module}_refreshToken`, refreshToken);
         }

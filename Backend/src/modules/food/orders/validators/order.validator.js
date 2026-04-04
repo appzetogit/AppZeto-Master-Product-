@@ -4,6 +4,9 @@ import { ValidationError } from '../../../../core/auth/errors.js';
 const orderItemSchema = z.object({
     itemId: z.string().min(1, 'Item id required'),
     name: z.string().min(1, 'Item name required'),
+    type: z.enum(['food', 'quick']),
+    sourceId: z.string().min(1, 'Source id required'),
+    sourceName: z.string().optional(),
     variantId: z.string().optional(),
     variantName: z.string().optional(),
     variantPrice: z.number().min(0).optional(),
@@ -45,12 +48,46 @@ const pricingSchema = z.object({
 
 export function validateCalculateOrderDto(body) {
     const schema = z.object({
+        orderType: z.enum(['food', 'quick', 'mixed']).optional().default('food'),
         items: z.array(orderItemSchema).min(1, 'At least one item required'),
-        restaurantId: z.string().min(1, 'Restaurant id required'),
+        address: addressSchema.optional(),
+        restaurantId: z.string().optional(),
         deliveryAddressId: z.string().optional(),
         zoneId: z.string().optional(),
         couponCode: z.string().optional(),
         deliveryFleet: z.string().optional()
+    }).superRefine((data, ctx) => {
+        const hasFoodItems = data.items.some((item) => item.type === 'food');
+        const hasQuickItems = data.items.some((item) => item.type === 'quick');
+
+        if (data.orderType === 'mixed' && (!hasFoodItems || !hasQuickItems)) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['items'],
+                message: 'Mixed orders must include both food and quick items'
+            });
+        }
+        if (data.orderType === 'food' && hasQuickItems) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['items'],
+                message: 'Food orders cannot include quick items'
+            });
+        }
+        if (data.orderType === 'quick' && hasFoodItems) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['items'],
+                message: 'Quick orders cannot include food items'
+            });
+        }
+        if (data.orderType === 'food' && !data.restaurantId) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['restaurantId'],
+                message: 'Restaurant id required'
+            });
+        }
     });
     const result = schema.safeParse(body);
     if (!result.success) {
@@ -64,9 +101,10 @@ export function validateCalculateOrderDto(body) {
 
 export function validateCreateOrderDto(body) {
     const schema = z.object({
+        orderType: z.enum(['food', 'quick', 'mixed']).optional().default('food'),
         items: z.array(orderItemSchema).min(1, 'At least one item required'),
-        address: addressSchema,
-        restaurantId: z.string().min(1, 'Restaurant id required'),
+        address: addressSchema.optional(),
+        restaurantId: z.string().optional(),
         restaurantName: z.string().optional(),
         customerName: z.string().optional(),
         customerPhone: z.string().optional(),
@@ -77,6 +115,45 @@ export function validateCreateOrderDto(body) {
         // 'razorpay_qr' means COD-style flow, but payment is collected via Razorpay QR at delivery.
         paymentMethod: z.enum(['cash', 'razorpay', 'razorpay_qr', 'card', 'wallet']),
         zoneId: z.string().nullable().optional()
+    }).superRefine((data, ctx) => {
+        const hasFoodItems = data.items.some((item) => item.type === 'food');
+        const hasQuickItems = data.items.some((item) => item.type === 'quick');
+
+        if (data.orderType === 'mixed' && (!hasFoodItems || !hasQuickItems)) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['items'],
+                message: 'Mixed orders must include both food and quick items'
+            });
+        }
+        if (data.orderType === 'food' && hasQuickItems) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['items'],
+                message: 'Food orders cannot include quick items'
+            });
+        }
+        if (data.orderType === 'quick' && hasFoodItems) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['items'],
+                message: 'Quick orders cannot include food items'
+            });
+        }
+        if (data.orderType === 'food' && !data.restaurantId) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['restaurantId'],
+                message: 'Restaurant id required'
+            });
+        }
+        if ((data.orderType === 'food' || data.orderType === 'mixed' || data.orderType === 'quick') && !data.address) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['address'],
+                message: 'Address is required'
+            });
+        }
     });
     const result = schema.safeParse(body);
     if (!result.success) {

@@ -1,0 +1,620 @@
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@core/context/AuthContext";
+import { motion } from "framer-motion";
+import {
+  ArrowRight,
+  Building2,
+  Check,
+  CreditCard,
+  FileBadge2,
+  Loader2,
+  MapPin,
+  ShieldCheck,
+  Store,
+  Upload,
+} from "lucide-react";
+import { toast } from "sonner";
+import { sellerApi } from "../services/sellerApi";
+import MapPicker from "@shared/components/MapPicker";
+
+const businessTypes = [
+  "Grocery",
+  "Bakery",
+  "Pharmacy",
+  "Electronics",
+  "Fashion",
+  "General Store",
+];
+
+const initialState = {
+  name: "",
+  shopName: "",
+  email: "",
+  phone: "",
+  zoneId: "",
+  zoneSource: "",
+  address: "",
+  lat: "",
+  lng: "",
+  radius: 5,
+  businessType: "",
+  alternatePhone: "",
+  supportEmail: "",
+  openingHours: "",
+  bankName: "",
+  accountHolderName: "",
+  accountNumber: "",
+  ifscCode: "",
+  accountType: "",
+  upiId: "",
+  panNumber: "",
+  gstRegistered: false,
+  gstNumber: "",
+  gstLegalName: "",
+  fssaiNumber: "",
+  fssaiExpiry: "",
+  shopLicenseNumber: "",
+  shopLicenseExpiry: "",
+};
+
+const parseOpeningHours = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return { openingTime: "", closingTime: "" };
+  }
+
+  const match = raw.match(/(\d{1,2}:\d{2})(?::\d{2})?\s*(?:-|to)\s*(\d{1,2}:\d{2})(?::\d{2})?/i);
+  if (match) {
+    return {
+      openingTime: match[1].padStart(5, "0"),
+      closingTime: match[2].padStart(5, "0"),
+    };
+  }
+
+  return { openingTime: "", closingTime: "" };
+};
+
+const buildOpeningHoursLabel = (openingTime, closingTime) => {
+  if (!openingTime || !closingTime) return "";
+  return `${openingTime} - ${closingTime}`;
+};
+const timeOptions = Array.from({ length: 48 }, (_, index) => {
+  const hours = String(Math.floor(index / 2)).padStart(2, "0");
+  const minutes = index % 2 === 0 ? "00" : "30";
+  return `${hours}:${minutes}`;
+});
+
+const normalizeTimeValue = (value) => {
+  const raw = String(value || "").trim();
+  const match = raw.match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return "";
+  return `${match[1].padStart(2, "0")}:${match[2]}`;
+};
+
+const getSellerPhone = (seller = {}) => seller.phone || "";
+
+
+export default function SellerOnboarding() {
+  const navigate = useNavigate();
+  const { user, refreshUser } = useAuth();
+  const [form, setForm] = useState(initialState);
+  const [qrFile, setQrFile] = useState(null);
+  const [licenseFile, setLicenseFile] = useState(null);
+  const [isMapOpen, setIsMapOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [zones, setZones] = useState([]);
+  const [zonesLoading, setZonesLoading] = useState(true);
+  const [isSavingHours, setIsSavingHours] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hoursDraft, setHoursDraft] = useState({ openingTime: "", closingTime: "" });
+
+  useEffect(() => {
+    if (user) {
+      setForm((prev) => ({ ...initialState, phone: getSellerPhone(user) || prev.phone }));
+      setHoursDraft({ openingTime: "", closingTime: "" });
+    }
+  }, [user]);
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const response = await sellerApi.getProfile();
+        const data = response?.data?.result || {};
+        setForm((prev) => ({ ...initialState, phone: getSellerPhone(data) || prev.phone }));
+        setHoursDraft(parseOpeningHours(data?.shopInfo?.openingHours || data?.openingHours || ""));
+      } catch (error) {
+        toast.error("Failed to load seller onboarding data");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadProfile();
+  }, []);
+
+  useEffect(() => {
+    const loadZones = async () => {
+      try {
+        setZonesLoading(true);
+        const quickResponse = await sellerApi.getQuickZonesPublic();
+        const quickZones = Array.isArray(quickResponse?.data?.result?.zones)
+          ? quickResponse.data.result.zones
+          : Array.isArray(quickResponse?.data?.data?.zones)
+            ? quickResponse.data.data.zones
+            : [];
+
+        setZones(
+          quickZones.map((zone) => ({
+            ...zone,
+            source: "quick",
+            label: zone?.name || zone?.zoneName || zone?.serviceLocation || "Quick Zone",
+          })),
+        );
+      } catch (error) {
+        toast.error("Failed to load service zones");
+        setZones([]);
+      } finally {
+        setZonesLoading(false);
+      }
+    };
+
+    loadZones();
+  }, []);
+
+  const completionText = useMemo(() => {
+    const fields = [
+      form.name,
+      form.shopName,
+      form.email,
+      form.address,
+      form.businessType,
+      form.accountNumber,
+      form.ifscCode,
+      form.upiId,
+      form.shopLicenseNumber,
+    ];
+    const done = fields.filter(Boolean).length;
+    return `${done}/9 core fields filled`;
+  }, [form]);
+
+  const updateField = (key, value) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const { openingTime, closingTime } = useMemo(
+    () => parseOpeningHours(form.openingHours),
+    [form.openingHours],
+  );
+
+
+  const selectedZone = useMemo(
+    () =>
+      zones.find(
+        (zone) =>
+          String(zone?._id || zone?.id || "") === String(form.zoneId || "") &&
+          String(zone?.source || "") === String(form.zoneSource || ""),
+      ) || null,
+    [form.zoneId, form.zoneSource, zones],
+  );
+
+  const handleOpeningHoursChange = (key, value) => {
+    const normalizedValue = normalizeTimeValue(value);
+    setHoursDraft((prev) => ({
+      ...prev,
+      [key]: normalizedValue,
+    }));
+  };
+
+  const handleSaveOpeningHours = async () => {
+    if (!hoursDraft.openingTime || !hoursDraft.closingTime) {
+      toast.error("Select both opening and closing time first");
+      return;
+    }
+
+    const openingHoursLabel = buildOpeningHoursLabel(
+      hoursDraft.openingTime,
+      hoursDraft.closingTime,
+    );
+
+    setIsSavingHours(true);
+    try {
+      updateField("openingHours", openingHoursLabel);
+      await sellerApi.updateProfile({
+        openingHours: openingHoursLabel,
+      });
+      toast.success("Opening hours saved");
+    } catch (error) {
+      toast.error(
+        error?.response?.data?.message || "Failed to save opening hours",
+      );
+    } finally {
+      setIsSavingHours(false);
+    }
+  };
+
+  const openingHoursPreview =
+    buildOpeningHoursLabel(hoursDraft.openingTime, hoursDraft.closingTime) ||
+    form.openingHours ||
+    "Not set";
+
+  const handleLocationSelect = (location) => {
+    setForm((prev) => ({
+      ...prev,
+      lat: Number.isFinite(location?.lat) ? Number(location.lat.toFixed(6)) : prev.lat,
+      lng: Number.isFinite(location?.lng) ? Number(location.lng.toFixed(6)) : prev.lng,
+      radius: location?.radius || prev.radius,
+      address: location?.address || prev.address,
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!form.name || !form.shopName || !form.email || !form.address) {
+      toast.error("Fill seller name, shop name, email, and address first");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const payload = new FormData();
+      const nextForm = {
+        ...form,
+        zoneName: selectedZone?.label || "",
+      };
+      Object.entries(nextForm).forEach(([key, value]) => {
+        payload.append(
+          key,
+          typeof value === "boolean" ? String(value) : String(value ?? ""),
+        );
+      });
+      payload.append("submitForApproval", "true");
+      if (qrFile) payload.append("upiQrImage", qrFile);
+      if (licenseFile) payload.append("shopLicenseImage", licenseFile);
+
+      await sellerApi.updateProfile(payload);
+      await refreshUser();
+      toast.success("Application submitted for admin approval");
+      navigate("/seller/pending", { replace: true });
+    } catch (error) {
+      toast.error(
+        error?.response?.data?.message || "Failed to submit onboarding",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#f7f6f2]">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-700" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(251,191,36,0.18),_transparent_28%),linear-gradient(180deg,#f8fafc_0%,#fffaf2_100%)] px-4 py-8 font-['Outfit'] md:px-8">
+      <div className="mx-auto max-w-7xl">
+        <div className="grid gap-8 lg:grid-cols-[1.05fr_1.4fr]">
+          <motion.div
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-[34px] bg-[linear-gradient(160deg,#0f172a_0%,#0f766e_55%,#f59e0b_130%)] p-8 text-white shadow-[0_35px_90px_rgba(15,23,42,0.22)]"
+          >
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-[11px] font-black uppercase tracking-[0.3em]">
+              <ShieldCheck className="h-4 w-4" />
+              Seller Onboarding
+            </div>
+            <h1 className="mt-8 text-4xl font-black leading-tight">
+              Set up your store once and send it straight for approval.
+            </h1>
+            <p className="mt-4 max-w-lg text-sm font-medium leading-7 text-white/78">
+              We&apos;ll save your banking, compliance, and shop details together,
+              then raise a real joining request in quick-commerce admin.
+            </p>
+
+            <div className="mt-10 space-y-4">
+              {[
+                {
+                  icon: Store,
+                  title: "Store Identity",
+                  text: "Owner, shop, location, and operational details.",
+                },
+                {
+                  icon: CreditCard,
+                  title: "Bank & UPI",
+                  text: "Settlement-ready bank account and QR image.",
+                },
+                {
+                  icon: FileBadge2,
+                  title: "Compliance",
+                  text: "PAN, GST, FSSAI, and shop license details.",
+                },
+              ].map((item) => (
+                <div
+                  key={item.title}
+                  className="rounded-3xl border border-white/12 bg-white/10 p-5 backdrop-blur-sm"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="rounded-2xl bg-white/12 p-3">
+                      <item.icon className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-black">{item.title}</p>
+                      <p className="mt-1 text-xs font-medium leading-6 text-white/72">
+                        {item.text}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-8 rounded-3xl border border-white/12 bg-white/10 p-5">
+              <p className="text-[11px] font-black uppercase tracking-[0.28em] text-white/60">
+                Progress Signal
+              </p>
+              <p className="mt-2 text-2xl font-black">{completionText}</p>
+              <p className="mt-2 text-xs font-semibold text-white/70">
+                Add the missing core details and submit. Admin will see the
+                request inside quick-commerce.
+              </p>
+            </div>
+          </motion.div>
+
+          <motion.form
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            onSubmit={handleSubmit}
+            className="space-y-6 rounded-[34px] border border-white/70 bg-white/90 p-6 shadow-[0_35px_90px_rgba(15,23,42,0.08)] backdrop-blur xl:p-8"
+          >
+            <section className="space-y-5">
+              <div className="flex items-center gap-3">
+                <div className="rounded-2xl bg-amber-100 p-3 text-amber-700">
+                  <Building2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-black text-slate-900">
+                    Store identity
+                  </h2>
+                  <p className="text-sm font-medium text-slate-500">
+                    How your seller account will appear to admin and customers.
+                  </p>
+                </div>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="Seller name" value={form.name} onChange={(e) => updateField("name", e.target.value)} />
+                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="Shop name" value={form.shopName} onChange={(e) => updateField("shopName", e.target.value)} />
+                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="Email" type="email" value={form.email} onChange={(e) => updateField("email", e.target.value)} />
+                <input className="rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 font-semibold text-slate-500 outline-none" placeholder="Primary phone" value={form.phone} readOnly title="Linked from the seller OTP login" />
+                <select className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" value={form.businessType} onChange={(e) => updateField("businessType", e.target.value)}>
+                  <option value="">Select business type</option>
+                  {businessTypes.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="Alternate phone" value={form.alternatePhone} onChange={(e) => updateField("alternatePhone", e.target.value.replace(/\D/g, "").slice(0, 10))} />
+                <select
+                  className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900"
+                  value={`${form.zoneSource}:${form.zoneId}`}
+                  onChange={(e) => {
+                    const [zoneSource, zoneId] = e.target.value.split(":");
+                    setForm((prev) => ({
+                      ...prev,
+                      zoneSource: zoneSource || "",
+                      zoneId: zoneId || "",
+                    }));
+                  }}
+                  disabled={zonesLoading}
+                >
+                  <option value=":">
+                    {zonesLoading ? "Loading zones..." : "Select a service zone"}
+                  </option>
+                  {zones.map((zone) => {
+                    const zoneId = String(zone?._id || zone?.id || "");
+                    const zoneSource = String(zone?.source || "");
+                    return (
+                      <option key={`${zoneSource}-${zoneId}`} value={`${zoneSource}:${zoneId}`}>
+                        {zone.label}
+                      </option>
+                    );
+                  })}
+                </select>
+                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900 md:col-span-2" placeholder="Support email" value={form.supportEmail} onChange={(e) => updateField("supportEmail", e.target.value)} />
+                {selectedZone ? (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 md:col-span-2">
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-600">Selected zone</p>
+                    <p className="mt-1 text-sm font-semibold text-emerald-900">
+                      {selectedZone.label}
+                    </p>
+                  </div>
+                ) : null}
+                <div className="rounded-[24px] border border-slate-200 bg-slate-50/70 p-4 md:col-span-2">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-black text-slate-900">Opening hours</p>
+                      <p className="text-xs font-medium text-slate-500">Select your daily opening and closing time.</p>
+                    </div>
+                    <span className="rounded-full bg-white px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                      {openingHoursPreview}
+                    </span>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <label className="space-y-2">
+                      <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Opens at</span>
+                      <select
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 font-semibold outline-none focus:border-slate-900"
+                        value={hoursDraft.openingTime}
+                        onChange={(e) => handleOpeningHoursChange("openingTime", e.target.value)}
+                      >
+                        <option value="">Select opening time</option>
+                        {timeOptions.map((time) => (
+                          <option key={time} value={time}>
+                            {time}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="space-y-2">
+                      <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Closes at</span>
+                      <select
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 font-semibold outline-none focus:border-slate-900"
+                        value={hoursDraft.closingTime}
+                        onChange={(e) => handleOpeningHoursChange("closingTime", e.target.value)}
+                      >
+                        <option value="">Select closing time</option>
+                        {timeOptions.map((time) => (
+                          <option key={time} value={time}>
+                            {time}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleSaveOpeningHours}
+                      disabled={isSavingHours}
+                      className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      {isSavingHours ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                      {isSavingHours ? "Saving..." : "Save Hours"}
+                    </button>
+                  </div>
+                </div>
+                <div className="rounded-[24px] border border-slate-200 bg-slate-50/70 p-4 md:col-span-2">
+                  <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div className="space-y-1">
+                      <p className="text-sm font-black text-slate-900">Store location</p>
+                      <p className="text-xs font-medium text-slate-500">Pin your storefront on the map so deliveries route correctly.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsMapOpen(true)}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-white transition hover:bg-black"
+                    >
+                      <MapPin className="h-4 w-4" />
+                      {form.lat && form.lng ? "Change Pin" : "Pick On Map"}
+                    </button>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-[1.4fr_0.8fr]">
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Selected address</p>
+                      <p className="mt-2 text-sm font-semibold leading-6 text-slate-700">
+                        {form.address || "Choose your store location on the map to auto-fill the address."}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Coverage</p>
+                      <p className="mt-2 text-2xl font-black text-slate-900">{form.radius || 5} km</p>
+                      <p className="mt-1 text-xs font-medium text-slate-500">Adjust this inside the map picker.</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Latitude</p>
+                      <p className="mt-1 font-semibold text-slate-700">{form.lat || "Not selected"}</p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Longitude</p>
+                      <p className="mt-1 font-semibold text-slate-700">{form.lng || "Not selected"}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="space-y-5 rounded-[28px] bg-slate-50/80 p-5">
+              <h2 className="text-lg font-black text-slate-900">
+                Banking and UPI
+              </h2>
+              <div className="grid gap-4 md:grid-cols-2">
+                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="Bank name" value={form.bankName} onChange={(e) => updateField("bankName", e.target.value)} />
+                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="Account holder name" value={form.accountHolderName} onChange={(e) => updateField("accountHolderName", e.target.value)} />
+                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="Account number" value={form.accountNumber} onChange={(e) => updateField("accountNumber", e.target.value)} />
+                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold uppercase outline-none focus:border-slate-900" placeholder="IFSC code" value={form.ifscCode} onChange={(e) => updateField("ifscCode", e.target.value.toUpperCase())} />
+                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="Account type" value={form.accountType} onChange={(e) => updateField("accountType", e.target.value)} />
+                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="UPI ID" value={form.upiId} onChange={(e) => updateField("upiId", e.target.value)} />
+                <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-700 md:col-span-2">
+                  <span>{qrFile?.name || "Upload UPI QR image"}</span>
+                  <span className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] text-white">
+                    <Upload className="h-3.5 w-3.5" />
+                    Choose
+                  </span>
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => setQrFile(e.target.files?.[0] || null)} />
+                </label>
+              </div>
+            </section>
+
+            <section className="space-y-5">
+              <h2 className="text-lg font-black text-slate-900">
+                Compliance and license
+              </h2>
+              <div className="grid gap-4 md:grid-cols-2">
+                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold uppercase outline-none focus:border-slate-900" placeholder="PAN number" value={form.panNumber} onChange={(e) => updateField("panNumber", e.target.value.toUpperCase())} />
+                <label className="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 font-semibold text-slate-700">
+                  <input type="checkbox" checked={form.gstRegistered} onChange={(e) => updateField("gstRegistered", e.target.checked)} />
+                  GST registered
+                </label>
+                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold uppercase outline-none focus:border-slate-900" placeholder="GST number" value={form.gstNumber} onChange={(e) => updateField("gstNumber", e.target.value.toUpperCase())} />
+                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="GST legal name" value={form.gstLegalName} onChange={(e) => updateField("gstLegalName", e.target.value)} />
+                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="FSSAI number" value={form.fssaiNumber} onChange={(e) => updateField("fssaiNumber", e.target.value)} />
+                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" type="date" value={form.fssaiExpiry} onChange={(e) => updateField("fssaiExpiry", e.target.value)} />
+                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="Shop license number" value={form.shopLicenseNumber} onChange={(e) => updateField("shopLicenseNumber", e.target.value)} />
+                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" type="date" value={form.shopLicenseExpiry} onChange={(e) => updateField("shopLicenseExpiry", e.target.value)} />
+                <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-700 md:col-span-2">
+                  <span>{licenseFile?.name || "Upload shop license image"}</span>
+                  <span className="inline-flex items-center gap-2 rounded-full bg-amber-500 px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] text-white">
+                    <Upload className="h-3.5 w-3.5" />
+                    Choose
+                  </span>
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => setLicenseFile(e.target.files?.[0] || null)} />
+                </label>
+              </div>
+            </section>
+
+            <div className="flex flex-col gap-3 border-t border-slate-100 pt-6 md:flex-row md:items-center md:justify-between">
+              <p className="max-w-xl text-sm font-medium leading-6 text-slate-500">
+                When you submit, the seller request will move into admin review
+                under quick-commerce. Approval unlocks the seller dashboard.
+              </p>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 py-4 text-sm font-black uppercase tracking-[0.22em] text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {isSubmitting ? "Submitting..." : "Submit for approval"}
+                {!isSubmitting && <ArrowRight className="h-4 w-4" />}
+              </button>
+            </div>
+          </motion.form>
+        </div>
+      </div>
+
+      {isMapOpen && (
+        <MapPicker
+          isOpen={isMapOpen}
+          onClose={() => setIsMapOpen(false)}
+          onConfirm={handleLocationSelect}
+          initialLocation={
+            form.lat && form.lng
+              ? { lat: Number(form.lat), lng: Number(form.lng) }
+              : null
+          }
+          initialRadius={Number(form.radius) || 5}
+          maxRadius={100}
+          zoneCoordinates={selectedZone?.coordinates || []}
+          zoneLabel={selectedZone?.label || ""}
+        />
+      )}
+    </div>
+  );
+}
+
+
+

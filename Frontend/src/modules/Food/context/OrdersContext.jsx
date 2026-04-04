@@ -3,8 +3,18 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 const OrdersContext = createContext(null)
 
 export function OrdersProvider({ children }) {
+  const hasCustomerAuth = () => {
+    if (typeof window === "undefined") return false
+    return Boolean(
+      localStorage.getItem("auth_customer") ||
+      localStorage.getItem("user_accessToken") ||
+      localStorage.getItem("accessToken")
+    )
+  }
+
   const [orders, setOrders] = useState(() => {
     if (typeof window === "undefined") return []
+    if (!hasCustomerAuth()) return []
     try {
       const saved = localStorage.getItem("userOrders")
       return saved ? JSON.parse(saved) : []
@@ -14,6 +24,18 @@ export function OrdersProvider({ children }) {
   })
 
   useEffect(() => {
+    if (!hasCustomerAuth()) {
+      try {
+        localStorage.removeItem("userOrders")
+      } catch {
+        // ignore storage errors
+      }
+      if (orders.length > 0) {
+        setOrders([])
+      }
+      return
+    }
+
     try {
       // Only items that exist or are linked to an authenticated user
       const isAuthenticated = localStorage.getItem("user_authenticated") === "true" || !!localStorage.getItem("user_accessToken");

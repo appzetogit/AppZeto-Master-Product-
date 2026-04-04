@@ -21,7 +21,7 @@ export async function getBusinessSettings(req, res, next) {
 export async function updateBusinessSettings(req, res, next) {
     try {
         const data = req.body.data ? JSON.parse(req.body.data) : {};
-        const { companyName, email, phoneCountryCode, phoneNumber, address, state, pincode, region } = data;
+        const { companyName, email, phoneCountryCode, phoneNumber, address, state, pincode, region, logoUrl, faviconUrl } = data;
 
         // Validation
         if (!companyName || companyName.trim().length < 2 || companyName.trim().length > 50) {
@@ -60,6 +60,18 @@ export async function updateBusinessSettings(req, res, next) {
         if (state !== undefined) settings.state = state;
         if (pincode !== undefined) settings.pincode = pincode;
         if (region) settings.region = region;
+        if (logoUrl !== undefined) {
+            settings.logo = {
+                url: String(logoUrl || '').trim(),
+                publicId: settings.logo?.publicId || ''
+            };
+        }
+        if (faviconUrl !== undefined) {
+            settings.favicon = {
+                url: String(faviconUrl || '').trim(),
+                publicId: settings.favicon?.publicId || ''
+            };
+        }
 
         // Handle file uploads
         if (req.files) {

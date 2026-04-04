@@ -10,6 +10,24 @@ const generateOtpCode = () => {
     return String(code);
 };
 
+const normalizePhoneForOtp = (phone) => String(phone || '').replace(/\D/g, '');
+
+const getPhoneCandidates = (phone) => {
+    const raw = String(phone || '').trim();
+    const digits = normalizePhoneForOtp(phone);
+    const last10 = digits.slice(-10);
+
+    return Array.from(new Set([
+        raw,
+        digits,
+        last10,
+        digits ? `+${digits}` : '',
+        last10 ? `+91 ${last10}` : '',
+        last10 ? `+91${last10}` : '',
+        last10 ? `91${last10}` : '',
+    ].filter(Boolean)));
+};
+
 /**
  * Sends SMS via SMS India Hub API
  * @param {string} phone - 10-digit mobile number (will be prefixed with 91)
@@ -69,8 +87,11 @@ const sendSmsViaIndiaHub = async (phone, otp) => {
     }
 };
 
-export const createOrUpdateOtp = async (phone) => {
-    const existing = await FoodOtp.findOne({ phone });
+export const createOrUpdateOtp = async (phone, options = {}) => {
+    const forceRandom = options?.forceRandom === true;
+    const phoneCandidates = getPhoneCandidates(phone);
+    const normalizedPhone = normalizePhoneForOtp(phone) || String(phone || '').trim();
+    const existing = await FoodOtp.findOne({ phone: { $in: phoneCandidates } });
     const now = new Date();
 
     // Rate Limiting Logic
@@ -90,8 +111,10 @@ export const createOrUpdateOtp = async (phone) => {
         }
     }
 
+    const shouldUseDefaultOtp = config.useDefaultOtp && !forceRandom;
+
     let otp;
-    if (config.useDefaultOtp) {
+    if (shouldUseDefaultOtp) {
         otp = '1234';
         logger.info(`Default OTP mode enabled – OTP is ${otp} for phone ${phone}`);
     } else {
@@ -110,6 +133,7 @@ export const createOrUpdateOtp = async (phone) => {
     const expiresAt = new Date(now.getTime() + ttlMs);
 
     if (existing) {
+        existing.phone = normalizedPhone;
         existing.otp = otp;
         existing.expiresAt = expiresAt;
         existing.attempts = 0;
@@ -117,7 +141,7 @@ export const createOrUpdateOtp = async (phone) => {
         await existing.save();
     } else {
         await FoodOtp.create({ 
-            phone, 
+            phone: normalizedPhone,
             otp, 
             expiresAt,
             requestCount: 1,
@@ -125,16 +149,19 @@ export const createOrUpdateOtp = async (phone) => {
         });
     }
 
-    // Only send SMS if not in default OTP mode
-    if (!config.useDefaultOtp) {
+    // Only send SMS if not in default OTP mode and credentials exist.
+    if (!shouldUseDefaultOtp && config.smsApiKey && config.smsSenderId) {
         await sendSmsViaIndiaHub(phone, otp);
+    } else if (!shouldUseDefaultOtp) {
+        logger.warn(`OTP generated for ${phone}, but SMS delivery is skipped because SMS India Hub credentials are missing.`);
     }
 
     return otp;
 };
 
 export const verifyOtp = async (phone, otp) => {
-    const record = await FoodOtp.findOne({ phone });
+    const phoneCandidates = getPhoneCandidates(phone);
+    const record = await FoodOtp.findOne({ phone: { $in: phoneCandidates } });
     if (!record) {
         return { valid: false, reason: 'OTP not found' };
     }

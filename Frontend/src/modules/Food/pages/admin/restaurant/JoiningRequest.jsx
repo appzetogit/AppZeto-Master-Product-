@@ -8,6 +8,22 @@ const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
+const getZoneLabel = (request) =>
+  request?.zone ||
+  request?.zoneName ||
+  request?.zoneId?.name ||
+  request?.zoneId?.zoneName ||
+  request?.zoneId?.serviceLocation ||
+  "—"
+
+const normalizeRequestRecord = (request, index) => ({
+  ...request,
+  sl: index + 1,
+  zone: getZoneLabel(request),
+  businessModel: request?.businessModel || "",
+  fullData: request?.fullData || request,
+})
+
 const formatTime12Hour = (timeStr) => {
   if (!timeStr || typeof timeStr !== "string" || !timeStr.includes(":")) return "--:-- --"
   const [h, m] = timeStr.split(":").map(Number)
@@ -35,6 +51,7 @@ export default function JoiningRequest() {
   const [showFilterDialog, setShowFilterDialog] = useState(false)
   const [filters, setFilters] = useState({
     zone: "",
+    businessModel: "",
     dateFrom: "",
     dateTo: ""
   })
@@ -63,7 +80,9 @@ export default function JoiningRequest() {
       setError(null)
 
       const response = await adminAPI.getPendingRestaurants()
-      const list = response?.data?.data || []
+      const list = (response?.data?.data || []).map((request, index) =>
+        normalizeRequestRecord(request, index),
+      )
       if (activeTab === "pending") {
         setPendingRequests(list.filter((r) => r.status === "pending"))
       } else {
@@ -87,7 +106,8 @@ export default function JoiningRequest() {
   // Get unique zones and business models for filter options
   const filterOptions = useMemo(() => {
     const zones = [...new Set(currentRequests.map(r => r.zone).filter(Boolean))]
-    return { zones }
+    const businessModels = [...new Set(currentRequests.map(r => r.businessModel).filter(Boolean))]
+    return { zones, businessModels }
   }, [currentRequests])
 
   const filteredRequests = useMemo(() => {
@@ -108,6 +128,10 @@ export default function JoiningRequest() {
       filtered = filtered.filter(request => request.zone === filters.zone)
     }
 
+    // Apply business model filter
+    if (filters.businessModel) {
+      filtered = filtered.filter(request => request.businessModel === filters.businessModel)
+    }
 
     // Apply date range filter
     if (filters.dateFrom || filters.dateTo) {
@@ -132,12 +156,13 @@ export default function JoiningRequest() {
   const clearFilters = () => {
     setFilters({
       zone: "",
+      businessModel: "",
       dateFrom: "",
       dateTo: ""
     })
   }
 
-  const hasActiveFilters = filters.zone || filters.dateFrom || filters.dateTo
+  const hasActiveFilters = filters.zone || filters.businessModel || filters.dateFrom || filters.dateTo
 
   const handleApprove = async (request) => {
     if (window.confirm(`Are you sure you want to approve "${request.restaurantName}" restaurant request?`)) {
@@ -332,7 +357,7 @@ export default function JoiningRequest() {
                 Filter
                 {hasActiveFilters && (
                   <span className="ml-1 px-1.5 py-0.5 bg-blue-600 text-white text-xs rounded-full">
-                    {[filters.zone, filters.dateFrom, filters.dateTo].filter(Boolean).length}
+                    {[filters.zone, filters.businessModel, filters.dateFrom, filters.dateTo].filter(Boolean).length}
                   </span>
                 )}
               </button>
@@ -365,6 +390,12 @@ export default function JoiningRequest() {
                   <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
                     <div className="flex items-center gap-1">
                       <span>Zone</span>
+                      <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                    </div>
+                  </th>
+                  <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
+                    <div className="flex items-center gap-1">
+                      <span>Business Model</span>
                       <ArrowUpDown className="w-3 h-3 text-slate-400" />
                     </div>
                   </th>
@@ -403,7 +434,7 @@ export default function JoiningRequest() {
                   </tr>
                 ) : (
                   filteredRequests.map((request, index) => (
-                    <tr key={request._id || index} className="hover:bg-slate-50 transition-colors">
+                    <tr key={request._id || request.id || `${request.restaurantName}-${index}`} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="text-sm font-medium text-slate-700">{request.sl ?? index + 1}</span>
                       </td>
@@ -444,6 +475,9 @@ export default function JoiningRequest() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="text-sm text-slate-700">{request.zone || "—"}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm text-slate-700">{request.businessModel || "—"}</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${
@@ -532,6 +566,25 @@ export default function JoiningRequest() {
                       <option value="">All Zones</option>
                       {filterOptions.zones.map((zone) => (
                         <option key={zone} value={zone}>{zone}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Business Model Filter */}
+                {filterOptions.businessModels.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Business Model
+                    </label>
+                    <select
+                      value={filters.businessModel}
+                      onChange={(e) => setFilters({ ...filters, businessModel: e.target.value })}
+                      className="w-full px-4 py-2.5 text-sm rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">All Business Models</option>
+                      {filterOptions.businessModels.map((model) => (
+                        <option key={model} value={model}>{model}</option>
                       ))}
                     </select>
                   </div>
@@ -783,32 +836,21 @@ export default function JoiningRequest() {
                     <div>
                       <h4 className="text-lg font-semibold text-slate-900 mb-4">Location & Contact</h4>
                       <div className="space-y-3">
-                        {(() => {
-                          const loc = r?.location || r?.onboarding?.step1?.location
-                          const fullAddress = [
-                            r?.addressLine1 || loc?.addressLine1,
-                            r?.addressLine2 || loc?.addressLine2,
-                            r?.area || loc?.area,
-                            r?.city || loc?.city,
-                            r?.state || loc?.state,
-                            r?.pincode || loc?.pincode,
-                            r?.landmark || loc?.landmark,
-                          ].filter(Boolean).join(", ") || loc?.formattedAddress || loc?.address || r?.zone || null
-                          return fullAddress ? (
-                            <div className="flex items-start gap-3">
-                              <MapPin className="w-5 h-5 text-slate-400 mt-0.5 shrink-0" />
-                              <div>
-                                <p className="text-xs text-slate-500">Address</p>
-                                <p className="text-sm font-medium text-slate-900">{fullAddress}</p>
-                              </div>
+                        {(hasAddress || r?.zone) && (
+                          <div className="flex items-start gap-3">
+                            <MapPin className="w-5 h-5 text-slate-400 mt-0.5 shrink-0" />
+                            <div>
+                              <p className="text-xs text-slate-500">Address</p>
+                              <p className="text-sm font-medium text-slate-900">
+                                {addressParts.length > 0
+                                  ? [r.addressLine1, r.addressLine2, r.area, r.city, r.landmark].filter(Boolean).join(", ")
+                                  : r?.location?.addressLine1
+                                    ? [r.location.addressLine1, r.location.addressLine2, r.location.area, r.location.city].filter(Boolean).join(", ")
+                                    : r?.onboarding?.step1?.location
+                                      ? [r.onboarding.step1.location.addressLine1, r.onboarding.step1.location.addressLine2, r.onboarding.step1.location.area, r.onboarding.step1.location.city].filter(Boolean).join(", ")
+                                      : r?.zone || "—"}
+                              </p>
                             </div>
-                          ) : null
-                        })()}
-                        {r?.pureVegRestaurant != null && (
-                          <div className="flex items-center gap-3">
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${r.pureVegRestaurant ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"}`}>
-                              {r.pureVegRestaurant ? "🟢 Pure Veg" : "🟠 Mixed Menu"}
-                            </span>
                           </div>
                         )}
                         {(r?.primaryContactNumber || r?.phone) && (
@@ -824,8 +866,50 @@ export default function JoiningRequest() {
                     </div>
                   </div>
 
-                  {/* Timings */}
-                  <div>
+                  {/* Cuisine & Timings */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <h4 className="text-lg font-semibold text-slate-900 mb-4">Cuisine & Details</h4>
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-xs text-slate-500 mb-1">Cuisines</p>
+                          <div className="flex flex-wrap gap-2">
+                            {r?.cuisines && Array.isArray(r.cuisines) && r.cuisines.length > 0 ? (
+                              r.cuisines.map((cuisine, idx) => (
+                                <span key={idx} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                                  {cuisine}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-sm text-slate-700">N/A</span>
+                            )}
+                          </div>
+                        </div>
+                        {typeof r?.pureVegRestaurant === "boolean" && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-1">Food Type</p>
+                            <p className="text-sm font-medium text-slate-900">
+                              {r.pureVegRestaurant ? "Pure Veg" : "Mixed"}
+                            </p>
+                          </div>
+                        )}
+                        {r?.offer && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-1">Current Offer</p>
+                            <p className="text-sm font-medium text-green-600">{r.offer}</p>
+                          </div>
+                        )}
+                        {r?.featuredDish && (
+                          <div>
+                            <p className="text-xs text-slate-500 mb-1">Featured Dish</p>
+                            <p className="text-sm font-medium text-slate-900">{r.featuredDish}</p>
+                            {r.featuredPrice != null && <p className="text-xs text-green-600 mt-1">₹{r.featuredPrice}</p>}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
                       <h4 className="text-lg font-semibold text-slate-900 mb-4">Timings & Status</h4>
                       <div className="space-y-3">
                         {(openingTime || closingTime) && (
@@ -867,6 +951,7 @@ export default function JoiningRequest() {
                         </div>
                       </div>
                     </div>
+                  </div>
 
                   {/* Registration Documents – flat schema (PAN, GST, FSSAI, Bank) */}
                   {restaurantPhotoList.length > 0 && (

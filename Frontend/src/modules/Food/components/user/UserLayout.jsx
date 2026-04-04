@@ -146,25 +146,23 @@ export default function UserLayout() {
       <CartProvider>
         <ProfileProvider>
           <OrdersProvider>
-            <SearchOverlayProvider>
-              <LocationSelectorProvider>
-                {/* <Navbar /> */}
-                {/* Desktop Navbar - Hidden on mobile, visible on medium+ screens */}
-                <div className="hidden md:block">
-                  {showBottomNav && <DesktopNavbar showLogo={!isUnder250} />}
-                </div>
-                <LocationPrompt />
-                <main className={showBottomNav ? "md:pt-40" : ""}>
-                  <Outlet />
-                </main>
-                {showBottomNav && <BottomNavigation />}
-              </LocationSelectorProvider>
-            </SearchOverlayProvider>
+              <SearchOverlayProvider>
+                <LocationSelectorProvider>
+                  {/* <Navbar /> */}
+                  {/* Desktop Navbar - Hidden on mobile, visible on medium+ screens */}
+                  <div className="hidden md:block">
+                    {showBottomNav && <DesktopNavbar showLogo={!isUnder250} />}
+                  </div>
+                  <LocationPrompt />
+                  <main className={showBottomNav ? "md:pt-40" : ""}>
+                    <Outlet />
+                  </main>
+                  {showBottomNav && <BottomNavigation />}
+                </LocationSelectorProvider>
+              </SearchOverlayProvider>
           </OrdersProvider>
         </ProfileProvider>
       </CartProvider>
     </div>
   )
 }
-
-

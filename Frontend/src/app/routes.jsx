@@ -1,13 +1,18 @@
-import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Suspense, lazy, useEffect } from 'react'
 import { AppShellSkeleton } from '@food/components/ui/loading-skeletons'
+import ProtectedRoute from '@core/guards/ProtectedRoute'
+import RoleGuard from '@core/guards/RoleGuard'
+import { UserRole } from '@core/constants/roles'
 
 const NATIVE_LAST_ROUTE_KEY = 'native_last_route'
 
 // Lazy load the Food service module (Quick-spicy app)
 const FoodApp = lazy(() => import('../modules/Food/routes'))
 const AuthApp = lazy(() => import('../modules/auth/routes'))
-import ProtectedRoute from '@food/components/ProtectedRoute'
+const QuickCommerceApp = lazy(() => import('../modules/quickCommerce/routes'))
+const SellerAuthPage = lazy(() => import('../modules/seller/pages/Auth'))
+const SellerApp = lazy(() => import('../modules/seller/routes'))
 
 const PageLoader = () => <AppShellSkeleton />
 
@@ -35,7 +40,26 @@ const RedirectToFood = () => {
   return <Navigate to={`/food${location.pathname}${location.search}`} replace />;
 };
 
-const MasterLandingPage = lazy(() => import('./MasterLandingPage'))
+const SellerAuthEntry = () => {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <SellerAuthPage />
+    </Suspense>
+  )
+}
+
+const SellerAppWrapper = () => {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <ProtectedRoute>
+        <RoleGuard allowedRoles={[UserRole.SELLER]}>
+          <SellerApp />
+        </RoleGuard>
+      </ProtectedRoute>
+    </Suspense>
+  )
+}
+
 const AdminRouter = lazy(() => import('../modules/Food/components/admin/AdminRouter'))
 
 const AppRoutes = () => {
@@ -63,8 +87,8 @@ const AppRoutes = () => {
 
   return (
     <Routes>
-      {/* Root → Master Landing Page */}
-      <Route path="/" element={<Suspense fallback={<PageLoader />}><MasterLandingPage /></Suspense>} />
+      {/* Root now lands on the auth portal */}
+      <Route path="/" element={<Navigate to="/user/auth/portal" replace />} />
 
       {/* Auth Module */}
       <Route path="/user/auth/*" element={<AuthApp />} />
@@ -72,10 +96,22 @@ const AppRoutes = () => {
       {/* Food Module */}
       <Route path="/food/*" element={<FoodAppWrapper />} />
 
-      {/* Global Admin Portal - AdminRouter handles its own protection for sub-routes */}
-      <Route path="/admin/*" element={<AdminRouter />} />
+      {/* Quick-commerce Module */}
+      <Route
+        path="/quick-commerce/*"
+        element={
+          <Suspense fallback={<PageLoader />}>
+            <QuickCommerceApp />
+          </Suspense>
+        }
+      />
+      <Route path="/qc/*" element={<Navigate to="/quick-commerce" replace />} />
 
-      {/* NEW Delivery V2 (Parallel testing) */}
+      {/* Seller Module */}
+      <Route path="/seller" element={<SellerAppWrapper />} />
+      <Route path="/seller/auth" element={<SellerAuthEntry />} />
+      <Route path="/seller/*" element={<SellerAppWrapper />} />
+
       {/* Global Admin Portal - wrap lazy router in Suspense to avoid blank/crash on direct admin URLs */}
       <Route
         path="/admin/*"

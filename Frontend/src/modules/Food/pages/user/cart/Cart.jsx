@@ -10,6 +10,8 @@ import { Button } from "@food/components/ui/button"
 import { useCart } from "@food/context/CartContext"
 import { useProfile } from "@food/context/ProfileContext"
 import { useOrders } from "@food/context/OrdersContext"
+import QuickSharedCart from "@food/pages/user/cart/QuickSharedCart"
+import MixedSharedCart from "@food/pages/user/cart/MixedSharedCart"
 import { useLocation as useUserLocation } from "@food/hooks/useLocation"
 import { useZone } from "@food/hooks/useZone"
 import { useLocationSelector } from "@food/components/user/UserLayout"
@@ -78,6 +80,31 @@ const formatFullAddress = (address) => {
 const RUPEE_SYMBOL = "\u20B9"
 const CART_RECIPIENT_DETAILS_STORAGE_KEY = "food-cart-recipient-details-v1"
 const CART_ORDER_NOTE_STORAGE_KEY = "food-cart-order-note-v1"
+const mapOrderItem = (item) => ({
+  itemId: item.itemId || item.id,
+  name: item.name,
+  type: item.type || (item.orderType === "quick" ? "quick" : "food"),
+  sourceId:
+    item.sourceId ||
+    (item.orderType === "quick"
+      ? item.quickStoreId || item.storeId || item.sellerId || item.restaurantId || "quick-commerce"
+      : item.restaurantId),
+  sourceName:
+    item.sourceName ||
+    (item.orderType === "quick"
+      ? item.quickStoreName || item.storeName || "Quick Commerce"
+      : item.restaurant || item.restaurantName || "Restaurant"),
+  price: item.price,
+  variantId: item.variantId || undefined,
+  variantName: item.variantName || undefined,
+  variantPrice: item.variantPrice || item.price,
+  quantity: item.quantity || 1,
+  image: item.image || "",
+  description: item.description || "",
+  isVeg: item.isVeg !== false,
+  notes: item.notes || "",
+  preparationTime: item.preparationTime,
+})
 
 export default function Cart() {
   const companyName = useCompanyName()
@@ -113,6 +140,16 @@ export default function Cart() {
   }
 
   const { cart, updateQuantity, addToCart, getCartCount, clearCart, cleanCartForRestaurant } = cartContext;
+  const hasQuickItems = cart.some((item) => (item?.orderType || "food") === "quick")
+  const hasFoodItems = cart.some((item) => (item?.orderType || "food") === "food")
+  if (hasQuickItems && hasFoodItems) {
+    return <MixedSharedCart />
+  }
+  const isQuickCart = cart.length > 0 && cart.every((item) => (item?.orderType || "food") === "quick")
+  if (isQuickCart) {
+    return <QuickSharedCart />
+  }
+
   const { getDefaultAddress, getDefaultPaymentMethod, setDefaultAddress, addresses, paymentMethods, userProfile } = useProfile()
   const { createOrder } = useOrders()
   const { openLocationSelector } = useLocationSelector()
@@ -857,18 +894,7 @@ export default function Cart() {
 
       try {
         setLoadingPricing(true)
-        const items = cart.map(item => ({
-          itemId: item.itemId || item.id,
-          name: item.name,
-          price: item.price, // Price should already be in INR
-          variantId: item.variantId || undefined,
-          variantName: item.variantName || undefined,
-          variantPrice: item.variantPrice || item.price,
-          quantity: item.quantity || 1,
-          image: item.image,
-          description: item.description,
-          isVeg: item.isVeg !== false
-        }))
+        const items = cart.map(mapOrderItem)
 
         const resolvedRestaurantId = restaurantData?.restaurantId || restaurantData?._id || restaurantId || undefined
         const resolvedCouponCode = appliedCoupon?.code || couponCode || undefined
@@ -876,7 +902,7 @@ export default function Cart() {
         const response = await orderAPI.calculateOrder({
           items,
           restaurantId: resolvedRestaurantId,
-          deliveryAddress: defaultAddress,
+          address: defaultAddress,
           couponCode: resolvedCouponCode
         })
 
@@ -1243,23 +1269,12 @@ export default function Cart() {
     // Validate with backend first; only set applied if backend accepts
     if (cart.length > 0 && hasSavedAddress) {
       try {
-        const items = cart.map(item => ({
-          itemId: item.itemId || item.id,
-          name: item.name,
-          price: item.price,
-          variantId: item.variantId || undefined,
-          variantName: item.variantName || undefined,
-          variantPrice: item.variantPrice || item.price,
-          quantity: item.quantity || 1,
-          image: item.image,
-          description: item.description,
-          isVeg: item.isVeg !== false
-        }))
+        const items = cart.map(mapOrderItem)
 
         const response = await orderAPI.calculateOrder({
           items,
           restaurantId: restaurantData?.restaurantId || restaurantData?._id || restaurantId || null,
-          deliveryAddress: defaultAddress,
+          address: defaultAddress,
           couponCode: coupon.code
         })
 
@@ -1304,23 +1319,12 @@ export default function Cart() {
     }
 
     try {
-      const items = cart.map(item => ({
-        itemId: item.itemId || item.id,
-        name: item.name,
-        price: item.price,
-        variantId: item.variantId || undefined,
-        variantName: item.variantName || undefined,
-        variantPrice: item.variantPrice || item.price,
-        quantity: item.quantity || 1,
-        image: item.image,
-        description: item.description,
-        isVeg: item.isVeg !== false
-      }))
+      const items = cart.map(mapOrderItem)
 
       const response = await orderAPI.calculateOrder({
         items,
         restaurantId: restaurantData?.restaurantId || restaurantData?._id || restaurantId || null,
-        deliveryAddress: defaultAddress,
+        address: defaultAddress,
         couponCode: inputCode
       })
 
@@ -1363,23 +1367,12 @@ export default function Cart() {
     // Recalculate pricing without coupon
     if (cart.length > 0 && hasSavedAddress) {
       try {
-        const items = cart.map(item => ({
-          itemId: item.itemId || item.id,
-          name: item.name,
-          price: item.price,
-          variantId: item.variantId || undefined,
-          variantName: item.variantName || undefined,
-          variantPrice: item.variantPrice || item.price,
-          quantity: item.quantity || 1,
-          image: item.image,
-          description: item.description,
-          isVeg: item.isVeg !== false
-        }))
+        const items = cart.map(mapOrderItem)
 
         const response = await orderAPI.calculateOrder({
           items,
           restaurantId: restaurantData?.restaurantId || restaurantData?._id || restaurantId || null,
-          deliveryAddress: defaultAddress,
+          address: defaultAddress,
           couponCode: null
         })
 
@@ -1446,19 +1439,7 @@ export default function Cart() {
 
       // Include all cart items (main items + addons)
       // Note: Addons are added as separate cart items when user clicks the + button
-      const orderItems = cart.map(item => ({
-        itemId: item.itemId || item.id,
-        name: item.name,
-        price: item.price,
-        variantId: item.variantId || undefined,
-        variantName: item.variantName || undefined,
-        variantPrice: item.variantPrice || item.price,
-        quantity: item.quantity || 1,
-        image: item.image || "",
-        description: item.description || "",
-        isVeg: item.isVeg !== false,
-        preparationTime: item.preparationTime
-      }))
+      const orderItems = cart.map(mapOrderItem)
 
       debugLog("?? Order items to send:", orderItems)
       debugLog("?? Order pricing:", orderPricing)

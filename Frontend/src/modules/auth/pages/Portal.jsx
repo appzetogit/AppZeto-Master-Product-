@@ -1,7 +1,7 @@
 import React from "react"
 import { motion } from "framer-motion"
 import { useNavigate } from "react-router-dom"
-import { UtensilsCrossed, ShoppingBasket, Car, Bed, ArrowRight, ShieldCheck, Star } from "lucide-react"
+import { UtensilsCrossed, ShoppingBasket, Car, Bed, ShieldCheck, User } from "lucide-react"
 
 const SERVICES = [
   {
@@ -54,7 +54,17 @@ export default function SuperAppPortal() {
   const navigate = useNavigate()
 
   return (
-    <div className="min-h-screen bg-[#fafafa] flex flex-col pt-16 pb-24 px-6 overflow-hidden relative">
+    <div className="min-h-screen bg-[#fafafa] flex flex-col px-4 sm:px-6 pt-3 pb-3 overflow-hidden relative">
+      {/* Floating profile action */}
+      <button
+        type="button"
+        onClick={() => navigate("/user/auth/login")}
+        className="fixed top-2 right-2 sm:top-3 sm:right-3 z-40 flex items-center gap-1.5 bg-white hover:bg-gray-50 border border-gray-200 px-3 py-2 rounded-full transition-all shadow-md hover:shadow-lg"
+      >
+        <User className="w-4 h-4 text-gray-500" />
+        <span className="font-bold text-xs sm:text-sm text-gray-700">Profile</span>
+      </button>
+
       {/* Lining Effect & Pattern Background */}
       <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.03] dark:opacity-[0.05]">
           <div className="absolute inset-0" style={{ 
@@ -94,121 +104,112 @@ export default function SuperAppPortal() {
       </div>
 
       {/* Top Header Section */}
-      <div className="flex flex-col items-center text-center space-y-6 mb-16 relative z-10">
+      <div className="flex-1 flex flex-col items-center text-center justify-start space-y-3 sm:space-y-4 mt-10 sm:mt-12 relative z-10">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white border border-gray-200 rounded-full px-5 py-2.5 flex items-center gap-2 shadow-xl shadow-gray-200/50"
+          className="bg-white border border-gray-200 rounded-full px-4 py-2 flex items-center gap-2 shadow-lg shadow-gray-200/40 max-w-full"
         >
           <motion.div 
             animate={{ rotate: [0, 10, -10, 0] }}
             transition={{ duration: 4, repeat: Infinity }}
-            className="w-6 h-6 bg-gradient-to-br from-[#CB202D] to-red-700 rounded-lg flex items-center justify-center shadow-lg"
+            className="w-5 h-5 bg-gradient-to-br from-[#CB202D] to-red-700 rounded-md flex items-center justify-center shadow-md flex-shrink-0"
           >
-             <span className="text-white text-[10px] font-black italic">A</span>
+             <span className="text-white text-[9px] font-black italic">A</span>
           </motion.div>
-          <span className="text-[10px] font-black tracking-[0.2em] text-[#BABCBD] uppercase">Everything you need, delivered</span>
+          <span className="text-[9px] sm:text-[10px] font-black tracking-[0.18em] text-[#BABCBD] uppercase whitespace-nowrap overflow-hidden text-ellipsis">
+            Everything you need, delivered
+          </span>
         </motion.div>
 
         <motion.h1 
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ type: "spring", damping: 12 }}
-          className="text-5xl md:text-7xl font-black text-[#1A202C] tracking-tight leading-none"
+          className="text-4xl sm:text-5xl md:text-7xl font-black text-[#1A202C] tracking-tight leading-[0.95]"
         >
           Welcome to <br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#CB202D] via-rose-500 to-[#CB202D] bg-[length:200%_auto] animate-gradient block mt-2">AppZeto</span>
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#CB202D] via-rose-500 to-[#CB202D] bg-[length:200%_auto] animate-gradient block mt-1 sm:mt-2">AppZeto</span>
         </motion.h1>
 
         <motion.p 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
-          className="text-[#718096] text-sm md:text-lg font-bold max-w-[320px] mx-auto leading-relaxed"
+          className="text-[#718096] text-[13px] sm:text-sm md:text-lg font-bold max-w-[250px] sm:max-w-[320px] mx-auto leading-snug"
         >
           Choose a service to continue
         </motion.p>
-      </div>
 
-      {/* Main Service Grid - Crazy Animations */}
-      <div className="max-w-[800px] mx-auto w-full grid grid-cols-2 lg:grid-cols-2 gap-6 relative z-10">
-        {SERVICES.map((service, idx) => (
-          <motion.div
-            key={service.id}
-            initial={{ opacity: 0, y: 50, scale: 0.8, rotateX: 20 }}
-            animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
-            transition={{ 
-              delay: 0.4 + idx * 0.15, 
-              type: "spring", 
-              stiffness: 100,
-              damping: 15
-            }}
-            whileHover={{ 
-               y: -10, 
-               scale: 1.05,
-               rotateY: idx % 2 === 0 ? 5 : -5,
-               transition: { duration: 0.3 }
-            }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => navigate(service.path)}
-            className="group cursor-pointer relative perspective"
-          >
-            <div className={`relative h-[220px] md:h-[260px] w-full rounded-[2.5rem] overflow-hidden shadow-2xl bg-white border border-white/20 transition-all duration-500`}>
-              {/* Image Base */}
-              <div className="absolute inset-0 bg-gray-50 overflow-hidden">
-                <img 
-                  src={service.image} 
-                  alt={service.name} 
-                  className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-125"
-                />
-                <div className={`absolute inset-0 bg-gradient-to-tr ${service.color.replace('from-', 'from-black/40 to-')} opacity-30 group-hover:opacity-40 transition-opacity duration-500`} />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80" />
+        {/* Main Service Grid - compact for mobile */}
+        <div className="w-full max-w-[800px] mx-auto mt-3 sm:mt-4 grid grid-cols-2 gap-3 sm:gap-4 relative z-10">
+          {SERVICES.map((service, idx) => (
+            <motion.div
+              key={service.id}
+              initial={{ opacity: 0, y: 20, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ 
+                delay: 0.15 + idx * 0.06, 
+                type: "spring", 
+                stiffness: 120,
+                damping: 18
+              }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => navigate(service.path)}
+              className="group cursor-pointer relative perspective"
+            >
+              <div className="relative h-[175px] sm:h-[205px] w-full rounded-[1.5rem] overflow-hidden shadow-xl bg-white border border-white/30 transition-all duration-500">
+                {/* Image Base */}
+                <div className="absolute inset-0 bg-gray-50 overflow-hidden">
+                  <img 
+                    src={service.image} 
+                    alt={service.name} 
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                  />
+                  <div className={`absolute inset-0 bg-gradient-to-tr ${service.color.replace('from-', 'from-black/40 to-')} opacity-25`} />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80" />
+                </div>
+
+                {/* Service Icon floating */}
+                <div className="absolute top-3 left-3 z-30">
+                  <motion.div 
+                    animate={{ y: [0, -4, 0] }}
+                    transition={{ duration: 3, repeat: Infinity, delay: idx * 0.3 }}
+                    className="p-2.5 bg-white/20 backdrop-blur-xl rounded-xl border border-white/30 shadow-lg"
+                  >
+                    <service.icon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                  </motion.div>
+                </div>
+
+                {/* Content Overlay */}
+                <div className="absolute bottom-3 left-3 right-3 z-30 space-y-0.5">
+                  <h2 className="text-[1.05rem] sm:text-xl font-black text-white tracking-tight leading-none">
+                    {service.name}
+                  </h2>
+                  <p className="text-white/80 text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.08em]">
+                    {service.description}
+                  </p>
+                </div>
+
+                {/* Corner Badge */}
+                <div className="absolute top-0 right-0 z-30">
+                   <motion.div 
+                     initial={{ x: 12, opacity: 0 }}
+                     animate={{ x: 0, opacity: 1 }}
+                     transition={{ delay: 0.25 + idx * 0.05 }}
+                     className="bg-black/80 backdrop-blur-xl px-3 py-1.5 rounded-bl-2xl border-l border-b border-white/20 shadow-lg flex items-center gap-1.5"
+                   >
+                      <span className="text-[9px] scale-110">{service.badgeIcon}</span>
+                      <span className="text-[9px] font-black text-white uppercase tracking-widest">{service.badge}</span>
+                   </motion.div>
+                </div>
               </div>
 
-              {/* CRAZY Linear Shine Effect */}
-              <div className="absolute inset-0 pointer-events-none overflow-hidden z-20">
-                <div className="absolute top-0 -left-[100%] w-[50%] h-full bg-gradient-to-r from-transparent via-white/40 to-transparent skew-x-30 group-hover:animate-line-shine" />
-              </div>
-
-              {/* Service Icon floating */}
-              <div className="absolute top-6 left-6 z-30">
-                <motion.div 
-                  animate={{ y: [0, -5, 0] }}
-                  transition={{ duration: 3, repeat: Infinity, delay: idx * 0.5 }}
-                  className="p-3 bg-white/20 backdrop-blur-xl rounded-2xl border border-white/30 shadow-2xl"
-                >
-                  <service.icon className="w-6 h-6 text-white" />
-                </motion.div>
-              </div>
-
-              {/* Content Overlay */}
-              <div className="absolute bottom-6 left-6 right-6 z-30 space-y-1">
-                <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight leading-none group-hover:tracking-wider transition-all duration-500">
-                  {service.name}
-                </h2>
-                <p className="text-white/80 text-[10px] md:text-xs font-bold uppercase tracking-[0.1em] opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0">
-                  {service.description}
-                </p>
-              </div>
-
-              {/* Corner Badge */}
-              <div className="absolute top-0 right-0 z-30">
-                 <motion.div 
-                   initial={{ x: 20, opacity: 0 }}
-                   animate={{ x: 0, opacity: 1 }}
-                   transition={{ delay: 0.8 + idx * 0.1 }}
-                   className="bg-black/80 backdrop-blur-xl px-4 py-2 rounded-bl-3xl border-l border-b border-white/20 shadow-2xl flex items-center gap-2"
-                 >
-                    <span className="text-[10px] scale-125 mb-0.5">{service.badgeIcon}</span>
-                    <span className="text-[10px] font-black text-white uppercase tracking-widest">{service.badge}</span>
-                 </motion.div>
-              </div>
-            </div>
-
-            {/* Neon Glow on Hover */}
-            <div className={`absolute inset-0 -z-10 rounded-[2.5rem] bg-gradient-to-br ${service.color} opacity-0 group-hover:opacity-30 blur-2xl transition-all duration-500 scale-90 group-hover:scale-110`} />
-          </motion.div>
-        ))}
+              {/* Neon Glow on Hover */}
+              <div className={`absolute inset-0 -z-10 rounded-[1.5rem] bg-gradient-to-br ${service.color} opacity-0 group-hover:opacity-25 blur-xl transition-all duration-500 scale-95`} />
+            </motion.div>
+          ))}
+        </div>
       </div>
 
       <style dangerouslySetInnerHTML={{ __html: `
@@ -240,7 +241,7 @@ export default function SuperAppPortal() {
       `}} />
 
       {/* Trust Badge at bottom */}
-      <div className="mt-16 flex flex-col items-center gap-3 opacity-50">
+      <div className="mt-4 hidden sm:flex flex-col items-center gap-3 opacity-50">
          <div className="flex items-center gap-1.5 grayscale">
             <ShieldCheck className="w-4 h-4" />
             <span className="text-[10px] font-black uppercase tracking-widest">Secure by AppZeto</span>

@@ -8,16 +8,22 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const foodSrc = path.resolve(__dirname, './src/modules/Food')
 const servicesApi = path.resolve(__dirname, './src/services/api')
+const sharedSrc = path.resolve(__dirname, './src/shared')
+const coreSrc = path.resolve(__dirname, './src/core')
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
+    // Triggering dev server refresh to clear module cache
     alias: {
       // More specific first so @food/api/* resolves to services (no backend)
       '@food/api/axios': path.resolve(servicesApi, 'axios.js'),
       '@food/api/config': path.resolve(servicesApi, 'config.js'),
       '@food/api': servicesApi,
       '@food': foodSrc,
+      '@shared': sharedSrc,
+      '@core': coreSrc,
+      '@quickCommerce': path.resolve(__dirname, './src/modules/quickCommerce'),
       '@delivery': path.resolve(__dirname, './src/modules/DeliveryV2'),
       '@': path.resolve(__dirname, './src'),
     },

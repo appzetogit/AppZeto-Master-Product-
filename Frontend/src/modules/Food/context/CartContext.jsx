@@ -40,6 +40,15 @@ const defaultCartContext = {
 
 const CartContext = createContext(defaultCartContext)
 
+const getItemOrderType = (item) => (item?.orderType === "quick" ? "quick" : "food")
+const getItemSourceId = (item, orderType) =>
+  String(
+    item?.sourceId ||
+      (orderType === "quick"
+        ? item?.quickStoreId || item?.storeId || item?.sellerId || item?.restaurantId || "quick-commerce"
+        : item?.restaurantId || item?.sourceRestaurantId || ""),
+  )
+
 const normalizeCartData = (rawCart) => {
   if (!Array.isArray(rawCart)) return []
 
@@ -89,6 +98,8 @@ const normalizeCartData = (rawCart) => {
       const parsedVariantPrice = Number(
         item.variantPrice ?? item.variant?.price ?? item.price,
       )
+      const orderType = item.orderType === "quick" ? "quick" : "food"
+      const sourceId = getItemSourceId(item, orderType)
       const lineItemId =
         item.lineItemId ||
         item.cartLineId ||
@@ -104,6 +115,14 @@ const normalizeCartData = (rawCart) => {
         variantName,
         variantPrice: Number.isFinite(parsedVariantPrice) ? parsedVariantPrice : 0,
         name: item.name || item.product?.name || "Item",
+        orderType,
+        type: orderType,
+        sourceId,
+        sourceName:
+          item.sourceName ||
+          (orderType === "quick"
+            ? item.quickStoreName || item.storeName || item.sellerName || "Quick Commerce"
+            : normalizedRestaurantName),
         quantity:
           Number.isFinite(parsedQuantity) && parsedQuantity > 0
             ? Math.floor(parsedQuantity)
@@ -175,29 +194,34 @@ export function CartProvider({ children }) {
   const addToCart = (item, sourcePosition = null) => {
     const safeCart = normalizeCartData(cart)
     if (safeCart.length > 0) {
-      const firstItemRestaurantId = safeCart[0]?.restaurantId
-      const firstItemRestaurantName = safeCart[0]?.restaurant
-      const newItemRestaurantId = item?.restaurantId
-      const newItemRestaurantName = item?.restaurant
-      const normalizeName = (name) => (name ? String(name).trim().toLowerCase() : '')
+      const currentOrderType = getItemOrderType(safeCart[0])
+      const nextOrderType = getItemOrderType(item)
 
-      const firstRestaurantNameNormalized = normalizeName(firstItemRestaurantName)
-      const newRestaurantNameNormalized = normalizeName(newItemRestaurantName)
-      const hasNameMismatch =
-        firstRestaurantNameNormalized &&
-        newRestaurantNameNormalized &&
-        firstRestaurantNameNormalized !== newRestaurantNameNormalized
+      if (currentOrderType === nextOrderType) {
+        const firstItemRestaurantId = safeCart[0]?.restaurantId
+        const firstItemRestaurantName = safeCart[0]?.restaurant
+        const newItemRestaurantId = item?.restaurantId
+        const newItemRestaurantName = item?.restaurant
+        const normalizeName = (name) => (name ? String(name).trim().toLowerCase() : '')
 
-      const hasIdMismatch =
-        !firstRestaurantNameNormalized &&
-        !newRestaurantNameNormalized &&
-        firstItemRestaurantId &&
-        newItemRestaurantId &&
-        String(firstItemRestaurantId) !== String(newItemRestaurantId)
+        const firstRestaurantNameNormalized = normalizeName(firstItemRestaurantName)
+        const newRestaurantNameNormalized = normalizeName(newItemRestaurantName)
+        const hasNameMismatch =
+          firstRestaurantNameNormalized &&
+          newRestaurantNameNormalized &&
+          firstRestaurantNameNormalized !== newRestaurantNameNormalized
 
-      if (hasNameMismatch || hasIdMismatch) {
-        const message = `Cart already contains items from "${firstItemRestaurantName || 'another restaurant'}". Please clear cart or complete order first.`
-        return { ok: false, error: message, code: 'RESTAURANT_MISMATCH' }
+        const hasIdMismatch =
+          !firstRestaurantNameNormalized &&
+          !newRestaurantNameNormalized &&
+          firstItemRestaurantId &&
+          newItemRestaurantId &&
+          String(firstItemRestaurantId) !== String(newItemRestaurantId)
+
+        if (hasNameMismatch || hasIdMismatch) {
+          const message = `Cart already contains items from "${firstItemRestaurantName || 'another restaurant'}". Please clear cart or complete order first.`
+          return { ok: false, error: message, code: 'RESTAURANT_MISMATCH' }
+        }
       }
     }
 
@@ -211,9 +235,12 @@ export function CartProvider({ children }) {
 
     setCart((prev) => {
       const safePrev = normalizeCartData(prev)
+      const existingOrderType = getItemOrderType(safePrev[0])
+      const incomingOrderType = getItemOrderType(item)
+
       // CRITICAL: Validate restaurant consistency
       // If cart already has items, ensure new item belongs to the same restaurant
-      if (safePrev.length > 0) {
+      if (safePrev.length > 0 && existingOrderType === incomingOrderType) {
         const firstItemRestaurantId = safePrev[0]?.restaurantId;
         const firstItemRestaurantName = safePrev[0]?.restaurant;
         const newItemRestaurantId = item?.restaurantId;
@@ -448,6 +475,9 @@ export function CartProvider({ children }) {
     if (safeCart.length === 0) return;
     
     // Get unique restaurant IDs and names
+    const uniqueOrderTypes = [...new Set(safeCart.map(getItemOrderType))]
+    if (uniqueOrderTypes.length > 1) return;
+
     const restaurantIds = safeCart.map(item => item.restaurantId).filter(Boolean);
     const restaurantNames = safeCart.map(item => item.restaurant).filter(Boolean);
     const uniqueRestaurantIds = [...new Set(restaurantIds)];

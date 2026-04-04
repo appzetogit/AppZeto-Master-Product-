@@ -1,39 +1,109 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, ChevronDown, Search, Mic, Bell, CheckCircle2, Tag, Gift, AlertCircle, Clock, BellOff, X } from 'lucide-react';
-import { 
-  Popover, 
-  PopoverContent, 
-  PopoverTrigger 
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Navigation,
+  ChevronDown,
+  Search,
+  Mic,
+  User,
+  Bookmark,
+  Bell,
+  BellOff,
+  X,
+  Pizza,
+  Beef,
+  ChefHat,
+  Soup,
+  Coffee,
+} from "lucide-react";
+import { Switch } from "@food/components/ui/switch";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
 } from "@food/components/ui/popover";
 import { Badge } from "@food/components/ui/badge";
-import { Avatar, AvatarFallback } from "@food/components/ui/avatar";
-import foodIcon from "@food/assets/category-icons/food.png";
-import quickIcon from "@food/assets/category-icons/quick.png";
-import taxiIcon from "@food/assets/category-icons/taxi.png";
-import hotelIcon from "@food/assets/category-icons/hotel.png";
+import foodPattern from "@food/assets/food_pattern_background.png";
 import useNotificationInbox from "@food/hooks/useNotificationInbox";
 
-const ICON_MAP = {
-  CheckCircle2,
-  Tag,
-  Gift,
-  AlertCircle
+const tabs = [
+  {
+    id: "food",
+    name: "Food",
+    icon: "https://cdn-icons-png.flaticon.com/512/3075/3075977.png",
+  },
+  {
+    id: "quick",
+    name: "Instamart",
+    icon: "https://cdn-icons-png.flaticon.com/512/3724/3724720.png",
+    badge: "15 mins",
+  },
+  {
+    id: "taxi",
+    name: "Dineout",
+    icon: "https://cdn-icons-png.flaticon.com/512/2515/2515183.png",
+  },
+  {
+    id: "hotel",
+    name: "Scenes",
+    icon: "https://cdn-icons-png.flaticon.com/512/3163/3163478.png",
+  },
+];
+
+const normalizeHex = (hex, fallback = "#8e24aa") => {
+  const value = String(hex || "").trim();
+  return /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
 };
 
-export default function HomeHeader({ 
+const withAlpha = (hex, alpha) => {
+  const value = normalizeHex(hex).slice(1);
+  const r = parseInt(value.slice(0, 2), 16);
+  const g = parseInt(value.slice(2, 4), 16);
+  const b = parseInt(value.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+const quickTheme = (baseColor) => {
+  const base = normalizeHex(baseColor, "#67c6f5");
+  return {
+    topBg: `linear-gradient(140deg, ${withAlpha(base, 0.96)} 0%, ${withAlpha(base, 0.78)} 100%)`,
+    accent: base,
+    text: "#ffffff",
+    activeBg: "#ffffff",
+    activeText: base,
+    inactiveBg: withAlpha("#ffffff", 0.18),
+    inactiveBorder: withAlpha("#ffffff", 0.2),
+  };
+};
+
+const foodTheme = {
+  topBg: "transparent",
+  accent: "#F6881F",
+  text: "#ffffff",
+  activeBg: "#ffffff",
+  activeText: "#C4510A",
+  inactiveBg: "rgba(255,255,255,0.14)",
+  inactiveBorder: "rgba(255,255,255,0.12)",
+};
+
+export default function HomeHeader({
   activeTab,
   setActiveTab,
-  location, 
-  savedAddressText, 
-  handleLocationClick, 
-  handleSearchFocus, 
-  placeholderIndex, 
-  placeholders 
+  location,
+  savedAddressText,
+  handleLocationClick,
+  handleSearchFocus,
+  placeholderIndex,
+  placeholders,
+  vegMode = false,
+  onVegModeChange,
+  bannerContent,
+  quickThemeColor,
 }) {
   const [notifications, setNotifications] = useState(() => {
-    const saved = localStorage.getItem('food_user_notifications');
+    if (typeof window === "undefined") return [];
+    const saved = localStorage.getItem("food_user_notifications");
     return saved ? JSON.parse(saved) : [];
   });
   const {
@@ -43,33 +113,28 @@ export default function HomeHeader({
   } = useNotificationInbox("user", { limit: 20 });
 
   useEffect(() => {
-    const syncNotifications = () => {
-      const saved = localStorage.getItem('food_user_notifications');
+    const sync = () => {
+      const saved = localStorage.getItem("food_user_notifications");
       setNotifications(saved ? JSON.parse(saved) : []);
     };
-
-    // Listen for updates from the main Notifications page
-    window.addEventListener('notificationsUpdated', syncNotifications);
-    // Also listen for new notifications being added via listeners in Notifications.jsx (indirectly via localStorage update)
-    // But since localStorage doesn't fire events on same window, we can use a custom event or a simple interval if needed.
-    // However, the Notifications.jsx already multi-dispatches.
-    
-    return () => window.removeEventListener('notificationsUpdated', syncNotifications);
+    window.addEventListener("notificationsUpdated", sync);
+    return () => window.removeEventListener("notificationsUpdated", sync);
   }, []);
 
-  const festCategories = [
-    { id: "food", name: "Food", icon: foodIcon, bgColor: "bg-white dark:bg-[#1a1a1a]" },
-    { id: "quick", name: "Quick", icon: quickIcon, bgColor: "bg-white dark:bg-[#1a1a1a]" },
-    { id: "taxi", name: "Taxi", icon: taxiIcon, bgColor: "bg-white dark:bg-[#1a1a1a]" },
-    { id: "hotel", name: "Hotel", icon: hotelIcon, bgColor: "bg-white dark:bg-[#1a1a1a]" },
-  ];
+  const theme = activeTab === "quick" ? quickTheme(quickThemeColor) : foodTheme;
+  const isFood = activeTab === "food";
+  const locationTitle =
+    savedAddressText || location?.area || location?.city || "Select Location";
+  const locationSubtitle =
+    location?.address || location?.city || "Tap to choose delivery location";
 
   const mergedNotifications = useMemo(() => {
     const localItems = Array.isArray(notifications)
       ? notifications.map((item) => ({ ...item, source: "local" }))
       : [];
-    const broadcastItems = (broadcastNotifications || []).map((item) => ({
+    const remoteItems = (broadcastNotifications || []).map((item) => ({
       ...item,
+      id: item.id || item._id,
       source: "broadcast",
       time: item.createdAt
         ? new Date(item.createdAt).toLocaleString("en-IN", {
@@ -80,234 +145,275 @@ export default function HomeHeader({
             hour12: true,
           })
         : "Just now",
-      type: "broadcast",
-      icon: "Bell",
-      iconColor: "text-blue-600",
     }));
-
-    return [...broadcastItems, ...localItems].sort(
+    return [...remoteItems, ...localItems].sort(
       (a, b) =>
         new Date(b.createdAt || b.timestamp || 0).getTime() -
-        new Date(a.createdAt || a.timestamp || 0).getTime()
+        new Date(a.createdAt || a.timestamp || 0).getTime(),
     );
   }, [broadcastNotifications, notifications]);
 
-  const unreadCount = notifications.filter(n => !n.read).length + broadcastUnreadCount;
+  const unreadCount =
+    notifications.filter((item) => !item.read).length + broadcastUnreadCount;
 
-  const primaryLocationText =
-    savedAddressText ||
-    location?.area ||
-    location?.city ||
-    "Select Location";
-
-  const handleDeleteNotification = (id, source = "local") => {
+  const removeNotification = (id, source) => {
     if (source === "broadcast") {
       dismissBroadcastNotification(id);
       return;
     }
     setNotifications((prev) => {
-      const next = prev.filter((notification) => notification.id !== id);
-      localStorage.setItem('food_user_notifications', JSON.stringify(next));
-      window.dispatchEvent(new CustomEvent('notificationsUpdated', { detail: { count: next.filter((n) => !n.read).length } }));
+      const next = prev.filter((item) => item.id !== id);
+      localStorage.setItem("food_user_notifications", JSON.stringify(next));
+      window.dispatchEvent(new CustomEvent("notificationsUpdated"));
       return next;
     });
   };
 
   return (
-    <div className="relative bg-gradient-to-b from-[#f36371] to-[#ef4f5f] pt-5 pb-5 px-4 space-y-5 shadow-xl overflow-hidden dark:from-[#141414] dark:to-[#0a0a0a] dark:shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
-      {/* Abstract Background Design */}
-      <div className="absolute inset-0 opacity-10 pointer-events-none overflow-hidden">
-        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full">
-          <circle cx="10%" cy="10%" r="20" fill="white" />
-          <circle cx="90%" cy="20%" r="15" fill="white" />
-          <circle cx="50%" cy="80%" r="25" fill="white" />
-          <path d="M 0 50 Q 25 30 50 50 T 100 50" stroke="white" strokeWidth="0.5" fill="none" />
-          <path d="M 0 70 Q 25 50 50 70 T 100 70" stroke="white" strokeWidth="0.5" fill="none" />
-        </svg>
-      </div>
-
-      {/* Decorative Glows */}
-      <div className="absolute top-0 left-1/4 w-32 h-32 bg-white/20 blur-[60px] rounded-full pointer-events-none dark:bg-white/10" />
-      <div className="absolute bottom-0 right-1/4 w-40 h-40 bg-yellow-400/10 blur-[80px] rounded-full pointer-events-none dark:bg-orange-500/10" />
-
-      {/* Location & Notification Row - Clean Pixel Match Design */}
-      <div className="relative z-10 flex items-center justify-between">
-        <div 
-          className="flex items-center gap-1 cursor-pointer group"
-          onClick={handleLocationClick}
-        >
-          <div className="bg-white/10 p-1.5 rounded-full backdrop-blur-md border border-white/10 group-hover:bg-white/20 transition-colors dark:bg-white/5 dark:border-white/5 dark:group-hover:bg-white/10">
-            <MapPin className="h-4 w-4 text-white fill-white" />
-          </div>
-          <div className="flex flex-col">
-            <div className="flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
-              <span className="text-xs font-bold text-white/80 uppercase tracking-wider">Deliver to</span>
-              <ChevronDown className="h-3 w-3 text-white/80" />
-            </div>
-            <span className="text-sm font-bold text-white truncate max-w-[200px] drop-shadow-sm">
-              {primaryLocationText}
-            </span>
-          </div>
+    <motion.div
+      className={`relative overflow-hidden transition-all duration-700 ${
+        isFood ? "min-h-[450px]" : "min-h-[90px]"
+      }`}
+      style={{ background: isFood ? "transparent" : theme.topBg, color: theme.text }}
+    >
+      {isFood && bannerContent && (
+        <div className="absolute inset-0 z-0 flex justify-center overflow-hidden">
+          {bannerContent}
+          <div className="absolute inset-0 bg-gradient-to-b from-[#7f2d25]/88 via-[#7f2d25]/18 via-[28%] to-black/22" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/18 via-transparent to-black/16" />
         </div>
-        <Popover>
-          <PopoverTrigger asChild>
-            <div className="h-11 w-11 relative flex items-center justify-center rounded-full bg-white/10 backdrop-blur-md border border-white/20 shadow-lg cursor-pointer active:scale-95 transition-all dark:bg-white/5 dark:border-white/10">
-              <Bell className="h-6 w-6 text-white" />
-              {unreadCount > 0 && (
-                <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-yellow-400 rounded-full border-2 border-[#ef4f5f] animate-pulse dark:border-[#111111]" />
-              )}
-            </div>
-          </PopoverTrigger>
-          <PopoverContent className="w-80 p-0 overflow-hidden border-none shadow-2xl rounded-2xl mt-2" align="end">
-            <div className="bg-white dark:bg-gray-900">
-              <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/50">
-                <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                  Notifications
-                  {unreadCount > 0 && (
-                    <Badge variant="secondary" className="bg-orange-100 text-orange-600 border-none text-[10px] h-4">
-                      {unreadCount} New
-                    </Badge>
-                  )}
-                </h3>
-                <Link to="/food/user/notifications" className="text-xs font-bold text-orange-600 hover:text-orange-700">
-                  {mergedNotifications.length > 0 ? "View All" : ""}
-                </Link>
+      )}
+
+      <div
+        className="absolute inset-0 z-[1] opacity-[0.1] pointer-events-none"
+        style={{
+          backgroundImage: `url(${foodPattern})`,
+          backgroundSize: "200px",
+          backgroundRepeat: "repeat",
+          mixBlendMode: "soft-light",
+        }}
+      />
+
+      {isFood && (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <Pizza className="absolute top-10 right-[15%] opacity-[0.10] text-[#F6881F]" size={64} />
+          <Beef className="absolute top-40 left-[10%] opacity-[0.08] text-[#F6881F]" size={80} />
+          <ChefHat className="absolute bottom-[20%] right-[20%] opacity-[0.08] text-[#F6881F]" size={56} />
+          <Coffee className="absolute top-20 left-[30%] opacity-[0.08] text-[#F6881F]" size={48} />
+          <Soup className="absolute bottom-[40%] left-[5%] opacity-[0.05] text-[#F6881F]" size={72} />
+        </div>
+      )}
+
+      <div className="flex items-center justify-between px-5 pt-6 mb-3 relative z-10">
+        <div className="flex items-start gap-2 cursor-pointer flex-1 min-w-0" onClick={handleLocationClick}>
+          {isFood ? (
+            <>
+              <Navigation
+                className="h-[14px] w-[14px] rotate-[15deg] mt-[5px] shrink-0"
+                style={{ color: theme.accent, fill: theme.accent }}
+                strokeWidth={2.5}
+              />
+              <div className="flex min-w-0 max-w-[190px] flex-col">
+                <div className="flex items-center gap-[3px]">
+                  <span className="truncate text-[16px] font-extrabold tracking-[-0.3px]">
+                    {locationTitle}
+                  </span>
+                  <ChevronDown className="h-[14px] w-[14px] shrink-0 opacity-80" strokeWidth={3} />
+                </div>
+                <span className="max-w-[190px] truncate text-[11px] font-medium text-white/75">
+                  {locationSubtitle}
+                </span>
               </div>
-              <div className="max-h-96 overflow-y-auto">
-                {mergedNotifications.length > 0 ? (
-                  mergedNotifications.slice(0, 5).map((notif) => {
-                    const Icon = ICON_MAP[notif.icon] || Bell;
-                    return (
-                      <div 
-                        key={notif.id}
-                        className={`p-4 flex items-start gap-3 border-b border-gray-50 dark:border-gray-800 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer ${!notif.read ? 'bg-orange-50/20' : ''}`}
-                      >
-                        <div className={`mt-1 p-2 rounded-full ${notif.type === "order" ? "bg-green-100/50 text-green-600" : "bg-orange-100/50 text-orange-600"}`}>
-                          <Icon className="h-4 w-4" />
+            </>
+          ) : (
+            <div className="flex flex-col min-w-0">
+              <span className="text-[22px] font-black tracking-tighter leading-none mb-1">15 mins</span>
+              <span className="text-[11px] font-bold truncate opacity-70">To {locationTitle}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {isFood && (
+            <div className="bg-white rounded-full flex items-center py-1.5 pl-1.5 pr-3 shadow-lg border border-gray-100">
+              <div className="h-6 w-6 rounded-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center mr-1.5">
+                <span className="text-white text-[8px] font-black leading-none">BUY</span>
+              </div>
+              <span className="text-[12px] font-black text-[#F6881F]">one</span>
+            </div>
+          )}
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="relative h-[38px] w-[38px] rounded-full bg-white/95 border border-white/60 flex items-center justify-center shadow-[0_4px_12px_rgba(0,0,0,0.08)]"
+              >
+                <Bell className="h-[18px] w-[18px] text-[#282c3f]" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 h-2.5 w-2.5 rounded-full bg-yellow-400 border border-white" />
+                )}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80 p-0 overflow-hidden border-none shadow-2xl rounded-2xl mt-2" align="end">
+              <div className="bg-white">
+                <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                  <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                    Notifications
+                    {unreadCount > 0 && (
+                      <Badge variant="secondary" className="bg-orange-100 text-orange-600 border-none text-[10px] h-4">
+                        {unreadCount} New
+                      </Badge>
+                    )}
+                  </h3>
+                  <Link to="/food/user/notifications" className="text-xs font-bold text-orange-600">
+                    {mergedNotifications.length > 0 ? "View All" : ""}
+                  </Link>
+                </div>
+                <div className="max-h-96 overflow-y-auto">
+                  {mergedNotifications.length > 0 ? (
+                    mergedNotifications.slice(0, 5).map((item) => (
+                      <div key={item.id} className="p-4 flex items-start gap-3 border-b border-gray-50 last:border-0">
+                        <div className="mt-1 p-2 rounded-full bg-orange-100/50 text-orange-600">
+                          <Bell className="h-4 w-4" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2 mb-0.5">
-                            <span className="text-sm font-bold text-gray-900 dark:text-white truncate">{notif.title}</span>
+                            <span className="text-sm font-bold text-gray-900 truncate">{item.title}</span>
                             <div className="flex items-center gap-1">
-                              <span className="text-[10px] text-gray-400 whitespace-nowrap">{notif.time}</span>
+                              <span className="text-[10px] text-gray-400 whitespace-nowrap">{item.time}</span>
                               <button
                                 type="button"
-                                aria-label="Delete notification"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  handleDeleteNotification(notif.id, notif.source);
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  removeNotification(item.id, item.source);
                                 }}
-                                className="rounded-full p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                className="rounded-full p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                               >
                                 <X className="h-3.5 w-3.5" />
                               </button>
                             </div>
                           </div>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed">
-                            {notif.message}
-                          </p>
+                          <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">{item.message}</p>
                         </div>
                       </div>
-                    );
-                  })
-                ) : (
-                  <div className="p-8 text-center flex flex-col items-center gap-2">
-                    <BellOff className="h-10 w-10 text-gray-200" />
-                    <p className="text-xs text-gray-400 font-medium">All caught up!</p>
-                  </div>
-                )}
-              </div>
-              <div className="p-3 bg-gray-50/50 dark:bg-gray-800/50 text-center">
-                <Link to="/food/user/notifications" className="text-xs font-bold text-gray-400 hover:text-gray-600">
-                  {mergedNotifications.length > 0 ? "Manage Settings" : "Check Notifications Page"}
-                </Link>
-              </div>
-            </div>
-          </PopoverContent>
-        </Popover>
-      </div>
-
-      {/* Main Category Grid (4 Items) - Compact & Centered */}
-      <div className="relative z-10 flex justify-center pb-1">
-        <div className="grid grid-cols-4 gap-3 w-full max-w-[340px]">
-          {festCategories.map((cat) => (
-            <div 
-              key={cat.id}
-              className={`flex flex-col items-center gap-2 cursor-pointer group relative`}
-              onClick={() => setActiveTab(cat.id)}
-            >
-              <motion.div 
-                whileTap={{ scale: 0.9 }}
-                whileHover={{ scale: 1.05 }}
-                className={`w-full aspect-square ${cat.bgColor} rounded-xl flex items-center justify-center p-0 overflow-hidden transition-all duration-300 ${activeTab === cat.id ? 'bg-white scale-105 shadow-[0_0_20px_rgba(255,255,255,0.4)] dark:bg-[#1f1f1f] dark:shadow-[0_0_24px_rgba(255,255,255,0.08)]' : 'bg-white/90 shadow-sm dark:bg-[#161616] dark:shadow-[0_10px_24px_rgba(0,0,0,0.28)]'}`}
-              >
-                <img src={cat.icon} alt={cat.name} className={`w-full h-full object-cover transition-transform duration-700 ${activeTab === cat.id ? 'scale-105' : 'scale-100 group-hover:scale-110'}`} />
-              </motion.div>
-              <span className={`text-[10px] font-bold tracking-wider uppercase transition-all ${activeTab === cat.id ? 'text-white translate-y-0 opacity-100' : 'text-white/40 group-hover:text-white/60'}`}>
-                {cat.name}
-              </span>
-              
-              {activeTab === cat.id && (
-                <>
-                  <motion.div 
-                    layoutId="activeTabBadge"
-                    className="absolute -top-1 -right-0.5 z-30"
-                    initial={{ scale: 0, rotate: -45 }}
-                    animate={{ scale: 1, rotate: 0 }}
-                  >
-                    <div className="bg-yellow-400 text-[6px] font-black text-red-600 w-4 h-4 flex items-center justify-center rounded-full border border-white leading-none shadow-xl dark:border-[#1a1a1a]">
-                      {"\u2605"}
+                    ))
+                  ) : (
+                    <div className="p-8 text-center flex flex-col items-center gap-2">
+                      <BellOff className="h-10 w-10 text-gray-200" />
+                      <p className="text-xs text-gray-400 font-medium">All caught up!</p>
                     </div>
-                  </motion.div>
-                  <motion.div 
-                    layoutId="indicator"
-                    className="absolute -bottom-1.5 w-1 h-1 bg-yellow-400 rounded-full"
-                  />
-                </>
-              )}
-            </div>
-          ))}
+                  )}
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          <div className="h-[38px] w-[38px] rounded-full bg-white border border-gray-200 flex items-center justify-center shadow-[0_4px_12px_rgba(0,0,0,0.08)]">
+            <User className="h-[20px] w-[20px] text-[#282c3f]" strokeWidth={2} />
+          </div>
         </div>
       </div>
 
-      {/* Search Bar - More Normal & Clean */}
-      <div 
-        className="relative z-10 bg-white rounded-xl flex items-center px-4 py-3 shadow-md border border-white/20 cursor-pointer active:scale-[0.99] transition-all duration-200 mx-1 dark:bg-[#1a1a1a] dark:border-gray-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.3)]"
-        onClick={handleSearchFocus}
-        onTouchStart={handleSearchFocus}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            handleSearchFocus();
-          }
-        }}
-      >
-        <Search className="h-4 w-4 text-gray-500 mr-3 dark:text-gray-400" strokeWidth={2.5} />
-        <div className="flex-1 overflow-hidden relative h-5">
-          <input
-            type="text"
-            readOnly
-            aria-label="Search"
-            onFocus={handleSearchFocus}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-          />
-          <AnimatePresence mode="wait">
-            <motion.span
-              key={placeholderIndex}
-              initial={{ y: 15, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -15, opacity: 0 }}
-              transition={{ duration: 0.25, ease: 'easeOut' }}
-              className="absolute inset-0 text-[13px] font-medium text-gray-400 dark:text-gray-500"
+      <div className="px-3 pt-1 flex items-end justify-start gap-[6px] relative z-10">
+        {tabs.map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`relative flex flex-col items-center justify-start flex-1 min-w-0 h-[80px] transition-all duration-300 ${isActive ? "z-20" : "z-10"}`}
             >
-              {placeholders?.[placeholderIndex] || 'Search "pizza"'}
-            </motion.span>
-          </AnimatePresence>
+              {tab.badge && (
+                <div className="absolute -top-[10px] left-1/2 -translate-x-1/2 z-30 rounded-full bg-gradient-to-r from-orange-500 to-orange-400 px-2 py-0.5 text-[7.5px] font-black uppercase text-white shadow-lg">
+                  {tab.badge}
+                </div>
+              )}
+              <div
+                className={`absolute inset-x-0 ${isActive ? "top-0 bottom-0" : "top-[8px] bottom-0"} rounded-t-[18px] rounded-b-none`}
+                style={{
+                  background: isActive ? theme.activeBg : theme.inactiveBg,
+                  borderTop: `1.5px solid ${isActive ? withAlpha(theme.accent, 0.25) : theme.inactiveBorder}`,
+                  borderLeft: `1.5px solid ${isActive ? withAlpha(theme.accent, 0.18) : theme.inactiveBorder}`,
+                  borderRight: `1.5px solid ${isActive ? withAlpha(theme.accent, 0.18) : theme.inactiveBorder}`,
+                  boxShadow: isActive ? "0 -4px 20px rgba(0,0,0,0.08)" : "none",
+                  backdropFilter: isActive ? undefined : "blur(14px)",
+                }}
+              />
+              <div className={`absolute inset-x-0 bottom-0 z-10 flex flex-col items-center justify-center gap-[3px] px-1 ${isActive ? "top-0" : "top-[8px]"}`}>
+                <img
+                  src={tab.icon}
+                  alt={tab.name}
+                  className={`object-contain transition-transform duration-300 ${isActive ? "h-[32px] w-[32px] scale-105" : "h-[28px] w-[28px] brightness-[1.3]"}`}
+                />
+                <span
+                  style={{ color: isActive ? theme.activeText : "#ffffff" }}
+                  className={`text-[10px] font-extrabold ${isActive ? "" : "drop-shadow-[0_1px_6px_rgba(0,0,0,0.55)]"}`}
+                >
+                  {tab.name}
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="relative z-10 pt-3 pb-3 px-3 -mt-[1px] overflow-hidden">
+        {isFood && <div className="absolute inset-0 bg-gradient-to-b from-black/25 to-transparent pointer-events-none" />}
+        <div className="flex items-center gap-2 mb-2">
+          <div
+            className="flex-1 rounded-[12px] h-[46px] flex items-center px-3 cursor-pointer relative overflow-hidden bg-white shadow-[0_6px_18px_rgba(15,23,42,0.10)]"
+            onClick={handleSearchFocus}
+          >
+            <div className="absolute left-0 top-0 bottom-0 w-[2.5px] rounded-l-[12px] bg-gradient-to-b from-[#F6881F] to-[#FF5E3A]" />
+            <Search className="h-[16px] w-[16px] ml-1.5 mr-2 flex-shrink-0 text-[#F6881F]" strokeWidth={2.3} />
+            <div className="flex-1 overflow-hidden relative h-[20px]">
+              <AnimatePresence mode="wait">
+                <motion.span
+                  key={placeholderIndex}
+                  initial={{ y: 12, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: -12, opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="absolute inset-0 whitespace-nowrap leading-[22px] text-[12.5px] font-medium text-gray-400"
+                >
+                  {placeholders?.[placeholderIndex] || "Search for food..."}
+                </motion.span>
+              </AnimatePresence>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-[1px] h-[16px] bg-orange-200" />
+              <div className="h-[28px] w-[28px] rounded-full flex items-center justify-center bg-orange-50">
+                <Mic className="h-[14px] w-[14px] text-[#F6881F]" strokeWidth={2.3} />
+              </div>
+            </div>
+          </div>
+
+          {isFood ? (
+            <div
+              onClick={() => onVegModeChange?.(!vegMode)}
+              className="px-2 flex flex-col items-center justify-center min-w-[64px] cursor-pointer"
+            >
+              <span className="text-[9px] font-black tracking-[0.5px] text-black mb-1">VEG</span>
+              <div className="scale-[0.80]">
+                <Switch
+                  checked={vegMode}
+                  onCheckedChange={() => {}}
+                  className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-gray-400 pointer-events-none"
+                />
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="rounded-[16px] h-[52px] w-[52px] flex items-center justify-center shadow-xl bg-white"
+            >
+              <Bookmark className="h-[22px] w-[22px]" style={{ color: theme.accent }} />
+            </button>
+          )}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

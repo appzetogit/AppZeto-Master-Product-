@@ -60,10 +60,13 @@ export default function LandingPageManagement() {
   const diningBannersFileInputRef = useRef(null)
 
   // Settings
-  const [settings, setSettings] = useState({ exploreMoreHeading: "Explore More", recommendedRestaurantIds: [] })
+  const [settings, setSettings] = useState({ exploreMoreHeading: "Explore More", recommendedRestaurantIds: [], headerVideoUrl: "" })
   const [settingsLoading, setSettingsLoading] = useState(true)
   const [settingsSaving, setSettingsSaving] = useState(false)
+  const [headerVideoUploading, setHeaderVideoUploading] = useState(false)
+  const [headerVideoRemoving, setHeaderVideoRemoving] = useState(false)
   const [recommendedSearchQuery, setRecommendedSearchQuery] = useState("")
+  const headerVideoInputRef = useRef(null)
 
   const [allRestaurants, setAllRestaurants] = useState([])
   const [restaurantsLoading, setRestaurantsLoading] = useState(false)
@@ -1030,16 +1033,17 @@ export default function LandingPageManagement() {
       setError(null)
       const response = await api.get('/food/hero-banners/landing/settings', getAuthConfig())
       if (response.data.success) {
-        const nextSettings = response.data.data.settings || {}
+        const nextSettings = response.data.data?.settings || response.data.data || {}
         setSettings({
           exploreMoreHeading: nextSettings.exploreMoreHeading || "Explore More",
-          recommendedRestaurantIds: Array.isArray(nextSettings.recommendedRestaurantIds) ? nextSettings.recommendedRestaurantIds : []
+          recommendedRestaurantIds: Array.isArray(nextSettings.recommendedRestaurantIds) ? nextSettings.recommendedRestaurantIds : [],
+          headerVideoUrl: nextSettings.headerVideoUrl || ""
         })
       }
     } catch (err) {
       // Silently handle 401/404 errors - endpoints may not exist yet, use default settings
       if (err.response?.status === 401 || err.response?.status === 404) {
-        setSettings({ exploreMoreHeading: "Explore More", recommendedRestaurantIds: [] }) // Use default settings
+        setSettings({ exploreMoreHeading: "Explore More", recommendedRestaurantIds: [], headerVideoUrl: "" }) // Use default settings
         setError(null) // Clear any previous error
       } else {
         // Filter out token-related errors
@@ -1061,10 +1065,11 @@ export default function LandingPageManagement() {
         recommendedRestaurantIds: Array.isArray(settings.recommendedRestaurantIds) ? settings.recommendedRestaurantIds : []
       }, getAuthConfig())
       if (response.data.success) {
-        const savedSettings = response.data.data?.settings || {}
+        const savedSettings = response.data.data?.settings || response.data.data || {}
         setSettings((prev) => ({
           ...prev,
           exploreMoreHeading: savedSettings.exploreMoreHeading || prev.exploreMoreHeading,
+          headerVideoUrl: typeof savedSettings.headerVideoUrl === 'string' ? savedSettings.headerVideoUrl : prev.headerVideoUrl,
           recommendedRestaurantIds: Array.isArray(savedSettings.recommendedRestaurantIds)
             ? savedSettings.recommendedRestaurantIds
             : prev.recommendedRestaurantIds
@@ -1076,6 +1081,62 @@ export default function LandingPageManagement() {
       setErrorSafely(err.response?.data?.message || 'Failed to save settings.')
     } finally {
       setSettingsSaving(false)
+    }
+  }
+
+  const handleHeaderVideoFileSelect = async (e) => {
+    const file = e.target?.files?.[0]
+    if (!file) return
+
+    if (!file.type?.startsWith('video/')) {
+      setErrorSafely('Please select a valid video file.')
+      e.target.value = ''
+      return
+    }
+
+    try {
+      setHeaderVideoUploading(true)
+      setError(null)
+      setSuccess(null)
+
+      const formData = new FormData()
+      formData.append('video', file)
+
+      const response = await api.post('/food/hero-banners/landing/settings/header-video', formData, getAuthConfig())
+      if (response.data.success) {
+        const savedSettings = response.data.data?.settings || response.data.data || {}
+        setSettings((prev) => ({
+          ...prev,
+          headerVideoUrl: savedSettings.headerVideoUrl || ""
+        }))
+        setSuccess('Header video uploaded successfully!')
+        setTimeout(() => setSuccess(null), 3000)
+      }
+    } catch (err) {
+      setErrorSafely(err.response?.data?.message || 'Failed to upload header video.')
+    } finally {
+      if (e.target) e.target.value = ''
+      setHeaderVideoUploading(false)
+    }
+  }
+
+  const handleRemoveHeaderVideo = async () => {
+    if (!window.confirm('Remove the current homepage header video?')) return
+
+    try {
+      setHeaderVideoRemoving(true)
+      setError(null)
+      setSuccess(null)
+      const response = await api.delete('/food/hero-banners/landing/settings/header-video', getAuthConfig())
+      if (response.data.success) {
+        setSettings((prev) => ({ ...prev, headerVideoUrl: "" }))
+        setSuccess('Header video removed successfully!')
+        setTimeout(() => setSuccess(null), 3000)
+      }
+    } catch (err) {
+      setErrorSafely(err.response?.data?.message || 'Failed to remove header video.')
+    } finally {
+      setHeaderVideoRemoving(false)
     }
   }
 
@@ -1207,6 +1268,7 @@ export default function LandingPageManagement() {
     { id: 'banners', label: 'Hero Banners', icon: ImageIcon },
     { id: 'under-250', label: '250 Banner', icon: Tag },
     { id: 'dining', label: 'Dining', icon: UtensilsCrossed },
+    { id: 'homepage-video', label: 'Homepage Video', icon: Layout },
     { id: 'explore-more', label: 'Explore More', icon: Layout },
   ]
 
@@ -1640,6 +1702,84 @@ export default function LandingPageManagement() {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Homepage Video Tab */}
+        {activeTab === 'homepage-video' && (
+          <>
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Homepage Video</h2>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Upload the video shown in the food homepage header.
+                  </p>
+                </div>
+                <input
+                  ref={headerVideoInputRef}
+                  type="file"
+                  accept="video/*"
+                  className="hidden"
+                  onChange={handleHeaderVideoFileSelect}
+                />
+                <Button
+                  type="button"
+                  onClick={() => headerVideoInputRef.current?.click()}
+                  disabled={headerVideoUploading || settingsLoading}
+                  className="bg-blue-500 hover:bg-blue-600 text-white"
+                >
+                  {headerVideoUploading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
+                  Upload Video
+                </Button>
+              </div>
+
+              {settingsLoading ? (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+                </div>
+              ) : settings.headerVideoUrl ? (
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <video
+                      src={settings.headerVideoUrl}
+                      controls
+                      muted
+                      playsInline
+                      className="w-full max-w-md rounded-lg border border-slate-200 bg-black"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => headerVideoInputRef.current?.click()}
+                      disabled={headerVideoUploading}
+                    >
+                      Replace Video
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleRemoveHeaderVideo}
+                      disabled={headerVideoRemoving}
+                      className="text-red-600 border-red-200 hover:bg-red-50"
+                    >
+                      {headerVideoRemoving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                      Remove Video
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+                  <AlertCircle className="w-8 h-8 text-slate-400 mx-auto mb-3" />
+                  <p className="text-slate-700 font-medium">No homepage video uploaded yet.</p>
+                  <p className="text-sm text-slate-500 mt-1">
+                    The app will keep using the default bundled video until you upload one here.
+                  </p>
                 </div>
               )}
             </div>

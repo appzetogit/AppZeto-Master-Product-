@@ -11,69 +11,107 @@ export default function PromoRow({ handleVegModeChange, navigate, isVegMode, tog
       title: "MIN.",
       value: "40% off",
       icon: discountPromoIcon,
-      bgColor: "bg-rose-50 dark:bg-rose-950/30",
-      borderColor: "border-rose-100 dark:border-rose-900/60",
-      textColor: "text-rose-600 dark:text-rose-300",
+      gradient: 'linear-gradient(145deg, #ff4e6a, #c62a47)',
+      shadowColor: 'rgba(198,42,71,0.35)',
+      textColor: '#ffffff',
+      subTextColor: 'rgba(255,255,255,0.80)',
     },
     {
       id: 'pure-veg',
       title: "PURE",
       value: "Veg",
       icon: vegPromoIcon,
-      bgColor: "bg-emerald-50 dark:bg-emerald-950/30",
-      borderColor: "border-emerald-100 dark:border-emerald-900/60",
-      textColor: "text-emerald-600 dark:text-emerald-300",
+      gradient: isVegMode
+        ? 'linear-gradient(145deg, #1b5e20, #2e7d32)'
+        : 'linear-gradient(145deg, #2e7d32, #43a047)',
+      shadowColor: 'rgba(46,125,50,0.40)',
+      textColor: '#ffffff',
+      subTextColor: 'rgba(255,255,255,0.80)',
     },
     {
       id: 'under-250',
       title: "UNDER",
-      value: "\u20B9250",
+      value: "₹250",
       icon: pricePromoIcon,
-      bgColor: "bg-amber-50 dark:bg-amber-950/30",
-      borderColor: "border-amber-100 dark:border-amber-900/60",
-      textColor: "text-amber-600 dark:text-amber-300",
+      gradient: 'linear-gradient(145deg, #e65100, #f57c00)',
+      shadowColor: 'rgba(230,81,0,0.35)',
+      textColor: '#ffffff',
+      subTextColor: 'rgba(255,255,255,0.80)',
     },
     {
       id: 'combos',
       title: "BEST",
       value: "Combos",
       icon: comboPromoIcon,
-      bgColor: "bg-sky-50 dark:bg-sky-950/30",
-      borderColor: "border-sky-100 dark:border-sky-900/60",
-      textColor: "text-sky-600 dark:text-sky-300",
+      gradient: 'linear-gradient(145deg, #1565c0, #1976d2)',
+      shadowColor: 'rgba(21,101,192,0.35)',
+      textColor: '#ffffff',
+      subTextColor: 'rgba(255,255,255,0.80)',
     },
   ];
 
   return (
-    <div className="grid grid-cols-4 gap-3 px-4 pt-4 pb-8 bg-white dark:bg-[#0a0a0a]">
+    <div className="grid grid-cols-4 gap-2.5 px-3.5 pt-4 pb-8 bg-white">
       {promoCardsData.map((promo, idx) => (
         <div
           key={idx}
           ref={promo.id === 'pure-veg' ? toggleRef : null}
-          className={`${promo.bgColor} ${promo.borderColor} rounded-[2rem] p-1 flex flex-col items-center h-[170px] shadow-sm border transition-all duration-300 cursor-pointer active:scale-95 group ${
-            promo.id === 'pure-veg' && isVegMode ? 'ring-2 ring-emerald-500 bg-emerald-100 dark:bg-emerald-900/50' : ''
-          }`}
+          className="rounded-[22px] flex flex-col items-center overflow-hidden cursor-pointer active:scale-95 group transition-all duration-300"
+          style={{
+            background: promo.gradient,
+            boxShadow: `0 6px 20px ${promo.shadowColor}, 0 2px 8px rgba(0,0,0,0.12)`,
+            minHeight: '168px',
+            border: promo.id === 'pure-veg' && isVegMode ? '2.5px solid rgba(165,214,167,0.7)' : '2px solid rgba(255,255,255,0.10)',
+          }}
           onClick={() => {
             if (promo.id === 'pure-veg') handleVegModeChange(!isVegMode);
             else if (promo.id === 'offers') navigate('/food/user/offers');
             else if (promo.id === 'under-250') navigate('/food/user/under-250');
           }}
         >
+          {/* Label Section */}
           <div className="py-3 px-1 flex flex-col items-center text-center">
-            <span className="text-[9px] font-black text-gray-400 dark:text-gray-500 tracking-[0.1em] uppercase leading-none mb-1">
+            <span
+              style={{
+                fontSize: '8px',
+                fontWeight: 800,
+                color: promo.subTextColor,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                lineHeight: 1,
+                marginBottom: '3px',
+                fontFamily: "'Inter', sans-serif",
+              }}
+            >
               {promo.title}
             </span>
-            <span className={`text-sm font-black ${promo.textColor} leading-none truncate w-full px-1`}>
+            <span
+              style={{
+                fontSize: '13px',
+                fontWeight: 900,
+                color: promo.textColor,
+                lineHeight: 1.1,
+                fontFamily: "'Inter', 'Outfit', sans-serif",
+                letterSpacing: '-0.3px',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                maxWidth: '100%',
+                paddingLeft: '4px',
+                paddingRight: '4px',
+              }}
+            >
               {promo.value}
             </span>
           </div>
 
-          <div className="flex-1 w-full bg-white dark:bg-[#1a1a1a] rounded-[1.8rem] shadow-inner flex items-center justify-center p-2 mt-auto mb-1 group-hover:p-1 transition-all duration-300 overflow-hidden relative">
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/5 dark:to-white/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+          {/* Image Capsule Container */}
+          <div className="flex-1 w-full rounded-t-[0px] rounded-b-[20px] flex items-center justify-center overflow-hidden relative" style={{ background: 'rgba(255,255,255,0.14)' }}>
+            <div className="absolute inset-0 bg-gradient-to-b from-black/0 to-black/10 pointer-events-none" />
             <img
               src={promo.icon}
               alt={promo.value}
-              className="w-full h-full object-contain drop-shadow-md transform group-hover:scale-110 transition-transform duration-500"
+              className="w-[90%] h-[90%] object-contain drop-shadow-lg transform group-hover:scale-110 transition-transform duration-500"
             />
           </div>
         </div>

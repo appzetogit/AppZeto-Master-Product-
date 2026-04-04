@@ -1,3 +1,5 @@
+import { v2 as cloudinary } from 'cloudinary';
+import { uploadBufferDetailed } from '../../../../services/cloudinary.service.js';
 import { FoodLandingSettings } from '../models/landingSettings.model.js';
 
 export const getLandingSettings = async () => {
@@ -14,5 +16,43 @@ export const updateLandingSettings = async (payload) => {
         upsert: true
     }).lean();
     return doc;
+};
+
+export const uploadLandingHeaderVideo = async (file) => {
+    if (!file?.buffer) {
+        throw new Error('Video file is required');
+    }
+
+    const existing = await getLandingSettings();
+    const uploaded = await uploadBufferDetailed(file.buffer, {
+        folder: 'food/landing/header-video',
+        resourceType: 'video'
+    });
+
+    if (existing?.headerVideoPublicId) {
+        await cloudinary.uploader
+            .destroy(existing.headerVideoPublicId, { resource_type: 'video' })
+            .catch(() => {});
+    }
+
+    return updateLandingSettings({
+        headerVideoUrl: uploaded?.secure_url || '',
+        headerVideoPublicId: uploaded?.public_id || ''
+    });
+};
+
+export const deleteLandingHeaderVideo = async () => {
+    const existing = await getLandingSettings();
+
+    if (existing?.headerVideoPublicId) {
+        await cloudinary.uploader
+            .destroy(existing.headerVideoPublicId, { resource_type: 'video' })
+            .catch(() => {});
+    }
+
+    return updateLandingSettings({
+        headerVideoUrl: '',
+        headerVideoPublicId: ''
+    });
 };
 

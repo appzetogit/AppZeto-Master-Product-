@@ -377,9 +377,20 @@ const ProductDetailSheet = () => {
                                             <h1 className="text-[22px] lg:text-[26px] font-[800] text-[#111827] leading-[1.2] tracking-tight mb-1">
                                                 {selectedProduct.name}
                                             </h1>
-                                            {selectedProduct.weight && (
-                                                <span className="text-[13px] text-gray-400 font-[600]">{selectedProduct.weight}</span>
-                                            )}
+                                            <div className="flex items-center gap-3 mb-2">
+                                                {selectedProduct.weight && (
+                                                    <span className="text-[13px] text-gray-400 font-[600]">{selectedProduct.weight}</span>
+                                                )}
+                                                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-100 rounded-full">
+                                                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                                                    <span className="text-[11px] font-bold text-slate-500">
+                                                        Sold by: <span className="text-slate-800">{selectedProduct.storeName || selectedProduct.restaurantName || "Fresh Mart"}</span>
+                                                    </span>
+                                                    <div className="flex items-center justify-center w-3 h-3 bg-[#0c831f] rounded-full text-white">
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" className="w-2 h-2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </motion.div>
 
                                         {/* Price + Add-to-Cart Card */}
@@ -790,9 +801,17 @@ const ProductDetailSheet = () => {
                                     {selectedProduct.deliveryTime || "8 Mins"}
                                 </div>
 
-                                <h2 className="text-2xl font-black text-[#1A1A1A] leading-tight mb-2">
+                                <h2 className="text-2xl font-black text-[#1A1A1A] leading-tight mb-1">
                                     {selectedProduct.name}
                                 </h2>
+                                <div className="flex items-center gap-1.5 mb-4">
+                                    <div className="w-4 h-4 bg-[#0c831f]/10 rounded flex items-center justify-center">
+                                        <div className="w-1.5 h-1.5 bg-[#0c831f] rounded-full" />
+                                    </div>
+                                    <span className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">
+                                        Sold by: <span className="text-[#1A1A1A]">{selectedProduct.storeName || selectedProduct.restaurantName || "Fresh Mart"}</span>
+                                    </span>
+                                </div>
                                 {cleanDesc && (
                                     <div
                                         className="text-sm text-gray-500 font-medium leading-relaxed mb-6 whitespace-pre-line"

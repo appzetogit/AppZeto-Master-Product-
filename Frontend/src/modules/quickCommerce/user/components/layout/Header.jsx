@@ -13,7 +13,9 @@ const Header = () => {
     const { count: wishlistCount } = useWishlist();
     const { cartCount } = useCart();
     const location = useLocation();
-    const isCheckoutPage = location.pathname === '/checkout';
+    const path = location.pathname.replace(/^\/quick-commerce\/user/, '') || '/';
+    const isCheckoutPage = path === '/checkout';
+    const isProductDetailPage = path.startsWith('/product');
     const [isLocationOpen, setIsLocationOpen] = useState(false);
     const { currentLocation, refreshLocation } = useAppLocation();
 
@@ -138,7 +140,7 @@ const Header = () => {
                     </nav>
 
                     {/* Search Bar - Hidden on checkout page */}
-                    {!isCheckoutPage && (
+                    {!isCheckoutPage && !isProductDetailPage && (
                         <div className="flex-1 flex items-center max-w-sm ml-4 md:ml-8 mr-4 md:mr-8">
                             <div className="relative w-full">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />

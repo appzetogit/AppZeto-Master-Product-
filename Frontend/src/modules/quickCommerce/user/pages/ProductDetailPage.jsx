@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Heart, Plus, Minus, Star, ShieldCheck, Clock, ArrowLeft, MessageSquare, Loader2 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
@@ -26,7 +26,8 @@ const allProducts = [
             { label: 'Shelf Life', value: '3-4 Days' },
             { label: 'Storage', value: 'Refrigerate' },
             { label: 'Weight', value: '500g' }
-        ]
+        ],
+        storeName: 'Organic Valley'
     },
     {
         id: 2,
@@ -44,12 +45,16 @@ const allProducts = [
             { label: 'Shelf Life', value: '7 Days' },
             { label: 'Storage', value: 'Cool & Dry Place' },
             { label: 'Weight', value: '250g' }
-        ]
+        ],
+        storeName: 'Fresh Farms'
     }
 ];
 
 const ProductDetailPage = () => {
-    const { id } = useParams();
+    const { productId } = useParams();
+    const id = productId;
+    const navigate = useNavigate();
+
     const { cart, addToCart, updateQuantity, removeFromCart } = useCart();
     const { toggleWishlist: toggleWishlistGlobal, isInWishlist } = useWishlist();
     const { showToast } = useToast();
@@ -71,7 +76,8 @@ const ProductDetailPage = () => {
             { label: 'Shelf Life', value: '5-7 Days' },
             { label: 'Storage', value: 'Fresh Section' },
             { label: 'Weight', value: '1 Unit' }
-        ]
+        ],
+        storeName: 'Quick Select'
     };
 
     const [activeImage, setActiveImage] = useState(product.images[0]);
@@ -137,9 +143,12 @@ const ProductDetailPage = () => {
     return (
         <div className="relative z-10 py-8 w-full max-w-[1920px] mx-auto px-4 md:px-[50px] animate-in fade-in duration-700 mt-48 md:mt-24">
             {/* Back Button */}
-            <Link to={-1} className="inline-flex items-center gap-2 text-slate-500 hover:text-[#0c831f] font-bold mb-6 transition-colors group">
+            <button 
+                onClick={() => navigate(-1)} 
+                className="inline-flex items-center gap-2 text-slate-500 hover:text-[#0c831f] font-bold mb-6 transition-colors group"
+            >
                 <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" /> Back
-            </Link>
+            </button>
 
             <div className="flex flex-col lg:flex-row gap-10 xl:gap-16">
                 {/* Image Gallery Section */}
@@ -189,9 +198,18 @@ const ProductDetailPage = () => {
                             </div>
                         </div>
 
-                        <h1 className="text-3xl md:text-4xl font-black text-slate-800 leading-tight mb-3">
+                        <h1 className="text-3xl md:text-4xl font-black text-slate-800 leading-tight mb-2">
                             {product.name}
                         </h1>
+
+                        <div className="flex items-center gap-2 mb-6">
+                            <div className="flex items-center justify-center w-5 h-5 bg-emerald-100 rounded-full text-emerald-600">
+                                <ShieldCheck size={14} />
+                            </div>
+                            <span className="text-sm font-black text-slate-500 uppercase tracking-tighter">
+                                Sold by: <span className="text-slate-900 underline decoration-emerald-500/30 decoration-2 underline-offset-4">{product.storeName || product.restaurantName || "Fresh Mart"}</span>
+                            </span>
+                        </div>
 
                         <div className="flex items-baseline gap-4 mb-5">
                             <span className="text-4xl font-black text-[#0c831f]">₹{product.price}</span>

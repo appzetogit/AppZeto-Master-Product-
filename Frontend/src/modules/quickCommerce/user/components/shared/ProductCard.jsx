@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Heart, Plus, Minus, Star } from "lucide-react";
+import { Heart, Plus, Minus, Star, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useWishlist } from "../../context/WishlistContext";
@@ -9,7 +9,6 @@ import { useToast } from "@shared/components/ui/Toast";
 import { useCartAnimation } from "../../context/CartAnimationContext";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Clock } from "lucide-react";
 
 import { useProductDetail } from "../../context/ProductDetailContext";
 import { getQuickProductPath, isEmbeddedQuickPath } from "../../utils/routes";
@@ -41,17 +40,20 @@ const ProductCard = React.memo(
     const handleProductClick = React.useCallback(
       (e) => {
         const productId = product.id || product._id;
+
+        // Favor the modal/sheet view for a smoother experience
+        if (openProduct) {
+          e.preventDefault();
+          openProduct(product);
+          return;
+        }
+
         const pathname =
           typeof window !== "undefined" ? window.location.pathname : "";
 
         if (productId && isEmbeddedQuickPath(pathname)) {
           navigate(getQuickProductPath(productId));
           return;
-        }
-
-        if (openProduct) {
-          e.preventDefault();
-          openProduct(product);
         }
       },
       [navigate, openProduct, product],
@@ -244,8 +246,21 @@ const ProductCard = React.memo(
             </h4>
           </div>
 
+          {/* Store Name - Added by Antigravity */}
+          <div className="flex items-center gap-1 mt-1 mb-0.5">
+            <div className="w-3.5 h-3.5 bg-slate-100 rounded flex items-center justify-center">
+              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+            </div>
+            <span className={cn(
+              "font-bold text-slate-500 truncate",
+              compact ? "text-[8px]" : "text-[9px]"
+            )}>
+              {product.storeName || product.restaurantName || "Fresh Mart"}
+            </span>
+          </div>
+
           {/* Delivery Time & Unit info */}
-          <div className="flex items-center gap-1.5 text-gray-500 mt-1 mb-2">
+          <div className="flex items-center gap-1.5 text-gray-500 mt-0.5 mb-2">
             <Clock size={compact ? 10 : 11} className="text-emerald-500/80" />
             <span
               className={cn(

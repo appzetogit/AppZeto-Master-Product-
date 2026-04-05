@@ -4,6 +4,7 @@ import { AppShellSkeleton } from '@food/components/ui/loading-skeletons'
 import ProtectedRoute from '@core/guards/ProtectedRoute'
 import RoleGuard from '@core/guards/RoleGuard'
 import { UserRole } from '@core/constants/roles'
+import SellerAuthPage from '../modules/seller/pages/Auth'
 
 const NATIVE_LAST_ROUTE_KEY = 'native_last_route'
 
@@ -13,7 +14,6 @@ const FoodUserLayout = lazy(() => import('../modules/Food/components/user/UserLa
 const FoodHome = lazy(() => import('../modules/Food/pages/user/Home'))
 const AuthApp = lazy(() => import('../modules/auth/routes'))
 const QuickCommerceApp = lazy(() => import('../modules/quickCommerce/routes'))
-const SellerAuthPage = lazy(() => import('../modules/seller/pages/Auth'))
 const SellerApp = lazy(() => import('../modules/seller/routes'))
 
 const PageLoader = () => <AppShellSkeleton />
@@ -59,11 +59,7 @@ const RedirectToFood = () => {
 };
 
 const SellerAuthEntry = () => {
-  return (
-    <Suspense fallback={<PageLoader />}>
-      <SellerAuthPage />
-    </Suspense>
-  )
+  return <SellerAuthPage />
 }
 
 const SellerAppWrapper = () => {

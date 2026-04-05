@@ -13,9 +13,9 @@ const ROLE_STORAGE_KEYS = {
 
 const LEGACY_ROLE_STORAGE_KEYS = {
     customer: ['user_accessToken', 'accessToken'],
-    seller: ['seller_accessToken', 'accessToken'],
-    admin: ['admin_accessToken', 'accessToken'],
-    delivery: ['delivery_accessToken', 'accessToken']
+    seller: ['seller_accessToken'],
+    admin: ['admin_accessToken'],
+    delivery: ['delivery_accessToken']
 };
 
 const extractProfilePayload = (response) => {

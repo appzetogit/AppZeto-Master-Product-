@@ -20,7 +20,7 @@ const ProductDetailSheet = () => {
     const { settings } = useSettings();
     const supportEmail = settings?.supportEmail || 'support@example.com';
     const location = useLocation();
-    const cartPath = location.pathname.startsWith('/food/user/quick')
+    const cartPath = location.pathname.startsWith('/quick')
         ? '/food/user/cart'
         : '/checkout';
 
@@ -120,7 +120,14 @@ const ProductDetailSheet = () => {
         return text;
     };
 
-    const cartItem = selectedProduct ? cart.find(item => item.id === selectedProduct.id) : null;
+    const getComparableProductId = (value) => String(value ?? "").split("::")[0];
+    const cartItem = selectedProduct
+        ? cart.find(
+            (item) =>
+                getComparableProductId(item.productId || item.itemId || item.id || item._id) ===
+                getComparableProductId(selectedProduct.id || selectedProduct._id),
+          )
+        : null;
     const quantity = cartItem ? cartItem.quantity : 0;
     const isWishlisted = selectedProduct ? isInWishlist(selectedProduct.id) : false;
 

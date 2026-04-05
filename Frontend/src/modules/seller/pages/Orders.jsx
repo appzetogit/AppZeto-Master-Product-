@@ -113,6 +113,15 @@ const Orders = () => {
                     ? `${order.address.address || ''}, ${order.address.city || ''}`.trim()
                     : '',
                 location: order.address?.location || null,
+                dispatchStatus: String(order.dispatchStatus || 'unassigned').toLowerCase(),
+                deliveryPartner: order.deliveryPartner
+                    ? {
+                        name: order.deliveryPartner.name || 'Delivery Partner',
+                        phone: order.deliveryPartner.phone || '',
+                        vehicleType: order.deliveryPartner.vehicleType || '',
+                        vehicleNumber: order.deliveryPartner.vehicleNumber || ''
+                    }
+                    : null,
                 payment: order.payment?.method === 'cash' || order.payment?.method === 'cod'
                     ? 'Cash on Delivery'
                     : 'Online Paid'
@@ -204,15 +213,78 @@ const Orders = () => {
     const handleStatusUpdate = async (orderId, newStatus) => {
         try {
             await sellerApi.updateOrderStatus(orderId, { status: newStatus.toLowerCase() });
-            showToast(`Order status updated to ${newStatus}`, "success");
-            fetchOrders(); // Refresh orders
+            const normalizedStatus = String(newStatus || "").toLowerCase();
+
+            setOrders((prev) =>
+                (Array.isArray(prev) ? prev : []).map((order) =>
+                    order.id === orderId
+                        ? {
+                            ...order,
+                            status: normalizedStatus,
+                        }
+                        : order
+                )
+            );
+
             if (selectedOrder && selectedOrder.id === orderId) {
-                setSelectedOrder({ ...selectedOrder, status: newStatus });
+                setSelectedOrder({ ...selectedOrder, status: normalizedStatus });
             }
+
+            const nextTabLabel =
+                normalizedStatus === "out_for_delivery"
+                    ? "Out for Delivery"
+                    : normalizedStatus
+                        .split("_")
+                        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+                        .join(" ");
+
+            if (activeTab !== "All" && activeTab !== nextTabLabel) {
+                setActiveTab(nextTabLabel);
+            }
+
+            showToast(`Order status updated to ${nextTabLabel}`, "success");
+            fetchOrders(page, false);
         } catch (error) {
             console.error("Failed to update status:", error);
             showToast("Failed to update status", "error");
         }
+    };
+
+    const handleResendDispatch = async (orderId) => {
+        try {
+            const response = await sellerApi.resendOrderDispatch(orderId);
+            const partner = response?.data?.result?.notifiedPartner;
+            setSelectedOrder((prev) => (
+                prev && prev.id === orderId
+                    ? {
+                        ...prev,
+                        dispatchStatus: 'assigned',
+                        deliveryPartner: null,
+                    }
+                    : prev
+            ));
+            showToast(
+                partner?.name ? `Sent again to ${partner.name}` : "Driver notification sent again",
+                "success"
+            );
+            fetchOrders(page, false);
+        } catch (error) {
+            console.error("Failed to resend dispatch:", error);
+            showToast(
+                error?.response?.data?.message || "Failed to resend driver notification",
+                "error"
+            );
+        }
+    };
+
+    const canResendDispatch = (order) => {
+        const sellerStatus = String(order?.status || '').toLowerCase();
+        const dispatchStatus = String(order?.dispatchStatus || '').toLowerCase();
+
+        if (order?.deliveryPartner && dispatchStatus === 'accepted') return false;
+        if (['delivered', 'cancelled'].includes(sellerStatus)) return false;
+
+        return ['confirmed', 'packed', 'out_for_delivery'].includes(sellerStatus);
     };
 
     const exportOrders = () => {
@@ -460,6 +532,13 @@ const Orders = () => {
                                                         </div>
                                                         <p className="text-xs font-bold text-slate-800 truncate">{order.customer.name}</p>
                                                     </div>
+                                                    <p className="text-[11px] font-bold mt-2 text-slate-600">
+                                                        {order.deliveryPartner
+                                                            ? `${order.dispatchStatus === 'accepted' ? 'Rider accepted' : 'Rider notified'}: ${order.deliveryPartner.name}`
+                                                            : order.dispatchStatus === 'assigned'
+                                                                ? 'Closest rider notified, waiting for acceptance'
+                                                                : 'No rider accepted yet'}
+                                                    </p>
                                                     <p className="text-sm font-black text-slate-900 mt-2">₹{order.total.toLocaleString()}</p>
                                                 </div>
                                                 <div className="flex flex-col items-end gap-2 shrink-0">
@@ -490,6 +569,14 @@ const Orders = () => {
                                                     >
                                                         <HiOutlineEye className="h-4 w-4" />
                                                     </button>
+                                                    {canResendDispatch(order) && (
+                                                        <button
+                                                            onClick={() => handleResendDispatch(order.id)}
+                                                            className="px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-[10px] font-black uppercase tracking-wider"
+                                                        >
+                                                            Resend Rider
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
                                         </motion.div>
@@ -505,6 +592,7 @@ const Orders = () => {
                                         <tr className="bg-slate-50/50 border-b border-slate-100">
                                             <th className="px-4 lg:px-6 py-3 lg:py-4 text-xs font-bold text-slate-600 uppercase tracking-widest">Order Details</th>
                                             <th className="px-4 lg:px-6 py-3 lg:py-4 text-xs font-bold text-slate-600 uppercase tracking-widest">Customer</th>
+                                            <th className="px-4 lg:px-6 py-3 lg:py-4 text-xs font-bold text-slate-600 uppercase tracking-widest">Driver</th>
                                             <th className="px-4 lg:px-6 py-3 lg:py-4 text-xs font-bold text-slate-600 uppercase tracking-widest">Total</th>
                                             <th className="px-4 lg:px-6 py-3 lg:py-4 text-xs font-bold text-slate-600 uppercase tracking-widest">Status</th>
                                             <th className="px-4 lg:px-6 py-3 lg:py-4 text-xs font-bold text-slate-600 uppercase tracking-widest text-right">Actions</th>
@@ -546,6 +634,25 @@ const Orders = () => {
                                                         </div>
                                                     </td>
                                                     <td className="px-4 lg:px-6 py-3 lg:py-4">
+                                                        {order.deliveryPartner ? (
+                                                            <div className="flex flex-col">
+                                                                <span className="text-xs font-bold text-emerald-700">{order.deliveryPartner.name}</span>
+                                                                <span className="text-xs font-semibold text-slate-600">
+                                                                    {order.deliveryPartner.phone || (order.dispatchStatus === 'accepted' ? 'Accepted' : 'Notified')}
+                                                                </span>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex flex-col">
+                                                                <span className="text-xs font-bold text-slate-700">
+                                                                    {order.dispatchStatus === 'assigned' ? 'Waiting for acceptance' : 'No driver yet'}
+                                                                </span>
+                                                                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                                                    {order.dispatchStatus.replaceAll('_', ' ')}
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 lg:px-6 py-3 lg:py-4">
                                                         <div className="flex flex-col">
                                                             <span className="text-xs font-bold text-slate-900">₹{order.total.toLocaleString()}</span>
                                                             <span className="text-xs font-semibold text-slate-600">{order.items.length} items</span>
@@ -578,7 +685,15 @@ const Orders = () => {
                                                         </div>
                                                     </td>
                                                     <td className="px-4 lg:px-6 py-3 lg:py-4 text-right">
-                                                        <div className="flex items-center justify-end space-x-1.5">
+                                                        <div className="flex items-center justify-end space-x-1.5 flex-wrap">
+                                                            {canResendDispatch(order) && (
+                                                                <button
+                                                                    onClick={() => handleResendDispatch(order.id)}
+                                                                    className="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-all text-[10px] font-black uppercase tracking-wider"
+                                                                >
+                                                                    Resend Rider
+                                                                </button>
+                                                            )}
                                                             <button
                                                                 onClick={() => handleViewDetails(order)}
                                                                 className="p-1.5 hover:bg-white hover:text-primary rounded-lg transition-all text-slate-600 shadow-sm ring-1 ring-slate-100"
@@ -805,6 +920,30 @@ const Orders = () => {
                                                         <p className="text-xs font-semibold text-slate-600 mt-0.5">{selectedOrder.customer.phone}</p>
                                                     </div>
                                                 </div>
+                                                <div>
+                                                    <h4 className="text-xs font-black text-slate-600 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                                        <HiOutlineTruck className="h-3 w-3 text-blue-500" /> Driver Status
+                                                    </h4>
+                                                    <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 shadow-sm">
+                                                        {selectedOrder.deliveryPartner ? (
+                                                            <>
+                                                                <p className="text-xs font-bold text-slate-800">{selectedOrder.deliveryPartner.name}</p>
+                                                                <p className="text-xs font-semibold text-slate-600 mt-0.5">
+                                                                    {selectedOrder.deliveryPartner.phone || (selectedOrder.dispatchStatus === 'accepted' ? 'Accepted rider' : 'Notified rider')}
+                                                                </p>
+                                                                {selectedOrder.deliveryPartner.vehicleType && (
+                                                                    <p className="text-[11px] font-semibold text-slate-500 mt-1">
+                                                                        {selectedOrder.deliveryPartner.vehicleType} {selectedOrder.deliveryPartner.vehicleNumber ? `• ${selectedOrder.deliveryPartner.vehicleNumber}` : ''}
+                                                                    </p>
+                                                                )}
+                                                            </>
+                                                        ) : (
+                                                            <p className="text-xs font-bold text-slate-600">
+                                                                {selectedOrder.dispatchStatus === 'assigned' ? 'Closest rider notified. Waiting for acceptance.' : 'No rider has accepted yet.'}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
                                             <div className="space-y-3 sm:space-y-4">
                                                 <div className="bg-primary/5 p-3 sm:p-4 rounded-3xl border border-primary/10">
@@ -859,6 +998,14 @@ const Orders = () => {
                                     {/* Modal Footer */}
                                     <div className="px-4 py-3 sm:px-6 sm:py-4 border-t border-slate-100 bg-slate-50 flex flex-col sm:flex-row gap-3 sm:gap-0 sm:items-center justify-end">
                                         <div className="flex gap-2 items-center">
+                                            {canResendDispatch(selectedOrder) && (
+                                                <button
+                                                    onClick={() => handleResendDispatch(selectedOrder.id)}
+                                                    className="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-blue-700 bg-blue-50 hover:bg-blue-100 transition-all"
+                                                >
+                                                    Resend Rider
+                                                </button>
+                                            )}
                                             <button onClick={() => setIsDetailsModalOpen(false)} className="px-6 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-all">CLOSE</button>
                                             <div className="relative inline-block w-40">
                                                 <select

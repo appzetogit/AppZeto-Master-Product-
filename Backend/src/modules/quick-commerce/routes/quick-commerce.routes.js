@@ -10,7 +10,7 @@ import {
   getProducts,
 } from '../controllers/catalog.controller.js';
 import { addToCart, clearCart, getCart, removeCartItem, updateCartItem } from '../controllers/cart.controller.js';
-import { getMyOrders, placeOrder } from '../controllers/order.controller.js';
+import { getMyOrders, getOrderById, placeOrder } from '../controllers/order.controller.js';
 import { addToWishlist, getWishlist, removeFromWishlist, toggleWishlist } from '../controllers/wishlist.controller.js';
 import {
   approveAdminSellerRequest,
@@ -19,6 +19,7 @@ import {
   createProduct,
   getAdminCategories,
   getAdminOrders,
+  deleteAdminOrder,
   getAdminProducts,
   getAdminStats,
   rejectAdminSellerRequest,
@@ -74,6 +75,7 @@ router.delete('/cart/clear', optionalAuth, clearCart);
 
 router.post('/orders', optionalAuth, placeOrder);
 router.get('/orders', optionalAuth, getMyOrders);
+router.get('/orders/:orderId', optionalAuth, getOrderById);
 
 router.get('/wishlist', optionalAuth, getWishlist);
 router.post('/wishlist/add', optionalAuth, addToWishlist);
@@ -97,6 +99,7 @@ router.put('/admin/products/:productId', upload.fields([
 ]), updateProduct);
 router.delete('/admin/products/:productId', removeProduct);
 router.get('/admin/orders', getAdminOrders);
+router.delete('/admin/orders/:orderId', deleteAdminOrder);
 router.get('/admin/seller-requests', getAdminSellerRequests);
 router.put('/admin/seller-requests/:sellerId/approve', approveAdminSellerRequest);
 router.put('/admin/seller-requests/:sellerId/reject', rejectAdminSellerRequest);

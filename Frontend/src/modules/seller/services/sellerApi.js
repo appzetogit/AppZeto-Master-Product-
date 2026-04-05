@@ -62,6 +62,9 @@ export const sellerApi = {
       axiosInstance.put(`/seller/orders/${String(orderId)}/status`, data),
     ),
 
+  resendOrderDispatch: (orderId) =>
+    call(axiosInstance.post(`/seller/orders/${String(orderId)}/resend-dispatch`)),
+
   getEarnings: () => call(axiosInstance.get("/seller/earnings")),
 
   getProfile: () => call(axiosInstance.get("/seller/profile")),

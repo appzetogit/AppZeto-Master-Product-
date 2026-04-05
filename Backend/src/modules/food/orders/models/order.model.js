@@ -1,5 +1,13 @@
 import mongoose from 'mongoose';
 
+const geoPointSchema = new mongoose.Schema(
+    {
+        type: { type: String, enum: ['Point'], default: undefined },
+        coordinates: { type: [Number], default: undefined }
+    },
+    { _id: false }
+);
+
 const orderItemSchema = new mongoose.Schema(
     {
         itemId: { type: String, required: true, trim: true },
@@ -23,8 +31,8 @@ const pickupPointSchema = new mongoose.Schema(
         sourceName: { type: String, default: '', trim: true },
         address: { type: String, default: '', trim: true },
         location: {
-            type: { type: String, enum: ['Point'], default: 'Point' },
-            coordinates: { type: [Number], default: undefined }
+            type: geoPointSchema,
+            default: undefined
         },
         itemIds: { type: [String], default: [] }
     },
@@ -73,8 +81,8 @@ const deliveryAddressSchema = new mongoose.Schema(
         zipCode: { type: String, default: '', trim: true },
         phone: { type: String, default: '', trim: true },
         location: {
-            type: { type: String, enum: ['Point'], default: 'Point' },
-            coordinates: { type: [Number], default: undefined }
+            type: geoPointSchema,
+            default: undefined
         }
     },
     { _id: false }
@@ -347,8 +355,8 @@ const orderSchema = new mongoose.Schema(
         },
         /** Latest rider location for this specific order (GeoJSON Point) */
         lastRiderLocation: {
-            type: { type: String, enum: ['Point'] },
-            coordinates: { type: [Number] }
+            type: geoPointSchema,
+            default: undefined
         }
     },
     {

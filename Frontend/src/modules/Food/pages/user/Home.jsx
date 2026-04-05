@@ -1288,7 +1288,7 @@ export default function Home() {
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     if (tab === "quick") {
-      navigate("/food/user/quick");
+      navigate("/quick");
     } else {
       navigate("/food/user");
     }

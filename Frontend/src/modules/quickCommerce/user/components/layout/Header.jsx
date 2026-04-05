@@ -105,7 +105,10 @@ const Header = () => {
                 <div className="px-4 md:px-8 h-18 bg-white/95 backdrop-blur-sm rounded-full shadow-2xl flex items-center justify-between border border-white/20">
                     {/* Logo */}
                     <div className="flex items-center gap-6 mr-4 md:mr-12">
-                        <Link to="/quick-commerce" className="flex items-center gap-1">
+                        <Link
+                            to="/quick-commerce"
+                            className={`flex items-center gap-1 ${isProductDetailPage ? 'hidden md:flex' : 'flex'}`}
+                        >
                             <span className="text-2xl md:text-3xl font-black tracking-tight" style={{ color: settings?.primaryColor || 'var(--primary)' }}>{settings?.appName || 'App'}</span>
                         </Link>
 

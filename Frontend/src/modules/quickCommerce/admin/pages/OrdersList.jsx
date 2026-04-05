@@ -12,6 +12,7 @@ import {
     RotateCcw,
     MoreVertical,
     Eye,
+    Trash2,
     Download,
     Calendar,
     ArrowUpRight,
@@ -53,17 +54,19 @@ const OrdersList = () => {
                 const payload = response.data.result || {};
                 const dbOrders = Array.isArray(payload.items) ? payload.items : (response.data.results || []);
                 const formatted = dbOrders.map(o => ({
-                    id: o.orderId,
+                    id: String(o.orderId || o._id || ''),
                     _id: o._id,
-                    customer: o.customer?.name || 'Unknown',
-                    seller: o.seller?.shopName || 'Unknown',
+                    customer: String(o.customer?.name || 'Unknown'),
+                    seller: String(o.seller?.shopName || o.storeName || 'Unknown'),
                     items: o.items?.length || 0,
                     amount: o.pricing?.total || 0,
-                    status: getLegacyStatusFromOrder(o),
+                    status: String(getLegacyStatusFromOrder(o) || 'pending'),
                     workflowStatus: o.workflowStatus,
                     workflowVersion: o.workflowVersion,
                     returnStatus: o.returnStatus,
-                    date: new Date(o.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+                    date: o.createdAt
+                        ? new Date(o.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+                        : '',
                     payment: o.payment?.method === 'cod' ? 'COD' : 'Digital',
                 }));
                 setOrders(formatted);
@@ -97,6 +100,30 @@ const OrdersList = () => {
         }
     };
 
+    const handleDeleteOrder = async (order) => {
+        const orderLabel = String(order?.id || order?._id || '').trim();
+        if (!orderLabel) {
+            showToast("Order id is missing", "error");
+            return;
+        }
+
+        const shouldDelete = window.confirm(
+            `Delete order #${orderLabel} from quick-commerce, seller records, and DB? This cannot be undone.`
+        );
+
+        if (!shouldDelete) return;
+
+        try {
+            await adminApi.deleteOrder(orderLabel);
+            showToast(`Order #${orderLabel} deleted`, "success");
+            setOrders((prev) => (Array.isArray(prev) ? prev.filter((item) => item.id !== order.id) : prev));
+            fetchOrders(page);
+        } catch (error) {
+            console.error("Failed to delete order:", error);
+            showToast(error?.response?.data?.message || "Failed to delete order", "error");
+        }
+    };
+
     useEffect(() => {
         fetchOrders(1);
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -123,10 +150,14 @@ const OrdersList = () => {
 
     const filteredOrders = useMemo(() => {
         return safeOrders.filter(order => {
+            const orderId = String(order?.id || '').toLowerCase();
+            const customerName = String(order?.customer || '').toLowerCase();
+            const sellerName = String(order?.seller || '').toLowerCase();
+            const term = String(searchTerm || '').toLowerCase();
             const matchesSearch =
-                order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                order.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                order.seller.toLowerCase().includes(searchTerm.toLowerCase());
+                orderId.includes(term) ||
+                customerName.includes(term) ||
+                sellerName.includes(term);
 
             const matchesStatus = adminRouteMatchesOrder(status, order);
 
@@ -259,7 +290,11 @@ const OrdersList = () => {
                                     </td>
                                 </tr>
                             ) : filteredOrders.length > 0 ? filteredOrders.map((order) => (
-                                <tr key={order.id} className="group hover:bg-slate-50/30 transition-all cursor-pointer" onClick={() => navigate(`/admin/orders/view/${order.id}`)}>
+                                <tr
+                                    key={order.id}
+                                    className="group hover:bg-slate-50/30 transition-all cursor-pointer"
+                                    onClick={() => navigate(`/admin/quick-commerce/orders/view/${order.id}`)}
+                                >
                                     <td className="px-4 py-5">
                                         <div className="flex items-center gap-4">
                                             <div className="p-3 bg-slate-50 rounded-2xl group-hover:bg-white group-hover:shadow-sm transition-all text-slate-400 group-hover:text-fuchsia-500 font-bold text-xs">
@@ -319,15 +354,26 @@ const OrdersList = () => {
                                         </div>
                                     </td>
                                     <td className="px-4 py-5 text-right">
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                navigate(`/admin/orders/view/${order.id}`);
-                                            }}
-                                            className="p-2.5 bg-slate-50 text-slate-400 hover:text-fuchsia-600 hover:bg-fuchsia-50 rounded-xl transition-all"
-                                        >
-                                            <Eye className="h-4 w-4" />
-                                        </button>
+                                        <div className="flex items-center justify-end gap-2">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    navigate(`/admin/quick-commerce/orders/view/${order.id}`);
+                                                }}
+                                                className="p-2.5 bg-slate-50 text-slate-400 hover:text-fuchsia-600 hover:bg-fuchsia-50 rounded-xl transition-all"
+                                            >
+                                                <Eye className="h-4 w-4" />
+                                            </button>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDeleteOrder(order);
+                                                }}
+                                                className="p-2.5 bg-rose-50 text-rose-500 hover:text-rose-700 hover:bg-rose-100 rounded-xl transition-all"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             )) : (

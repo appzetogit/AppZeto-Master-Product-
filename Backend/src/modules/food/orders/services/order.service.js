@@ -1783,6 +1783,12 @@ export async function updateOrderStatusRestaurant(
   restaurantId,
   orderStatus,
 ) {
+  if (!mongoose.Types.ObjectId.isValid(orderId)) {
+    throw new ValidationError("Invalid order id");
+  }
+  if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
+    throw new ValidationError("Invalid restaurant id");
+  }
   let order = await FoodOrder.findOne({
     _id: new mongoose.Types.ObjectId(orderId),
     restaurantId: new mongoose.Types.ObjectId(restaurantId),
@@ -1809,8 +1815,8 @@ export async function updateOrderStatusRestaurant(
         orderMongoId: order._id?.toString?.(),
         orderId: order.orderId,
         orderStatus: order.orderStatus,
-        title: title || `Order ${order.orderId} updated`,
-        message: body || "",
+        title: `Order ${order.orderId} updated`,
+        message: `Status changed to ${String(orderStatus).replace(/_/g, " ")}`,
       };
       io.to(rooms.restaurant(restaurantId)).emit(
         "order_status_update",
@@ -1834,7 +1840,10 @@ export async function updateOrderStatusRestaurant(
       title = "Food is ready! 🛍️";
       body = "Your order is ready and waiting to be picked up.";
     } else if (String(orderStatus).includes("cancel")) {
-      const isOnlinePaid = order.payment.method === "razorpay" && (order.payment.status === "paid" || order.payment.status === "refunded");
+      const isOnlinePaid =
+        order.payment?.method === "razorpay" &&
+        (order.payment?.status === "paid" ||
+          order.payment?.status === "refunded");
       const refundDetail = isOnlinePaid ? ` Your refund of ₹${order.pricing.total} is being processed and will be credited to your original payment method within 5-7 working days.` : "";
       
       title = "Order Cancelled ❌";
@@ -1860,7 +1869,10 @@ export async function updateOrderStatusRestaurant(
       
       // Sync transaction status
       try {
-        const isOnlinePaid = order.payment.method === "razorpay" && (order.payment.status === "paid" || order.payment.status === "refunded");
+        const isOnlinePaid =
+          order.payment?.method === "razorpay" &&
+          (order.payment?.status === "paid" ||
+            order.payment?.status === "refunded");
         await foodTransactionService.updateTransactionStatus(order._id, 'cancelled_by_restaurant', {
             status: isOnlinePaid ? 'refunded' : 'failed',
             note: `Order cancelled by restaurant/admin`,
@@ -2030,35 +2042,41 @@ export async function updateOrderStatusRestaurant(
     // Triggers if the restaurant sets status to a cancelled state (e.g., cancelled_by_restaurant)
     if (
       String(orderStatus).includes("cancel") &&
-      order.payment.status === "paid" &&
-      order.payment.method === "razorpay" &&
-      order.payment.razorpay?.paymentId &&
-      (!order.payment.refund || order.payment.refund.status !== "processed")
+      order.payment?.status === "paid" &&
+      order.payment?.method === "razorpay" &&
+      order.payment?.razorpay?.paymentId &&
+      (!order.payment?.refund || order.payment?.refund?.status !== "processed")
     ) {
       try {
         const refundResult = await initiateRazorpayRefund(
           order.payment.razorpay.paymentId,
-          order.pricing.total
+          order.pricing?.total || 0
         );
 
         if (refundResult.success) {
+          order.payment = order.payment || {};
           order.payment.status = "refunded";
           order.payment.refund = {
             status: "processed",
-            amount: order.pricing.total,
+            amount: order.pricing?.total || 0,
             refundId: refundResult.refundId,
             processedAt: new Date()
           };
         } else {
           // Record failure so admin knows a manual refund might be needed
+          order.payment = order.payment || {};
           order.payment.refund = {
             status: "failed",
-            amount: order.pricing.total
+            amount: order.pricing?.total || 0
           };
         }
       } catch (err) {
         console.error(`Automated refund failed for Order ${orderId} (Restaurant Cancel):`, err);
-        order.payment.refund = { status: "failed", amount: order.pricing.total };
+        order.payment = order.payment || {};
+        order.payment.refund = {
+          status: "failed",
+          amount: order.pricing?.total || 0,
+        };
       }
       // Re-save order with updated payment status
       await order.save();

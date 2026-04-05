@@ -622,6 +622,27 @@ export const useRestaurantNotifications = () => {
       // You can handle status updates here if needed
     });
 
+    socketRef.current.on('order_deleted', (data) => {
+      debugLog('?? Order deleted:', data);
+      const deletedIds = [
+        String(data?.orderId || '').trim(),
+        String(data?.orderMongoId || '').trim(),
+      ].filter(Boolean);
+      const activeIds = [
+        String(activeOrderRef.current?.orderId || '').trim(),
+        String(activeOrderRef.current?.orderMongoId || '').trim(),
+        String(newOrder?.orderId || '').trim(),
+        String(newOrder?.orderMongoId || '').trim(),
+      ].filter(Boolean);
+
+      const matchesActiveOrder = deletedIds.some((id) => activeIds.includes(id));
+      if (!matchesActiveOrder) return;
+
+      stopAlertLoop();
+      activeOrderRef.current = null;
+      setNewOrder(null);
+    });
+
     socketRef.current.on('admin_notification', (payload) => {
       debugLog('?? Admin broadcast received:', payload);
       dispatchNotificationInboxRefresh();
@@ -700,7 +721,11 @@ export const useRestaurantNotifications = () => {
   const playNotificationSound = async (orderData = {}) => {
     try {
       const usedNativeBridge = await triggerWebViewNativeNotification(orderData);
-      if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      if (
+        userInteractedRef.current &&
+        typeof navigator !== 'undefined' &&
+        typeof navigator.vibrate === 'function'
+      ) {
         navigator.vibrate([200, 100, 200, 100, 300]);
       }
       if (usedNativeBridge) {

@@ -15,6 +15,13 @@ export default function SellerPendingApproval() {
 
   const loadProfile = async (silent = false) => {
     if (!silent) setIsLoading(true);
+    const sellerToken = localStorage.getItem("auth_seller");
+    if (!sellerToken) {
+      setIsLoading(false);
+      navigate("/seller/auth", { replace: true });
+      return;
+    }
+
     try {
       const response = await sellerApi.getProfile();
       const data = response?.data?.result || {};
@@ -23,7 +30,9 @@ export default function SellerPendingApproval() {
         navigate("/seller", { replace: true });
       }
     } catch (error) {
-      toast.error("Failed to load approval status");
+      if (error?.response?.status !== 401) {
+        toast.error("Failed to load approval status");
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);

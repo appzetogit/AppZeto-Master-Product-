@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation as useRouterLocation, useNavigate } from "react-router-dom";
 import Lottie from "lottie-react";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "@core/context/AuthContext";
@@ -54,6 +54,43 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import emptyBoxAnimation from "../assets/lottie/Empty box.json";
+import {
+  getQuickCategoriesPath,
+  getQuickOrderDetailPath,
+  getQuickOrdersPath,
+} from "../utils/routes";
+
+const CHECKOUT_STORAGE_KEY = "quick_commerce_checkout_state_v1";
+const RECIPIENT_STORAGE_KEY = "appzeto_checkout_recipient_v1";
+
+const DEFAULT_CURRENT_ADDRESS = {
+  type: "Home",
+  name: "Harshvardhan Panchal",
+  address: "81 Pipliyahana Road, Near 214",
+  landmark: "",
+  city: "Indore - 452018",
+  phone: "6268423925",
+};
+
+const DEFAULT_RECIPIENT_DATA = {
+  completeAddress: "",
+  landmark: "",
+  pincode: "",
+  name: "",
+  phone: "",
+};
+
+const readStoredCheckoutState = () => {
+  try {
+    if (typeof window === "undefined") return {};
+    const raw = window.localStorage.getItem(CHECKOUT_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+};
 
 const CheckoutPage = () => {
   const {
@@ -64,12 +101,14 @@ const CheckoutPage = () => {
     updateQuantity,
     removeFromCart,
     clearCart,
+    loading,
   } = useCart();
   const { wishlist, addToWishlist, fetchFullWishlist, isFullDataFetched } =
     useWishlist();
   const { showToast } = useToast();
   const { user, isAuthenticated } = useAuth();
   const { settings } = useSettings();
+  const routerLocation = useRouterLocation();
 
   // Fetch full wishlist data if not already fetched
   useEffect(() => {
@@ -87,14 +126,27 @@ const CheckoutPage = () => {
     updateLocation,
   } = useAppLocation();
   const navigate = useNavigate();
+  const categoriesPath = getQuickCategoriesPath();
+  const ordersPath = getQuickOrdersPath();
+  const storedCheckoutState = readStoredCheckoutState();
 
   // State management
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState("now");
-  const [selectedPayment, setSelectedPayment] = useState("cash");
-  const [selectedTip, setSelectedTip] = useState(0);
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState(
+    storedCheckoutState.selectedTimeSlot || "now",
+  );
+  const [selectedPayment, setSelectedPayment] = useState(
+    routerLocation.state?.selectedPayment ||
+      storedCheckoutState.selectedPayment ||
+      "cash",
+  );
+  const [selectedTip, setSelectedTip] = useState(
+    Number(storedCheckoutState.selectedTip || 0),
+  );
   const [showAllCartItems, setShowAllCartItems] = useState(false);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
-  const [selectedCoupon, setSelectedCoupon] = useState(null);
+  const [selectedCoupon, setSelectedCoupon] = useState(
+    storedCheckoutState.selectedCoupon || null,
+  );
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [isResolvingAddressCoords, setIsResolvingAddressCoords] = useState(false);
   const [isCouponModalOpen, setIsCouponModalOpen] = useState(false);
@@ -103,33 +155,22 @@ const CheckoutPage = () => {
   const [pricingPreview, setPricingPreview] = useState(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const postOrderNavigateRef = useRef(null);
-  const [currentAddress, setCurrentAddress] = useState({
-    type: "Home",
-    name: "Harshvardhan Panchal",
-    address: "81 Pipliyahana Road, Near 214",
-    landmark: "",
-    city: "Indore - 452018",
-    phone: "6268423925",
-  });
+  const [currentAddress, setCurrentAddress] = useState(
+    storedCheckoutState.currentAddress || DEFAULT_CURRENT_ADDRESS,
+  );
   const [isEditAddressOpen, setIsEditAddressOpen] = useState(false);
   const [editAddressForm, setEditAddressForm] = useState({
-    type: "Home",
-    name: "Harshvardhan Panchal",
-    address: "81 Pipliyahana Road, Near 214",
-    landmark: "",
-    city: "Indore - 452018",
-    phone: "6268423925",
+    ...(storedCheckoutState.currentAddress || DEFAULT_CURRENT_ADDRESS),
   });
-  const [showRecipientForm, setShowRecipientForm] = useState(false);
-  const [recipientData, setRecipientData] = useState({
-    // city: 'Select city',
-    completeAddress: "",
-    landmark: "",
-    pincode: "",
-    name: "",
-    phone: "",
-  });
-  const [savedRecipient, setSavedRecipient] = useState(null);
+  const [showRecipientForm, setShowRecipientForm] = useState(
+    Boolean(storedCheckoutState.showRecipientForm),
+  );
+  const [recipientData, setRecipientData] = useState(
+    storedCheckoutState.recipientData || DEFAULT_RECIPIENT_DATA,
+  );
+  const [savedRecipient, setSavedRecipient] = useState(
+    storedCheckoutState.savedRecipient || null,
+  );
 
   // Mock data for recommendations
   const recommendedProducts = [
@@ -157,7 +198,9 @@ const CheckoutPage = () => {
   ];
 
   const [coupons, setCoupons] = useState([]);
-  const [manualCode, setManualCode] = useState("");
+  const [manualCode, setManualCode] = useState(
+    storedCheckoutState.manualCode || "",
+  );
 
   const deliveryAddress = {
     type: "Home",
@@ -212,8 +255,36 @@ const CheckoutPage = () => {
   const totalAmount = pricingPreview?.grandTotal || 0;
 
   const displayCartItems = showAllCartItems ? cart : cart;
+  const getCheckoutProductId = (item) =>
+    String(item?.productId || item?.itemId || item?.id || item?._id || "").split("::")[0];
+  const getCheckoutCartItemsForSync = () =>
+    cart
+      .map((item) => ({
+        productId: getCheckoutProductId(item),
+        quantity: Math.max(1, Number(item.quantity || 1)),
+      }))
+      .filter((item) => item.productId);
 
-  const RECIPIENT_STORAGE_KEY = "appzeto_checkout_recipient_v1";
+  const syncVisibleCartToBackend = async () => {
+    const cartItemsForSync = getCheckoutCartItemsForSync();
+
+    if (!cartItemsForSync.length) {
+      throw new Error("Cart is empty");
+    }
+
+    await customerApi.clearCart();
+    for (const item of cartItemsForSync) {
+      await customerApi.addToCart(item);
+    }
+  };
+
+  const getCheckoutErrorMessage = (error) =>
+    String(
+      error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message ||
+        "",
+    ).trim();
 
   // Derived display values for primary delivery card
   const displayName = savedRecipient?.name || currentAddress.name;
@@ -610,77 +681,116 @@ const CheckoutPage = () => {
   }, []);
 
   useEffect(() => {
-    if (!isAuthenticated || cart.length === 0) {
+    try {
+      if (typeof window === "undefined") return;
+      window.localStorage.setItem(
+        CHECKOUT_STORAGE_KEY,
+        JSON.stringify({
+          selectedTimeSlot,
+          selectedPayment,
+          selectedTip,
+          selectedCoupon,
+          manualCode,
+          currentAddress,
+          recipientData,
+          savedRecipient,
+          showRecipientForm,
+        }),
+      );
+    } catch {
+      // ignore storage errors
+    }
+  }, [
+    currentAddress,
+    manualCode,
+    recipientData,
+    savedRecipient,
+    selectedCoupon,
+    selectedPayment,
+    selectedTimeSlot,
+    selectedTip,
+    showRecipientForm,
+  ]);
+
+  useEffect(() => {
+    if (cart.length === 0) {
       setPricingPreview(null);
       return;
     }
 
-    const fetchPreview = async () => {
-      try {
-        setIsPreviewLoading(true);
-        const payload = {
-          items: cart.map((item) => ({
-            product: item.id || item._id,
-            name: item.name,
-            quantity: item.quantity,
-            price: item.price,
-            image: item.image,
-          })),
-          address: buildAddressForOrder(),
-          discountTotal: discountAmount,
-          taxTotal: 0,
-          paymentMode: selectedPayment === "online" ? "ONLINE" : "COD",
-          timeSlot: selectedTimeSlot,
-        };
-        const res = await customerApi.checkoutPreview(payload);
-        if (res.data?.success) {
-          setPricingPreview(res.data.result?.breakdown || null);
-        }
-      } catch (error) {
-        console.error("Checkout preview failed", error);
-      } finally {
-        setIsPreviewLoading(false);
-      }
-    };
+    setIsPreviewLoading(true);
+    const subtotal = cart.reduce(
+      (sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0),
+      0,
+    );
+    const deliveryFeeCharged = 25;
+    const handlingFeeCharged = 0;
+    const taxTotal = 0;
+    const grandTotal = Math.max(
+      0,
+      subtotal + deliveryFeeCharged + handlingFeeCharged + taxTotal - discountAmount,
+    );
 
-    fetchPreview();
-  }, [
-    isAuthenticated,
-    cart,
-    selectedPayment,
-    selectedTimeSlot,
-    discountAmount,
-    savedRecipient,
-    currentAddress,
-    currentLocation,
-  ]);
+    setPricingPreview({
+      subtotal,
+      deliveryFeeCharged,
+      handlingFeeCharged,
+      taxTotal,
+      grandTotal,
+    });
+    setIsPreviewLoading(false);
+  }, [cart, discountAmount]);
 
   const handlePlaceOrder = async () => {
     setIsPlacingOrder(true);
     try {
+      if (!getCheckoutCartItemsForSync().length) {
+        showToast("Cart is empty", "error");
+        return;
+      }
+
       const orderData = {
+        items: getCheckoutCartItemsForSync(),
         address: buildAddressForOrder(),
         paymentMode: selectedPayment === "online" ? "ONLINE" : "COD",
         discountTotal: discountAmount,
         taxTotal: taxAmount,
         timeSlot: selectedTimeSlot,
-        items: cart.map((item) => ({
-          product: item.id || item._id,
-          name: item.name,
-          quantity: item.quantity,
-          price: item.price,
-          image: item.image,
-        })),
       };
 
-      const response = await customerApi.createOrder(orderData);
+      let response;
+      try {
+        response = await customerApi.createOrder(orderData);
+      } catch (error) {
+        const errorMessage = getCheckoutErrorMessage(error).toLowerCase();
+
+        if (
+          errorMessage.includes("cart is empty") ||
+          errorMessage.includes("no valid items found in cart")
+        ) {
+          await syncVisibleCartToBackend();
+          response = await customerApi.createOrder(orderData);
+        } else {
+          throw error;
+        }
+      }
 
       if (response.data.success) {
         const order = response.data.result;
+        const placedOrderId =
+          order?.orderId || order?.orderNumber || order?.id || order?._id || "";
         clearCart();
+        try {
+          if (typeof window !== "undefined") {
+            window.localStorage.removeItem(CHECKOUT_STORAGE_KEY);
+            window.localStorage.removeItem(RECIPIENT_STORAGE_KEY);
+          }
+        } catch {
+          // ignore storage errors
+        }
 
         showToast(`Order placed — waiting for seller to accept.`, "success");
-        setOrderId(order.orderId);
+        setOrderId(placedOrderId);
         setShowSuccess(true);
 
         if (postOrderNavigateRef.current) {
@@ -688,13 +798,13 @@ const CheckoutPage = () => {
         }
         postOrderNavigateRef.current = setTimeout(() => {
           postOrderNavigateRef.current = null;
-          navigate(`/orders/${order.orderId}`);
-        }, 3000);
+          navigate(getQuickOrderDetailPath(placedOrderId || order?._id || order?.id));
+        }, 1200);
       }
     } catch (error) {
       console.error("Failed to place order:", error);
       showToast(
-        error.response?.data?.message ||
+        getCheckoutErrorMessage(error) ||
           "Failed to place order. Please try again.",
         "error",
       );
@@ -725,7 +835,7 @@ const CheckoutPage = () => {
           "Order cancelled — seller did not accept in time.",
           "error",
         );
-        navigate(`/orders/${orderId}`, { replace: true });
+        navigate(ordersPath, { replace: true });
         return true;
       }
       return false;
@@ -750,9 +860,21 @@ const CheckoutPage = () => {
       if (pollId != null) clearInterval(pollId);
       leaveOrderRoom(orderId, getToken);
     };
-  }, [orderId, showSuccess, navigate, showToast]);
+  }, [orderId, showSuccess, navigate, ordersPath, showToast]);
 
   // Map-based precise location has been removed; manual addresses are used instead.
+
+  if (loading && cart.length === 0 && !showSuccess) {
+    return (
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-center">
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-slate-200 border-t-[#0c831f]" />
+        <h2 className="mt-5 text-2xl font-black text-slate-800">Loading checkout</h2>
+        <p className="mt-2 text-sm font-medium text-slate-500">
+          Restoring your cart before checkout...
+        </p>
+      </div>
+    );
+  }
 
   if (cart.length === 0 && !showSuccess) {
     return (
@@ -808,7 +930,7 @@ const CheckoutPage = () => {
           </p>
 
           <Link
-            to="/"
+            to={categoriesPath}
             className="group relative inline-flex items-center justify-center px-8 py-4 bg-gradient-to-r from-[#0c831f] to-[#10b981] text-white font-bold rounded-2xl overflow-hidden shadow-xl shadow-green-600/20 transition-all hover:scale-[1.02] active:scale-95 w-full sm:w-auto">
             <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
             <span className="relative flex items-center gap-2 text-lg">
@@ -948,7 +1070,16 @@ const CheckoutPage = () => {
                     </div>
                   </div>
                   <button
-                    onClick={() => setSavedRecipient(null)}
+                    onClick={() => {
+                      setSavedRecipient(null);
+                      try {
+                        if (typeof window !== "undefined") {
+                          window.localStorage.removeItem(RECIPIENT_STORAGE_KEY);
+                        }
+                      } catch {
+                        // ignore storage errors
+                      }
+                    }}
                     className="text-red-500 text-xs font-bold hover:underline">
                     Remove
                   </button>

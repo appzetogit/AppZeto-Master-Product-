@@ -3,9 +3,11 @@ import { QuickCategory } from '../models/category.model.js';
 import { QuickProduct } from '../models/product.model.js';
 import { QuickOrder } from '../models/order.model.js';
 import { Seller } from '../seller/models/seller.model.js';
+import { SellerOrder } from '../seller/models/sellerOrder.model.js';
 import { QuickZone } from '../models/quick_zone.model.js';
 import { ensureQuickCommerceSeedData } from '../services/seed.service.js';
 import { uploadImageBuffer } from '../../../services/cloudinary.service.js';
+import { getIO, rooms } from '../../../config/socket.js';
 
 const toCategory = (category) => ({
   id: category._id,
@@ -588,6 +590,75 @@ export const getAdminOrders = async (req, res) => {
       page: currentPage,
       limit: perPage,
       total,
+    },
+  });
+};
+
+export const deleteAdminOrder = async (req, res) => {
+  const rawOrderId = String(req.params.orderId || '').trim();
+
+  if (!rawOrderId) {
+    return res.status(400).json({ success: false, message: 'orderId is required' });
+  }
+
+  const orderQuery = {
+    orderType: 'quick',
+    $or: [
+      { orderId: rawOrderId },
+      ...(mongoose.isValidObjectId(rawOrderId) ? [{ _id: rawOrderId }] : []),
+    ],
+  };
+
+  const order = await QuickOrder.findOne(orderQuery).lean();
+  if (!order) {
+    return res.status(404).json({ success: false, message: 'Order not found' });
+  }
+
+  const linkedSellerOrders = await SellerOrder.find({ orderId: order.orderId })
+    .select('_id sellerId orderId')
+    .lean();
+
+  await Promise.all([
+    QuickOrder.deleteOne({ _id: order._id }),
+    SellerOrder.deleteMany({ orderId: order.orderId }),
+  ]);
+
+  try {
+    const io = getIO();
+    if (io) {
+      const payload = {
+        orderId: order.orderId,
+        orderMongoId: order._id?.toString?.() || '',
+        message: 'Order deleted by admin',
+      };
+
+      if (order.userId) {
+        io.to(rooms.user(order.userId)).emit('order_deleted', payload);
+      }
+      io.to(rooms.tracking(order.orderId)).emit('order_deleted', payload);
+
+      linkedSellerOrders.forEach((sellerOrder) => {
+        if (!sellerOrder?.sellerId) return;
+        io.to(rooms.seller(sellerOrder.sellerId)).emit('order_deleted', {
+          ...payload,
+          sellerOrderId: sellerOrder._id?.toString?.() || '',
+        });
+      });
+
+      if (order.dispatch?.deliveryPartnerId) {
+        io.to(rooms.delivery(order.dispatch.deliveryPartnerId)).emit('order_deleted', payload);
+      }
+    }
+  } catch {
+    // best-effort realtime cleanup
+  }
+
+  return res.json({
+    success: true,
+    result: {
+      deleted: true,
+      orderId: order.orderId,
+      sellerOrdersDeleted: linkedSellerOrders.length,
     },
   });
 };

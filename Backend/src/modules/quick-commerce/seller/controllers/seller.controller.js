@@ -4,6 +4,8 @@ import { createOrUpdateOtp, verifyOtp } from "../../../../core/otp/otp.service.j
 import { signAccessToken, signRefreshToken } from "../../../../core/auth/token.util.js";
 import { FoodRefreshToken } from "../../../../core/refreshTokens/refreshToken.model.js";
 import { config } from "../../../../config/env.js";
+import { getIO, rooms } from "../../../../config/socket.js";
+import { logger } from "../../../../utils/logger.js";
 import { uploadImageBuffer } from "../../../../services/cloudinary.service.js";
 import { sendError, sendResponse } from "../../../../utils/response.js";
 import { Seller } from "../models/seller.model.js";
@@ -13,6 +15,13 @@ import { SellerProduct } from "../models/sellerProduct.model.js";
 import { SellerReturn } from "../models/sellerReturn.model.js";
 import { SellerStockAdjustment } from "../models/sellerStockAdjustment.model.js";
 import { SellerTransaction } from "../models/sellerTransaction.model.js";
+import { QuickOrder } from "../../models/order.model.js";
+import { FoodDeliveryPartner } from "../../../food/delivery/models/deliveryPartner.model.js";
+import {
+  buildDeliverySocketPayload,
+  haversineKm,
+  notifyOwnerSafely,
+} from "../../../food/orders/services/order.helpers.js";
 import {
   buildSellerCategoryTree,
   ensureSellerCategoriesSeeded,
@@ -57,6 +66,67 @@ const optionalBoolean = (value, fallback = false) => {
 const str = (value, fallback = "") =>
   typeof value === "string" ? value.trim() : fallback;
 const arr = (value) => (Array.isArray(value) ? value : []);
+const getOrderAddressPoint = (order) => {
+  const lat = Number(order?.address?.location?.lat);
+  const lng = Number(order?.address?.location?.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
+};
+
+const listNearbyOnlineDeliveryPartnersByCoords = async (
+  origin,
+  { maxKm = 15, limit = 10 } = {},
+) => {
+  const onlinePartners = await FoodDeliveryPartner.find({
+    availabilityStatus: "online",
+    status: { $in: process.env.NODE_ENV === "production" ? ["approved"] : ["approved", "pending"] },
+  })
+    .select("_id name phone lastLat lastLng lastLocationAt")
+    .lean();
+
+  if (!origin || !Number.isFinite(origin.lat) || !Number.isFinite(origin.lng)) {
+    return onlinePartners.slice(0, Math.max(1, limit)).map((partner) => ({
+      partnerId: partner._id,
+      distanceKm: null,
+      name: partner.name || "Delivery Partner",
+      phone: partner.phone || "",
+    }));
+  }
+
+  const STALE_GPS_MS = 10 * 60 * 1000;
+  const scored = onlinePartners
+    .map((partner) => {
+      const lat = Number(partner.lastLat);
+      const lng = Number(partner.lastLng);
+      const isStale =
+        !partner.lastLocationAt ||
+        Date.now() - new Date(partner.lastLocationAt).getTime() > STALE_GPS_MS;
+
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || isStale) {
+        return {
+          partnerId: partner._id,
+          distanceKm: null,
+          score: Number.MAX_SAFE_INTEGER,
+          name: partner.name || "Delivery Partner",
+          phone: partner.phone || "",
+        };
+      }
+
+      const distanceKm = haversineKm(origin.lat, origin.lng, lat, lng);
+      return {
+        partnerId: partner._id,
+        distanceKm,
+        score: Number.isFinite(distanceKm) ? distanceKm : Number.MAX_SAFE_INTEGER,
+        name: partner.name || "Delivery Partner",
+        phone: partner.phone || "",
+      };
+    })
+    .filter((partner) => partner.distanceKm == null || partner.distanceKm <= maxKm)
+    .sort((a, b) => a.score - b.score)
+    .slice(0, Math.max(1, limit));
+
+  return scored;
+};
 const currency = (value) => `₹${num(value, 0).toLocaleString("en-IN")}`;
 const slugify = (value) =>
   String(value || "")
@@ -1046,10 +1116,62 @@ export const getSellerOrdersController = async (req, res) => {
       SellerOrder.countDocuments(query),
     ]);
 
+    const orderIds = items
+      .map((item) => String(item.orderId || "").trim())
+      .filter(Boolean);
+
+    const quickOrders = orderIds.length
+      ? await QuickOrder.find({
+        orderType: "quick",
+        orderId: { $in: orderIds },
+      })
+        .select("orderId dispatch")
+        .lean()
+      : [];
+
+    const quickOrderMap = new Map(
+      quickOrders.map((order) => [String(order.orderId), order]),
+    );
+
+    const deliveryPartnerIds = quickOrders
+      .map((order) => order?.dispatch?.deliveryPartnerId)
+      .filter(Boolean);
+
+    const deliveryPartners = deliveryPartnerIds.length
+      ? await FoodDeliveryPartner.find({ _id: { $in: deliveryPartnerIds } })
+        .select("_id name phone vehicleType vehicleNumber")
+        .lean()
+      : [];
+
+    const deliveryPartnerMap = new Map(
+      deliveryPartners.map((partner) => [String(partner._id), partner]),
+    );
+
+    const enrichedItems = items.map((item) => {
+      const quickOrder = quickOrderMap.get(String(item.orderId));
+      const acceptedPartner = quickOrder?.dispatch?.deliveryPartnerId
+        ? deliveryPartnerMap.get(String(quickOrder.dispatch.deliveryPartnerId))
+        : null;
+
+      return {
+        ...item,
+        dispatchStatus: quickOrder?.dispatch?.status || "unassigned",
+        deliveryPartner: acceptedPartner
+          ? {
+            _id: acceptedPartner._id,
+            name: acceptedPartner.name || "Delivery Partner",
+            phone: acceptedPartner.phone || "",
+            vehicleType: acceptedPartner.vehicleType || "",
+            vehicleNumber: acceptedPartner.vehicleNumber || "",
+          }
+          : null,
+      };
+    });
+
     return res.json({
       success: true,
       result: {
-        items,
+        items: enrichedItems,
         page,
         limit,
         total,
@@ -1083,6 +1205,7 @@ export const updateSellerOrderStatusController = async (req, res) => {
       return sendError(res, 404, "Order not found");
     }
 
+    const previousSellerStatus = order.status;
     order.status = nextStatus;
     order.workflowStatus =
       nextStatus === "pending"
@@ -1092,9 +1215,193 @@ export const updateSellerOrderStatusController = async (req, res) => {
           : nextStatus.toUpperCase();
     await order.save();
 
+    const customerStatus =
+      nextStatus === "cancelled"
+        ? "cancelled_by_restaurant"
+        : nextStatus === "confirmed"
+          ? "confirmed"
+          : nextStatus === "packed"
+            ? "preparing"
+            : nextStatus === "out_for_delivery"
+              ? "picked_up"
+              : nextStatus === "delivered"
+                ? "delivered"
+                : "placed";
+
+    await QuickOrder.updateOne(
+      { orderId: order.orderId, orderType: "quick" },
+      {
+        $set: {
+          orderStatus: customerStatus,
+          workflowStatus: order.workflowStatus,
+        },
+        $push: {
+          statusHistory: {
+            byRole: "RESTAURANT",
+            byId: sellerId,
+            from: previousSellerStatus,
+            to: customerStatus,
+            note: `Seller updated quick order to ${nextStatus}`,
+          },
+        },
+      },
+    );
+
+    try {
+      const io = getIO();
+      if (io) {
+        const payload = {
+          orderId: order.orderId,
+          sellerOrderId: order._id?.toString?.() || "",
+          orderStatus: customerStatus,
+          workflowStatus: order.workflowStatus,
+          sellerStatus: nextStatus,
+          message: `Seller updated order to ${STATUS_LABELS[nextStatus]}.`,
+        };
+
+        io.to(rooms.tracking(order.orderId)).emit("order_status_update", payload);
+        io.to(rooms.tracking(order.orderId)).emit("order:status:update", payload);
+      }
+    } catch {
+      // best-effort realtime update
+    }
+
     return res.json({ success: true, result: order.toObject() });
   } catch (error) {
     return sendError(res, 500, error.message || "Failed to update order status");
+  }
+};
+
+export const resendSellerOrderDispatchController = async (req, res) => {
+  try {
+    const sellerId = sellerScope(req);
+    const objectId = objectIdOrNull(req.params.orderId);
+    const sellerOrder = await SellerOrder.findOne({
+      sellerId,
+      $or: [
+        { orderId: req.params.orderId },
+        ...(objectId ? [{ _id: objectId }] : []),
+      ],
+    }).lean();
+
+    if (!sellerOrder) {
+      return sendError(res, 404, "Order not found");
+    }
+
+    const quickOrder = await QuickOrder.findOne({
+      orderType: "quick",
+      orderId: sellerOrder.orderId,
+    }).populate("userId");
+
+    if (!quickOrder) {
+      return sendError(res, 404, "Quick order not found");
+    }
+
+    if (["delivered", "cancelled_by_user", "cancelled_by_restaurant", "cancelled_by_admin"].includes(String(quickOrder.orderStatus || "").toLowerCase())) {
+      return sendError(res, 400, "This order can no longer be reassigned");
+    }
+
+    if (
+      quickOrder.dispatch?.status === "accepted" &&
+      quickOrder.dispatch?.deliveryPartnerId
+    ) {
+      return sendError(res, 400, "A delivery partner has already accepted this order");
+    }
+
+    const seller = await Seller.findById(sellerId).select("shopName name phone location").lean();
+    const sellerOrigin =
+      Array.isArray(seller?.location?.coordinates) && seller.location.coordinates.length === 2
+        ? {
+          lat: Number(seller.location.coordinates[1]),
+          lng: Number(seller.location.coordinates[0]),
+        }
+        : (Number.isFinite(Number(seller?.location?.latitude)) &&
+          Number.isFinite(Number(seller?.location?.longitude))
+            ? {
+              lat: Number(seller.location.latitude),
+              lng: Number(seller.location.longitude),
+            }
+            : null);
+
+    const origin = sellerOrigin || getOrderAddressPoint(sellerOrder);
+
+    const nearbyPartners = await listNearbyOnlineDeliveryPartnersByCoords(origin, {
+      maxKm: 15,
+      limit: 1,
+    });
+
+    const closestPartner = nearbyPartners[0];
+    if (!closestPartner?.partnerId) {
+      return sendError(res, 404, "No nearby online delivery partner found");
+    }
+
+    const now = new Date();
+    quickOrder.dispatch = {
+      ...(quickOrder.dispatch?.toObject?.() || quickOrder.dispatch || {}),
+      modeAtCreation: quickOrder.dispatch?.modeAtCreation || "auto",
+      status: "assigned",
+      deliveryPartnerId: closestPartner.partnerId,
+      assignedAt: now,
+      acceptedAt: null,
+      offeredTo: [
+        ...((quickOrder.dispatch?.offeredTo || []).filter(Boolean)),
+        {
+          partnerId: closestPartner.partnerId,
+          at: now,
+          action: "offered",
+        },
+      ],
+    };
+    await quickOrder.save();
+
+    const io = getIO();
+    const deliveryPayload = {
+      ...buildDeliverySocketPayload(quickOrder),
+      orderId: quickOrder.orderId,
+      orderMongoId: quickOrder._id?.toString?.(),
+      restaurantName: seller?.shopName || seller?.name || "Quick Commerce Seller",
+      restaurantPhone: seller?.phone || "",
+      dispatch: quickOrder.dispatch,
+      pickupDistanceKm: closestPartner.distanceKm,
+      sourceType: "quick",
+    };
+
+    if (io) {
+      const deliveryRoom = rooms.delivery(closestPartner.partnerId);
+      io.to(deliveryRoom).emit("new_order", deliveryPayload);
+      io.to(deliveryRoom).emit("new_order_available", deliveryPayload);
+      io.to(deliveryRoom).emit("play_notification_sound", {
+        orderId: quickOrder.orderId,
+        orderMongoId: quickOrder._id?.toString?.(),
+      });
+    }
+
+    await notifyOwnerSafely(
+      { ownerType: "DELIVERY_PARTNER", ownerId: closestPartner.partnerId },
+      {
+        title: "New nearby order",
+        body: `Order #${quickOrder.orderId} is ready for pickup.`,
+        data: {
+          type: "new_order",
+          orderId: quickOrder._id?.toString?.() || "",
+          orderMongoId: quickOrder._id?.toString?.() || "",
+        },
+      },
+    );
+
+    return sendResponse(res, 200, "Driver notified again", {
+      orderId: quickOrder.orderId,
+      dispatchStatus: quickOrder.dispatch?.status || "assigned",
+      notifiedPartner: {
+        _id: closestPartner.partnerId,
+        name: closestPartner.name || "Delivery Partner",
+        phone: closestPartner.phone || "",
+        distanceKm: closestPartner.distanceKm,
+      },
+    });
+  } catch (error) {
+    logger.error(`Resend seller dispatch failed: ${error?.message || error}`);
+    return sendError(res, 500, error.message || "Failed to resend driver notification");
   }
 };
 

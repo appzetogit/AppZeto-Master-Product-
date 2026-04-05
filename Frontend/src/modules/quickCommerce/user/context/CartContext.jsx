@@ -4,10 +4,39 @@ import { useAuth } from "@core/context/AuthContext";
 import { useCart as useFoodCart } from "@food/context/CartContext";
 
 const CartContext = createContext();
+const QUICK_CART_STORAGE_KEY = "quick_commerce_cart";
 
 export const useCart = () => useContext(CartContext);
 
-const getProductId = (product) => product?.id || product?._id;
+const readStoredQuickCart = () => {
+  try {
+    const quickCart = localStorage.getItem(QUICK_CART_STORAGE_KEY);
+    if (quickCart) return JSON.parse(quickCart);
+
+    const legacyCart = localStorage.getItem("cart");
+    if (!legacyCart) return [];
+
+    const parsedLegacyCart = JSON.parse(legacyCart);
+    if (Array.isArray(parsedLegacyCart)) {
+      localStorage.setItem(QUICK_CART_STORAGE_KEY, JSON.stringify(parsedLegacyCart));
+    }
+    return Array.isArray(parsedLegacyCart) ? parsedLegacyCart : [];
+  } catch (error) {
+    console.error("Failed to load quick cart from localStorage", error);
+    return [];
+  }
+};
+
+const normalizeProductId = (value) => {
+  const rawValue = String(value ?? "").trim();
+  if (!rawValue) return "";
+  return rawValue.split("::")[0];
+};
+
+const getProductId = (product) =>
+  normalizeProductId(
+    product?.productId || product?.itemId || product?.id || product?._id,
+  );
 
 const getQuickStoreName = (product) =>
   product?.restaurant ||
@@ -59,25 +88,30 @@ const normalizeQuickProductForSharedCart = (product) => {
 const useStandaloneQuickCart = () => {
   const { isAuthenticated } = useAuth();
   const [cart, setCart] = useState(() => {
-    try {
-      const savedCart = localStorage.getItem("cart");
-      return savedCart ? JSON.parse(savedCart) : [];
-    } catch (error) {
-      console.error("Failed to load cart from localStorage", error);
-      return [];
-    }
+    if (isAuthenticated) return [];
+    return readStoredQuickCart();
   });
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(isAuthenticated));
   const pendingRequestsRef = useRef(0);
 
   const normalizeBackendCart = (items) => {
     if (!items) return [];
     return items.map((item) => ({
-      ...item.productId,
-      id: item.productId?._id || item.productId?.id,
-      quantity: item.quantity,
-      image: item.productId?.mainImage || item.productId?.image,
+      ...item,
+      id: getProductId(item),
+      _id: getProductId(item),
+      productId: getProductId(item),
+      itemId: getProductId(item),
+      quantity: Number(item.quantity || 1),
+      image: item.image || item.mainImage || "",
+      mainImage: item.mainImage || item.image || "",
+      price: Number(item.price || 0),
+      mrp: Number(item.mrp || item.price || 0),
+      orderType: "quick",
+      type: "quick",
+      restaurant: "Quick Commerce",
+      restaurantId: "quick-commerce",
     }));
   };
 
@@ -104,11 +138,12 @@ const useStandaloneQuickCart = () => {
 
   useEffect(() => {
     if (isAuthenticated) {
+      setCart([]);
       fetchCart();
     } else {
       try {
-        const savedCart = localStorage.getItem("cart");
-        setCart(savedCart ? JSON.parse(savedCart) : []);
+        setLoading(false);
+        setCart(readStoredQuickCart());
       } catch (error) {
         setCart([]);
       }
@@ -117,12 +152,13 @@ const useStandaloneQuickCart = () => {
 
   useEffect(() => {
     if (!isAuthenticated) {
-      localStorage.setItem("cart", JSON.stringify(cart));
+      localStorage.setItem(QUICK_CART_STORAGE_KEY, JSON.stringify(cart));
     }
   }, [cart, isAuthenticated]);
 
   const addToCart = async (product) => {
     const id = getProductId(product);
+    if (!id) return;
     setCart((prev) => {
       const existingItem = prev.find((item) => getProductId(item) === id);
       if (existingItem) {
@@ -132,7 +168,20 @@ const useStandaloneQuickCart = () => {
       }
       return [
         ...prev,
-        { ...product, id, quantity: 1, image: product.image || product.mainImage },
+        {
+          ...product,
+          id,
+          _id: product?._id || id,
+          productId: id,
+          itemId: id,
+          orderType: "quick",
+          type: "quick",
+          restaurant: "Quick Commerce",
+          restaurantId: "quick-commerce",
+          quantity: 1,
+          image: product.image || product.mainImage,
+          mainImage: product.mainImage || product.image,
+        },
       ];
     });
 
@@ -150,11 +199,13 @@ const useStandaloneQuickCart = () => {
   };
 
   const removeFromCart = async (productId) => {
-    setCart((prev) => prev.filter((item) => getProductId(item) !== productId));
+    const resolvedProductId = normalizeProductId(productId);
+    if (!resolvedProductId) return;
+    setCart((prev) => prev.filter((item) => getProductId(item) !== resolvedProductId));
     if (isAuthenticated) {
       pendingRequestsRef.current += 1;
       try {
-        const response = await customerApi.removeFromCart(productId);
+        const response = await customerApi.removeFromCart(resolvedProductId);
         pendingRequestsRef.current -= 1;
         syncCart(response.data?.result?.items || response.data?.items);
       } catch (error) {
@@ -165,22 +216,27 @@ const useStandaloneQuickCart = () => {
   };
 
   const updateQuantity = async (productId, delta) => {
-    const currentItem = cart.find((item) => getProductId(item) === productId);
+    const resolvedProductId = normalizeProductId(productId);
+    if (!resolvedProductId) return;
+    const currentItem = cart.find((item) => getProductId(item) === resolvedProductId);
     if (!currentItem) return;
     const newQty = Math.max(0, currentItem.quantity + delta);
     if (newQty === 0) {
-      removeFromCart(productId);
+      removeFromCart(resolvedProductId);
       return;
     }
     setCart((prev) =>
       prev.map((item) =>
-        getProductId(item) === productId ? { ...item, quantity: newQty } : item,
+        getProductId(item) === resolvedProductId ? { ...item, quantity: newQty } : item,
       ),
     );
     if (isAuthenticated) {
       pendingRequestsRef.current += 1;
       try {
-        const response = await customerApi.updateCartQuantity({ productId, quantity: newQty });
+        const response = await customerApi.updateCartQuantity({
+          productId: resolvedProductId,
+          quantity: newQty,
+        });
         pendingRequestsRef.current -= 1;
         syncCart(response.data?.result?.items || response.data?.items);
       } catch (error) {
@@ -236,14 +292,18 @@ export const CartProvider = ({ children }) => {
     };
 
     const removeFromCart = async (productId) => {
-      foodCart.removeFromCart(productId);
+      const resolvedProductId = normalizeProductId(productId);
+      if (!resolvedProductId) return;
+      foodCart.removeFromCart(resolvedProductId);
     };
 
     const updateQuantity = async (productId, delta) => {
-      const currentItem = foodCart.getCartItem(productId);
+      const resolvedProductId = normalizeProductId(productId);
+      if (!resolvedProductId) return;
+      const currentItem = foodCart.getCartItem(resolvedProductId);
       if (!currentItem) return;
       const nextQuantity = Math.max(0, (currentItem.quantity || 0) + delta);
-      foodCart.updateQuantity(productId, nextQuantity);
+      foodCart.updateQuantity(resolvedProductId, nextQuantity);
     };
 
     const clearCart = async () => {

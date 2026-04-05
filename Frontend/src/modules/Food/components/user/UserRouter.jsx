@@ -97,7 +97,7 @@ export default function UserRouter() {
         <Route element={<UserLayout />}>
           {/* Home & Discovery */}
           <Route path="" element={<Home />} />
-          <Route path="quick" element={<Home />} />
+          <Route path="quick" element={<Navigate to="/quick" replace />} />
           <Route path="dining" element={<Dining />} />
           <Route path="dining/restaurants" element={<DiningRestaurants />} />
           <Route path="dining/:category" element={<DiningCategory />} />

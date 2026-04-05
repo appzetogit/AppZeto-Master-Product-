@@ -132,6 +132,7 @@ export default function UserLayout() {
 
   const showBottomNav = normalizedPath === "/" ||
     normalizedPath === "/user" ||
+    normalizedPath === "/quick" ||
     normalizedPath === "/dining" ||
     normalizedPath === "/user/dining" ||
     normalizedPath === "/under-250" ||

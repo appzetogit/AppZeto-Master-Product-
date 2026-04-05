@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import InvoiceModal from "../components/order/InvoiceModal";
 import HelpModal from "../components/order/HelpModal";
 import LiveTrackingMap from "../components/order/LiveTrackingMap";
-import DeliveryOtpDisplay from "../components/DeliveryOtpDisplay";
 import OrderProgressTracker from "../components/order/OrderProgressTracker";
 import {
   ChevronLeft,
@@ -35,6 +34,7 @@ import {
   onCustomerOtp,
 } from "@/core/services/orderSocket";
 import { getLegacyStatusFromOrder } from "@/shared/utils/orderStatus";
+import { getQuickOrdersPath } from "../utils/routes";
 
 const coordsToLatLng = (coords) => {
   if (!Array.isArray(coords) || coords.length < 2) return null;
@@ -114,8 +114,62 @@ const getTrackingRoutePhase = (order) => {
   return isDeliveryPhase ? "delivery" : "pickup";
 };
 
+const normalizeQuickOrder = (rawOrder, previousOrder = null) => {
+  if (!rawOrder || typeof rawOrder !== "object") return previousOrder || null;
+
+  const deliveryAddress = rawOrder.address || rawOrder.deliveryAddress || {};
+  const deliveryLocation =
+    deliveryAddress?.location &&
+    typeof deliveryAddress.location.lat === "number" &&
+    typeof deliveryAddress.location.lng === "number"
+      ? deliveryAddress.location
+      : Array.isArray(rawOrder?.deliveryAddress?.location?.coordinates)
+        ? {
+            lat: Number(rawOrder.deliveryAddress.location.coordinates[1]),
+            lng: Number(rawOrder.deliveryAddress.location.coordinates[0]),
+          }
+        : null;
+
+  const previousDeliveryVerification = previousOrder?.deliveryVerification || null;
+  const rawDeliveryVerification = rawOrder.deliveryVerification || null;
+  const previousDropOtp = previousDeliveryVerification?.dropOtp || null;
+  const rawDropOtp = rawDeliveryVerification?.dropOtp || null;
+
+  const mergedDeliveryVerification =
+    previousDeliveryVerification || rawDeliveryVerification
+      ? {
+          ...(previousDeliveryVerification || {}),
+          ...(rawDeliveryVerification || {}),
+          ...(previousDropOtp || rawDropOtp
+            ? {
+                dropOtp: {
+                  ...(previousDropOtp || {}),
+                  ...(rawDropOtp || {}),
+                  code: rawDropOtp?.code || previousDropOtp?.code || null,
+                },
+              }
+            : {}),
+        }
+      : null;
+
+  return {
+    ...rawOrder,
+    address: {
+      type: deliveryAddress.type || deliveryAddress.label || "Other",
+      name: deliveryAddress.name || "Delivery Address",
+      address: deliveryAddress.address || deliveryAddress.street || "",
+      city: deliveryAddress.city || "",
+      phone: deliveryAddress.phone || "",
+      ...(deliveryLocation ? { location: deliveryLocation } : {}),
+    },
+    seller: rawOrder.seller || null,
+    deliveryVerification: mergedDeliveryVerification,
+  };
+};
+
 const OrderDetailPage = () => {
   const { orderId } = useParams();
+  const ordersPath = getQuickOrdersPath();
   const [showInvoice, setShowInvoice] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [order, setOrder] = useState(null);
@@ -143,12 +197,15 @@ const OrderDetailPage = () => {
     const fetchOrderDetails = async () => {
       try {
         const response = await customerApi.getOrderDetails(orderId);
-        const ord = response.data.result;
-        setOrder(ord);
+        setOrder((prev) => normalizeQuickOrder(response.data.result, prev));
 
         try {
-          const retRes = await customerApi.getReturnDetails(orderId);
-          setReturnDetails(retRes.data.result);
+          if (typeof customerApi.getReturnDetails === "function") {
+            const retRes = await customerApi.getReturnDetails(orderId);
+            setReturnDetails(retRes.data.result);
+          } else {
+            setReturnDetails(null);
+          }
         } catch {
           setReturnDetails(null);
         }
@@ -170,7 +227,7 @@ const OrderDetailPage = () => {
     const iv = setInterval(() => {
       customerApi
         .getOrderDetails(orderId)
-        .then((r) => setOrder(r.data.result))
+        .then((r) => setOrder((prev) => normalizeQuickOrder(r.data.result, prev)))
         .catch(() => {});
     }, 12000);
     return () => clearInterval(iv);
@@ -184,13 +241,13 @@ const OrderDetailPage = () => {
     const offStatus = onOrderStatusUpdate(getToken, () => {
       customerApi
         .getOrderDetails(orderId)
-        .then((r) => setOrder(r.data.result))
+        .then((r) => setOrder((prev) => normalizeQuickOrder(r.data.result, prev)))
         .catch(() => {});
     });
     const offOtp = onCustomerOtp(getToken, (payload) => {
       if (payload?.orderId === orderId && payload?.code) {
         setHandoffOtp(payload.code);
-        toast.info("Delivery OTP received — share with rider if asked.");
+        toast.info("Delivery OTP received - share with rider if asked.");
       }
     });
     return () => {
@@ -199,6 +256,51 @@ const OrderDetailPage = () => {
       leaveOrderRoom(orderId, getToken);
     };
   }, [orderId]);
+
+  useEffect(() => {
+    if (!orderId) return undefined;
+    const getToken = () => localStorage.getItem("auth_customer");
+    const offOtp = onCustomerOtp(getToken, (payload) => {
+      const incomingOtp = payload?.otp ?? payload?.code ?? null;
+      const incomingOrderId = String(payload?.orderId || "").trim();
+      const incomingMongoId = String(payload?.orderMongoId || "").trim();
+      const knownOrderIds = [
+        String(orderId || "").trim(),
+        String(order?.orderId || "").trim(),
+        String(order?._id || "").trim(),
+      ].filter(Boolean);
+
+      if (
+        !incomingOtp ||
+        (!knownOrderIds.includes(incomingOrderId) &&
+          !knownOrderIds.includes(incomingMongoId))
+      ) {
+        return;
+      }
+
+      const otpText = String(incomingOtp);
+      setHandoffOtp(otpText);
+      setOrder((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          deliveryVerification: {
+            ...(prev.deliveryVerification || {}),
+            dropOtp: {
+              ...(prev.deliveryVerification?.dropOtp || {}),
+              required: true,
+              verified: false,
+              code: otpText,
+            },
+          },
+        };
+      });
+    });
+
+    return () => {
+      offOtp();
+    };
+  }, [orderId, order?.orderId, order?._id]);
 
   // Subscribe to live tracking from Firebase (if available)
   useEffect(() => {
@@ -269,6 +371,11 @@ const OrderDetailPage = () => {
   };
 
   const status = order ? getLegacyStatusFromOrder(order) : null;
+  const customerDeliveryOtp = useMemo(() => {
+    const codeFromOrder = order?.deliveryVerification?.dropOtp?.code;
+    const finalCode = codeFromOrder ?? handoffOtp;
+    return finalCode ? String(finalCode) : null;
+  }, [order?.deliveryVerification?.dropOtp?.code, handoffOtp]);
   const sellerLocation = coordsToLatLng(order?.seller?.location?.coordinates);
   const routePhase = getTrackingRoutePhase(order);
   const routeMatchesPhase =
@@ -366,22 +473,24 @@ const OrderDetailPage = () => {
     routeRequestRef.current = { phase: routePhase, startedAt: now };
     let ignore = false;
 
-    customerApi
-      .getOrderRoute(orderId, {
-        phase: routePhase,
-        originLat: liveLocation.lat,
-        originLng: liveLocation.lng,
-        _t: now,
-      })
-      .then((response) => {
-        if (ignore) return;
-        const nextRoute = response.data?.result;
-        if (nextRoute?.polyline) {
-          setRoutePolyline(nextRoute);
-          routeOriginRef.current = currentOrigin;
-        }
-      })
-      .catch(() => {});
+    if (typeof customerApi.getOrderRoute === "function") {
+      customerApi
+        .getOrderRoute(orderId, {
+          phase: routePhase,
+          originLat: liveLocation.lat,
+          originLng: liveLocation.lng,
+          _t: now,
+        })
+        .then((response) => {
+          if (ignore) return;
+          const nextRoute = response.data?.result;
+          if (nextRoute?.polyline) {
+            setRoutePolyline(nextRoute);
+            routeOriginRef.current = currentOrigin;
+          }
+        })
+        .catch(() => {});
+    }
 
     return () => {
       ignore = true;
@@ -404,6 +513,7 @@ const OrderDetailPage = () => {
 
   const canRequestReturn = () => {
     if (!order) return false;
+    if (typeof customerApi.requestReturn !== "function") return false;
     if (getLegacyStatusFromOrder(order) !== "delivered") return false;
     if (
       returnDetails &&
@@ -459,9 +569,11 @@ const OrderDetailPage = () => {
 
       const [orderRes, retRes] = await Promise.all([
         customerApi.getOrderDetails(orderId),
-        customerApi.getReturnDetails(orderId),
+        typeof customerApi.getReturnDetails === "function"
+          ? customerApi.getReturnDetails(orderId)
+          : Promise.resolve({ data: { result: null } }),
       ]);
-      setOrder(orderRes.data.result);
+      setOrder((prev) => normalizeQuickOrder(orderRes.data.result, prev));
       setReturnDetails(retRes.data.result);
     } catch (error) {
       console.error("Failed to submit return request", error);
@@ -478,7 +590,7 @@ const OrderDetailPage = () => {
       <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-slate-50 to-white">
         <Package size={64} className="text-slate-300 mb-4" />
         <h3 className="text-lg font-bold text-slate-800">Order not found</h3>
-        <Link to="/orders" className="text-emerald-600 font-bold mt-4 hover:text-emerald-700">
+        <Link to={ordersPath} className="text-emerald-600 font-bold mt-4 hover:text-emerald-700">
           Back to my orders
         </Link>
       </div>
@@ -490,7 +602,7 @@ const OrderDetailPage = () => {
       {/* Minimal Header */}
       <div className="bg-white/80 backdrop-blur-md sticky top-0 z-30 px-4 py-3 flex items-center justify-between border-b border-slate-100">
         <Link
-          to="/orders"
+          to={ordersPath}
           className="p-2 -ml-2 rounded-full hover:bg-slate-100 transition-colors">
           <ChevronLeft size={24} className="text-slate-800" />
         </Link>
@@ -531,8 +643,18 @@ const OrderDetailPage = () => {
           totalDistanceText={estimatedArrival.totalDistanceText}
         />
 
-        {/* Proximity-based Delivery OTP Display */}
-        <DeliveryOtpDisplay orderId={orderId} />
+        {customerDeliveryOtp && status !== "delivered" && status !== "cancelled" && (
+          <motion.div
+            className="bg-blue-50 rounded-xl p-4 shadow-sm border border-blue-100"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.08 }}
+          >
+            <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Delivery OTP</p>
+            <p className="text-2xl font-extrabold text-blue-900 mt-1 tracking-widest">{customerDeliveryOtp}</p>
+            <p className="text-xs text-blue-700 mt-1">Share this 4-digit OTP with your delivery partner at drop-off.</p>
+          </motion.div>
+        )}
 
         {/* Delivery Partner Card - Redesigned */}
         {order.deliveryBoy && status !== "delivered" && status !== "cancelled" && (

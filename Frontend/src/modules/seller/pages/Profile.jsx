@@ -42,6 +42,12 @@ const SellerProfile = () => {
   }, []);
 
   const fetchProfile = async () => {
+    const sellerToken = localStorage.getItem("auth_seller");
+    if (!sellerToken) {
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const response = await sellerApi.getProfile();
       const data = response.data.result;
@@ -57,7 +63,9 @@ const SellerProfile = () => {
         address: data.address || "",
       });
     } catch (error) {
-      toast.error("Failed to fetch profile");
+      if (error?.response?.status !== 401) {
+        toast.error("Failed to fetch profile");
+      }
     } finally {
       setIsLoading(false);
     }

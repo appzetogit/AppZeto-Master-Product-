@@ -31,6 +31,7 @@ function maskToken(token) {
 const roomNames = {
     restaurant: (id) => `restaurant:${String(id)}`,
     user: (id) => `user:${String(id)}`,
+    seller: (id) => `seller:${String(id)}`,
     delivery: (id) => `delivery:${String(id)}`,
     tracking: (orderId) => `tracking:${String(orderId)}`
 };
@@ -119,6 +120,7 @@ export const initSocket = async (server) => {
         if (userId && role) {
             if (role === 'RESTAURANT') socket.join(roomNames.restaurant(userId));
             if (role === 'USER') socket.join(roomNames.user(userId));
+            if (role === 'SELLER') socket.join(roomNames.seller(userId));
             if (role === 'DELIVERY_PARTNER') {
                 socket.join(roomNames.delivery(userId));
                 logDeliverySocket('Auto-joined delivery room on connect', {
@@ -175,11 +177,31 @@ export const initSocket = async (server) => {
         socket.on('join-tracking', (orderId) => {
             if (!orderId) return;
             const role = socket.user?.role;
-            if (role !== 'USER' && role !== 'RESTAURANT' && role !== 'DELIVERY_PARTNER') return;
+            if (role !== 'USER' && role !== 'RESTAURANT' && role !== 'DELIVERY_PARTNER' && role !== 'SELLER') return;
             const room = roomNames.tracking(orderId);
             socket.join(room);
             logger.info(`Socket ${socket.id} (${role}:${userId}) joined tracking room ${room}`);
             socket.emit('tracking-room-joined', { room, orderId: String(orderId) });
+        });
+
+        // Backward-compatible alias used by some quick-commerce screens.
+        socket.on('join_order', (orderId) => {
+            if (!orderId) return;
+            const role = socket.user?.role;
+            if (role !== 'USER' && role !== 'RESTAURANT' && role !== 'DELIVERY_PARTNER' && role !== 'SELLER') return;
+            const room = roomNames.tracking(orderId);
+            socket.join(room);
+            socket.emit('tracking-room-joined', { room, orderId: String(orderId) });
+        });
+
+        socket.on('leave_order', (orderId) => {
+            if (!orderId) return;
+            socket.leave(roomNames.tracking(orderId));
+        });
+
+        socket.on('leave-tracking', (orderId) => {
+            if (!orderId) return;
+            socket.leave(roomNames.tracking(orderId));
         });
 
         // Delivery partner emits live GPS location for an active order.

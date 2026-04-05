@@ -1,17 +1,16 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Heart, Plus, Minus, Star, Clock } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Heart, Plus, Minus, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWishlist } from "../../context/WishlistContext";
 import { useCart } from "../../context/CartContext";
 import { useToast } from "@shared/components/ui/Toast";
 import { useCartAnimation } from "../../context/CartAnimationContext";
+import { resolveQuickImageUrl } from "../../utils/image";
 
 import { motion, AnimatePresence } from "framer-motion";
 
-import { useProductDetail } from "../../context/ProductDetailContext";
-import { getQuickProductPath, isEmbeddedQuickPath } from "../../utils/routes";
+import { getQuickProductPath } from "../../utils/routes";
 
 const ProductCard = React.memo(
   ({ product, badge, className, compact = false, neutralBg = false }) => {
@@ -22,41 +21,34 @@ const ProductCard = React.memo(
     const { showToast } = useToast();
     const { animateAddToCart, animateRemoveFromCart } = useCartAnimation();
 
-    const { openProduct } = useProductDetail();
     const [showHeartPopup, setShowHeartPopup] = React.useState(false);
 
     const imageRef = React.useRef(null);
 
+    const getComparableProductId = React.useCallback(
+      (value) => String(value ?? "").split("::")[0],
+      [],
+    );
+
     const cartItem = React.useMemo(
       () =>
         cart.find(
-          (item) => (item.id || item._id) === (product.id || product._id),
+          (item) =>
+            getComparableProductId(item.productId || item.itemId || item.id || item._id) ===
+            getComparableProductId(product.id || product._id),
         ),
-      [cart, product.id, product._id],
+      [cart, getComparableProductId, product.id, product._id],
     );
     const quantity = cartItem ? cartItem.quantity : 0;
     const isWishlisted = isInWishlist(product.id || product._id);
 
     const handleProductClick = React.useCallback(
-      (e) => {
+      () => {
         const productId = product.id || product._id;
-
-        // Favor the modal/sheet view for a smoother experience
-        if (openProduct) {
-          e.preventDefault();
-          openProduct(product);
-          return;
-        }
-
-        const pathname =
-          typeof window !== "undefined" ? window.location.pathname : "";
-
-        if (productId && isEmbeddedQuickPath(pathname)) {
-          navigate(getQuickProductPath(productId));
-          return;
-        }
+        if (!productId) return;
+        navigate(getQuickProductPath(productId), { state: { product } });
       },
-      [navigate, openProduct, product],
+      [navigate, product],
     );
 
     const toggleWishlist = React.useCallback(
@@ -201,7 +193,11 @@ const ProductCard = React.memo(
             )}>
             <img
               ref={imageRef}
-              src={product.image}
+              src={
+                resolveQuickImageUrl(product.image || product.mainImage) ||
+                product.image ||
+                product.mainImage
+              }
               alt={product.name}
               className="w-full h-full object-contain mix-blend-multiply drop-shadow-sm"
             />

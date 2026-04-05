@@ -1,5 +1,6 @@
 import { QuickCategory } from '../models/category.model.js';
 import { QuickProduct } from '../models/product.model.js';
+import { Seller } from '../seller/models/seller.model.js';
 import { ensureQuickCommerceSeedData } from '../services/seed.service.js';
 import {
   getQuickCoupons,
@@ -57,7 +58,28 @@ const mapCategory = (category) => ({
   approvalStatus: category.approvalStatus || 'approved',
 });
 
-const mapProduct = (product) => ({
+const buildSellerMap = async (products = []) => {
+  const sellerIds = [...new Set(
+    products
+      .map((product) => String(product?.sellerId || '').trim())
+      .filter(Boolean)
+  )];
+
+  if (!sellerIds.length) return {};
+
+  const sellers = await Seller.find({ _id: { $in: sellerIds } })
+    .select('_id shopName name')
+    .lean();
+
+  return sellers.reduce((acc, seller) => {
+    acc[String(seller._id)] = seller;
+    return acc;
+  }, {});
+};
+
+const mapProduct = (product, sellerMap = {}) => {
+  const seller = sellerMap[String(product?.sellerId || '')] || null;
+  return ({
   id: product._id,
   _id: product._id,
   name: product.name,
@@ -83,7 +105,19 @@ const mapProduct = (product) => ({
   rating: product.rating,
   badge: product.badge,
   approvalStatus: product.approvalStatus || 'approved',
+  sellerId: product.sellerId || seller?._id || null,
+  seller: seller
+    ? {
+        _id: seller._id,
+        id: seller._id,
+        name: seller.name || '',
+        shopName: seller.shopName || seller.name || 'Store',
+      }
+    : null,
+  storeName: seller?.shopName || seller?.name || '',
+  restaurantName: seller?.shopName || seller?.name || '',
 });
+};
 
 export const getHomeData = async (req, res) => {
   setNoCache(res);
@@ -100,6 +134,7 @@ export const getHomeData = async (req, res) => {
     getQuickExperienceSections({ pageType, headerId }),
     getQuickOfferSections(),
   ]);
+  const sellerMap = await buildSellerMap(products);
 
   const fallbackHero = {
     title: 'Blinkit style quick delivery',
@@ -148,7 +183,7 @@ export const getHomeData = async (req, res) => {
   const homeData = {
     settings: settings || {},
     categories: categories.map(mapCategory),
-    bestSellers: products.map(mapProduct),
+    bestSellers: products.map((product) => mapProduct(product, sellerMap)),
     hero: resolvedHero,
     sections: resolvedSections,
     offerSections,
@@ -204,11 +239,12 @@ export const getProducts = async (req, res) => {
 
   const parsedLimit = Number(limit) > 0 ? Math.min(Number(limit), 100) : 50;
   const products = await QuickProduct.find(query).sort({ createdAt: -1 }).limit(parsedLimit).lean();
+  const sellerMap = await buildSellerMap(products);
 
   return res.json({
     success: true,
     result: {
-      items: products.map(mapProduct),
+      items: products.map((product) => mapProduct(product, sellerMap)),
     },
   });
 };
@@ -223,7 +259,9 @@ export const getProductById = async (req, res) => {
     return res.status(404).json({ success: false, message: 'Product not found' });
   }
 
-  return res.json({ success: true, result: mapProduct(product) });
+  const sellerMap = await buildSellerMap([product]);
+
+  return res.json({ success: true, result: mapProduct(product, sellerMap) });
 };
 
 export const getProductReviews = async (req, res) => {

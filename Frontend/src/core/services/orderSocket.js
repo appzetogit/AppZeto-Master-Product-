@@ -60,19 +60,25 @@ export function joinOrderRoom(orderId, getToken) {
   const s = getOrderSocket(getToken);
   if (!s || !orderId) return;
   s.emit("join_order", orderId);
+  s.emit("join-tracking", orderId);
 }
 
 export function leaveOrderRoom(orderId, getToken) {
   const s = getOrderSocket(getToken);
   if (!s || !orderId) return;
   s.emit("leave_order", orderId);
+  s.emit("leave-tracking", orderId);
 }
 
 export function onOrderStatusUpdate(getToken, handler) {
   const s = getOrderSocket(getToken);
   if (!s || typeof handler !== "function") return () => {};
   s.on("order:status:update", handler);
-  return () => s.off("order:status:update", handler);
+  s.on("order_status_update", handler);
+  return () => {
+    s.off("order:status:update", handler);
+    s.off("order_status_update", handler);
+  };
 }
 
 export function onDeliveryBroadcast(getToken, handler) {
@@ -100,7 +106,11 @@ export function onCustomerOtp(getToken, handler) {
   const s = getOrderSocket(getToken);
   if (!s || typeof handler !== "function") return () => {};
   s.on("order:otp", handler);
-  return () => s.off("order:otp", handler);
+  s.on("delivery_drop_otp", handler);
+  return () => {
+    s.off("order:otp", handler);
+    s.off("delivery_drop_otp", handler);
+  };
 }
 
 export function onDeliveryOtpGenerated(getToken, handler) {

@@ -1,9 +1,10 @@
 const STANDALONE_BASE = "/quick-commerce/user";
-const EMBEDDED_HOME = "/food/user/quick";
+const EMBEDDED_HOME = "/quick";
 const SHARED_FOOD_CART = "/food/user/cart";
 
 export const isEmbeddedQuickPath = (pathname = "") =>
-  String(pathname).startsWith(EMBEDDED_HOME);
+  String(pathname) === EMBEDDED_HOME ||
+  String(pathname).startsWith(`${EMBEDDED_HOME}/`);
 
 export const getQuickHomePath = (pathname = "") =>
   isEmbeddedQuickPath(pathname) ? EMBEDDED_HOME : STANDALONE_BASE;
@@ -25,6 +26,8 @@ export const getQuickProfilePath = () => `${STANDALONE_BASE}/profile`;
 export const getQuickWishlistPath = () => `${STANDALONE_BASE}/wishlist`;
 export const getQuickOffersPath = () => `${STANDALONE_BASE}/offers`;
 export const getQuickOrdersPath = () => `${STANDALONE_BASE}/orders`;
+export const getQuickOrderDetailPath = (orderId) =>
+  `${STANDALONE_BASE}/orders/${orderId}`;
 export const getQuickAddressesPath = () => `${STANDALONE_BASE}/addresses`;
 export const getQuickSupportPath = () => `${STANDALONE_BASE}/support`;
 export const getQuickWalletPath = () => `${STANDALONE_BASE}/wallet`;

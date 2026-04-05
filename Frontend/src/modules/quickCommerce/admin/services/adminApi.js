@@ -303,6 +303,7 @@ export const adminApi = {
   deleteProduct: (id) => axiosInstance.delete(`/quick-commerce/admin/products/${id}`),
 
   getOrders: (params) => axiosInstance.get('/quick-commerce/admin/orders', { params }),
+  deleteOrder: (orderId) => axiosInstance.delete(`/quick-commerce/admin/orders/${orderId}`),
   getZones: (params) => axiosInstance.get('/quick-commerce/admin/zones', { params }),
   getZoneById: (id) => axiosInstance.get(`/quick-commerce/admin/zones/${id}`),
   createZone: (body) => axiosInstance.post('/quick-commerce/admin/zones', body ?? {}),

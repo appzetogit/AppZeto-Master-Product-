@@ -7,6 +7,7 @@ import UserLayout from "./user/UserLayout"
 const Home = lazy(() => import("./user/pages/Home"))
 const Cart = lazy(() => import("./user/pages/CartPage"))
 const Orders = lazy(() => import("./user/pages/OrdersPage"))
+const OrderDetail = lazy(() => import("./user/pages/OrderDetailPage"))
 const Products = lazy(() => import("./user/pages/ProductsPage"))
 const Categories = lazy(() => import("./user/pages/CategoriesPage"))
 const CategoryProducts = lazy(() => import("./user/pages/CategoryProductsPage"))
@@ -37,6 +38,7 @@ export default function QuickCommerceRoutes() {
                     <Route path="user" element={<Home />} />
                     <Route path="user/cart" element={<Cart />} />
                     <Route path="user/orders" element={<Orders />} />
+                    <Route path="user/orders/:orderId" element={<OrderDetail />} />
                     <Route path="user/products" element={<Products />} />
                     <Route path="user/categories" element={<Categories />} />
                     <Route path="user/categories/:categoryId" element={<CategoryProducts />} />
@@ -50,8 +52,8 @@ export default function QuickCommerceRoutes() {
                   </Route>
                   
                   {/* Redirects */}
-                  <Route path="/" element={<Navigate to="user" replace />} />
-                  <Route path="*" element={<Navigate to="user" replace />} />
+                  <Route path="/" element={<Navigate to="/quick-commerce/user" replace />} />
+                  <Route path="*" element={<Navigate to="/quick-commerce/user" replace />} />
                 </Routes>
               </ProductDetailProvider>
             </CartAnimationProvider>

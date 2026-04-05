@@ -20,6 +20,7 @@ import {
   markAllSellerNotificationsReadController,
   markSellerNotificationReadController,
   rejectSellerReturnController,
+  resendSellerOrderDispatchController,
   requestSellerOtpController,
   requestSellerWithdrawalController,
   updateSellerOrderStatusController,
@@ -80,6 +81,7 @@ router.put(
 
 router.get("/orders", ...sellerOnly, getSellerOrdersController);
 router.put("/orders/:orderId/status", ...sellerOnly, updateSellerOrderStatusController);
+router.post("/orders/:orderId/resend-dispatch", ...sellerOnly, resendSellerOrderDispatchController);
 
 router.get("/returns", ...sellerOnly, getSellerReturnsController);
 router.put("/returns/:orderId/approve", ...sellerOnly, approveSellerReturnController);

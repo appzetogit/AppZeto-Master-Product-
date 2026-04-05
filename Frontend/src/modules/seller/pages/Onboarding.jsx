@@ -118,13 +118,22 @@ export default function SellerOnboarding() {
 
   useEffect(() => {
     const loadProfile = async () => {
+      const sellerToken = localStorage.getItem("auth_seller");
+      if (!sellerToken) {
+        setIsLoading(false);
+        navigate("/seller/auth", { replace: true });
+        return;
+      }
+
       try {
         const response = await sellerApi.getProfile();
         const data = response?.data?.result || {};
         setForm((prev) => ({ ...initialState, phone: getSellerPhone(data) || prev.phone }));
         setHoursDraft(parseOpeningHours(data?.shopInfo?.openingHours || data?.openingHours || ""));
       } catch (error) {
-        toast.error("Failed to load seller onboarding data");
+        if (error?.response?.status !== 401) {
+          toast.error("Failed to load seller onboarding data");
+        }
       } finally {
         setIsLoading(false);
       }

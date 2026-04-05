@@ -17,6 +17,21 @@ const resolveId = (req) => {
   return sessionId ? { sessionId } : null;
 };
 
+const buildCartInsertDoc = (idQuery) => {
+  if (!idQuery) return { items: [] };
+  if (idQuery.userId) {
+    return {
+      userId: idQuery.userId,
+      sessionId: `user:${String(idQuery.userId)}`,
+      items: [],
+    };
+  }
+  return {
+    sessionId: String(idQuery.sessionId || '').trim(),
+    items: [],
+  };
+};
+
 const mapCart = async (idQuery) => {
   const cart = await QuickCart.findOne(idQuery).lean();
   if (!cart || !Array.isArray(cart.items) || cart.items.length === 0) {
@@ -92,7 +107,7 @@ export const addToCart = async (req, res) => {
 
   const cart = await QuickCart.findOneAndUpdate(
     idQuery,
-    { $setOnInsert: { ...idQuery, items: [] } },
+    { $setOnInsert: buildCartInsertDoc(idQuery) },
     { upsert: true, new: true }
   );
 
@@ -172,7 +187,14 @@ export const clearCart = async (req, res) => {
     return res.status(400).json({ success: false, message: 'sessionId or userId is required' });
   }
 
-  await QuickCart.findOneAndUpdate(idQuery, { $set: { items: [] } }, { upsert: true, new: true });
+  await QuickCart.findOneAndUpdate(
+    idQuery,
+    {
+      $set: { items: [] },
+      $setOnInsert: buildCartInsertDoc(idQuery),
+    },
+    { upsert: true, new: true }
+  );
   return res.json({ success: true, result: { items: [], subtotal: 0, deliveryFee: 0, total: 0 } });
 };
 

@@ -236,7 +236,7 @@ export default function QuickSharedCart() {
           <h1 className="mt-4 text-2xl font-black text-slate-900">Your quick cart is empty</h1>
           <p className="mt-2 text-sm text-slate-500">Add a few essentials and come back here for checkout.</p>
           <Link
-            to="/food/user/quick"
+            to="/quick"
             className="mt-6 inline-flex rounded-full bg-emerald-600 px-5 py-3 text-sm font-bold text-white"
           >
             Continue shopping
@@ -251,7 +251,7 @@ export default function QuickSharedCart() {
       <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">
         <button
           type="button"
-          onClick={() => navigate("/food/user/quick")}
+          onClick={() => navigate("/quick")}
           className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-slate-600"
         >
           <ArrowLeft className="h-4 w-4" />

@@ -5,7 +5,7 @@ import { useCart } from '../../context/CartContext';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    getQuickCheckoutPath,
+    getQuickCartPath,
     isEmbeddedQuickPath,
 } from '../../utils/routes';
 
@@ -23,7 +23,7 @@ const MiniCart = ({
     const path = location.pathname.replace(/\/$/, '') || '/';
     const normalizedQuickPath = path.replace(/^\/quick-commerce\/user/, '') || '/';
     const isEmbedded = isEmbeddedQuickPath(path);
-    const resolvedLinkTo = linkTo || getQuickCheckoutPath(path);
+    const resolvedLinkTo = linkTo || getQuickCartPath(path);
 
     // Hide MiniCart on checkout page, order details page, profile page, wallet, transactions, wishlist, addresses, support, privacy, and about page
     const isCheckoutPage = isEmbedded ? path === '/food/user/cart' : normalizedQuickPath === '/checkout';

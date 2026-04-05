@@ -78,7 +78,6 @@ const SellerAppWrapper = () => {
   )
 }
 
-const MasterLandingPage = lazy(() => import('./MasterLandingPage'))
 const AdminRouter = lazy(() => import('../modules/Food/components/admin/AdminRouter'))
 
 const AppRoutes = () => {
@@ -106,8 +105,8 @@ const AppRoutes = () => {
 
   return (
     <Routes>
-      {/* Root → Master Landing Page */}
-      <Route path="/" element={<Suspense fallback={<PageLoader />}><MasterLandingPage /></Suspense>} />
+      {/* Root now lands on the auth portal */}
+      <Route path="/" element={<Navigate to="/user/auth/portal" replace />} />
 
       {/* Auth Module */}
       <Route path="/user/auth/*" element={<AuthApp />} />

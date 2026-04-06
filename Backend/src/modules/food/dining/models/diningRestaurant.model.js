@@ -5,8 +5,7 @@ const diningRestaurantSchema = new mongoose.Schema(
         restaurantId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'FoodRestaurant',
-            required: true,
-            unique: true
+            required: true
         },
         categoryIds: [
             {

@@ -10,8 +10,7 @@ const restaurantWalletSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'FoodRestaurant',
             required: true,
-            unique: true,
-            index: true
+            unique: true
         },
         balance: { type: Number, default: 0 },
         /** Amount locked for pending settlements (cannot be withdrawn) */

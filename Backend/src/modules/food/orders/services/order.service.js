@@ -3174,4 +3174,71 @@ export async function deleteOrderAdmin(orderId, adminId) {
   };
 }
 
+/**
+ * 🕵️ Watchdog: Recovers orders that are in intermediate states for too long.
+ * Runs once at server startup (triggered in server.js).
+ */
+export async function recoverStuckOrders() {
+  try {
+    const STUCK_THRESHOLD_HOURS = 2; // Orders older than this in a transient state are considered stuck
+    const thresholdDate = new Date(Date.now() - STUCK_THRESHOLD_HOURS * 60 * 60 * 1000);
+
+    const transientStates = [
+      'placed',
+      'created',
+      'confirmed',
+      'preparing',
+      'ready_for_pickup',
+      'picked_up'
+    ];
+
+    // Find orders that haven't been updated recently and are in a transient state
+    const stuckOrders = await FoodOrder.find({
+      orderStatus: { $in: transientStates },
+      updatedAt: { $lt: thresholdDate }
+    });
+
+    if (stuckOrders.length === 0) {
+      // logger.info('Watchdog: No stuck orders found to recover.');
+      return;
+    }
+
+    logger.info(`Watchdog: Found ${stuckOrders.length} stuck orders. Mark as cancelled...`);
+
+    const results = await Promise.all(stuckOrders.map(async (order) => {
+      try {
+        const oldStatus = order.orderStatus;
+        order.orderStatus = 'cancelled_by_admin';
+        
+        pushStatusHistory(order, {
+          byRole: 'SYSTEM',
+          from: oldStatus,
+          to: 'cancelled_by_admin',
+          note: 'Watchdog auto-recovery: Order was stuck in transient state for more than 2 hours.'
+        });
+
+        await order.save({ validateBeforeSave: false });
+        
+        // Enqueue event for housekeeping/finance
+        enqueueOrderEvent('order_cancelled_by_watchdog', {
+          orderMongoId: order._id.toString(),
+          orderId: order.orderId,
+          fromStatus: oldStatus
+        });
+
+        return true;
+      } catch (err) {
+        logger.error(`Watchdog: Failed to recover order ${order.orderId}: ${err.message}`);
+        return false;
+      }
+    }));
+
+    const recoveredCount = results.filter(Boolean).length;
+    logger.info(`Watchdog: Successfully recovered ${recoveredCount}/${stuckOrders.length} stuck orders.`);
+  } catch (err) {
+    logger.error(`Watchdog Error during recovery: ${err.message}`);
+  }
+}
+
+
 

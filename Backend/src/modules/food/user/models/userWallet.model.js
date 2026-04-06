@@ -20,7 +20,7 @@ const walletTransactionSchema = new mongoose.Schema(
 
 const userWalletSchema = new mongoose.Schema(
     {
-        userId: { type: mongoose.Schema.Types.ObjectId, required: true, unique: true, index: true },
+        userId: { type: mongoose.Schema.Types.ObjectId, required: true, unique: true },
         balance: { type: Number, default: 0 },
         referralEarnings: { type: Number, default: 0 },
         transactions: { type: [walletTransactionSchema], default: [] }

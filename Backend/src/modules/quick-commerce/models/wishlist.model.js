@@ -6,13 +6,11 @@ const quickWishlistSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'FoodUser',
       default: null,
-      index: true,
     },
     sessionId: {
       type: String,
       default: '',
       trim: true,
-      index: true,
     },
     products: {
       type: [

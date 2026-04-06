@@ -2529,14 +2529,14 @@ export default function Home() {
         />
       </div>
 
-      <AnimatePresence mode="wait">
+      <AnimatePresence>
         {activeTab === "food" ? (
           <motion.div
             key="food-content"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
             className="bg-white dark:bg-[#0a0a0a]"
           >
             <div className="relative z-10">
@@ -2926,7 +2926,7 @@ export default function Home() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
-          transition={{ duration: 0.3 }}
+          transition={{ duration: 0.2, ease: "easeInOut" }}
         >
           <div className="bg-white">
             <QuickLocationProvider>

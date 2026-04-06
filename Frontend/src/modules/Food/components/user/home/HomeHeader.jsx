@@ -171,7 +171,7 @@ export default function HomeHeader({
 
   return (
     <motion.div
-      className={`relative overflow-hidden transition-all duration-700 ${
+      className={`relative overflow-hidden transition-all duration-400 ${
         isFood ? "min-h-[450px]" : "min-h-[90px]"
       }`}
       style={{ background: isFood ? "transparent" : theme.topBg, color: theme.text }}

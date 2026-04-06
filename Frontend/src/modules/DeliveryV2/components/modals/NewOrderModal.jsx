@@ -4,6 +4,7 @@ import { User, MapPin, FastForward, Clock, Phone, ChefHat, ChevronDown } from 'l
 import { ActionSlider } from '@/modules/DeliveryV2/components/ui/ActionSlider';
 import { useDeliveryStore } from '@/modules/DeliveryV2/store/useDeliveryStore';
 import { getHaversineDistance, calculateETA } from '@/modules/DeliveryV2/utils/geo';
+import { normalizePickupPoints } from '@/modules/DeliveryV2/utils/orderRouting';
 
 /**
  * NewOrderModal - Ported to Original 1:1 Theme with Slider Accept.
@@ -64,6 +65,7 @@ export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
   const earnings = order.earnings || order.riderEarning || (order.orderAmount ? order.orderAmount * 0.1 : 0);
   const restaurantName = order.restaurantName || order.restaurant_name || (order.restaurantId?.name) || 'Restaurant';
   const restaurantAddress = order.restaurantAddress || order.restaurant_address || (order.restaurantId?.location?.address) || 'Address not available';
+  const pickupPoints = normalizePickupPoints(order);
   const deliveryAddress = order?.deliveryAddress || {};
 
   const geoCoords =
@@ -102,6 +104,17 @@ export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
         )}`
       : null;
 
+  const pickupStops = pickupPoints.length
+    ? pickupPoints
+    : [
+        {
+          id: 'food:primary',
+          pickupType: 'food',
+          sourceName: restaurantName,
+          address: restaurantAddress,
+        },
+      ];
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -138,17 +151,27 @@ export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
           <div className="flex gap-6">
             <div className="flex flex-col items-center gap-1.5 mt-2 py-1">
               <div className="w-5 h-5 rounded-full bg-green-500 border-4 border-green-50 shadow-lg shadow-green-500/20" />
-              <div className="w-0.5 h-16 bg-dashed border-l-2 border-gray-100" />
+              <div className={`w-0.5 ${pickupStops.length > 1 ? 'h-28' : 'h-16'} bg-dashed border-l-2 border-gray-100`} />
               <div className="w-5 h-5 rounded-full bg-blue-500 border-4 border-blue-50 shadow-lg shadow-blue-500/20" />
             </div>
             <div className="flex-1 space-y-10">
-              <div>
-                <div className="flex items-center gap-2 mb-2 font-bold text-[10px] uppercase tracking-widest text-green-600">
-                  <ChefHat className="w-4 h-4" />
-                  <span>Restaurant Pickup</span>
-                </div>
-                <p className="text-gray-950 font-bold text-xl leading-tight">{restaurantName}</p>
-                <p className="text-gray-500 text-sm font-medium leading-relaxed">{restaurantAddress}</p>
+              <div className="space-y-6">
+                {pickupStops.map((pickup, index) => {
+                  const isQuickStore = pickup.pickupType === 'quick';
+                  const pickupLabel = isQuickStore ? 'Store Pickup' : 'Restaurant Pickup';
+                  const pickupAccent = isQuickStore ? 'text-orange-600' : 'text-green-600';
+                  const pickupAddress = pickup.address || 'Address not available';
+                  return (
+                    <div key={pickup.id || `${pickup.pickupType}-${index}`}>
+                      <div className={`flex items-center gap-2 mb-2 font-bold text-[10px] uppercase tracking-widest ${pickupAccent}`}>
+                        <ChefHat className="w-4 h-4" />
+                        <span>{pickupStops.length > 1 ? `${pickupLabel} ${index + 1}` : pickupLabel}</span>
+                      </div>
+                      <p className="text-gray-950 font-bold text-xl leading-tight">{pickup.sourceName || (isQuickStore ? 'Seller store' : 'Restaurant')}</p>
+                      <p className="text-gray-500 text-sm font-medium leading-relaxed">{pickupAddress}</p>
+                    </div>
+                  );
+                })}
               </div>
               <div>
                 <div className="flex items-center gap-2 mb-2 font-bold text-[10px] uppercase tracking-widest text-blue-600">

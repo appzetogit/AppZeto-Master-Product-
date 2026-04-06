@@ -10,6 +10,7 @@ import {
 } from '@react-google-maps/api';
 import { useDeliveryStore } from '@/modules/DeliveryV2/store/useDeliveryStore';
 import { zoneAPI } from '@food/api';
+import { normalizeLocationPoint, normalizePickupPoints } from '@/modules/DeliveryV2/utils/orderRouting';
 
 const mapContainerStyle = {
   width: '100%',
@@ -85,6 +86,26 @@ export const LiveMap = ({ onMapClick, onMapLoad, onPathReceived, onPolylineRecei
     const lng = parseFloat(rawLoc.lng || rawLoc.longitude);
     return (Number.isFinite(lat) && Number.isFinite(lng)) ? { lat, lng } : null;
   }, [activeOrder, tripStatus]);
+
+  const pickupStops = useMemo(() => normalizePickupPoints(activeOrder), [activeOrder]);
+  const customerStop = useMemo(() => normalizeLocationPoint(activeOrder?.customerLocation), [activeOrder]);
+  const routeWaypoints = useMemo(() => {
+    if (!activeOrder) return [];
+    if (tripStatus === 'PICKED_UP' || tripStatus === 'REACHED_DROP') return [];
+    if (String(activeOrder?.orderType || '').toLowerCase() !== 'mixed') return [];
+    return pickupStops.map((point) => ({ location: point.location, stopover: true }));
+  }, [activeOrder, tripStatus, pickupStops]);
+
+  const routeDestination = useMemo(() => {
+    if (!activeOrder) return null;
+    if (tripStatus === 'PICKED_UP' || tripStatus === 'REACHED_DROP') {
+      return customerStop || targetLocation;
+    }
+    if (routeWaypoints.length > 0 && customerStop) {
+      return customerStop;
+    }
+    return targetLocation;
+  }, [activeOrder, tripStatus, customerStop, routeWaypoints.length, targetLocation]);
 
   const parsedRiderLocation = useMemo(() => {
     if (!riderLocation) return null;
@@ -194,9 +215,11 @@ export const LiveMap = ({ onMapClick, onMapLoad, onPathReceived, onPolylineRecei
   if (loadError) return <div className="absolute inset-0 flex items-center justify-center bg-gray-50 text-red-500 font-bold">Map Load Error</div>;
   if (!isLoaded) return <div className="absolute inset-0 flex items-center justify-center bg-gray-50"><div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin" /></div>;
 
-  const directionsServiceOptions = (parsedRiderLocation && targetLocation) ? {
+  const directionsServiceOptions = (parsedRiderLocation && routeDestination) ? {
     origin: parsedRiderLocation,
-    destination: targetLocation,
+    destination: routeDestination,
+    waypoints: routeWaypoints,
+    optimizeWaypoints: false,
     travelMode: 'DRIVING',
   } : null;
 
@@ -229,8 +252,29 @@ export const LiveMap = ({ onMapClick, onMapLoad, onPathReceived, onPolylineRecei
           </OverlayView>
         )}
 
-        {targetLocation && (
-          <Marker position={targetLocation} icon={{ url: (tripStatus === 'PICKING_UP' || tripStatus === 'REACHED_PICKUP') ? restaurantMarkerUrl : customerMarkerUrl, scaledSize: new window.google.maps.Size(44, 44), anchor: new window.google.maps.Point(22, 22) }} />
+        {pickupStops.map((point, index) => (
+          <Marker
+            key={point.id}
+            position={point.location}
+            label={{
+              text: point.pickupType === 'quick' ? `S${index + 1}` : `R${index + 1}`,
+              color: '#111827',
+              fontWeight: '700',
+              fontSize: '11px',
+            }}
+            icon={{
+              path: window.google.maps.SymbolPath.CIRCLE,
+              fillColor: point.pickupType === 'quick' ? '#3b82f6' : '#ef4444',
+              fillOpacity: 1,
+              strokeColor: '#ffffff',
+              strokeWeight: 2,
+              scale: 12,
+            }}
+          />
+        ))}
+
+        {customerStop && (
+          <Marker position={customerStop} icon={{ url: customerMarkerUrl, scaledSize: new window.google.maps.Size(44, 44), anchor: new window.google.maps.Point(22, 22) }} />
         )}
 
         {zones.map((zone) => (

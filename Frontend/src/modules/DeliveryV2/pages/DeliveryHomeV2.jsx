@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 
 import { getHaversineDistance, calculateETA, calculateHeading } from '@/modules/DeliveryV2/utils/geo';
+import { getPrimaryPickupLocation, normalizePickupPoints } from '@/modules/DeliveryV2/utils/orderRouting';
 import { useCompanyName } from "@food/hooks/useCompanyName";
 import { useNavigate } from 'react-router-dom';
 import useNotificationInbox from "@food/hooks/useNotificationInbox";
@@ -286,7 +287,8 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
 
           const syncedOrder = {
             ...serverData,
-            restaurantLocation: resLoc,
+            pickupPoints: normalizePickupPoints(serverData),
+            restaurantLocation: getPrimaryPickupLocation(serverData) || resLoc,
             customerLocation: cusLoc
           };
 
@@ -480,7 +482,11 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
           null;
 
         if (!cancelled && currentPayload && (currentPayload._id || currentPayload.orderId)) {
-          setActiveOrder(currentPayload);
+          setActiveOrder({
+            ...currentPayload,
+            pickupPoints: normalizePickupPoints(currentPayload),
+            restaurantLocation: getPrimaryPickupLocation(currentPayload) || currentPayload.restaurantLocation,
+          });
           return;
         }
 

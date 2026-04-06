@@ -165,6 +165,7 @@ export function buildDeliverySocketPayload(orderDoc, restaurantDoc = null) {
   const restaurant = restaurantDoc || order?.restaurantId || null;
   const restaurantLocation = restaurant?.location || {};
   const deliveryAddress = order?.deliveryAddress || {};
+  const pickupPoints = Array.isArray(order?.pickupPoints) ? order.pickupPoints : [];
   const customerAddressParts = [
     deliveryAddress.street,
     deliveryAddress.additionalDetails,
@@ -178,9 +179,11 @@ export function buildDeliverySocketPayload(orderDoc, restaurantDoc = null) {
   return {
     orderMongoId:
       orderDoc?._id?.toString?.() || order?._id?.toString?.() || order?._id,
-    orderId: order?.order_id || order?._id?.toString?.(),
+    orderId: order?.orderId || order?.order_id || order?._id?.toString?.(),
+    orderType: order?.orderType || "food",
     status: orderDoc?.orderStatus || order?.orderStatus,
     items: order?.items || [],
+    pickupPoints,
     pricing: order?.pricing,
     total: order?.pricing?.total,
     payment: order?.payment,
@@ -197,8 +200,16 @@ export function buildDeliverySocketPayload(orderDoc, restaurantDoc = null) {
       "",
     restaurantPhone: restaurant?.phone || "",
     restaurantLocation: {
-      latitude: restaurantLocation?.latitude,
-      longitude: restaurantLocation?.longitude,
+      latitude:
+        restaurantLocation?.latitude ||
+        (Array.isArray(restaurantLocation?.coordinates)
+          ? restaurantLocation.coordinates[1]
+          : undefined),
+      longitude:
+        restaurantLocation?.longitude ||
+        (Array.isArray(restaurantLocation?.coordinates)
+          ? restaurantLocation.coordinates[0]
+          : undefined),
       address:
         restaurantLocation?.address ||
         restaurantLocation?.formattedAddress ||

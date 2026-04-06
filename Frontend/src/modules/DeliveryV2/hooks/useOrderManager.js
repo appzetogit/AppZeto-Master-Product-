@@ -1,6 +1,7 @@
 import { useDeliveryStore } from '@/modules/DeliveryV2/store/useDeliveryStore';
 import { deliveryAPI } from '@food/api';
 import { toast } from 'sonner';
+import { getPrimaryPickupLocation, normalizeLocationPoint, normalizePickupPoints } from '@/modules/DeliveryV2/utils/orderRouting';
 
 /**
  * useOrderManager - Professional hook for real-world trip lifecycle actions.
@@ -54,13 +55,18 @@ export const useOrderManager = () => {
                        
         const cusLoc = getLoc(fullOrder.deliveryAddress, ['latitude', 'lat'], ['longitude', 'lng']) || 
                        getLoc(fullOrder, ['customer_lat', 'customerLat', 'latitude'], ['customer_lng', 'customerLng', 'longitude']);
+        const pickupPoints = normalizePickupPoints(fullOrder);
+        const primaryPickupLocation =
+          getPrimaryPickupLocation(fullOrder) ||
+          normalizeLocationPoint(resLoc);
 
         console.log('[OrderManager] Locations Mapped Result:', { resLoc, cusLoc });
 
         setActiveOrder({
           ...fullOrder,
           orderId: orderId,
-          restaurantLocation: resLoc,
+          pickupPoints,
+          restaurantLocation: primaryPickupLocation || resLoc,
           customerLocation: cusLoc
         });
 

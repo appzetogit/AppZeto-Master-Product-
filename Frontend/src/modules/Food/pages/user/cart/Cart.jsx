@@ -25,6 +25,7 @@ import { useCompanyName } from "@food/hooks/useCompanyName"
 import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability"
 import useAppBackNavigation from "@food/hooks/useAppBackNavigation"
 import zoopSound from "@food/assets/audio/zomato_sms.mp3"
+import deliveryBoyGif from "@/assets/Delivery Boy.gif"
 const debugLog = (...args) => { }
 const debugWarn = (...args) => { }
 const debugError = (...args) => { }
@@ -142,13 +143,7 @@ export default function Cart() {
   const { cart, updateQuantity, addToCart, getCartCount, clearCart, cleanCartForRestaurant } = cartContext;
   const hasQuickItems = cart.some((item) => (item?.orderType || "food") === "quick")
   const hasFoodItems = cart.some((item) => (item?.orderType || "food") === "food")
-  if (hasQuickItems && hasFoodItems) {
-    return <MixedSharedCart />
-  }
   const isQuickCart = cart.length > 0 && cart.every((item) => (item?.orderType || "food") === "quick")
-  if (isQuickCart) {
-    return <QuickSharedCart />
-  }
 
   const { getDefaultAddress, getDefaultPaymentMethod, setDefaultAddress, addresses, paymentMethods, userProfile } = useProfile()
   const { createOrder } = useOrders()
@@ -1202,7 +1197,7 @@ export default function Cart() {
       const addressId = getAddressId(address)
       if (addressId) {
         setSelectedAddressId(addressId)
-        setDefaultAddress(addressId)
+        await setDefaultAddress(addressId)
       }
 
       // Get coordinates from address location
@@ -1860,6 +1855,14 @@ export default function Cart() {
     navigate(`/user/orders/${placedOrderId}?confirmed=true`)
   }
 
+  if (hasQuickItems && hasFoodItems) {
+    return <MixedSharedCart />
+  }
+
+  if (isQuickCart) {
+    return <QuickSharedCart />
+  }
+
   // Empty cart state - but don't show if order success or placing order modal is active
   if (cart.length === 0 && !showOrderSuccess && !showPlacingOrder) {
     return (
@@ -1996,6 +1999,98 @@ export default function Cart() {
                   <Plus className="h-4 w-4 md:h-5 md:w-5" />
                   <span className="text-sm md:text-base font-medium">Add more items</span>
                 </button>
+              </div>
+
+              {/* Delivery Time */}
+              <div className="relative overflow-hidden rounded-3xl border border-orange-200/80 bg-[linear-gradient(135deg,#fff7ed_0%,#ffffff_52%,#fef2f2_100%)] px-4 py-5 shadow-[0_16px_50px_rgba(235,89,14,0.12)] dark:border-orange-900/50 dark:bg-[linear-gradient(135deg,rgba(60,24,10,0.92)_0%,rgba(26,26,26,0.98)_48%,rgba(58,16,23,0.92)_100%)] md:px-6">
+                <div className="pointer-events-none absolute -right-12 -top-14 h-40 w-40 rounded-full bg-orange-200/50 blur-3xl dark:bg-orange-500/10" />
+                <div className="pointer-events-none absolute -left-10 bottom-0 h-24 w-24 rounded-full bg-rose-200/60 blur-2xl dark:bg-rose-500/10" />
+
+                <div className="relative flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+                  <div className="flex items-start gap-4">
+                    <div className="mt-1 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#EB590E] to-[#E23744] text-white shadow-lg shadow-orange-500/25">
+                      <Zap className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full border border-orange-200 bg-white/80 px-3 py-1 text-[11px] font-black uppercase tracking-[0.22em] text-[#EB590E] shadow-sm dark:border-orange-800/60 dark:bg-white/10">
+                          Express Delivery
+                        </span>
+                        <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+                          Fastest rider route
+                        </span>
+                      </div>
+
+                      <p className="mt-3 text-lg font-black tracking-tight text-gray-900 dark:text-white md:text-xl">
+                        Delivery in <span className="text-[#EB590E]">{restaurantData?.estimatedDeliveryTime || "15-20 mins"}</span>
+                      </p>
+                      <p className="mt-1 max-w-xl text-sm leading-6 text-gray-600 dark:text-gray-300">
+                        We prioritize your order, match the nearest available rider, and keep the handoff moving smoothly.
+                      </p>
+
+                      <div className="mt-4 flex flex-wrap items-center gap-2">
+                        <div className="rounded-2xl border border-orange-200/70 bg-white/85 px-3 py-2 text-xs font-medium text-gray-700 shadow-sm dark:border-orange-900/50 dark:bg-white/10 dark:text-gray-200">
+                          Live prep to doorstep flow
+                        </div>
+                        <button
+                          onClick={() => setIsScheduled(!isScheduled)}
+                          className="rounded-2xl border border-dashed border-[#EB590E]/60 bg-[#FFF2EB] px-3 py-2 text-xs font-bold text-[#EB590E] transition-colors hover:bg-[#ffe6d8] dark:bg-[#EB590E]/10 dark:hover:bg-[#EB590E]/20"
+                        >
+                          {isScheduled ? "Switch back to express now" : "Want this later? Schedule it"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="relative mx-auto w-full max-w-[220px] flex-shrink-0 md:mx-0">
+                    <div className="absolute inset-x-6 bottom-2 h-10 rounded-full bg-orange-300/40 blur-2xl dark:bg-orange-500/20" />
+                    <div className="relative overflow-hidden rounded-[28px] border border-white/70 bg-white/75 p-2 shadow-xl backdrop-blur-sm dark:border-white/10 dark:bg-white/5">
+                      <img
+                        src={deliveryBoyGif}
+                        alt="Express delivery rider"
+                        className="h-40 w-full rounded-[22px] object-cover object-center md:h-44"
+                        loading="lazy"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {isScheduled && (
+                  <div className="relative mt-5 flex flex-col gap-3 border-t border-orange-200/70 pt-4 dark:border-orange-900/40 sm:flex-row">
+                    <div className="flex-1">
+                      <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">Date (Up to Tomorrow)</label>
+                      <input
+                        type="date"
+                        min={new Date().toLocaleDateString('en-CA')}
+                        max={new Date(Date.now() + 86400000).toLocaleDateString('en-CA')}
+                        value={scheduledDate}
+                        onChange={(e) => setScheduledDate(e.target.value)}
+                        className="w-full rounded-xl border border-orange-200 bg-white/90 p-2.5 text-sm text-gray-800 focus:outline-none focus:border-[#EB590E] dark:border-orange-900/50 dark:bg-[#0f0f0f] dark:text-gray-200"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">Time</label>
+                      {availableTimeSlots.length > 0 ? (
+                        <div className="relative">
+                          <select
+                            value={scheduledTime}
+                            onChange={(e) => setScheduledTime(e.target.value)}
+                            className="w-full appearance-none rounded-xl border border-orange-200 bg-white/90 p-2.5 pr-8 text-sm text-gray-800 focus:outline-none focus:border-[#EB590E] dark:border-orange-900/50 dark:bg-[#0f0f0f] dark:text-gray-200"
+                          >
+                            {availableTimeSlots.map(slot => (
+                              <option key={slot.value} value={slot.value}>{slot.label}</option>
+                            ))}
+                          </select>
+                          <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+                        </div>
+                      ) : (
+                        <div className="w-full rounded-xl border border-dashed border-orange-200 bg-white/70 p-2.5 text-center text-sm text-gray-500 dark:border-orange-900/50 dark:bg-white/5 dark:text-gray-400">
+                          {scheduledDate ? "No slots available" : "Select date first"}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
 
@@ -2236,63 +2331,6 @@ export default function Cart() {
                         ))}
                       </div>
                     )}
-                  </div>
-                )}
-              </div>
-
-              {/* Delivery Time */}
-              <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-5 rounded-2xl shadow-sm border border-slate-100 dark:border-gray-800">
-                <div className="flex items-start gap-3 md:gap-4">
-                  <div className="mt-0.5">
-                    <Zap className="h-5 w-5 text-green-600 fill-green-600/20" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-base text-gray-800 dark:text-gray-200">
-                      Delivery in <span className="text-green-600 font-bold">{restaurantData?.estimatedDeliveryTime || "15-20 mins"}</span>
-                    </p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 flex items-center gap-1">
-                      Want this later?
-                      <button onClick={() => setIsScheduled(!isScheduled)} className="border-b border-dashed border-gray-500 font-medium outline-none">
-                        Schedule it
-                      </button>
-                    </p>
-                  </div>
-                </div>
-
-                {isScheduled && (
-                  <div className="mt-5 flex flex-col sm:flex-row gap-3 pt-3 border-t border-gray-100 dark:border-gray-800">
-                    <div className="flex-1">
-                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Date (Up to Tomorrow)</label>
-                      <input
-                        type="date"
-                        min={new Date().toLocaleDateString('en-CA')}
-                        max={new Date(Date.now() + 86400000).toLocaleDateString('en-CA')}
-                        value={scheduledDate}
-                        onChange={(e) => setScheduledDate(e.target.value)}
-                        className="w-full text-sm p-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-[#0a0a0a] text-gray-800 dark:text-gray-200 focus:outline-none focus:border-[#EB590E]"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Time</label>
-                      {availableTimeSlots.length > 0 ? (
-                        <div className="relative">
-                          <select
-                            value={scheduledTime}
-                            onChange={(e) => setScheduledTime(e.target.value)}
-                            className="w-full text-sm p-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-[#0a0a0a] text-gray-800 dark:text-gray-200 focus:outline-none focus:border-[#EB590E] appearance-none pr-8"
-                          >
-                            {availableTimeSlots.map(slot => (
-                              <option key={slot.value} value={slot.value}>{slot.label}</option>
-                            ))}
-                          </select>
-                          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 pointer-events-none" />
-                        </div>
-                      ) : (
-                        <div className="w-full text-sm p-2 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 rounded-md text-center border border-gray-200 dark:border-gray-700">
-                          {scheduledDate ? "No slots available" : "Select date first"}
-                        </div>
-                      )}
-                    </div>
                   </div>
                 )}
               </div>

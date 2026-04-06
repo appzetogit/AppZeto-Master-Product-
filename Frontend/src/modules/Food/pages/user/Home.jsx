@@ -1062,7 +1062,7 @@ export default function Home() {
   const [activeFilterTab, setActiveFilterTab] = useState("sort");
   const categoryScrollRef = useRef(null);
   const gsapAnimationsRef = useRef([]);
-  // Show skeletons immediately while loading â€” delayed toggles caused visible layout swap (CLS).
+  // Show skeletons immediately while loading - delayed toggles caused visible layout swap (CLS).
   const showBannerSkeleton = loadingBanners;
   const showCategorySkeleton = loadingRealCategories || loadingMenuCategories;
   const showExploreSkeleton = loadingLandingConfig;
@@ -2438,7 +2438,7 @@ export default function Home() {
           >
             <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#EB590E] rounded-b-full rounded-t-sm shadow-md border-t-4 border-orange-200 flex flex-col items-center justify-center p-1">
               <span className="text-[10px] sm:text-xs font-bold text-white text-center leading-tight">UNDER</span>
-              <span className="text-sm sm:text-base font-extrabold text-white">₹200</span>
+              <span className="text-sm sm:text-base font-extrabold text-white">{"\u20B9"}200</span>
               <div className="w-10 h-3.5 bg-white rounded-full mt-1 flex items-center justify-center">
                 <span className="text-[8px] font-bold text-[#EB590E]">Explore</span>
               </div>
@@ -2795,8 +2795,7 @@ export default function Home() {
                               {/* Featured Dish Badge - Top Left */}
                               <div className="absolute top-4 left-4 flex items-center z-10 transform transition-transform duration-300 group-hover:scale-105">
                                 <div className="bg-black/70 backdrop-blur-lg text-white px-4 py-1.5 rounded-full text-[11px] font-medium tracking-tight flex items-center shadow-2xl border border-white/20">
-                                  {restaurant.featuredDish} â€¢ â‚¹
-                                  {restaurant.featuredPrice}
+                                  {restaurant.featuredDish} {"\u2022"} {"\u20B9"}{restaurant.featuredPrice}
                                 </div>
                               </div>
 
@@ -3255,7 +3254,7 @@ export default function Home() {
                           }`}>
                           <span
                             className={`text-sm font-medium ${activeFilters.has("price-under-200") ? "text-[#EB590E]" : "text-gray-700 dark:text-gray-300"}`}>
-                            Under â‚¹200
+                            Under {"\u20B9"}200
                           </span>
                         </button>
                         <button
@@ -3267,7 +3266,7 @@ export default function Home() {
                           }`}>
                           <span
                             className={`text-sm font-medium ${activeFilters.has("price-under-500") ? "text-[#EB590E]" : "text-gray-700 dark:text-gray-300"}`}>
-                            Under â‚¹500
+                            Under {"\u20B9"}500
                           </span>
                         </button>
                       </div>

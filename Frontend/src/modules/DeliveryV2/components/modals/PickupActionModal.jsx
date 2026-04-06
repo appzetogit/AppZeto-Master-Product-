@@ -9,7 +9,7 @@ import { ActionSlider } from '@/modules/DeliveryV2/components/ui/ActionSlider';
 import { uploadAPI } from '@food/api';
 import { toast } from 'sonner';
 import { openCamera } from "@food/utils/imageUploadUtils";
-import { normalizePickupPoints } from '@/modules/DeliveryV2/utils/orderRouting';
+import { isMixedOrder, normalizePickupPoints } from '@/modules/DeliveryV2/utils/orderRouting';
 
 /**
  * PickupActionModal - Unified White/Green Theme with Slider Actions.
@@ -78,6 +78,7 @@ export const PickupActionModal = ({
   const items = order.items || [];
   const restaurantLogo = order.restaurantImage || order.restaurant?.logo || order.restaurant?.profileImage || 'https://cdn-icons-png.flaticon.com/512/3170/3170733.png';
   const pickupPoints = normalizePickupPoints(order);
+  const mixedOrder = isMixedOrder(order);
   const pickupStops = pickupPoints.length
     ? pickupPoints
     : [
@@ -123,6 +124,11 @@ export const PickupActionModal = ({
             </div>
             <div>
               <h3 className="text-gray-950 text-xl font-bold">{primaryName}</h3>
+              {mixedOrder && (
+                <div className="mt-2 inline-flex items-center rounded-full border border-orange-100 bg-orange-50 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-orange-600">
+                  Mixed Order
+                </div>
+              )}
               <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 mt-1.5">
                 {isAtPickup ? (
                   <span className="text-green-600">Reached Location √</span>

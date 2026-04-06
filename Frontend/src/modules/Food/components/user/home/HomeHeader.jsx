@@ -359,7 +359,7 @@ export default function HomeHeader({
         })}
       </div>
 
-      <div className="relative z-10 pt-3 pb-3 px-3 -mt-[1px] overflow-hidden">
+      <div className="relative z-10 pt-3 pb-1 px-3 -mt-[1px] overflow-hidden">
         {isFood && <div className="absolute inset-0 bg-gradient-to-b from-black/25 to-transparent pointer-events-none" />}
         <div className="flex items-center gap-2 mb-2">
           <div

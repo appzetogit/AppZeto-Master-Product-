@@ -24,6 +24,30 @@ const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
+const buildPickupPointAddress = (point) => {
+  const address = [
+    point?.address,
+    point?.formattedAddress,
+    point?.location?.address,
+    point?.location?.formattedAddress,
+  ]
+    .map((value) => String(value || "").trim())
+    .find(Boolean)
+
+  if (address) return address
+
+  const coords = point?.location?.coordinates
+  if (Array.isArray(coords) && coords.length >= 2) {
+    const lng = Number(coords[0])
+    const lat = Number(coords[1])
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      return `${lat.toFixed(5)}, ${lng.toFixed(5)}`
+    }
+  }
+
+  return ""
+}
+
 
 export default function UserOrderDetails() {
   const navigate = useNavigate()
@@ -202,12 +226,59 @@ export default function UserOrderDetails() {
     order.restaurantPhone ||
     ""
 
+  const pickupSources = (() => {
+    const rawPickupPoints = Array.isArray(order.pickupPoints) ? order.pickupPoints : []
+    const normalized = rawPickupPoints
+      .map((point, index) => {
+        const pickupType = point?.pickupType === "quick" ? "quick" : "food"
+        return {
+          id: point?.legId || `${pickupType}:${point?.sourceId || index}`,
+          label: pickupType === "quick" ? "Store" : "Restaurant",
+          pickupType,
+          name: String(
+            point?.sourceName ||
+              (pickupType === "quick" ? "Seller Store" : restaurantName || "Restaurant"),
+          ).trim(),
+          address:
+            buildPickupPointAddress(point) ||
+            (pickupType === "food" ? restaurantLocation : "") ||
+            "Address not available",
+          phone:
+            pickupType === "food"
+              ? restaurantPhone
+              : String(point?.phone || point?.contactPhone || "").trim(),
+        }
+      })
+      .filter((source) => source.name || source.address)
+
+    if (normalized.length > 0) return normalized
+
+    return [
+      {
+        id: "food:primary",
+        label: "Restaurant",
+        pickupType: "food",
+        name: restaurantName,
+        address: restaurantLocation,
+        phone: restaurantPhone,
+      },
+    ]
+  })()
+
   const handleCallRestaurant = () => {
     if (!restaurantPhone) {
       toast.error("Restaurant phone number not available")
       return
     }
     window.location.href = `tel:${restaurantPhone}`
+  }
+
+  const handleCallPickupSource = (phone) => {
+    if (!phone) {
+      toast.error("Phone number not available")
+      return
+    }
+    window.location.href = `tel:${phone}`
   }
 
   const handleDownloadSummary = async () => {
@@ -388,35 +459,66 @@ export default function UserOrderDetails() {
           </div>
         </div>
 
-        {/* Restaurant Info Card */}
+        {/* Pickup Info Card */}
         <div className="bg-white p-4 rounded-xl shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <img
-                src={
-                  // Prefer the food image from the first ordered item
-                  (Array.isArray(items) && items[0]?.image) ||
-                  restaurantObj.profileImage?.url ||
-                  restaurantObj.profileImage ||
-                  order.restaurantImage ||
-                  "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=100&q=80"
-                }
-                alt={restaurantName}
-                className="w-10 h-10 rounded-lg object-cover"
-              />
-              <div>
-                <h3 className="font-semibold text-gray-800">{restaurantName}</h3>
-                <p className="text-xs text-gray-500">{restaurantLocation}</p>
-              </div>
-            </div>
+          <div className="mb-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-gray-400">
+              {order?.orderType === "mixed" ? "Pickup Details" : "Restaurant Details"}
+            </p>
+            <p className="mt-1 text-sm text-gray-500">
+              {order?.orderType === "mixed"
+                ? "Both your restaurant and store sources are listed below."
+                : "Pickup source for this order."}
+            </p>
+          </div>
 
-            <button
-              type="button"
-              onClick={handleCallRestaurant}
-              className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-[#EB590E] hover:bg-orange-50"
-            >
-              <Phone className="w-4 h-4" />
-            </button>
+          <div className="space-y-3 mb-4">
+            {pickupSources.map((source, index) => {
+              const isQuick = source.pickupType === "quick"
+              const badgeClasses = isQuick
+                ? "bg-sky-50 text-sky-700 border-sky-200"
+                : "bg-orange-50 text-orange-700 border-orange-200"
+
+              return (
+                <div
+                  key={source.id || `${source.pickupType}-${index}`}
+                  className="rounded-2xl border border-gray-100 bg-gray-50/80 p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <img
+                        src={
+                          (Array.isArray(items) && items[0]?.image) ||
+                          restaurantObj.profileImage?.url ||
+                          restaurantObj.profileImage ||
+                          order.restaurantImage ||
+                          "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=100&q=80"
+                        }
+                        alt={source.name}
+                        className="w-10 h-10 rounded-lg object-cover"
+                      />
+                      <div className="min-w-0">
+                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ${badgeClasses}`}>
+                          {pickupSources.length > 1 ? `${source.label} ${index + 1}` : source.label}
+                        </span>
+                        <h3 className="mt-2 font-semibold text-gray-800">{source.name}</h3>
+                        <p className="text-xs text-gray-500 mt-1">{source.address}</p>
+                      </div>
+                    </div>
+
+                    {source.phone ? (
+                      <button
+                        type="button"
+                        onClick={() => handleCallPickupSource(source.phone)}
+                        className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-[#EB590E] hover:bg-orange-50 shrink-0"
+                      >
+                        <Phone className="w-4 h-4" />
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              )
+            })}
           </div>
 
           <div className="flex items-center gap-2 mb-4">

@@ -20,7 +20,10 @@ export const useOrderManager = () => {
     }
 
     try {
-      const response = await deliveryAPI.acceptOrder(orderId);
+      const response = await deliveryAPI.acceptOrder(
+        orderId,
+        order?.dispatchLeg?.legId ? { legId: order.dispatchLeg.legId } : {},
+      );
       
       if (response?.data?.success) {
         const fullOrder = response.data.data?.order || order;

@@ -62,7 +62,7 @@ function CategoryNavColumn({
   categoryAccent,
   onCategorySelect,
 }) {
-  const iconColor = "#111111";
+  const iconColor = "#ffffff";
   const colRef = useRef(null);
   const labelRef = useRef(null);
   const [lr, setLr] = useState({ l: 22, r: 78 });
@@ -111,7 +111,7 @@ function CategoryNavColumn({
             sx={{
               fontSize: { xs: 20, md: 24 },
               color: iconColor,
-              opacity: isActive ? 1 : 0.62,
+              opacity: isActive ? 1 : 0.92,
               transition: "opacity 0.2s, transform 0.2s",
             }}
           />
@@ -120,7 +120,7 @@ function CategoryNavColumn({
             src={cat.icon}
             alt={cat.name}
             className="h-5 w-5 object-contain md:h-6 md:w-6"
-            style={{ opacity: isActive ? 1 : 0.62 }}
+            style={{ opacity: isActive ? 1 : 0.92 }}
           />
         )}
       </div>
@@ -132,8 +132,8 @@ function CategoryNavColumn({
             isActive ? "font-black" : "font-semibold",
           )}
           style={{
-            color: "#111111",
-            opacity: isActive ? 1 : 0.68,
+            color: "#ffffff",
+            opacity: isActive ? 1 : 0.94,
           }}>
           {cat.name}
         </span>
@@ -327,7 +327,7 @@ const MainLocationHeader = ({
     ? `linear-gradient(180deg, ${baseHeaderColor} 0%, ${lightenHex(baseHeaderColor, 0.2)} 100%)`
     : buildHeaderGradient(baseHeaderColor);
   const searchBarBg = buildSearchBarBackgroundColor(baseHeaderColor);
-  const categoryAccent = "#111111";
+  const categoryAccent = "#ffffff";
 
   useEffect(() => {
     const c = buildMiniCartColor(baseHeaderColor);

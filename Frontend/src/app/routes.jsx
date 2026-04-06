@@ -12,6 +12,7 @@ const NATIVE_LAST_ROUTE_KEY = 'native_last_route'
 const FoodApp = lazy(() => import('../modules/Food/routes'))
 const FoodUserLayout = lazy(() => import('../modules/Food/components/user/UserLayout'))
 const FoodHome = lazy(() => import('../modules/Food/pages/user/Home'))
+const FoodQuickSearch = lazy(() => import('../modules/Food/pages/user/QuickSearch'))
 const AuthApp = lazy(() => import('../modules/auth/routes'))
 const QuickCommerceApp = lazy(() => import('../modules/quickCommerce/routes'))
 const SellerApp = lazy(() => import('../modules/seller/routes'))
@@ -113,6 +114,7 @@ const AppRoutes = () => {
       {/* Embedded Quick Tab in food shell */}
       <Route element={<EmbeddedQuickFoodWrapper />}>
         <Route path="/quick" element={<EmbeddedQuickFoodHome />} />
+        <Route path="/quick/search" element={<FoodQuickSearch />} />
       </Route>
 
       {/* Quick-commerce Module */}

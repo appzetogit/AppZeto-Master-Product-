@@ -15,8 +15,10 @@ export const getQuickCartPath = (pathname = "") =>
 export const getQuickCheckoutPath = (pathname = "") =>
   isEmbeddedQuickPath(pathname) ? SHARED_FOOD_CART : `${STANDALONE_BASE}/checkout`;
 
-export const getQuickSearchPath = () => `${STANDALONE_BASE}/search`;
-export const getQuickProductsPath = () => `${STANDALONE_BASE}/products`;
+export const getQuickSearchPath = (pathname = "") =>
+  isEmbeddedQuickPath(pathname) ? `${EMBEDDED_HOME}/search` : `${STANDALONE_BASE}/search`;
+export const getQuickProductsPath = (pathname = "") =>
+  isEmbeddedQuickPath(pathname) ? EMBEDDED_HOME : `${STANDALONE_BASE}/products`;
 export const getQuickProductPath = (productId) =>
   `${STANDALONE_BASE}/product/${productId}`;
 export const getQuickCategoriesPath = () => `${STANDALONE_BASE}/categories`;

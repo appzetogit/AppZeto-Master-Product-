@@ -269,18 +269,103 @@ const getCustomerCoordsFromApiOrder = (apiOrder, previousOrder = null) => {
   return null
 }
 
+const buildAddressFromPickupPoint = (point) => {
+  const raw = [
+    point?.address,
+    point?.formattedAddress,
+    point?.location?.address,
+    point?.location?.formattedAddress,
+  ]
+    .map((value) => String(value || "").trim())
+    .find(Boolean)
+
+  if (raw) return raw
+
+  const coords = point?.location?.coordinates
+  if (Array.isArray(coords) && coords.length >= 2) {
+    const lng = Number(coords[0])
+    const lat = Number(coords[1])
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      return `${lat.toFixed(5)}, ${lng.toFixed(5)}`
+    }
+  }
+
+  return ""
+}
+
+const buildPickupSources = (apiOrder, previousOrder = null, restaurantAddress = "") => {
+  const pickupPoints = Array.isArray(apiOrder?.pickupPoints) ? apiOrder.pickupPoints : []
+  const previousSources = Array.isArray(previousOrder?.pickupSources) ? previousOrder.pickupSources : []
+
+  const normalized = pickupPoints
+    .map((point, index) => {
+      const pickupType = point?.pickupType === "quick" ? "quick" : "food"
+      const fallbackAddress =
+        pickupType === "food"
+          ? restaurantAddress || previousOrder?.restaurantAddress || ""
+          : ""
+
+      return {
+        id: point?.legId || `${pickupType}:${point?.sourceId || index}`,
+        pickupType,
+        label: pickupType === "quick" ? "Store" : "Restaurant",
+        name: String(
+          point?.sourceName ||
+            (pickupType === "quick"
+              ? "Seller Store"
+              : apiOrder?.restaurantName || previousOrder?.restaurant || "Restaurant"),
+        ).trim(),
+        address: buildAddressFromPickupPoint(point) || fallbackAddress || "Address not available",
+        phone:
+          pickupType === "food"
+            ? String(
+                apiOrder?.restaurantPhone ||
+                  apiOrder?.restaurantId?.phone ||
+                  apiOrder?.restaurant?.phone ||
+                  previousOrder?.restaurantPhone ||
+                  "",
+              ).trim()
+            : String(point?.phone || point?.contactPhone || "").trim(),
+      }
+    })
+    .filter((source) => source.name || source.address)
+
+  if (normalized.length > 0) return normalized
+
+  if (previousSources.length > 0) return previousSources
+
+  return [
+    {
+      id: "food:primary",
+      pickupType: "food",
+      label: "Restaurant",
+      name: String(apiOrder?.restaurantName || previousOrder?.restaurant || "Restaurant").trim(),
+      address: restaurantAddress || previousOrder?.restaurantAddress || "Restaurant location",
+      phone: String(
+        apiOrder?.restaurantPhone ||
+          apiOrder?.restaurantId?.phone ||
+          apiOrder?.restaurant?.phone ||
+          previousOrder?.restaurantPhone ||
+          "",
+      ).trim(),
+    },
+  ]
+}
+
 const transformOrderForTracking = (apiOrder, previousOrder = null, explicitRestaurantCoords = null, explicitRestaurantAddress = null) => {
   const restaurantCoords = explicitRestaurantCoords || getRestaurantCoordsFromOrder(apiOrder, previousOrder?.restaurantLocation?.coordinates)
   const restaurantAddress = getRestaurantAddressFromOrder(apiOrder, previousOrder, explicitRestaurantAddress)
   // API returns `deliveryAddress`; some paths use `address`
   const addr = apiOrder?.address || apiOrder?.deliveryAddress || {}
   const customerCoordsResolved = getCustomerCoordsFromApiOrder(apiOrder, previousOrder)
+  const pickupSources = buildPickupSources(apiOrder, previousOrder, restaurantAddress)
 
   return {
     id: apiOrder?.orderId || apiOrder?._id,
     mongoId: apiOrder?._id || null,
     orderId: apiOrder?.orderId || apiOrder?._id,
     restaurant: apiOrder?.restaurantName || previousOrder?.restaurant || 'Restaurant',
+    orderType: apiOrder?.orderType || previousOrder?.orderType || 'food',
     restaurantPhone:
       apiOrder?.restaurantPhone ||
       apiOrder?.restaurantId?.phone ||
@@ -309,6 +394,7 @@ const transformOrderForTracking = (apiOrder, previousOrder = null, explicitResta
     restaurantLocation: {
       coordinates: restaurantCoords
     },
+    pickupSources,
     items: apiOrder?.items?.map(item => ({
       name: item.name,
       variantName: item.variantName || '',
@@ -422,6 +508,19 @@ function normalizeLookupId(value) {
   const raw = String(value).trim()
   if (!raw || raw === "undefined" || raw === "null") return ""
   return raw
+}
+
+function extractOrderDetailsPayload(response) {
+  if (response?.data?.success && response?.data?.data?.order) {
+    return response.data.data.order
+  }
+  if (response?.data?.order && typeof response.data.order === "object") {
+    return response.data.order
+  }
+  if (response?.data?.data && typeof response.data.data === "object" && !Array.isArray(response.data.data)) {
+    return response.data.data.order || response.data.data
+  }
+  return null
 }
 
 export default function OrderTracking() {
@@ -713,6 +812,11 @@ export default function OrderTracking() {
     return `${minutes}:${String(seconds).padStart(2, '0')}`
   }, [editWindowRemainingMs])
 
+  const pickupSources = useMemo(() => {
+    const rawSources = Array.isArray(order?.pickupSources) ? order.pickupSources : []
+    return rawSources.filter((source) => source?.name || source?.address)
+  }, [order?.pickupSources])
+
   const handleCallRestaurant = (e) => {
     // Prevent event bubbling if necessary
     if (e && e.stopPropagation) e.stopPropagation();
@@ -748,6 +852,28 @@ export default function OrderTracking() {
     } catch (err) {
       debugError('Call failed via link click:', err);
       // Last-ditch fallback
+      window.location.assign(`tel:${cleanPhone}`);
+    }
+  };
+
+  const handleCallPickupSource = (phone, e) => {
+    if (e && e.stopPropagation) e.stopPropagation();
+
+    const cleanPhone = String(phone || "").replace(/[^\d+]/g, "");
+    if (!cleanPhone || cleanPhone.length < 5) {
+      toast.error("Phone number not available");
+      return;
+    }
+
+    try {
+      const link = document.createElement('a');
+      link.href = `tel:${cleanPhone}`;
+      link.setAttribute('target', '_self');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      debugError('Call failed via pickup source link click:', err);
       window.location.assign(`tel:${cleanPhone}`);
     }
   };
@@ -825,11 +951,9 @@ export default function OrderTracking() {
         const response = await fetchOrderDetailsWithFallback({ force: isInitial });
         if (!isSubscribed) return;
 
-        let finalOrderData = null;
+        let finalOrderData = extractOrderDetailsPayload(response);
 
-        if (response.data?.success && response.data.data?.order) {
-          finalOrderData = response.data.data.order;
-        } else if (isInitial) {
+        if (!finalOrderData && isInitial) {
           const matchedOrder = await resolveOrderFromList(orderId);
           if (matchedOrder) finalOrderData = matchedOrder;
         }
@@ -1088,8 +1212,8 @@ export default function OrderTracking() {
     setIsRefreshing(true)
     try {
       const response = await fetchOrderDetailsWithFallback({ force: true })
-      if (response.data?.success && response.data.data?.order) {
-        const apiOrder = response.data.data.order
+      const apiOrder = extractOrderDetailsPayload(response)
+      if (apiOrder) {
 
         // Extract restaurant location coordinates with multiple fallbacks
         let restaurantCoords = null;
@@ -1611,31 +1735,76 @@ export default function OrderTracking() {
           />
         </motion.div>
 
-        {/* Restaurant Section */}
+        {/* Pickup Sources Section */}
         <motion.div
           className="bg-white rounded-xl shadow-sm overflow-hidden"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.75 }}
         >
-          <div className="flex items-center gap-3 p-4 border-b border-dashed border-gray-200">
-            <div className="w-12 h-12 rounded-full bg-orange-100 overflow-hidden flex items-center justify-center flex-shrink-0">
-              <div
-                dangerouslySetInnerHTML={{ __html: SAFE_RESTAURANT_PIN }}
-                className="w-7 h-7 [&_svg]:w-full [&_svg]:h-full [&_svg]:block"
-              />
+          <div className="p-4 border-b border-dashed border-gray-200">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
+                  {order?.orderType === 'mixed' ? 'Pickup Points' : 'Restaurant'}
+                </p>
+                <p className="mt-1 text-sm text-gray-500">
+                  {order?.orderType === 'mixed'
+                    ? 'Restaurant and store details for this mixed order'
+                    : 'Pickup details for your order'}
+                </p>
+              </div>
+              {pickupSources.length === 1 && (
+                <motion.button
+                  className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center"
+                  onClick={handleCallRestaurant}
+                  whileTap={{ scale: 0.9 }}
+                >
+                  <Phone className="w-5 h-5 text-[#EB590E]" />
+                </motion.button>
+              )}
             </div>
-            <div className="flex-1">
-              <p className="font-semibold text-gray-900">{order.restaurant}</p>
-              <p className="text-sm text-gray-500">{order.restaurantAddress || 'Restaurant location'}</p>
+
+            <div className="mt-4 space-y-3">
+              {pickupSources.map((source, index) => {
+                const isQuick = source.pickupType === 'quick'
+                const badgeClasses = isQuick
+                  ? 'bg-sky-50 text-sky-700 border-sky-200'
+                  : 'bg-orange-50 text-orange-700 border-orange-200'
+
+                return (
+                  <div
+                    key={source.id || `${source.pickupType}-${index}`}
+                    className="rounded-2xl border border-gray-100 bg-gray-50/80 p-4"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`inline-flex h-12 w-12 items-center justify-center rounded-full ${isQuick ? 'bg-sky-100' : 'bg-orange-100'} flex-shrink-0`}>
+                        <div
+                          dangerouslySetInnerHTML={{ __html: SAFE_RESTAURANT_PIN }}
+                          className="w-7 h-7 [&_svg]:w-full [&_svg]:h-full [&_svg]:block"
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${badgeClasses}`}>
+                          {pickupSources.length > 1 ? `${source.label} ${index + 1}` : source.label}
+                        </span>
+                        <p className="mt-2 font-semibold text-gray-900">{source.name}</p>
+                        <p className="mt-1 text-sm text-gray-500">{source.address || 'Address not available'}</p>
+                      </div>
+                      {source.phone ? (
+                        <motion.button
+                          className={`w-10 h-10 rounded-full flex items-center justify-center ${isQuick ? 'bg-sky-50' : 'bg-orange-50'}`}
+                          onClick={(e) => handleCallPickupSource(source.phone, e)}
+                          whileTap={{ scale: 0.9 }}
+                        >
+                          <Phone className={`w-5 h-5 ${isQuick ? 'text-sky-600' : 'text-[#EB590E]'}`} />
+                        </motion.button>
+                      ) : null}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
-            <motion.button
-              className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center"
-              onClick={handleCallRestaurant}
-              whileTap={{ scale: 0.9 }}
-            >
-              <Phone className="w-5 h-5 text-[#EB590E]" />
-            </motion.button>
           </div>
 
           {/* Order Items */}

@@ -1,9 +1,11 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
+import Lottie from 'lottie-react';
 import { useCart } from '../../context/CartContext';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import shoppingCartAnimation from "@/assets/lottie/shopping-cart.json";
 import {
     getQuickCartPath,
     isEmbeddedQuickPath,
@@ -76,18 +78,19 @@ const MiniCart = ({
                                 <div className="mini-cart-shimmer absolute inset-y-0 left-[-40%] w-[40%] bg-gradient-to-r from-transparent via-white/30 to-transparent skew-x-[-20deg]" />
                             </div>
 
-                            {/* Single Product Image Icon */}
+                            {/* Animated Cart Icon */}
                             <div className={cn(
-                                "rounded-full bg-white flex items-center justify-center flex-shrink-0 shadow-sm overflow-hidden",
+                                "rounded-full bg-white/95 flex items-center justify-center flex-shrink-0 shadow-sm overflow-hidden",
                                 isBottomRight ? "h-8 w-8" : "h-7 w-7",
                             )}>
-                                {cart.length > 0 && (
-                                    <img
-                                        src={cart[0].image}
-                                        alt={cart[0].name}
-                                        className="w-full h-full object-contain p-0.5"
-                                    />
-                                )}
+                                <Lottie
+                                    animationData={shoppingCartAnimation}
+                                    loop
+                                    className={cn(
+                                        "pointer-events-none scale-[1.35]",
+                                        isBottomRight ? "h-8 w-8" : "h-7 w-7",
+                                    )}
+                                />
                             </div>
 
                             {/* Text Section */}

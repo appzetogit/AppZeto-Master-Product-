@@ -2047,7 +2047,7 @@ export const userAPI = {
     let cached = null;
     let cacheTime = 0;
     const CACHE_MS = 3000;
-    return () => {
+    const fn = () => {
       const now = Date.now();
       if (cached && now - cacheTime < CACHE_MS) return Promise.resolve(cached);
       if (!inFlight) {
@@ -2064,21 +2064,36 @@ export const userAPI = {
       }
       return inFlight;
     };
+    fn.invalidateCache = () => {
+      inFlight = null;
+      cached = null;
+      cacheTime = 0;
+    };
+    return fn;
   })(),
   /** POST /food/user/addresses (Bearer USER) */
   addAddress: (body) =>
     apiClient.post("/food/user/addresses", body ?? {}, {
       contextModule: "user",
+    }).then((res) => {
+      userAPI.getAddresses.invalidateCache?.();
+      return res;
     }),
   /** PATCH /food/user/addresses/:id (Bearer USER) */
   updateAddress: (id, body) =>
     apiClient.patch(`/food/user/addresses/${String(id)}`, body ?? {}, {
       contextModule: "user",
+    }).then((res) => {
+      userAPI.getAddresses.invalidateCache?.();
+      return res;
     }),
   /** DELETE /food/user/addresses/:id (Bearer USER) */
   deleteAddress: (id) =>
     apiClient.delete(`/food/user/addresses/${String(id)}`, {
       contextModule: "user",
+    }).then((res) => {
+      userAPI.getAddresses.invalidateCache?.();
+      return res;
     }),
   /** PATCH /food/user/addresses/:id/default (Bearer USER) */
   setDefaultAddress: (id) =>
@@ -2086,7 +2101,10 @@ export const userAPI = {
       `/food/user/addresses/${String(id)}/default`,
       {},
       { contextModule: "user" },
-    ),
+    ).then((res) => {
+      userAPI.getAddresses.invalidateCache?.();
+      return res;
+    }),
   /** POST /food/user/safety-emergency-reports (Bearer USER) */
   createSafetyEmergencyReport: (message) =>
     apiClient.post(

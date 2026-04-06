@@ -192,7 +192,7 @@ export async function acceptOrderDeliveryController(req, res, next) {
     try {
         const deliveryPartnerId = req.user?.userId;
         const orderId = req.params.orderId;
-        const order = await orderService.acceptOrderDelivery(orderId, deliveryPartnerId);
+        const order = await orderService.acceptOrderDelivery(orderId, deliveryPartnerId, req.body || {});
         return sendResponse(res, 200, 'Order accepted', { order });
     } catch (err) {
         next(err);
@@ -375,3 +375,4 @@ export async function resendDeliveryNotificationRestaurantController(req, res, n
         next(err);
     }
 }
+

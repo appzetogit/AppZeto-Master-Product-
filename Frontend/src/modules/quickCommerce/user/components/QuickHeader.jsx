@@ -8,6 +8,7 @@ import {
   buildMiniCartColor, 
   buildSearchBarBackgroundColor 
 } from '../utils/headerTheme';
+import { getQuickCartPath, getQuickHomePath, getQuickSearchPath } from '../utils/routes';
 import { resolveQuickImageUrl } from '../utils/image';
 import logo from '../assets/Logo.png';
 import { useQuickCart } from '../context/QuickCartContext';
@@ -26,7 +27,6 @@ import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined
 function buildActiveTabPath(l, r) {
   const y = 20;
   const mapX = (x) => l + ((x - 1.5) / (98.5 - 1.5)) * (r - l);
-  // Softer shoulders + flatter crown for a cleaner active tab curve.
   return `M 0 ${y} L ${l} ${y} L ${l} 12 C ${mapX(2.6)} 7 ${mapX(8.2)} 1.55 ${mapX(15)} 1.55 L ${mapX(85)} 1.55 C ${mapX(91.8)} 1.55 ${mapX(97.4)} 7 ${mapX(98.5)} 12 V ${y} L 100 ${y}`;
 }
 
@@ -75,25 +75,25 @@ function CategoryNavColumn({
         layout: { type: 'spring', stiffness: 520, damping: 38, mass: 0.55 },
       }}
       onClick={() => onCategorySelect && onCategorySelect(cat)}
-      style={{
-        borderBottomColor: isActive ? "transparent" : categoryAccent,
-      }}
-      className="relative z-[2] flex min-w-[48px] shrink-0 cursor-pointer flex-col items-center gap-0.5 border-b-2 px-2 pb-0.5 pt-0.5 snap-start md:min-w-[58px]">
+      className={cn(
+        "relative z-[2] flex min-w-[48px] shrink-0 cursor-pointer flex-col items-center gap-0.5 border-b-2 px-2 pb-0.5 pt-0.5 snap-start md:min-w-[58px] transition-all duration-300",
+        isActive ? "border-white" : "border-transparent"
+      )}
+    >
       <div className="relative z-10 flex h-9 w-9 items-center justify-center md:h-11 md:w-11">
         {cat.id === 'all' || cat._id === 'all' ? (
           <LayoutGrid 
-            className={cn("h-5 w-5 md:h-6 md:w-6 transition-colors", isActive ? "text-[#111]" : "text-slate-400")} 
+            className={cn("h-5 w-5 md:h-6 md:w-6 transition-colors", isActive ? "text-white scale-110" : "text-white/40")} 
           />
         ) : imageSrc && !imgBroken ? (
           <img
             src={imageSrc}
             alt={cat.name}
-            className="h-5 w-5 object-contain md:h-6 md:w-6"
-            style={{ opacity: isActive ? 1 : 0.62 }}
+            className={cn("h-5 w-5 object-contain md:h-6 md:w-6 transition-all", isActive ? "opacity-100 scale-110 brightness-200" : "opacity-50 brightness-0 invert")}
             onError={() => setImgBroken(true)}
           />
         ) : (
-          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-[10px] font-black uppercase text-slate-500 md:h-6 md:w-6 md:text-[11px]">
+          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-white/10 text-[10px] font-black uppercase text-white/60 md:h-6 md:w-6 md:text-[11px]">
             {(cat.name || '?').charAt(0)}
           </div>
         )}
@@ -102,36 +102,18 @@ function CategoryNavColumn({
         <span
           ref={labelRef}
           className={cn(
-            "relative z-10 mx-auto block max-w-[72px] truncate px-1 pb-0.5 text-center text-[8px] uppercase tracking-tight md:max-w-[88px] md:text-[10px]",
-            isActive ? "font-black" : "font-semibold",
+            "relative z-10 mx-auto block max-w-[72px] truncate px-1 pb-0.5 text-center text-[8px] uppercase tracking-tight md:max-w-[88px] md:text-[10px] transition-all",
+            isActive ? "font-black text-white" : "font-semibold text-white/50",
           )}
-          style={{
-            color: "#111111",
-            opacity: isActive ? 1 : 0.68,
-          }}>
+        >
           {cat.name}
         </span>
       </div>
       {isActive && (
-        <motion.svg
-          layoutId="active-category-curve"
-          aria-hidden
-          className="pointer-events-none absolute bottom-0 left-0 right-0 z-[6] h-[22px] w-full overflow-visible"
-          viewBox="0 0 100 20"
-          preserveAspectRatio="none"
-          shapeRendering="geometricPrecision"
-          transition={{
-            layout: { type: 'spring', stiffness: 560, damping: 40, mass: 0.5 },
-          }}>
-          <path
-            d={pathD}
-            fill="none"
-            stroke={categoryAccent}
-            strokeWidth="2"
-            strokeLinecap="butt"
-            strokeLinejoin="round"
-          />
-        </motion.svg>
+        <motion.div
+          layoutId="active-nav-glow"
+          className="absolute inset-0 bg-white/5 rounded-xl -z-10 blur-md"
+        />
       )}
     </motion.div>
   );
@@ -141,13 +123,14 @@ export default function QuickHeader({ showSearch = true, activeCategory = null, 
   const navigate = useNavigate();
   const { cartCount } = useQuickCart();
   const { scrollY } = useScroll();
+  const pathname = typeof window !== "undefined" ? window.location.pathname : "";
 
   if (isEmbedded) {
     return (
-      <div className="relative z-10 bg-white border-b border-slate-100 px-2 py-1">
+      <div className="relative z-10 bg-black/80 backdrop-blur-xl border-b border-white/10 px-2 pt-0 pb-0.5">
         <motion.div
             layout
-            className="relative flex items-end md:justify-center gap-0 overflow-x-auto no-scrollbar snap-x min-h-[68px] md:min-h-[76px] pb-0.5">
+            className="relative flex items-end md:justify-center gap-0 overflow-x-auto no-scrollbar snap-x min-h-[60px] md:min-h-[76px] pb-0.5">
             {categories.slice(0, 10).map((cat) => {
               const isActive = (activeCategory?._id || activeCategory?.id) === (cat._id || cat.id);
               return (
@@ -155,7 +138,7 @@ export default function QuickHeader({ showSearch = true, activeCategory = null, 
                   key={cat._id || cat.id}
                   cat={cat}
                   isActive={isActive}
-                  categoryAccent="#0c831f"
+                  categoryAccent="#ffffff"
                   onCategorySelect={onCategorySelect}
                 />
               );
@@ -169,7 +152,7 @@ export default function QuickHeader({ showSearch = true, activeCategory = null, 
 
   // Search Logic
   const handleSearchClick = () => {
-    navigate("/quick-commerce/user/products");
+    navigate(getQuickSearchPath(pathname));
   };
 
   // Search placeholder animation
@@ -233,17 +216,14 @@ export default function QuickHeader({ showSearch = true, activeCategory = null, 
   const navOpacity = useTransform(scrollY, [0, 200], [1, 0]);
   const navMargin = useTransform(scrollY, [0, 200], [4, 0]);
   const categorySpacing = useTransform(scrollY, [0, 200], [3, 0]);
-  const cartOpacity = useTransform(scrollY, [0, 110, 150], [1, 0.7, 0]);
-  const cartScale = useTransform(scrollY, [0, 110, 150], [1, 0.9, 0.75]);
 
   const displayContent = useTransform(scrollY, (value) => value > 160 ? "none" : "block");
   const displayNav = useTransform(scrollY, (value) => value > 200 ? "none" : "flex");
-  const displayCart = useTransform(scrollY, (value) => value > 150 ? "none" : "block");
 
   const baseHeaderColor = activeCategory?.headerColor || "#0c831f";
   const headerGradient = buildHeaderGradient(baseHeaderColor);
   const searchBarBg = buildSearchBarBackgroundColor(baseHeaderColor);
-  const categoryAccent = "#111111";
+  const categoryAccent = "#ffffff";
 
   return (
     <div className={cn("left-0 right-0 z-50", isInline ? "relative" : "fixed top-0")}>
@@ -269,7 +249,7 @@ export default function QuickHeader({ showSearch = true, activeCategory = null, 
           {/* Left Section: Logo + Location row */}
           <div className="flex items-center gap-4 lg:gap-8">
             <div
-              onClick={() => navigate("/quick-commerce/user")}
+              onClick={() => navigate(getQuickHomePath(pathname))}
               className="flex items-center gap-3 cursor-pointer group shrink-0">
               <div className="group-hover:scale-110 transition-all duration-300 drop-shadow-[0_2px_8px_rgba(255,255,255,0.2)]">
                 <img
@@ -332,7 +312,7 @@ export default function QuickHeader({ showSearch = true, activeCategory = null, 
             <motion.button
               whileHover={{ scale: 1.15, rotate: -5 }}
               whileTap={{ scale: 0.9 }}
-              onClick={() => navigate("/quick-commerce/user/cart")}
+              onClick={() => navigate(getQuickCartPath(pathname))}
               className="flex items-center gap-2 rounded-2xl bg-[#f8cb46] px-4 py-2.5 text-[#111] shadow-[0_8px_20px_rgba(0,0,0,0.15)] transition-transform hover:scale-105 active:scale-95"
             >
               <div className="relative">
@@ -432,7 +412,7 @@ export default function QuickHeader({ showSearch = true, activeCategory = null, 
               display: displayNav,
               overflowY: "hidden",
             }}
-            className="relative flex items-end md:justify-center gap-0 overflow-x-auto no-scrollbar -mx-2 px-2 md:mx-0 md:px-0 z-10 snap-x pt-1 min-h-[68px] md:min-h-[76px] pb-0.5">
+            className="relative flex items-end md:justify-center gap-0 overflow-x-auto no-scrollbar -mx-2 px-2 md:mx-0 md:px-0 z-10 snap-x pt-1 min-h-[60px] md:min-h-[76px] pb-0.5">
             {categories.slice(0, 10).map((cat) => {
               const isActive = (activeCategory?._id || activeCategory?.id) === (cat._id || cat.id);
               return (
@@ -454,4 +434,3 @@ export default function QuickHeader({ showSearch = true, activeCategory = null, 
     </div>
   );
 }
-

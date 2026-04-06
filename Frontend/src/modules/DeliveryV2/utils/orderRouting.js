@@ -81,3 +81,22 @@ export const getPrimaryPickupLocation = (order) => {
   const pickupPoints = normalizePickupPoints(order);
   return pickupPoints[0]?.location || null;
 };
+
+export const isMixedOrder = (order) => {
+  const explicitType = String(
+    order?.orderType || order?.serviceType || order?.type || "",
+  )
+    .trim()
+    .toLowerCase();
+
+  if (explicitType === "mixed") return true;
+
+  const pickupPoints = normalizePickupPoints(order);
+  if (pickupPoints.length <= 1) return false;
+
+  const pickupTypes = new Set(
+    pickupPoints.map((point) => String(point?.pickupType || "food").toLowerCase()),
+  );
+
+  return pickupTypes.size > 1;
+};

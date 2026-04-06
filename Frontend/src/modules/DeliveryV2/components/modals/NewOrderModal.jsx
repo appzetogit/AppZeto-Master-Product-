@@ -4,7 +4,7 @@ import { User, MapPin, FastForward, Clock, Phone, ChefHat, ChevronDown } from 'l
 import { ActionSlider } from '@/modules/DeliveryV2/components/ui/ActionSlider';
 import { useDeliveryStore } from '@/modules/DeliveryV2/store/useDeliveryStore';
 import { getHaversineDistance, calculateETA } from '@/modules/DeliveryV2/utils/geo';
-import { normalizePickupPoints } from '@/modules/DeliveryV2/utils/orderRouting';
+import { isMixedOrder, normalizePickupPoints } from '@/modules/DeliveryV2/utils/orderRouting';
 
 /**
  * NewOrderModal - Ported to Original 1:1 Theme with Slider Accept.
@@ -15,6 +15,7 @@ export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
   const [timeLeft, setTimeLeft] = useState(30);
   const pickupPoints = normalizePickupPoints(order);
   const primaryPickup = pickupPoints[0] || null;
+  const mixedOrder = isMixedOrder(order);
 
   useEffect(() => {
     if (timeLeft <= 0) {
@@ -140,6 +141,11 @@ export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
         <div className="bg-green-500 p-8 flex justify-between items-center text-white border-b border-green-600/20">
           <div>
             <p className="text-white/80 text-[10px] font-bold uppercase tracking-widest mb-1">Incoming Request</p>
+            {mixedOrder && (
+              <div className="mb-3 inline-flex items-center rounded-full border border-white/30 bg-white/15 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-white">
+                Mixed Order
+              </div>
+            )}
             <h2 className="text-4xl font-bold tracking-tighter">₹{Number(earnings || 0).toFixed(2)}</h2>
           </div>
           <div className="bg-white/20 border border-white/30 rounded-3xl px-6 py-3 text-white font-bold text-2xl shadow-inner tabular-nums">

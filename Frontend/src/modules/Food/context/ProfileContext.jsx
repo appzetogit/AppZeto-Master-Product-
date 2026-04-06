@@ -36,6 +36,9 @@ export function ProfileProvider({ children }) {
     })
     return Array.from(addressMap.values())
   }
+  const syncAddressesToStorage = (nextAddresses) => {
+    localStorage.setItem("userAddresses", JSON.stringify(nextAddresses))
+  }
   const [userProfile, setUserProfile] = useState(() => {
     const userStr = localStorage.getItem("user_user")
     if (userStr) {
@@ -210,6 +213,16 @@ export function ProfileProvider({ children }) {
     }
   }, [])
 
+  const refreshAddresses = useCallback(async () => {
+    userAPI.getAddresses.invalidateCache?.()
+    const addressesResponse = await userAPI.getAddresses()
+    const addressesData = addressesResponse?.data?.data?.addresses || addressesResponse?.data?.addresses || []
+    const normalizedAddresses = dedupeAddressesByLabel(addressesData)
+    setAddresses(normalizedAddresses)
+    syncAddressesToStorage(normalizedAddresses)
+    return normalizedAddresses
+  }, [])
+
   // Address functions - memoized with useCallback
   const addAddress = useCallback(async (address) => {
     try {
@@ -217,22 +230,14 @@ export function ProfileProvider({ children }) {
       const newAddress = response?.data?.data?.address || response?.data?.address
       
       if (newAddress) {
-        const normalizedNewAddress = normalizeAddress(newAddress)
-        setAddresses((prev) => {
-          const filtered = prev.filter(
-            (addr) => normalizeAddressLabel(addr?.label) !== normalizeAddressLabel(normalizedNewAddress?.label)
-          )
-          const updated = dedupeAddressesByLabel([...filtered, normalizedNewAddress])
-          localStorage.setItem("userAddresses", JSON.stringify(updated))
-          return updated
-        })
-        return normalizedNewAddress
+        await refreshAddresses()
+        return normalizeAddress(newAddress)
       }
     } catch (error) {
       debugError("Error adding address:", error)
       throw error
     }
-  }, [])
+  }, [refreshAddresses])
 
   const updateAddress = useCallback(async (id, updatedAddress) => {
     try {
@@ -240,38 +245,28 @@ export function ProfileProvider({ children }) {
       const updatedAddr = response?.data?.data?.address || response?.data?.address
       
       if (updatedAddr) {
-        const normalizedUpdatedAddress = normalizeAddress(updatedAddr)
-        setAddresses((prev) => {
-          const updated = dedupeAddressesByLabel(
-            prev.map((addr) => (String(getAddressId(addr)) === String(id) ? normalizedUpdatedAddress : normalizeAddress(addr)))
-          )
-          localStorage.setItem("userAddresses", JSON.stringify(updated))
-          return updated
-        })
-        return normalizedUpdatedAddress
+        await refreshAddresses()
+        return normalizeAddress(updatedAddr)
       }
     } catch (error) {
       debugError("Error updating address:", error)
       throw error
     }
-  }, [])
+  }, [refreshAddresses])
 
   const deleteAddress = useCallback(async (id) => {
     try {
       await userAPI.deleteAddress(id)
-      setAddresses((prev) => {
-        const newAddresses = prev.filter((addr) => String(getAddressId(addr)) !== String(id))
-        localStorage.setItem("userAddresses", JSON.stringify(newAddresses))
-        return newAddresses
-      })
+      await refreshAddresses()
     } catch (error) {
       debugError("Error deleting address:", error)
       throw error
     }
-  }, [])
+  }, [refreshAddresses])
 
   const setDefaultAddress = useCallback(async (id) => {
     // Optimistic UI update first
+    const previousAddresses = addresses
     setAddresses((prev) =>
       prev.map((addr) => ({
         ...addr,
@@ -281,11 +276,14 @@ export function ProfileProvider({ children }) {
 
     try {
       await userAPI.setDefaultAddress(id)
+      await refreshAddresses()
     } catch (error) {
       debugError("Error setting default address:", error)
-      // Keep UI stable even if backend call fails
+      setAddresses(previousAddresses)
+      syncAddressesToStorage(previousAddresses)
+      throw error
     }
-  }, [])
+  }, [addresses, refreshAddresses])
 
   const getDefaultAddress = useCallback(() => {
     return addresses.find((addr) => addr.isDefault) || addresses[0] || null

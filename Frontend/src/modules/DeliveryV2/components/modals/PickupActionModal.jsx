@@ -9,6 +9,7 @@ import { ActionSlider } from '@/modules/DeliveryV2/components/ui/ActionSlider';
 import { uploadAPI } from '@food/api';
 import { toast } from 'sonner';
 import { openCamera } from "@food/utils/imageUploadUtils";
+import { normalizePickupPoints } from '@/modules/DeliveryV2/utils/orderRouting';
 
 /**
  * PickupActionModal - Unified White/Green Theme with Slider Actions.
@@ -76,6 +77,22 @@ export const PickupActionModal = ({
   const restaurantPhone = order.restaurantPhone || order.restaurant_phone || order.restaurantId?.phone || '';
   const items = order.items || [];
   const restaurantLogo = order.restaurantImage || order.restaurant?.logo || order.restaurant?.profileImage || 'https://cdn-icons-png.flaticon.com/512/3170/3170733.png';
+  const pickupPoints = normalizePickupPoints(order);
+  const pickupStops = pickupPoints.length
+    ? pickupPoints
+    : [
+        {
+          id: 'food:primary',
+          pickupType: 'food',
+          sourceName: restaurantName,
+          address: restaurantAddress,
+          phone: restaurantPhone,
+        },
+      ];
+  const primaryStop = pickupStops[0] || null;
+  const primaryName = primaryStop?.sourceName || restaurantName;
+  const primaryAddress = primaryStop?.address || restaurantAddress;
+  const primaryPhone = primaryStop?.phone || restaurantPhone;
 
   return (
     <div className="absolute inset-x-0 bottom-0 z-[110] p-0 sm:p-4 h-full flex items-end">
@@ -105,7 +122,7 @@ export const PickupActionModal = ({
               <img src={restaurantLogo} alt="Logo" className="w-full h-full object-cover" />
             </div>
             <div>
-              <h3 className="text-gray-950 text-xl font-bold">{restaurantName}</h3>
+              <h3 className="text-gray-950 text-xl font-bold">{primaryName}</h3>
               <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 mt-1.5">
                 {isAtPickup ? (
                   <span className="text-green-600">Reached Location √</span>
@@ -119,21 +136,45 @@ export const PickupActionModal = ({
           </div>
 
           <div className="flex gap-2">
-            {restaurantPhone && (
+            {primaryPhone && (
               <button
-                onClick={() => window.location.href = `tel:${restaurantPhone}`}
+                onClick={() => window.location.href = `tel:${primaryPhone}`}
                 className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600 border border-green-100"
               >
                 <Phone className="w-5 h-5" />
               </button>
             )}
             <button 
-              onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(restaurantAddress)}`, '_blank')}
+              onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(primaryAddress)}`, '_blank')}
               className="w-10 h-10 rounded-full bg-gray-900 flex items-center justify-center text-white shadow-lg"
             >
               <Navigation className="w-5 h-5" />
             </button>
           </div>
+        </div>
+
+        <div className="mb-8 space-y-3">
+          {pickupStops.map((pickup, index) => {
+            const isQuickStore = pickup.pickupType === 'quick';
+            const label = isQuickStore ? 'Store Pickup' : 'Restaurant Pickup';
+            const accentClasses = isQuickStore
+              ? 'text-orange-600 bg-orange-50 border-orange-100'
+              : 'text-green-600 bg-green-50 border-green-100';
+
+            return (
+              <div
+                key={pickup.id || `${pickup.pickupType}-${index}`}
+                className="rounded-2xl border border-gray-100 bg-gray-50/80 p-4"
+              >
+                <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${accentClasses}`}>
+                  <MapPin className="w-3.5 h-3.5" />
+                  <span>{pickupStops.length > 1 ? `${label} ${index + 1}` : label}</span>
+                </div>
+                <p className="mt-3 text-base font-bold text-gray-950">{pickup.sourceName || (isQuickStore ? 'Seller store' : 'Restaurant')}</p>
+                <p className="mt-1 text-sm font-medium leading-relaxed text-gray-500">{pickup.address || 'Address not available'}</p>
+              </div>
+            );
+          })}
         </div>
 
         {/* Action Sliders */}
@@ -143,7 +184,7 @@ export const PickupActionModal = ({
               <p className={`text-center text-[10px] font-bold uppercase tracking-widest mb-3 transition-colors ${
                 isWithinRange ? 'text-green-600' : 'text-orange-500 animate-pulse'
               }`}>
-                {isWithinRange ? 'Ready - Swipe to confirm arrival' : 'Get closer to restaurant'}
+                {isWithinRange ? 'Ready - Swipe to confirm arrival' : 'Get closer to pickup point'}
               </p>
               <ActionSlider 
                 key="action-reach"

@@ -13,6 +13,8 @@ import { normalizePickupPoints } from '@/modules/DeliveryV2/utils/orderRouting';
 export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
   const { riderLocation } = useDeliveryStore();
   const [timeLeft, setTimeLeft] = useState(30);
+  const pickupPoints = normalizePickupPoints(order);
+  const primaryPickup = pickupPoints[0] || null;
 
   useEffect(() => {
     if (timeLeft <= 0) {
@@ -38,7 +40,7 @@ export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
     }
 
     // B. Calculate from locations (Local calculation fallback)
-    const rest = order.restaurantLocation || order.restaurantId?.location || {};
+    const rest = primaryPickup?.location || order.restaurantLocation || order.restaurantId?.location || {};
     const resLat = parseFloat(order.restaurant_lat || order.restaurantLat || rest.latitude || rest.lat);
     const resLng = parseFloat(order.restaurant_lng || order.restaurantLng || rest.longitude || rest.lng);
 
@@ -58,14 +60,13 @@ export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
     }
 
     return { distanceKm: '??', etaMins: order.prepTime || 15 };
-  }, [order, riderLocation]);
+  }, [order, primaryPickup, riderLocation]);
 
   if (!order) return null;
 
   const earnings = order.earnings || order.riderEarning || (order.orderAmount ? order.orderAmount * 0.1 : 0);
   const restaurantName = order.restaurantName || order.restaurant_name || (order.restaurantId?.name) || 'Restaurant';
   const restaurantAddress = order.restaurantAddress || order.restaurant_address || (order.restaurantId?.location?.address) || 'Address not available';
-  const pickupPoints = normalizePickupPoints(order);
   const deliveryAddress = order?.deliveryAddress || {};
 
   const geoCoords =

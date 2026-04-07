@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useRef } from "react"
 import { motion } from "framer-motion"
 import { Routes, Route, Navigate, Link, useNavigate } from "react-router-dom"
-import { Phone, Lock, ArrowRight, ShieldCheck, Loader2 } from "lucide-react"
+import { Phone, Lock, ArrowRight, ShieldCheck, Loader2, UserRound } from "lucide-react"
 import { toast } from "sonner"
-import { authAPI } from "@food/api"
+import { authAPI, userAPI } from "@food/api"
 import { setAuthData } from "@food/utils/auth"
 
 export default function UnifiedOTPFastLogin() {
@@ -14,8 +14,17 @@ export default function UnifiedOTPFastLogin() {
   const [loading, setLoading] = useState(false)
   const [otpSent, setOtpSent] = useState(false)
   const [resendTimer, setResendTimer] = useState(0)
+  const [showNameInput, setShowNameInput] = useState(false)
+  const [name, setName] = useState("")
+  const [nameError, setNameError] = useState("")
   const navigate = useNavigate()
   const submitting = useRef(false)
+
+  const clearNameFlow = () => {
+    setShowNameInput(false)
+    setName("")
+    setNameError("")
+  }
 
   const normalizedPhone = () => {
     const digits = String(phoneNumber).replace(/\D/g, "").slice(-15)
@@ -33,6 +42,7 @@ export default function UnifiedOTPFastLogin() {
     submitting.current = true
     setLoading(true)
     try {
+      clearNameFlow()
       await authAPI.sendOTP(phoneNumber, "login", null)
       setOtpSent(true)
       setOtp("")
@@ -58,6 +68,7 @@ export default function UnifiedOTPFastLogin() {
     submitting.current = true
     setLoading(true)
     try {
+      clearNameFlow()
       await authAPI.sendOTP(phoneNumber, "login", null)
       setOtp("")
       setOtpSent(true)
@@ -76,6 +87,7 @@ export default function UnifiedOTPFastLogin() {
     setStep(1)
     setOtp("")
     setResendTimer(0)
+    clearNameFlow()
   }
 
   const handleVerifyOTP = async (e) => {
@@ -125,7 +137,23 @@ export default function UnifiedOTPFastLogin() {
         throw new Error("Invalid response from server")
       }
 
+      const hasName =
+        user.name &&
+        String(user.name).trim().length > 0 &&
+        String(user.name).toLowerCase() !== "null"
+      const needsName = data.isNewUser === true || !hasName
+
+      if (needsName) {
+        setAuthData("user", accessToken, user, refreshToken)
+        window.dispatchEvent(new Event("userAuthChanged"))
+        setShowNameInput(true)
+        setLoading(false)
+        submitting.current = false
+        return
+      }
+
       setAuthData("user", accessToken, user, refreshToken)
+      window.dispatchEvent(new Event("userAuthChanged"))
       toast.success("Login successful!")
       navigate("/user/auth/portal", { replace: true })
     } catch (err) {
@@ -137,6 +165,57 @@ export default function UnifiedOTPFastLogin() {
         } else {
           msg = "Invalid or expired code, or account not active."
         }
+      }
+      toast.error(msg)
+    } finally {
+      setLoading(false)
+      submitting.current = false
+    }
+  }
+
+  const handleSubmitName = async (e) => {
+    e.preventDefault()
+
+    const trimmedName = name.trim()
+    if (!trimmedName) {
+      setNameError("Please enter your name")
+      return
+    }
+
+    if (trimmedName.length < 2) {
+      setNameError("Name must be at least 2 characters")
+      return
+    }
+
+    if (submitting.current) return
+    submitting.current = true
+    setLoading(true)
+    setNameError("")
+
+    try {
+      const response = await userAPI.updateProfile({ name: trimmedName })
+      const updatedUser =
+        response?.data?.data?.user ||
+        response?.data?.user ||
+        response?.data?.data ||
+        response?.data
+      const storedToken = localStorage.getItem("user_accessToken") || localStorage.getItem("accessToken")
+      const storedRefreshToken = localStorage.getItem("user_refreshToken") || null
+
+      if (!storedToken || !updatedUser) {
+        throw new Error("Invalid response from server")
+      }
+
+      setAuthData("user", storedToken, updatedUser, storedRefreshToken)
+      window.dispatchEvent(new Event("userAuthChanged"))
+      clearNameFlow()
+      toast.success("Profile saved successfully!")
+      navigate("/user/auth/portal", { replace: true })
+    } catch (err) {
+      const status = err?.response?.status
+      let msg = err?.response?.data?.message || err?.response?.data?.error || err?.message || "Failed to save your name."
+      if (status === 401) {
+        msg = "Invalid or expired code, or account not active."
       }
       toast.error(msg)
     } finally {
@@ -212,7 +291,7 @@ export default function UnifiedOTPFastLogin() {
               <div className="h-1 w-12 bg-[#CB202D] mx-auto rounded-full" />
            </div>
 
-          <form onSubmit={step === 1 ? handleSendOTP : handleVerifyOTP} className="space-y-5">
+          <form onSubmit={showNameInput ? handleSubmitName : step === 1 ? handleSendOTP : handleVerifyOTP} className="space-y-5">
             {step === 1 ? (
               <div className="space-y-6">
                 <div className="space-y-4">
@@ -238,6 +317,49 @@ export default function UnifiedOTPFastLogin() {
                 <p className="text-[11px] text-gray-400 text-center leading-relaxed">
                   We will send success notifications and order updates via SMS
                 </p>
+              </div>
+            ) : showNameInput ? (
+              <div className="space-y-6">
+                <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-900 p-4 rounded-2xl border border-dashed border-gray-200 dark:border-gray-800">
+                  <div className="w-10 h-10 bg-[#CB202D]/10 rounded-full flex items-center justify-center">
+                    <ShieldCheck className="w-5 h-5 text-[#CB202D]" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-[10px] uppercase font-black text-gray-400 tracking-widest leading-none mb-1">Verified Number</p>
+                    <p className="text-sm font-black text-gray-900 dark:text-white">+91 {phoneNumber}</p>
+                  </div>
+                  <button type="button" onClick={handleEditNumber} className="text-xs text-[#CB202D] font-black underline cursor-pointer">
+                    Change
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-1 flex items-center pointer-events-none">
+                      <UserRound className="w-5 h-5 text-gray-400 group-focus-within:text-[#CB202D] transition-colors" />
+                    </div>
+                    <input
+                      type="text"
+                      required
+                      autoFocus
+                      value={name}
+                      onChange={(e) => {
+                        setName(e.target.value)
+                        if (nameError) setNameError("")
+                      }}
+                      className={`block w-full pl-10 pr-4 py-3 bg-transparent text-gray-900 dark:text-white border-b-2 border-gray-100 dark:border-gray-800 focus:border-[#CB202D] outline-none transition-all placeholder:text-gray-300 font-bold text-lg ${nameError ? "border-red-500" : ""}`}
+                      placeholder="Your full name"
+                    />
+                  </div>
+
+                  {nameError ? (
+                    <p className="text-xs font-semibold text-red-500 text-center">{nameError}</p>
+                  ) : (
+                    <p className="text-[11px] text-gray-400 text-center leading-relaxed">
+                      Please enter your name so we can save it to your profile.
+                    </p>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="space-y-6">
@@ -332,7 +454,7 @@ export default function UnifiedOTPFastLogin() {
               {loading ? (
                 <Loader2 className="w-7 h-7 animate-spin mx-auto text-white" />
               ) : (
-                step === 1 ? "Get Verification Code" : "Continue"
+                step === 1 ? "Get Verification Code" : showNameInput ? "Save Name & Continue" : "Continue"
               )}
             </button>
           </form>

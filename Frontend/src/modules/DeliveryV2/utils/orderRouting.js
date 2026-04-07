@@ -59,6 +59,49 @@ export const normalizePickupPoints = (order) => {
 
   if (normalized.length > 0) return normalized;
 
+  const dispatchLegLocation = normalizeLocationPoint(
+    order?.dispatchLeg?.location ||
+      order?.pickupLocation ||
+      order?.restaurantLocation ||
+      order?.restaurantId,
+  );
+  const dispatchLegId = String(order?.dispatchLeg?.legId || "").trim();
+  if (dispatchLegLocation && dispatchLegId) {
+    const pickupType = order?.dispatchLeg?.pickupType === "quick" ? "quick" : "food";
+    const sourceName = String(
+      order?.dispatchLeg?.sourceName ||
+        (pickupType === "quick"
+          ? order?.storeName || order?.sellerName || "Seller store"
+          : order?.restaurantName || order?.restaurantId?.restaurantName || "Restaurant"),
+    ).trim();
+    const address = String(
+      order?.dispatchLeg?.address ||
+        order?.pickupAddress ||
+        (pickupType === "quick"
+          ? order?.storeAddress || order?.sellerAddress
+          : order?.restaurantAddress || order?.restaurantLocation?.address) ||
+        "",
+    ).trim();
+
+    return [
+      {
+        id: dispatchLegId,
+        pickupType,
+        sourceId: String(order?.dispatchLeg?.sourceId || ""),
+        sourceName,
+        address: address || formatCoordinateAddress(dispatchLegLocation),
+        phone: String(
+          order?.dispatchLeg?.phone ||
+            (pickupType === "quick"
+              ? order?.storePhone || order?.sellerPhone
+              : order?.restaurantPhone || order?.restaurantId?.phone) ||
+            "",
+        ).trim(),
+        location: dispatchLegLocation,
+      },
+    ];
+  }
+
   const restaurantLocation = normalizeLocationPoint(order?.restaurantLocation || order?.restaurantId);
   if (!restaurantLocation) return [];
 

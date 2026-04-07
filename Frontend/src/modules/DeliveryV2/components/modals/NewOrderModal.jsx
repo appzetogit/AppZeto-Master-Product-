@@ -66,7 +66,15 @@ export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
   if (!order) return null;
 
   const earnings = order.earnings || order.riderEarning || (order.orderAmount ? order.orderAmount * 0.1 : 0);
-  const restaurantName = order.restaurantName || order.restaurant_name || (order.restaurantId?.name) || 'Restaurant';
+  const restaurantName =
+    order?.dispatchLeg?.pickupType === 'food'
+      ? order?.dispatchLeg?.sourceName ||
+        order.restaurantName ||
+        order.restaurant_name ||
+        order.restaurantId?.restaurantName ||
+        order.restaurantId?.name ||
+        'Restaurant'
+      : order.restaurantName || order.restaurant_name || order.restaurantId?.name || 'Restaurant';
   const restaurantAddress = order.restaurantAddress || order.restaurant_address || (order.restaurantId?.location?.address) || 'Address not available';
   const deliveryAddress = order?.deliveryAddress || {};
 
@@ -110,10 +118,10 @@ export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
     ? pickupPoints
     : [
         {
-          id: 'food:primary',
-          pickupType: 'food',
-          sourceName: restaurantName,
-          address: restaurantAddress,
+          id: order?.dispatchLeg?.legId || 'food:primary',
+          pickupType: order?.dispatchLeg?.pickupType === 'quick' ? 'quick' : 'food',
+          sourceName: order?.dispatchLeg?.sourceName || restaurantName,
+          address: order?.dispatchLeg?.address || restaurantAddress,
         },
       ];
 

@@ -81,7 +81,21 @@ export const useOrderManager = () => {
       }
     } catch (error) {
       console.error('Accept Order Error:', error);
-      toast.error('Network error. Please try again.');
+      const status = Number(error?.response?.status || 0);
+      const message = String(error?.response?.data?.message || '').toLowerCase();
+
+      if (
+        status === 403 &&
+        (
+          message.includes('already claimed') ||
+          message.includes('someone else') ||
+          message.includes('not available for this rider')
+        )
+      ) {
+        toast.error('Order was accepted by someone else');
+      } else {
+        toast.error(error?.response?.data?.message || 'Network error. Please try again.');
+      }
       throw error;
     }
   };

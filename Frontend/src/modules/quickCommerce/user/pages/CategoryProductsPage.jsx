@@ -15,6 +15,10 @@ import MiniCart from '../components/shared/MiniCart';
 import SectionRenderer from "../components/experience/SectionRenderer";
 import { useLocation as useAppLocation } from '../context/LocationContext';
 
+const QUICK_THEME_STORAGE_KEY = "food.quick.headerColor";
+const QUICK_HEADER_RETURN_STORAGE_KEY = "food.quick.headerReturn";
+const FALLBACK_HEADER_COLOR = "#0c831f";
+
 const CategoryProductsPage = () => {
     const { categoryId: catId } = useParams();
     const navigate = useNavigate();
@@ -27,6 +31,29 @@ const CategoryProductsPage = () => {
     const [subCategories, setSubCategories] = useState([{ id: 'all', name: 'All', icon: 'https://cdn-icons-png.flaticon.com/128/2321/2321831.png' }]);
     const [products, setProducts] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [headerTheme, setHeaderTheme] = useState(FALLBACK_HEADER_COLOR);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const storedTheme = window.sessionStorage.getItem(QUICK_THEME_STORAGE_KEY);
+        const storedHeaderReturn = window.sessionStorage.getItem(QUICK_HEADER_RETURN_STORAGE_KEY);
+
+        if (storedTheme && /^#[0-9a-fA-F]{6}$/.test(storedTheme)) {
+            setHeaderTheme(storedTheme);
+            return;
+        }
+
+        if (storedHeaderReturn) {
+            try {
+                const parsed = JSON.parse(storedHeaderReturn);
+                if (parsed?.color && /^#[0-9a-fA-F]{6}$/.test(parsed.color)) {
+                    setHeaderTheme(parsed.color);
+                }
+            } catch (error) {
+                // Ignore malformed stored header context.
+            }
+        }
+    }, []);
 
     const fetchData = async () => {
         setIsLoading(true);
@@ -124,19 +151,27 @@ const CategoryProductsPage = () => {
             <div className="mx-auto flex w-full max-w-md flex-1 flex-col">
             {/* Category Subheader */}
             <header className={cn(
-                "bg-white px-4 py-4 flex items-center justify-between border-b border-gray-50",
+                "sticky top-0 z-30 px-4 py-4 flex items-center justify-between border-b border-white/20 shadow-[0_10px_30px_rgba(15,23,42,0.12)] backdrop-blur-md",
                 isProductDetailOpen && "hidden md:flex"
-            )}>
+            )}
+            style={{
+                backgroundImage: `linear-gradient(180deg, ${headerTheme} 0%, ${headerTheme}F2 100%)`,
+            }}>
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => navigate(-1)}
-                        className="p-1 hover:bg-gray-50 rounded-full transition-colors"
+                        className="p-1 hover:bg-white/15 rounded-full transition-colors"
                     >
-                        <ChevronLeft size={24} className="text-gray-900" />
+                        <ChevronLeft size={24} className="text-white" />
                     </button>
-                    <h1 className="text-[18px] font-bold text-gray-800 tracking-tight">
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-black uppercase tracking-[0.24em] text-white/75">
+                            Quick Category
+                        </span>
+                        <h1 className="text-[18px] font-bold text-white tracking-tight">
                         {category?.name || catId}
-                    </h1>
+                        </h1>
+                    </div>
                 </div>
 
             </header>

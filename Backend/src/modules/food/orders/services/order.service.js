@@ -459,6 +459,140 @@ function getEligibleDispatchLegs(order, deliveryPartnerId) {
     });
 }
 
+function sortDispatchLegsByCandidateDistance(legs = []) {
+  return [...legs].sort((a, b) => {
+    const aDistance = Number.isFinite(a?.candidateDistanceKm)
+      ? a.candidateDistanceKm
+      : Number.POSITIVE_INFINITY;
+    const bDistance = Number.isFinite(b?.candidateDistanceKm)
+      ? b.candidateDistanceKm
+      : Number.POSITIVE_INFINITY;
+    return aDistance - bDistance;
+  });
+}
+
+async function claimSplitDispatchLegAtomically(order, deliveryPartnerId, requestedLegId = "") {
+  const partnerId = new mongoose.Types.ObjectId(deliveryPartnerId);
+  const partnerIdString = partnerId.toString();
+  const orderLegs = Array.isArray(order?.dispatchPlan?.legs) ? order.dispatchPlan.legs : [];
+  const existingLeg = getAssignedDispatchLeg(order, deliveryPartnerId);
+  const trimmedRequestedLegId = String(requestedLegId || "").trim();
+  const requestedLeg = trimmedRequestedLegId
+    ? orderLegs.find((leg) => String(leg?.legId || "") === trimmedRequestedLegId)
+    : null;
+
+  if (
+    isExpressSplitDispatchOrder(order) &&
+    existingLeg &&
+    trimmedRequestedLegId &&
+    existingLeg.legId !== trimmedRequestedLegId
+  ) {
+    throw new ValidationError(
+      "Express mixed delivery assigns separate riders per pickup leg",
+    );
+  }
+
+  if (requestedLeg && !existingLeg) {
+    const legOwnerId = toIdString(requestedLeg?.deliveryPartnerId);
+    if (legOwnerId && legOwnerId !== partnerIdString) {
+      throw new ForbiddenError("This dispatch leg is already claimed by another rider");
+    }
+
+    const eligibleForRequestedLeg = (requestedLeg?.partnerCandidates || []).some(
+      (candidate) => toIdString(candidate?.partnerId) === partnerIdString,
+    );
+
+    if (!legOwnerId && !eligibleForRequestedLeg) {
+      throw new ForbiddenError("This dispatch leg is not available for this rider");
+    }
+  }
+
+  if (existingLeg) {
+    const updatedOrder = await FoodOrder.findById(order._id);
+    return {
+      updatedOrder,
+      claimedLegId: existingLeg.legId,
+    };
+  }
+
+  const eligibleLegs = sortDispatchLegsByCandidateDistance(
+    getEligibleDispatchLegs(order, deliveryPartnerId),
+  );
+  const candidateLegIds = trimmedRequestedLegId
+    ? [trimmedRequestedLegId]
+    : eligibleLegs.map((leg) => String(leg?.legId || "")).filter(Boolean);
+
+  if (!candidateLegIds.length) {
+    throw new ValidationError("No dispatch leg is currently available for this rider");
+  }
+
+  for (const legId of candidateLegIds) {
+    const claimQuery = {
+      _id: order._id,
+      orderStatus: {
+        $in: ["confirmed", "preparing", "ready_for_pickup", "picked_up"],
+      },
+      dispatchPlan: {
+        $exists: true,
+      },
+      "dispatchPlan.legs": {
+        $elemMatch: {
+          legId,
+          deliveryPartnerId: null,
+          partnerCandidates: {
+            $elemMatch: {
+              partnerId,
+            },
+          },
+        },
+      },
+    };
+
+    if (isExpressSplitDispatchOrder(order)) {
+      claimQuery["dispatchPlan.legs.deliveryPartnerId"] = { $ne: partnerId };
+    }
+
+    const claimUpdate = {
+      $set: {
+        "dispatchPlan.legs.$[target].deliveryPartnerId": partnerId,
+        "dispatchPlan.legs.$[target].assignedAt": new Date(),
+        "dispatch.assignedAt": order?.dispatch?.assignedAt || new Date(),
+      },
+    };
+
+    const claimOptions = {
+      arrayFilters: [
+        {
+          "target.legId": legId,
+          "target.deliveryPartnerId": null,
+        },
+      ],
+    };
+
+    if (isExpressSplitDispatchOrder(order)) {
+      claimUpdate.$pull = {
+        "dispatchPlan.legs.$[other].partnerCandidates": {
+          partnerId,
+        },
+      };
+      claimOptions.arrayFilters.push({
+        "other.legId": { $ne: legId },
+      });
+    }
+
+    const claimResult = await FoodOrder.updateOne(claimQuery, claimUpdate, claimOptions);
+    if (claimResult?.modifiedCount > 0) {
+      const updatedOrder = await FoodOrder.findById(order._id);
+      return {
+        updatedOrder,
+        claimedLegId: legId,
+      };
+    }
+  }
+
+  throw new ValidationError("No dispatch leg is currently available for this rider");
+}
+
 function reorderPickupPointsForLeg(order, legId) {
   const pickupPoints = Array.isArray(order?.pickupPoints) ? [...order.pickupPoints] : [];
   if (!legId || pickupPoints.length <= 1) return pickupPoints;
@@ -1086,6 +1220,19 @@ async function notifySplitDispatchOffers(order, { restaurantDoc = null } = {}) {
   const pushTargets = [];
   const targetedPartnerIds = new Set();
   const maxCandidatesPerLeg = isExpressSplitDispatchOrder(order) ? 3 : 5;
+  const openLegs = (order.dispatchPlan?.legs || []).filter(
+    (leg) => !toIdString(leg?.deliveryPartnerId),
+  );
+  const distinctOpenCandidateIds = new Set(
+    openLegs.flatMap((leg) =>
+      (Array.isArray(leg?.partnerCandidates) ? leg.partnerCandidates : [])
+        .map((candidate) => toIdString(candidate?.partnerId))
+        .filter(Boolean),
+    ),
+  );
+  const canEnforceDistinctExpressTargets =
+    isExpressSplitDispatchOrder(order) &&
+    distinctOpenCandidateIds.size >= openLegs.length;
 
   for (const leg of order.dispatchPlan?.legs || []) {
     if (toIdString(leg?.deliveryPartnerId)) continue;
@@ -1094,15 +1241,18 @@ async function notifySplitDispatchOffers(order, { restaurantDoc = null } = {}) {
     const candidatePool = Array.isArray(leg.partnerCandidates)
       ? [...leg.partnerCandidates]
       : [];
+    const uniqueCandidates = candidatePool.filter(
+      (candidate) => !targetedPartnerIds.has(toIdString(candidate?.partnerId)),
+    );
+    const duplicateCandidates = candidatePool.filter((candidate) =>
+      targetedPartnerIds.has(toIdString(candidate?.partnerId)),
+    );
     const candidatesToNotify = isExpressSplitDispatchOrder(order)
-      ? [
-          ...candidatePool.filter(
-            (candidate) => !targetedPartnerIds.has(toIdString(candidate?.partnerId)),
-          ),
-          ...candidatePool.filter((candidate) =>
-            targetedPartnerIds.has(toIdString(candidate?.partnerId)),
-          ),
-        ].slice(0, maxCandidatesPerLeg)
+      ? (
+          canEnforceDistinctExpressTargets
+            ? uniqueCandidates
+            : [...uniqueCandidates, ...duplicateCandidates]
+        ).slice(0, maxCandidatesPerLeg)
       : candidatePool.slice(0, maxCandidatesPerLeg);
 
     for (const candidate of candidatesToNotify) {
@@ -2701,7 +2851,7 @@ export async function resendDeliveryNotificationRestaurant(orderId, restaurantId
     if (!order) throw new NotFoundError('Order not found');
 
     // Only allow if order is still active and not already terminal
-    const activeStatuses = ['preparing', 'ready_for_pickup', 'ready'];
+    const activeStatuses = ['confirmed', 'preparing', 'ready_for_pickup', 'ready'];
     if (!activeStatuses.includes(order.orderStatus)) {
         throw new ValidationError(`Cannot resend notification for order in status: ${order.orderStatus}`);
     }
@@ -2913,91 +3063,53 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId, body = {})
 
   if (isSplitDispatchOrder(order)) {
     const requestedLegId = String(body?.legId || "").trim();
-    const existingLeg = getAssignedDispatchLeg(order, deliveryPartnerId);
-    const eligibleLegs = getEligibleDispatchLegs(order, deliveryPartnerId).sort((a, b) => {
-      const aDistance = Number.isFinite(a?.candidateDistanceKm) ? a.candidateDistanceKm : Number.POSITIVE_INFINITY;
-      const bDistance = Number.isFinite(b?.candidateDistanceKm) ? b.candidateDistanceKm : Number.POSITIVE_INFINITY;
-      return aDistance - bDistance;
-    });
-    let targetLeg =
-      existingLeg ||
-      (requestedLegId
-        ? (order.dispatchPlan?.legs || []).find((leg) => leg.legId === requestedLegId)
-        : null);
+    const { updatedOrder, claimedLegId } = await claimSplitDispatchLegAtomically(
+      order,
+      deliveryPartnerId,
+      requestedLegId,
+    );
+
+    if (!updatedOrder) {
+      throw new NotFoundError("Order not found");
+    }
+
+    const targetLeg = (updatedOrder.dispatchPlan?.legs || []).find(
+      (leg) =>
+        String(leg?.legId || "") === String(claimedLegId || "") &&
+        toIdString(leg?.deliveryPartnerId) === toIdString(deliveryPartnerId),
+    );
 
     if (!targetLeg) {
-      if (eligibleLegs.length >= 1) {
-        targetLeg = (order.dispatchPlan?.legs || []).find(
-          (leg) => leg.legId === eligibleLegs[0].legId,
-        );
-      }
+      throw new ValidationError("No dispatch leg is currently available for this rider");
     }
 
-    if (!targetLeg) {
-      throw new ValidationError(
-        "No dispatch leg is currently available for this rider",
-      );
-    }
-
-    if (
-      isExpressSplitDispatchOrder(order) &&
-      existingLeg &&
-      existingLeg.legId !== targetLeg.legId
-    ) {
-      throw new ValidationError(
-        "Express mixed delivery assigns separate riders per pickup leg",
-      );
-    }
-
-    const legOwnerId = toIdString(targetLeg.deliveryPartnerId);
-    if (legOwnerId && legOwnerId !== toIdString(deliveryPartnerId)) {
-      throw new ForbiddenError("This dispatch leg is already claimed by another rider");
-    }
-
-    const eligibleForLeg =
-      legOwnerId === toIdString(deliveryPartnerId) ||
-      (targetLeg.partnerCandidates || []).some(
-        (candidate) => toIdString(candidate?.partnerId) === toIdString(deliveryPartnerId),
-      );
-
-    if (!eligibleForLeg) {
-      throw new ForbiddenError("This dispatch leg is not available for this rider");
-    }
-
-    const previousDispatchStatus = order.dispatch?.status || "unassigned";
-    targetLeg.deliveryPartnerId = partnerId;
-    targetLeg.assignedAt = new Date();
-
-    if (isExpressSplitDispatchOrder(order)) {
-      for (const leg of order.dispatchPlan?.legs || []) {
-        if (leg.legId !== targetLeg.legId) {
-          leg.partnerCandidates = (leg.partnerCandidates || []).filter(
-            (candidate) => toIdString(candidate?.partnerId) !== toIdString(deliveryPartnerId),
-          );
-        }
-      }
-    }
-
-    const assignedLegCount = (order.dispatchPlan?.legs || []).filter((leg) =>
+    const assignedLegCount = (updatedOrder.dispatchPlan?.legs || []).filter((leg) =>
       toIdString(leg.deliveryPartnerId),
     ).length;
 
-    order.dispatch.status =
-      assignedLegCount >= (order.dispatchPlan?.legs || []).length ? "accepted" : "assigned";
-    order.dispatch.assignedAt = order.dispatch.assignedAt || new Date();
-    if (order.dispatch.status === "accepted") {
-      order.dispatch.acceptedAt = new Date();
+    const nextDispatchStatus =
+      assignedLegCount >= (updatedOrder.dispatchPlan?.legs || []).length
+        ? "accepted"
+        : "assigned";
+    const previousDispatchStatus = updatedOrder.dispatch?.status || "unassigned";
+
+    updatedOrder.dispatch.status = nextDispatchStatus;
+    updatedOrder.dispatch.assignedAt = updatedOrder.dispatch.assignedAt || new Date();
+    if (nextDispatchStatus === "accepted") {
+      updatedOrder.dispatch.acceptedAt = updatedOrder.dispatch.acceptedAt || new Date();
     }
 
-    pushStatusHistory(order, {
-      byRole: "DELIVERY_PARTNER",
-      byId: deliveryPartnerId,
-      from: previousDispatchStatus,
-      to: order.dispatch.status,
-      note: `Accepted split dispatch leg ${targetLeg.legId}`,
-    });
+    if (previousDispatchStatus !== nextDispatchStatus) {
+      pushStatusHistory(updatedOrder, {
+        byRole: "DELIVERY_PARTNER",
+        byId: deliveryPartnerId,
+        from: previousDispatchStatus,
+        to: nextDispatchStatus,
+        note: `Accepted split dispatch leg ${targetLeg.legId}`,
+      });
+    }
 
-    emitOrderClaimedToOtherPartners(order, {
+    emitOrderClaimedToOtherPartners(updatedOrder, {
       acceptedBy: deliveryPartnerId,
       legId: targetLeg.legId,
       candidatePartnerIds: (targetLeg.partnerCandidates || []).map(
@@ -3005,8 +3117,8 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId, body = {})
       ),
     });
 
-    await order.save();
-    return getOrderById(order._id, { deliveryPartnerId });
+    await updatedOrder.save();
+    return getOrderById(updatedOrder._id, { deliveryPartnerId });
   }
 
   const wasUnassigned =

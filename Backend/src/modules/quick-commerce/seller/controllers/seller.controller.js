@@ -155,6 +155,32 @@ const buildSellerOrderFromParentOrder = (order, sellerId) => {
   };
 };
 
+const resolveParentQuickOrder = (sellerOrder, { populateUser = false } = {}) => {
+  const parentOrderId = sellerOrder?.parentOrderId;
+  const orderId = String(sellerOrder?.orderId || "").trim();
+
+  const baseQuery = {
+    orderType: { $in: ["quick", "mixed"] },
+  };
+
+  let query = null;
+  if (mongoose.isValidObjectId(String(parentOrderId || ""))) {
+    query = QuickOrder.findOne({
+      ...baseQuery,
+      _id: new mongoose.Types.ObjectId(String(parentOrderId)),
+    });
+  } else if (orderId) {
+    query = QuickOrder.findOne({
+      ...baseQuery,
+      orderId,
+    });
+  }
+
+  if (!query) return null;
+  if (populateUser) query = query.populate("userId");
+  return query;
+};
+
 const backfillSellerOrdersForMixedParentOrders = async (sellerId) => {
   const sellerKey = String(sellerId || "").trim();
   if (!sellerKey) return;
@@ -165,7 +191,7 @@ const backfillSellerOrdersForMixedParentOrders = async (sellerId) => {
       orderType: "mixed",
       items: { $elemMatch: { type: "quick", sourceId: sellerKey } },
     })
-      .select("orderId orderType items pricing deliveryAddress payment")
+      .select("_id orderId orderType items pricing deliveryAddress payment")
       .sort({ createdAt: -1 })
       .limit(200)
       .lean(),
@@ -1350,11 +1376,8 @@ export const updateSellerOrderStatusController = async (req, res) => {
                 ? "delivered"
                 : "placed";
 
-    const parentOrder = await QuickOrder.findOne({
-      orderId: order.orderId,
-      orderType: { $in: ["quick", "mixed"] },
-    })
-      .select("_id orderId orderType orderStatus")
+    const parentOrder = await resolveParentQuickOrder(order, { populateUser: false })
+      ?.select("_id orderId orderType orderStatus dispatch restaurantId")
       .lean();
 
     if (!parentOrder?._id) {
@@ -1420,6 +1443,30 @@ export const updateSellerOrderStatusController = async (req, res) => {
       // best-effort realtime update
     }
 
+    if (
+      nextStatus === "confirmed" &&
+      parentOrder?._id &&
+      parentOrder?.orderType === "mixed" &&
+      !(
+        parentOrder?.dispatch?.status === "accepted" &&
+        parentOrder?.dispatch?.deliveryPartnerId
+      )
+    ) {
+      try {
+        const { resendDeliveryNotificationRestaurant } = await import(
+          "../../../food/orders/services/order.service.js"
+        );
+        await resendDeliveryNotificationRestaurant(
+          parentOrder._id.toString(),
+          parentOrder.restaurantId?.toString?.() || parentOrder.restaurantId,
+        );
+      } catch (dispatchError) {
+        logger.warn(
+          `Seller mixed-order dispatch trigger failed for ${order.orderId}: ${dispatchError?.message || dispatchError}`,
+        );
+      }
+    }
+
     return res.json({ success: true, result: order.toObject() });
   } catch (error) {
     return sendError(res, 500, error.message || "Failed to update order status");
@@ -1442,10 +1489,7 @@ export const resendSellerOrderDispatchController = async (req, res) => {
       return sendError(res, 404, "Order not found");
     }
 
-    const quickOrder = await QuickOrder.findOne({
-      orderType: { $in: ["quick", "mixed"] },
-      orderId: sellerOrder.orderId,
-    }).populate("userId");
+    const quickOrder = await resolveParentQuickOrder(sellerOrder, { populateUser: true });
 
     if (!quickOrder) {
       return sendError(res, 404, "Parent order not found");

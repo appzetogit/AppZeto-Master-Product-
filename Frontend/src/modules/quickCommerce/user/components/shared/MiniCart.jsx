@@ -23,7 +23,8 @@ const MiniCart = ({
     const displayItems = cart.slice(0, 2);
 
     const path = location.pathname.replace(/\/$/, '') || '/';
-    const normalizedQuickPath = path.replace(/^\/quick-commerce\/user/, '') || '/';
+    const normalizedQuickPath =
+        path.replace(/^\/quick(?:-commerce(?:\/user)?)?/, '') || '/';
     const isEmbedded = isEmbeddedQuickPath(path);
     const resolvedLinkTo = linkTo || getQuickCartPath(path);
 

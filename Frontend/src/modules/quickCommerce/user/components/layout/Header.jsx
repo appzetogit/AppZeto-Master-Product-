@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Search, ShoppingCart, Heart, User, Menu, MapPin } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { ShoppingCart, Heart, User, MapPin } from 'lucide-react';
 import { useWishlist } from '../../context/WishlistContext';
 import { useCart } from '../../context/CartContext';
 import { useLocation as useAppLocation } from "../../context/LocationContext";
@@ -13,66 +12,13 @@ const Header = () => {
     const { count: wishlistCount } = useWishlist();
     const { cartCount } = useCart();
     const location = useLocation();
-    const path = location.pathname.replace(/^\/quick-commerce\/user/, '') || '/';
-    const isCheckoutPage = path === '/checkout';
+    const path = location.pathname.replace(/^\/quick(?:-commerce(?:\/user)?)?/, '') || '/';
     const isProductDetailPage = path.startsWith('/product');
     const [isLocationOpen, setIsLocationOpen] = useState(false);
     const { currentLocation, refreshLocation } = useAppLocation();
 
-    // Search placeholder animation
-    const [searchPlaceholder, setSearchPlaceholder] = useState('Search ');
-    const [typingState, setTypingState] = useState({
-        textIndex: 0,
-        charIndex: 0,
-        isDeleting: false,
-        isPaused: false
-    });
-
-    const staticText = "Search ";
-    const typingPhrases = ['"bread"', '"milk"', '"chocolate"', '"eggs"', '"chips"'];
-
-    React.useEffect(() => {
-        const { textIndex, charIndex, isDeleting, isPaused } = typingState;
-        const currentPhrase = typingPhrases[textIndex];
-
-        if (isPaused) {
-            const timeout = setTimeout(() => {
-                setTypingState(prev => ({ ...prev, isPaused: false, isDeleting: true }));
-            }, 2000); // Pause after full phrase
-            return () => clearTimeout(timeout);
-        }
-
-        const timeout = setTimeout(() => {
-            if (!isDeleting) {
-                // Typing
-                if (charIndex < currentPhrase.length) {
-                    setSearchPlaceholder(staticText + currentPhrase.substring(0, charIndex + 1));
-                    setTypingState(prev => ({ ...prev, charIndex: prev.charIndex + 1 }));
-                } else {
-                    // Finished typing
-                    setTypingState(prev => ({ ...prev, isPaused: true }));
-                }
-            } else {
-                // Deleting
-                if (charIndex > 0) {
-                    setSearchPlaceholder(staticText + currentPhrase.substring(0, charIndex - 1));
-                    setTypingState(prev => ({ ...prev, charIndex: prev.charIndex - 1 }));
-                } else {
-                    // Finished deleting
-                    setTypingState(prev => ({
-                        ...prev,
-                        isDeleting: false,
-                        textIndex: (prev.textIndex + 1) % typingPhrases.length
-                    }));
-                }
-            }
-        }, isDeleting ? 50 : 100);
-
-        return () => clearTimeout(timeout);
-    }, [typingState]);
-
     return (
-        <header className="absolute top-4 md:top-8 left-0 right-0 z-[200] px-4">
+        <header className="fixed top-0 left-0 right-0 z-[220] px-4 pt-4 md:pt-8">
             <div className="container mx-auto max-w-6xl">
                 {/* Mobile Top Row: Location & Profile */}
                 <div className="md:hidden flex items-center justify-between mb-4 px-2 animate-in slide-in-from-top duration-500">
@@ -102,11 +48,11 @@ const Header = () => {
                 </div>
 
                 {/* Main Header Capsule */}
-                <div className="px-4 md:px-8 h-18 bg-white/95 backdrop-blur-sm rounded-full shadow-2xl flex items-center justify-between border border-white/20">
+                <div className="hidden md:flex px-4 md:px-8 h-18 bg-white/95 backdrop-blur-sm rounded-full shadow-2xl items-center justify-between border border-white/20">
                     {/* Logo */}
                     <div className="flex items-center gap-6 mr-4 md:mr-12">
                         <Link
-                            to="/quick-commerce"
+                            to="/quick"
                             className={`flex items-center gap-1 ${isProductDetailPage ? 'hidden md:flex' : 'flex'}`}
                         >
                             <span className="text-2xl md:text-3xl font-black tracking-tight" style={{ color: settings?.primaryColor || 'var(--primary)' }}>{settings?.appName || 'App'}</span>
@@ -136,29 +82,15 @@ const Header = () => {
 
                     {/* Desktop Navigation */}
                     <nav className="hidden md:flex items-center gap-6">
-                        <Link to="/quick-commerce/user" className="text-sm font-medium transition-colors hover:text-[var(--primary)]">Home</Link>
+                        <Link to="/quick" className="text-sm font-medium transition-colors hover:text-[var(--primary)]">Home</Link>
 
-                        <Link to="/quick-commerce/user/categories" className="text-sm font-medium transition-colors hover:text-[var(--primary)]">Categories</Link>
-                        <Link to="/quick-commerce/user/offers" className="text-sm font-medium transition-colors hover:text-[var(--primary)]">Offers</Link>
+                        <Link to="/quick/categories" className="text-sm font-medium transition-colors hover:text-[var(--primary)]">Categories</Link>
+                        <Link to="/quick/offers" className="text-sm font-medium transition-colors hover:text-[var(--primary)]">Offers</Link>
                     </nav>
-
-                    {/* Search Bar - Hidden on checkout page */}
-                    {!isCheckoutPage && !isProductDetailPage && (
-                        <div className="flex-1 flex items-center max-w-sm ml-4 md:ml-8 mr-4 md:mr-8">
-                            <div className="relative w-full">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                                <input
-                                    type="search"
-                                    placeholder={searchPlaceholder}
-                                    className="w-full rounded-full border-none bg-slate-100/50 md:bg-white md:border md:border-slate-200 pl-10 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-[#0c831f] transition-all outline-none"
-                                />
-                            </div>
-                        </div>
-                    )}
 
                     {/* Desktop Right Icons */}
                     <div className="hidden md:flex items-center gap-4">
-                        <Link to="/quick-commerce/user/wishlist" className="relative flex items-center justify-center p-2 hover:bg-slate-50 rounded-full transition-colors group">
+                        <Link to="/quick/wishlist" className="relative flex items-center justify-center p-2 hover:bg-slate-50 rounded-full transition-colors group">
                             <Heart className="h-6 w-6 text-slate-600 group-hover:text-[var(--primary)] transition-colors" />
                             {wishlistCount > 0 && (
                                 <span className="absolute top-0 right-0 h-5 w-5 rounded-full bg-[#0c831f] text-[10px] font-bold text-white flex items-center justify-center border-2 border-white shadow-sm animate-in zoom-in duration-300">
@@ -167,7 +99,7 @@ const Header = () => {
                             )}
                         </Link>
 
-                        <Link to="/quick-commerce/user/checkout" id="header-cart-icon" className="relative flex items-center justify-center p-2 hover:bg-slate-50 rounded-full transition-colors group">
+                        <Link to="/quick/checkout" id="header-cart-icon" className="relative flex items-center justify-center p-2 hover:bg-slate-50 rounded-full transition-colors group">
                             <ShoppingCart className="h-6 w-6 text-slate-600 group-hover:text-[var(--primary)] transition-colors" />
                             {cartCount > 0 && (
                                 <span className="absolute top-0 right-0 h-5 w-5 rounded-full bg-[#0c831f] text-[10px] font-bold text-white flex items-center justify-center border-2 border-white shadow-sm animate-in zoom-in duration-300">
@@ -176,7 +108,7 @@ const Header = () => {
                             )}
                         </Link>
 
-                        <Link to="/quick-commerce/user/profile" className="flex items-center justify-center">
+                        <Link to="/quick/profile" className="flex items-center justify-center">
                             <User className="h-6 w-6 text-slate-600 hover:text-[var(--primary)] transition-colors" />
                         </Link>
                     </div>

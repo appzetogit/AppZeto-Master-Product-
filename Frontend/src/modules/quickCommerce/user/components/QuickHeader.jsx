@@ -329,7 +329,7 @@ export default function QuickHeader({ showSearch = true, activeCategory = null, 
             <motion.button
               whileHover={{ scale: 1.15 }}
               whileTap={{ scale: 0.9 }}
-              onClick={() => navigate("/quick-commerce/user/profile")}
+              onClick={() => navigate("/quick/profile")}
               className="text-white lg:bg-white/10 p-1.5 lg:rounded-full hover:bg-white/20 transition-all transform backdrop-blur-sm">
               <AccountCircleOutlinedIcon sx={{ fontSize: 28 }} />
             </motion.button>

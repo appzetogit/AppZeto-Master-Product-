@@ -6,11 +6,11 @@ import {
   ChevronDown,
   Search,
   Mic,
-  User,
   Bookmark,
   Bell,
   BellOff,
   X,
+  ShoppingCart,
   Pizza,
   Beef,
   ChefHat,
@@ -310,9 +310,13 @@ export default function HomeHeader({
             </PopoverContent>
           </Popover>
 
-          <div className="h-[38px] w-[38px] rounded-full bg-white border border-gray-200 flex items-center justify-center shadow-[0_4px_12px_rgba(0,0,0,0.08)]">
-            <User className="h-[20px] w-[20px] text-[#282c3f]" strokeWidth={2} />
-          </div>
+          <Link
+            to="/food/user/cart"
+            className="h-[38px] w-[38px] rounded-full bg-white border border-gray-200 flex items-center justify-center shadow-[0_4px_12px_rgba(0,0,0,0.08)]"
+            aria-label="Open cart"
+          >
+            <ShoppingCart className="h-[20px] w-[20px] text-[#282c3f]" strokeWidth={2} />
+          </Link>
         </div>
       </div>
 

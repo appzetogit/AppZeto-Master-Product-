@@ -16,7 +16,6 @@ import {
 import {
   getQuickCartPath,
   getQuickHomePath,
-  getQuickProfilePath,
   getQuickSearchPath,
   getQuickWishlistPath,
 } from "../../utils/routes";
@@ -31,7 +30,6 @@ import MicIcon from "@mui/icons-material/Mic";
 import ChevronDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import FavoriteBorderOutlinedIcon from "@mui/icons-material/FavoriteBorderOutlined";
 import ShoppingCartOutlinedIcon from "@mui/icons-material/ShoppingCartOutlined";
-import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
 
 const lightenHex = (hex, amount = 0.18) => {
   const normalized = String(hex || "").replace("#", "");
@@ -185,7 +183,6 @@ const MainLocationHeader = ({
   const cartPath = getQuickCartPath(routerLocation.pathname);
   const homePath = getQuickHomePath(routerLocation.pathname);
   const searchPath = getQuickSearchPath(routerLocation.pathname);
-  const profilePath = getQuickProfilePath();
   const wishlistPath = getQuickWishlistPath();
 
   // Search Logic
@@ -498,13 +495,6 @@ const MainLocationHeader = ({
                 </span>
               </motion.button>
 
-              <motion.button
-                whileHover={{ scale: 1.15 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => navigate(profilePath)}
-                className="text-slate-900 lg:bg-white/30 p-1.5 lg:rounded-full hover:bg-white hover:text-slate-900 transition-all">
-                <AccountCircleOutlinedIcon sx={{ fontSize: 28 }} />
-              </motion.button>
             </div>
           </div>
           )}

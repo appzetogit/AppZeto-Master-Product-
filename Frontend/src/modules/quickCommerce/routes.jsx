@@ -44,7 +44,7 @@ export default function QuickCommerceRoutes() {
                     <Route path="categories/:categoryId" element={<CategoryProducts />} />
                     <Route path="product/:productId" element={<ProductDetail />} />
                     <Route path="checkout" element={<Navigate to="/food/user/cart" replace />} />
-                    <Route path="profile" element={<Profile />} />
+                    <Route path="profile" element={<Navigate to="/food/user/profile" replace />} />
                     <Route path="wallet" element={<Wallet />} />
                     <Route path="addresses" element={<Addresses />} />
                     <Route path="support" element={<Support />} />

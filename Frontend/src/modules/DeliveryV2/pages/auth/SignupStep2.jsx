@@ -41,6 +41,15 @@ const sanitizeUploadedDocs = (docs) => ({
   drivingLicensePhoto: sanitizeUploadedDocValue(docs?.drivingLicensePhoto)
 })
 
+const hasDocumentValue = (localFile, uploadedValue) => {
+  if (localFile instanceof File) return true
+  if (typeof uploadedValue === "string") return uploadedValue.trim().length > 0
+  if (uploadedValue && typeof uploadedValue === "object") {
+    if (typeof uploadedValue.url === "string" && uploadedValue.url.trim()) return true
+  }
+  return false
+}
+
 const getFriendlyRegistrationError = (error) => {
   const rawMessage =
     error?.response?.data?.message ||
@@ -190,7 +199,15 @@ export default function SignupStep2() {
   const handleSubmit = async (e) => {
     e.preventDefault()
 
-    if (!documents.profilePhoto || !documents.aadharPhoto || !documents.panPhoto || !documents.drivingLicensePhoto) {
+    const hasProfilePhoto = hasDocumentValue(documents.profilePhoto, uploadedDocs.profilePhoto)
+    const hasAadharPhoto = hasDocumentValue(documents.aadharPhoto, uploadedDocs.aadharPhoto)
+    const hasPanPhoto = hasDocumentValue(documents.panPhoto, uploadedDocs.panPhoto)
+    const hasDrivingLicensePhoto = hasDocumentValue(
+      documents.drivingLicensePhoto,
+      uploadedDocs.drivingLicensePhoto
+    )
+
+    if (!hasProfilePhoto || !hasAadharPhoto || !hasPanPhoto || !hasDrivingLicensePhoto) {
       toast.error("Please upload all required documents")
       return
     }
@@ -229,10 +246,18 @@ export default function SignupStep2() {
     }
     if (details.panNumber) formData.append("panNumber", details.panNumber)
     if (details.aadharNumber) formData.append("aadharNumber", details.aadharNumber)
-    formData.append("profilePhoto", documents.profilePhoto)
-    formData.append("aadharPhoto", documents.aadharPhoto)
-    formData.append("panPhoto", documents.panPhoto)
-    formData.append("drivingLicensePhoto", documents.drivingLicensePhoto)
+    if (documents.profilePhoto instanceof File) {
+      formData.append("profilePhoto", documents.profilePhoto)
+    }
+    if (documents.aadharPhoto instanceof File) {
+      formData.append("aadharPhoto", documents.aadharPhoto)
+    }
+    if (documents.panPhoto instanceof File) {
+      formData.append("panPhoto", documents.panPhoto)
+    }
+    if (documents.drivingLicensePhoto instanceof File) {
+      formData.append("drivingLicensePhoto", documents.drivingLicensePhoto)
+    }
 
     // Try to get FCM token before registering
     let fcmToken = null;
@@ -280,11 +305,29 @@ export default function SignupStep2() {
         sessionStorage.removeItem("deliverySignupDocs")
         if (isCompleteProfile) {
           sessionStorage.removeItem("deliveryNeedsRegistration")
-          toast.success("Registration successful. Please login with OTP.")
-          setTimeout(() => navigate("/food/delivery/login", { replace: true }), 1500)
+          const pendingPhone = `${details.countryCode || "+91"} ${String(details.phone || "").replace(/\D/g, "").slice(0, 15)}`.trim()
+          sessionStorage.setItem("deliveryPendingPhone", pendingPhone)
+          toast.success("Registration submitted. Verification is in progress.")
+          setTimeout(
+            () =>
+              navigate("/food/delivery/verification", {
+                replace: true,
+                state: { phone: pendingPhone },
+              }),
+            1200
+          )
         } else {
+          const pendingPhone = `${details.countryCode || "+91"} ${String(details.phone || "").replace(/\D/g, "").slice(0, 15)}`.trim()
+          sessionStorage.setItem("deliveryPendingPhone", pendingPhone)
           toast.success("Profile submitted. Waiting for admin approval.")
-          setTimeout(() => navigate("/food/delivery", { replace: true }), 1500)
+          setTimeout(
+            () =>
+              navigate("/food/delivery/verification", {
+                replace: true,
+                state: { phone: pendingPhone },
+              }),
+            1200
+          )
         }
       }
     } catch (error) {
@@ -299,6 +342,7 @@ export default function SignupStep2() {
   const DocumentUpload = ({ docType, label, required = true }) => {
     const uploaded = uploadedDocs[docType]
     const isUploading = uploading[docType]
+    const hasUploadedDocument = hasDocumentValue(documents[docType], uploaded)
 
     return (
       <div className="bg-white rounded-lg p-4 border border-gray-200">
@@ -306,7 +350,7 @@ export default function SignupStep2() {
           {label} {required && <span className="text-red-500">*</span>}
         </label>
 
-        {uploaded ? (
+        {hasUploadedDocument ? (
           <div className="relative">
             <img
               src={getPreviewSrc(docType)}
@@ -417,8 +461,18 @@ export default function SignupStep2() {
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={isSubmitting || !uploadedDocs.profilePhoto || !uploadedDocs.aadharPhoto || !uploadedDocs.panPhoto || !uploadedDocs.drivingLicensePhoto}
-            className={`w-full py-4 rounded-lg font-bold text-white text-base transition-colors mt-6 ${isSubmitting || !uploadedDocs.profilePhoto || !uploadedDocs.aadharPhoto || !uploadedDocs.panPhoto || !uploadedDocs.drivingLicensePhoto
+            disabled={
+              isSubmitting ||
+              !hasDocumentValue(documents.profilePhoto, uploadedDocs.profilePhoto) ||
+              !hasDocumentValue(documents.aadharPhoto, uploadedDocs.aadharPhoto) ||
+              !hasDocumentValue(documents.panPhoto, uploadedDocs.panPhoto) ||
+              !hasDocumentValue(documents.drivingLicensePhoto, uploadedDocs.drivingLicensePhoto)
+            }
+            className={`w-full py-4 rounded-lg font-bold text-white text-base transition-colors mt-6 ${isSubmitting ||
+              !hasDocumentValue(documents.profilePhoto, uploadedDocs.profilePhoto) ||
+              !hasDocumentValue(documents.aadharPhoto, uploadedDocs.aadharPhoto) ||
+              !hasDocumentValue(documents.panPhoto, uploadedDocs.panPhoto) ||
+              !hasDocumentValue(documents.drivingLicensePhoto, uploadedDocs.drivingLicensePhoto)
               ? "bg-gray-400 cursor-not-allowed"
               : "bg-[#00B761] hover:bg-[#00A055]"
               }`}

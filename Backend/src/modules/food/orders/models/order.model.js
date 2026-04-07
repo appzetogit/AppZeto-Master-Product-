@@ -45,6 +45,8 @@ const dispatchLegSchema = new mongoose.Schema(
         pickupType: { type: String, enum: ['food', 'quick'], required: true },
         sourceId: { type: String, required: true, trim: true },
         sourceName: { type: String, default: '', trim: true },
+        deliveryFee: { type: Number, default: 0, min: 0 },
+        riderEarning: { type: Number, default: 0, min: 0 },
         deliveryPartnerId: { type: mongoose.Schema.Types.ObjectId, ref: 'FoodDeliveryPartner', default: null },
         assignedAt: { type: Date, default: null },
         partnerCandidates: [{

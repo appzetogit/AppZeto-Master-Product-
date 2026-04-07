@@ -13,8 +13,16 @@ import { cn } from '@/lib/utils';
 import SellerOrdersContext from '@/modules/seller/context/SellerOrdersContext';
 import SellerEarningsContext, { defaultEarnings } from '@/modules/seller/context/SellerEarningsContext';
 import { getOrderSocket, onSellerOrderNew } from '@/core/services/orderSocket';
+import alertSound from '@/modules/Food/assets/audio/alert.mp3';
 
 const POLL_INTERVAL_MS = 15000;
+
+const resolveAudioSource = (source, cacheKey = 'seller-alert') => {
+    if (!source) return source;
+    if (!import.meta.env.DEV) return source;
+    const separator = source.includes('?') ? '&' : '?';
+    return `${source}${separator}devcache=${cacheKey}`;
+};
 
 /** Match server `sellerPendingExpiresAt` — never reset to a full 60s when the modal opens late. */
 function secondsLeftUntilSellerExpiry(order) {
@@ -99,7 +107,7 @@ const DashboardLayout = ({ children, navItems, title }) => {
                 shownOrderIdsRef.current = new Set(shownOrderIdsRef.current).add(newOrder.orderId);
                 newOrderAlertRef.current = newOrder;
 
-                const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+                const audio = new Audio(resolveAudioSource(alertSound));
                 audio.play().catch(() => {});
             } catch (error) {
                 console.error("Polling Error:", error);

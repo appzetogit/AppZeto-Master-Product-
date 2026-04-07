@@ -420,6 +420,13 @@ export default function OrdersPage({ statusKey = "all" }) {
       )
 
       const paymentMethod = order.payment?.method || order.paymentMethod || ""
+      const rawOrderType = String(order.orderType || "").toLowerCase().trim()
+      const orderType =
+        rawOrderType === "mixed"
+          ? "Mixed"
+          : rawOrderType === "quick"
+            ? "Quick"
+            : "Food"
       let paymentType = order.paymentType
       if (!paymentType) {
         if (paymentMethod === "cash" || paymentMethod === "cod") paymentType = "Cash on Delivery"
@@ -488,6 +495,7 @@ export default function OrdersPage({ statusKey = "all" }) {
         orderId: order.orderId || order.id,
         date,
         time,
+        orderType,
         customerName,
         customerPhone,
         restaurant,

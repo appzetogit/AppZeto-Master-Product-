@@ -184,7 +184,7 @@ const MainLocationHeader = ({
   const routerLocation = useRouterLocation();
   const cartPath = getQuickCartPath(routerLocation.pathname);
   const homePath = getQuickHomePath(routerLocation.pathname);
-  const searchPath = getQuickSearchPath();
+  const searchPath = getQuickSearchPath(routerLocation.pathname);
   const profilePath = getQuickProfilePath();
   const wishlistPath = getQuickWishlistPath();
 

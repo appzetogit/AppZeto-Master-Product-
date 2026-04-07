@@ -107,6 +107,7 @@ export function useOrdersManagement(orders, statusKey, title) {
     si: true,
     orderId: true,
     orderDate: true,
+    orderType: true,
     orderOtp: true,
     customer: true,
     restaurant: true,
@@ -591,11 +592,12 @@ export function useOrdersManagement(orders, statusKey, title) {
 
   const resetColumns = () => {
     setVisibleColumns({
-      si: true,
-      orderId: true,
-      orderDate: true,
-      orderOtp: true,
-      customer: true,
+    si: true,
+    orderId: true,
+    orderDate: true,
+    orderType: true,
+    orderOtp: true,
+    customer: true,
       restaurant: true,
       foodItems: true,
       totalAmount: true,

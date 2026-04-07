@@ -91,9 +91,11 @@ export const PickupActionModal = ({
         },
       ];
   const primaryStop = pickupStops[0] || null;
+  const primaryPickupType = primaryStop?.pickupType === 'quick' ? 'quick' : 'food';
   const primaryName = primaryStop?.sourceName || restaurantName;
   const primaryAddress = primaryStop?.address || restaurantAddress;
   const primaryPhone = primaryStop?.phone || restaurantPhone;
+  const primaryDestinationLabel = primaryPickupType === 'quick' ? 'Store' : 'Restaurant';
 
   return (
     <div className="absolute inset-x-0 bottom-0 z-[110] p-0 sm:p-4 h-full flex items-end">
@@ -134,7 +136,7 @@ export const PickupActionModal = ({
                   <span className="text-green-600">Reached Location √</span>
                 ) : (
                   <span className="text-orange-500">
-                    {(distanceToTarget / 1000).toFixed(1)} km • {eta || '--'} min to Store
+                    {(distanceToTarget / 1000).toFixed(1)} km • {eta || '--'} min to {primaryDestinationLabel}
                   </span>
                 )}
               </p>

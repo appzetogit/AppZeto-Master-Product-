@@ -68,6 +68,23 @@ const getAllOrdersTimestamp = (order) =>
   order?.createdAt ||
   new Date().toISOString();
 
+const getRestaurantVisibleItems = (items = []) => {
+  const normalizedItems = Array.isArray(items) ? items : [];
+  const foodItems = normalizedItems.filter((item) => {
+    const itemType = String(item?.type || item?.orderType || "food").toLowerCase();
+    return itemType !== "quick";
+  });
+  return foodItems.length ? foodItems : normalizedItems;
+};
+
+const buildOrderItemsSummary = (items = []) =>
+  getRestaurantVisibleItems(items)
+    .map((item) => `${item.quantity}x ${item.name}`)
+    .join(", ") || "No items";
+
+const getOrderPreviewItem = (items = []) =>
+  getRestaurantVisibleItems(items)[0] || null;
+
 const transformOrderForList = (order) => ({
   orderId: order.orderId || order._id,
   mongoId: order._id,
@@ -85,11 +102,9 @@ const transformOrderForList = (order) => ({
     },
   ),
   eta: null,
-  itemsSummary:
-    order.items?.map((item) => `${item.quantity}x ${item.name}`).join(", ") ||
-    "No items",
-  photoUrl: order.items?.[0]?.image || null,
-  photoAlt: order.items?.[0]?.name || "Order",
+  itemsSummary: buildOrderItemsSummary(order.items),
+  photoUrl: getOrderPreviewItem(order.items)?.image || null,
+  photoAlt: getOrderPreviewItem(order.items)?.name || "Order",
   paymentMethod: order.paymentMethod || order.payment?.method || null,
   deliveryPartnerId: order.deliveryPartnerId || null,
   dispatchStatus: order.dispatch?.status || null,
@@ -133,12 +148,9 @@ function CompletedOrders({ onSelectOrder, refreshToken = 0 }) {
             }),
             deliveredAt:
               order.deliveredAt || order.updatedAt || order.createdAt,
-            itemsSummary:
-              order.items
-                ?.map((item) => `${item.quantity}x ${item.name}`)
-                .join(", ") || "No items",
-            photoUrl: order.items?.[0]?.image || null,
-            photoAlt: order.items?.[0]?.name || "Order",
+            itemsSummary: buildOrderItemsSummary(order.items),
+            photoUrl: getOrderPreviewItem(order.items)?.image || null,
+            photoAlt: getOrderPreviewItem(order.items)?.name || "Order",
             amount: order.pricing?.total || order.total || 0,
             paymentMethod: order.paymentMethod || order.payment?.method || null,
           }));
@@ -342,12 +354,9 @@ function CancelledOrders({ onSelectOrder, refreshToken = 0 }) {
             cancelledBy: order.cancelledBy || "unknown",
             cancellationReason:
               order.cancellationReason || "No reason provided",
-            itemsSummary:
-              order.items
-                ?.map((item) => `${item.quantity}x ${item.name}`)
-                .join(", ") || "No items",
-            photoUrl: order.items?.[0]?.image || null,
-            photoAlt: order.items?.[0]?.name || "Order",
+            itemsSummary: buildOrderItemsSummary(order.items),
+            photoUrl: getOrderPreviewItem(order.items)?.image || null,
+            photoAlt: getOrderPreviewItem(order.items)?.name || "Order",
             amount: order.pricing?.total || order.total || 0,
             paymentMethod: order.paymentMethod || order.payment?.method || null,
           }));
@@ -901,6 +910,20 @@ export default function OrdersMain() {
   const getPopupOrderTotal = (orderLike) => {
     if (!orderLike) return 0;
 
+    const rawItems = Array.isArray(orderLike.items) ? orderLike.items : [];
+    const visibleItems = getRestaurantVisibleItems(rawItems);
+    const hasFilteredMixedItems = visibleItems.length > 0 && visibleItems.length !== rawItems.length;
+
+    if (hasFilteredMixedItems) {
+      const visibleItemsTotal = visibleItems.reduce((sum, item) => {
+        const price = Number(item?.price || 0);
+        const qty = Number(item?.quantity || 0);
+        return sum + (Number.isFinite(price) ? price : 0) * (Number.isFinite(qty) ? qty : 0);
+      }, 0);
+
+      return Number.isFinite(visibleItemsTotal) ? visibleItemsTotal : 0;
+    }
+
     const directTotal = Number(orderLike.total);
     if (Number.isFinite(directTotal) && directTotal > 0) return directTotal;
 
@@ -910,8 +933,7 @@ export default function OrdersMain() {
     const amountDue = Number(orderLike.payment?.amountDue);
     if (Number.isFinite(amountDue) && amountDue > 0) return amountDue;
 
-    const items = Array.isArray(orderLike.items) ? orderLike.items : [];
-    const itemsTotal = items.reduce((sum, item) => {
+    const itemsTotal = visibleItems.reduce((sum, item) => {
       const price = Number(item?.price || 0);
       const qty = Number(item?.quantity || 0);
       return sum + (Number.isFinite(price) ? price : 0) * (Number.isFinite(qty) ? qty : 0);
@@ -1200,7 +1222,7 @@ export default function OrdersMain() {
               orderMongoId: orderToPopup._id,
               restaurantId: orderToPopup.restaurantId,
               restaurantName: orderToPopup.restaurantName,
-              items: orderToPopup.items || [],
+              items: getRestaurantVisibleItems(orderToPopup.items || []),
               total: orderToPopup.pricing?.total || 0,
               customerAddress: orderToPopup.address,
               status: orderToPopup.status,
@@ -1516,7 +1538,8 @@ export default function OrdersMain() {
 
   // Handle PDF download
   const handlePrint = async () => {
-    if (!newOrder) {
+    const orderToPrint = currentPopupOrder;
+    if (!orderToPrint) {
       debugWarn("No order data available for PDF generation");
       return;
     }
@@ -1576,13 +1599,14 @@ export default function OrdersMain() {
 
       // Items table
       let yPos = 85;
-      if (orderToPrint.items && orderToPrint.items.length > 0) {
+      const printableItems = getRestaurantVisibleItems(orderToPrint.items);
+      if (printableItems.length > 0) {
         doc.setFont("helvetica", "bold");
         doc.text("Items:", 20, yPos);
         yPos += 8;
 
         // Prepare table data
-        const tableData = orderToPrint.items.map((item) => [
+        const tableData = printableItems.map((item) => [
           item.name || "Item",
           item.quantity || 1,
           `₹${(item.price || 0).toFixed(2)}`,
@@ -1841,6 +1865,10 @@ export default function OrdersMain() {
         return <EmptyState />;
     }
   };
+
+  const currentPopupOrder = popupOrder || newOrder;
+  const popupVisibleItems = getRestaurantVisibleItems(currentPopupOrder?.items);
+  const popupPrimaryItem = popupVisibleItems[0] || null;
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
@@ -2107,10 +2135,10 @@ export default function OrdersMain() {
                 <div className="px-4 py-3 bg-white border-b border-gray-200 flex items-center justify-between">
                   <div className="flex-1">
                     <h3 className="text-base font-bold text-gray-900">
-                      {(popupOrder || newOrder)?.orderId || "#Order"}
+                      {currentPopupOrder?.orderId || "#Order"}
                     </h3>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      {(popupOrder || newOrder)?.restaurantName || "Restaurant"}
+                      {currentPopupOrder?.restaurantName || "Restaurant"}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -2136,7 +2164,7 @@ export default function OrdersMain() {
                 {/* Content */}
                 <div className="px-4 pt-4 pb-4 flex-1 overflow-y-auto min-h-0">
                   {/* Scheduled Indicator */}
-                  {(popupOrder || newOrder)?.scheduledAt && (
+                  {currentPopupOrder?.scheduledAt && (
                     <div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center shrink-0">
                         <Calendar className="w-4 h-4 text-green-600" />
@@ -2148,7 +2176,7 @@ export default function OrdersMain() {
                         <p className="text-sm font-semibold text-green-900 mt-0.5">
                           For{" "}
                           {new Date(
-                            (popupOrder || newOrder).scheduledAt,
+                            currentPopupOrder.scheduledAt,
                           ).toLocaleString("en-US", {
                             day: "numeric",
                             month: "short",
@@ -2164,13 +2192,12 @@ export default function OrdersMain() {
                   {/* Customer info */}
                   <div className="mb-4">
                     <h4 className="text-sm font-semibold text-gray-900">
-                      {(popupOrder || newOrder)?.items?.[0]?.name ||
-                        "New Order"}
+                      {popupPrimaryItem?.name || "New Order"}
                     </h4>
                     <p className="text-xs text-gray-500 mt-1">
-                      {(popupOrder || newOrder)?.createdAt
+                      {currentPopupOrder?.createdAt
                         ? new Date(
-                            (popupOrder || newOrder).createdAt,
+                            currentPopupOrder.createdAt,
                           ).toLocaleString("en-GB", {
                             day: "numeric",
                             month: "short",
@@ -2203,8 +2230,8 @@ export default function OrdersMain() {
                           Details
                         </span>
                         <span className="text-xs text-gray-500">
-                          {(popupOrder || newOrder)?.items?.length || 0} item
-                          {(popupOrder || newOrder)?.items?.length !== 1
+                          {popupVisibleItems.length || 0} item
+                          {popupVisibleItems.length !== 1
                             ? "s"
                             : ""}
                         </span>
@@ -2225,7 +2252,7 @@ export default function OrdersMain() {
                           transition={{ duration: 0.2 }}
                           className="overflow-hidden">
                           <div className="py-3 space-y-3">
-                            {(popupOrder || newOrder)?.items?.map(
+                            {popupVisibleItems.length > 0 ? popupVisibleItems.map(
                               (item, index) => (
                                 <div
                                   key={index}
@@ -2244,7 +2271,7 @@ export default function OrdersMain() {
                                   </div>
                                 </div>
                               ),
-                            ) || (
+                            ) : (
                               <p className="text-sm text-gray-500">No items</p>
                             )}
                           </div>
@@ -2962,12 +2989,9 @@ function PreparingOrders({
               ),
               initialETA, // Store initial ETA in minutes
               preparingTimestamp, // Store when order started preparing
-              itemsSummary:
-                order.items
-                  ?.map((item) => `${item.quantity}x ${item.name}`)
-                  .join(", ") || "No items",
-              photoUrl: order.items?.[0]?.image || null,
-              photoAlt: order.items?.[0]?.name || "Order",
+              itemsSummary: buildOrderItemsSummary(order.items),
+              photoUrl: getOrderPreviewItem(order.items)?.image || null,
+              photoAlt: getOrderPreviewItem(order.items)?.name || "Order",
               deliveryPartnerId: order.deliveryPartnerId || null,
               dispatchStatus: order.dispatch?.status || null,
               paymentMethod:
@@ -3269,12 +3293,9 @@ function ReadyOrders({ onSelectOrder, refreshToken = 0 }) {
               minute: "2-digit",
             }),
             eta: null, // Don't show ETA for ready orders
-            itemsSummary:
-              order.items
-                ?.map((item) => `${item.quantity}x ${item.name}`)
-                .join(", ") || "No items",
-            photoUrl: order.items?.[0]?.image || null,
-            photoAlt: order.items?.[0]?.name || "Order",
+            itemsSummary: buildOrderItemsSummary(order.items),
+            photoUrl: getOrderPreviewItem(order.items)?.image || null,
+            photoAlt: getOrderPreviewItem(order.items)?.name || "Order",
             paymentMethod: order.paymentMethod || order.payment?.method || null,
             deliveryPartnerId: order.deliveryPartnerId || null,
             dispatchStatus: order.dispatch?.status || null,
@@ -3387,12 +3408,9 @@ const OutForDeliveryOrders = ({ onSelectOrder, refreshToken = 0 }) => {
               minute: "2-digit",
             }),
             eta: null,
-            itemsSummary:
-              order.items
-                ?.map((item) => `${item.quantity}x ${item.name}`)
-                .join(", ") || "No items",
-            photoUrl: order.items?.[0]?.image || null,
-            photoAlt: order.items?.[0]?.name || "Order",
+            itemsSummary: buildOrderItemsSummary(order.items),
+            photoUrl: getOrderPreviewItem(order.items)?.image || null,
+            photoAlt: getOrderPreviewItem(order.items)?.name || "Order",
             paymentMethod: order.paymentMethod || order.payment?.method || null,
             deliveryPartnerId: order.deliveryPartnerId || null,
             dispatchStatus: order.dispatch?.status || null,

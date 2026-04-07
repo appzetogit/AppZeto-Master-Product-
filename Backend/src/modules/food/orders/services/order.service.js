@@ -311,7 +311,20 @@ function evaluateCombinedPickupEligibility(pickupPoints = [], deliveryAddress) {
 
 async function listNearbyPartnersForPoint(point, { maxKm = 15, limit = 5 } = {}) {
   const latLng = getPointLatLng(point?.location);
-  if (!latLng) return [];
+  if (!latLng) {
+    const fallbackPartners = await FoodDeliveryPartner.find({
+      status: "approved",
+      availabilityStatus: "online",
+    })
+      .select("_id")
+      .limit(Math.max(1, limit))
+      .lean();
+
+    return fallbackPartners.map((partner) => ({
+      partnerId: partner._id,
+      distanceKm: null,
+    }));
+  }
 
   const partners = await FoodDeliveryPartner.find({
     status: "approved",
@@ -322,7 +335,7 @@ async function listNearbyPartnersForPoint(point, { maxKm = 15, limit = 5 } = {})
     .select("_id lastLat lastLng")
     .lean();
 
-  return partners
+  const nearbyPartners = partners
     .map((partner) => ({
       partnerId: partner._id,
       distanceKm: haversineKm(latLng.lat, latLng.lng, partner.lastLat, partner.lastLng),
@@ -330,6 +343,23 @@ async function listNearbyPartnersForPoint(point, { maxKm = 15, limit = 5 } = {})
     .filter((partner) => Number.isFinite(partner.distanceKm) && partner.distanceKm <= maxKm)
     .sort((a, b) => a.distanceKm - b.distanceKm)
     .slice(0, Math.max(1, limit));
+
+  if (nearbyPartners.length > 0) {
+    return nearbyPartners;
+  }
+
+  const fallbackPartners = await FoodDeliveryPartner.find({
+    status: "approved",
+    availabilityStatus: "online",
+  })
+    .select("_id")
+    .limit(Math.max(1, limit))
+    .lean();
+
+  return fallbackPartners.map((partner) => ({
+    partnerId: partner._id,
+    distanceKm: null,
+  }));
 }
 
 function pushStatusHistory(order, { byRole, byId, from, to, note = "" }) {
@@ -376,6 +406,13 @@ function isSplitDispatchOrder(order) {
   );
 }
 
+function isExpressSplitDispatchOrder(order) {
+  return (
+    order?.orderType === "mixed" &&
+    String(order?.dispatchPlan?.strategy || "") === "express_split"
+  );
+}
+
 function getAssignedDispatchLeg(order, deliveryPartnerId) {
   const partnerId = toIdString(deliveryPartnerId);
   if (!partnerId) return null;
@@ -386,9 +423,22 @@ function getAssignedDispatchLeg(order, deliveryPartnerId) {
   );
 }
 
+function filterOrderItemsForLeg(order, leg) {
+  const items = Array.isArray(order?.items) ? order.items : [];
+  if (!leg?.legId) return items;
+  const targetLegId = String(leg.legId);
+  return items.filter(
+    (item) => `${item?.type || item?.orderType}:${item?.sourceId}` === targetLegId,
+  );
+}
+
 function getEligibleDispatchLegs(order, deliveryPartnerId) {
   const partnerId = toIdString(deliveryPartnerId);
   if (!partnerId) return [];
+  const existingAssignedLeg = getAssignedDispatchLeg(order, deliveryPartnerId);
+  if (isExpressSplitDispatchOrder(order) && existingAssignedLeg) {
+    return [];
+  }
   return (order?.dispatchPlan?.legs || [])
     .filter((leg) => !toIdString(leg?.deliveryPartnerId))
     .filter((leg) =>
@@ -437,19 +487,35 @@ function buildDeliveryOrderView(orderDoc, deliveryPartnerId, options = {}) {
   order.orderId = order?.orderId || order?.order_id || order.orderMongoId;
 
   if (activeLeg) {
+    const legDeliveryFee = Number(activeLeg?.deliveryFee || 0);
+    const legRiderEarning = Number(activeLeg?.riderEarning || 0);
     order.dispatchOfferType = isSplitDispatchOrder(orderDoc) ? "split_leg" : "single";
+    if (isSplitDispatchOrder(orderDoc)) {
+      order.deliveryFee = legDeliveryFee;
+      order.riderEarning = legRiderEarning;
+      order.earnings = legRiderEarning || legDeliveryFee || 0;
+    }
     order.dispatchLeg = {
       legId: activeLeg.legId,
       pickupType: activeLeg.pickupType,
       sourceId: activeLeg.sourceId,
       sourceName: activeLeg.sourceName || "",
+      deliveryFee: legDeliveryFee,
+      riderEarning: legRiderEarning,
       candidateDistanceKm: Number.isFinite(activeLeg?.candidateDistanceKm)
         ? activeLeg.candidateDistanceKm
         : null,
       assignedAt: activeLeg.assignedAt || null,
       deliveryPartnerId: activeLeg.deliveryPartnerId || null,
     };
-    order.pickupPoints = reorderPickupPointsForLeg(orderDoc, activeLeg.legId);
+    if (isSplitDispatchOrder(orderDoc)) {
+      order.items = filterOrderItemsForLeg(orderDoc, activeLeg);
+      order.pickupPoints = reorderPickupPointsForLeg(orderDoc, activeLeg.legId).filter(
+        (point) => `${point?.pickupType}:${point?.sourceId}` === activeLeg.legId,
+      );
+    } else {
+      order.pickupPoints = reorderPickupPointsForLeg(orderDoc, activeLeg.legId);
+    }
   }
 
   if (assignedLeg) {
@@ -606,6 +672,69 @@ function buildDeliverySocketPayload(orderDoc, restaurantDoc = null) {
     createdAt: order?.createdAt,
     updatedAt: order?.updatedAt,
   };
+}
+
+function buildSplitLegSocketPayload(orderDoc, leg, restaurantDoc = null) {
+  const basePayload = buildDeliverySocketPayload(orderDoc, restaurantDoc);
+  const legId = String(leg?.legId || "");
+  const legDeliveryFee = Number(leg?.deliveryFee || 0);
+  const legRiderEarning = Number(leg?.riderEarning || 0);
+
+  return {
+    ...basePayload,
+    dispatchOfferType: "split_leg",
+    deliveryFee: legDeliveryFee,
+    riderEarning: legRiderEarning,
+    earnings: legRiderEarning || legDeliveryFee || 0,
+    dispatchLeg: {
+      legId,
+      pickupType: leg?.pickupType || "",
+      sourceId: leg?.sourceId || "",
+      sourceName: leg?.sourceName || "",
+      deliveryFee: legDeliveryFee,
+      riderEarning: legRiderEarning,
+      candidateDistanceKm: null,
+      assignedAt: leg?.assignedAt || null,
+      deliveryPartnerId: leg?.deliveryPartnerId || null,
+    },
+    items: filterOrderItemsForLeg(orderDoc, leg),
+    pickupPoints: reorderPickupPointsForLeg(orderDoc, legId).filter(
+      (point) => `${point?.pickupType}:${point?.sourceId}` === legId,
+    ),
+  };
+}
+
+function emitOrderClaimedToOtherPartners(order, {
+  acceptedBy,
+  legId = "",
+  candidatePartnerIds = [],
+} = {}) {
+  try {
+    const io = getIO();
+    if (!io) return;
+
+    const acceptedById = toIdString(acceptedBy);
+    const payload = {
+      orderId: String(order?.orderId || ""),
+      orderMongoId: order?._id?.toString?.() || "",
+      legId: String(legId || "").trim(),
+      claimedBy: acceptedById,
+    };
+
+    const partnerIds = [...new Set(
+      (Array.isArray(candidatePartnerIds) ? candidatePartnerIds : [])
+        .map((value) => toIdString(value))
+        .filter(Boolean)
+        .filter((value) => value !== acceptedById),
+    )];
+
+    for (const partnerId of partnerIds) {
+      io.to(rooms.delivery(partnerId)).emit("order_claimed", payload);
+      io.to(rooms.delivery(partnerId)).emit("order_reassigned_elsewhere", payload);
+    }
+  } catch (error) {
+    logger.warn(`emitOrderClaimedToOtherPartners failed: ${error?.message || error}`);
+  }
 }
 
 function canExposeOrderToRestaurant(orderLike) {
@@ -878,6 +1007,144 @@ async function listNearbyOnlineDeliveryPartners(
   }
 
   return { restaurant, partners: picked };
+}
+
+async function refreshSplitDispatchLegCandidates(order) {
+  if (!isSplitDispatchOrder(order)) return false;
+
+  const assignedPartnerIds = new Set(
+    (order.dispatchPlan?.legs || [])
+      .map((leg) => toIdString(leg?.deliveryPartnerId))
+      .filter(Boolean),
+  );
+
+  let changed = false;
+  for (const leg of order.dispatchPlan?.legs || []) {
+    if (toIdString(leg?.deliveryPartnerId)) continue;
+
+    const pickupPoint = (order.pickupPoints || []).find(
+      (point) => `${point?.pickupType}:${point?.sourceId}` === leg.legId,
+    );
+    if (!pickupPoint) continue;
+
+    const candidates = await listNearbyPartnersForPoint(pickupPoint);
+    const nextCandidates = candidates.filter((candidate) => {
+      const candidateId = toIdString(candidate?.partnerId);
+      if (!candidateId) return false;
+      if (
+        isExpressSplitDispatchOrder(order) &&
+        assignedPartnerIds.has(candidateId)
+      ) {
+        return false;
+      }
+      return true;
+    });
+
+    const previousSerialized = JSON.stringify(
+      (leg.partnerCandidates || []).map((candidate) => ({
+        partnerId: toIdString(candidate?.partnerId),
+        distanceKm: candidate?.distanceKm == null
+          ? null
+          : Number(candidate.distanceKm),
+      })),
+    );
+    const nextSerialized = JSON.stringify(
+      nextCandidates.map((candidate) => ({
+        partnerId: toIdString(candidate?.partnerId),
+        distanceKm: candidate?.distanceKm == null
+          ? null
+          : Number(candidate.distanceKm),
+      })),
+    );
+
+    if (previousSerialized !== nextSerialized) {
+      leg.partnerCandidates = nextCandidates;
+      changed = true;
+    }
+  }
+
+  return changed;
+}
+
+async function notifySplitDispatchOffers(order, { restaurantDoc = null } = {}) {
+  if (!order || !isSplitDispatchOrder(order)) return;
+
+  const refreshed = await refreshSplitDispatchLegCandidates(order);
+  if (refreshed) {
+    await order.save();
+  }
+
+  const io = getIO();
+  const restaurant =
+    restaurantDoc ||
+    (order.restaurantId
+      ? await FoodRestaurant.findById(order.restaurantId)
+          .select("restaurantName location addressLine1 area city state")
+          .lean()
+      : null);
+
+  const pushTargets = [];
+  const targetedPartnerIds = new Set();
+  const maxCandidatesPerLeg = isExpressSplitDispatchOrder(order) ? 3 : 5;
+
+  for (const leg of order.dispatchPlan?.legs || []) {
+    if (toIdString(leg?.deliveryPartnerId)) continue;
+
+    const legPayload = buildSplitLegSocketPayload(order, leg, restaurant);
+    const candidatePool = Array.isArray(leg.partnerCandidates)
+      ? [...leg.partnerCandidates]
+      : [];
+    const candidatesToNotify = isExpressSplitDispatchOrder(order)
+      ? [
+          ...candidatePool.filter(
+            (candidate) => !targetedPartnerIds.has(toIdString(candidate?.partnerId)),
+          ),
+          ...candidatePool.filter((candidate) =>
+            targetedPartnerIds.has(toIdString(candidate?.partnerId)),
+          ),
+        ].slice(0, maxCandidatesPerLeg)
+      : candidatePool.slice(0, maxCandidatesPerLeg);
+
+    for (const candidate of candidatesToNotify) {
+      const partnerId = toIdString(candidate?.partnerId);
+      if (!partnerId) continue;
+      targetedPartnerIds.add(partnerId);
+
+      if (io) {
+        io.to(rooms.delivery(partnerId)).emit("new_order_available", {
+          ...legPayload,
+          pickupDistanceKm: candidate?.distanceKm ?? null,
+          dispatchLeg: {
+            ...legPayload.dispatchLeg,
+            candidateDistanceKm: candidate?.distanceKm ?? null,
+          },
+        });
+        io.to(rooms.delivery(partnerId)).emit("play_notification_sound", {
+          orderId: legPayload.orderId,
+          orderMongoId: legPayload.orderMongoId,
+          legId: leg.legId,
+        });
+      }
+
+      pushTargets.push({
+        ownerType: "DELIVERY_PARTNER",
+        ownerId: partnerId,
+      });
+    }
+  }
+
+  if (pushTargets.length) {
+    await notifyOwnersSafely(pushTargets, {
+      title: "New mixed pickup available",
+      body: `Order ${order.orderId} has a nearby pickup leg available for delivery.`,
+      data: {
+        type: "new_order_available",
+        orderId: order.orderId,
+        orderMongoId: order._id?.toString?.() || "",
+        link: "/delivery",
+      },
+    });
+  }
 }
 
 // ----- Settings -----
@@ -1351,7 +1618,26 @@ export async function createOrder(userId, dto) {
     orderType === "food" || (orderType === "mixed" && dispatchStrategy === "single")
       ? await getRiderEarning(distanceKm)
       : 0;
-  
+
+  const activeFeeSettings =
+    orderType === "mixed" && dispatchStrategy === "express_split"
+      ? await FoodFeeSettings.findOne({ isActive: true })
+          .sort({ createdAt: -1 })
+          .lean()
+      : null;
+  const quickDeliveryFeeBase =
+    orderType === "mixed" && dispatchStrategy === "express_split"
+      ? Number(activeFeeSettings?.deliveryFee || 25)
+      : 0;
+  const quickLegDeliveryFee =
+    orderType === "mixed" && dispatchStrategy === "express_split"
+      ? quickDeliveryFeeBase
+      : 0;
+  const foodLegDeliveryFee =
+    orderType === "mixed" && dispatchStrategy === "express_split"
+      ? Math.max(0, Number(normalizedPricing.deliveryFee || 0) - quickLegDeliveryFee)
+      : 0;
+
   // Calculate restaurant commission from subtotal
   const { commissionAmount: restaurantCommission } =
     hasFoodItems
@@ -1382,6 +1668,18 @@ export async function createOrder(userId, dto) {
       pickupType: point.pickupType,
       sourceId: point.sourceId,
       sourceName: point.sourceName || "",
+      deliveryFee:
+        dispatchStrategy === "express_split"
+          ? point.pickupType === "quick"
+            ? quickLegDeliveryFee
+            : foodLegDeliveryFee
+          : 0,
+      riderEarning:
+        dispatchStrategy === "express_split"
+          ? point.pickupType === "quick"
+            ? quickLegDeliveryFee
+            : foodLegDeliveryFee
+          : 0,
       assignedAt: null,
       deliveryPartnerId: null,
       partnerCandidates: [],
@@ -2266,49 +2564,53 @@ export async function updateOrderStatusRestaurant(
             },
           );
         } else {
-          // Broadcast to nearby online partners so someone can accept/claim.
-          console.log(
-            `[DEBUG] Searching for nearby partners for order ${order.orderId}`,
-          );
-          const { partners } = await listNearbyOnlineDeliveryPartners(
-            order.restaurantId,
-            { maxKm: 15, limit: 25 },
-          );
-          console.log(
-            `[DEBUG] Found ${partners.length} partners: ${JSON.stringify(partners)}`,
-          );
-          for (const p of partners) {
-            const targetRoom = rooms.delivery(p.partnerId);
+          if (isSplitDispatchOrder(order)) {
+            await notifySplitDispatchOffers(order, { restaurantDoc: restaurant });
+          } else {
+            // Broadcast to nearby online partners so someone can accept/claim.
             console.log(
-              `[DEBUG] Emitting new_order_available to room: ${targetRoom}`,
+              `[DEBUG] Searching for nearby partners for order ${order.orderId}`,
             );
-            io.to(targetRoom).emit("new_order_available", {
-              ...payload,
-              pickupDistanceKm: p.distanceKm,
-            });
-          }
-          await notifyOwnersSafely(
-            partners.slice(0, 5).map((p) => ({
-              ownerType: "DELIVERY_PARTNER",
-              ownerId: p.partnerId,
-            })),
-            {
-              title: "New delivery order available",
-              body: `Order ${payload.orderId} is available near ${restaurant?.restaurantName || "your area"}.`,
-              data: {
-                type: "new_order_available",
+            const { partners } = await listNearbyOnlineDeliveryPartners(
+              order.restaurantId,
+              { maxKm: 15, limit: 25 },
+            );
+            console.log(
+              `[DEBUG] Found ${partners.length} partners: ${JSON.stringify(partners)}`,
+            );
+            for (const p of partners) {
+              const targetRoom = rooms.delivery(p.partnerId);
+              console.log(
+                `[DEBUG] Emitting new_order_available to room: ${targetRoom}`,
+              );
+              io.to(targetRoom).emit("new_order_available", {
+                ...payload,
+                pickupDistanceKm: p.distanceKm,
+              });
+            }
+            await notifyOwnersSafely(
+              partners.slice(0, 5).map((p) => ({
+                ownerType: "DELIVERY_PARTNER",
+                ownerId: p.partnerId,
+              })),
+              {
+                title: "New delivery order available",
+                body: `Order ${payload.orderId} is available near ${restaurant?.restaurantName || "your area"}.`,
+                data: {
+                  type: "new_order_available",
+                  orderId: payload.orderId,
+                  orderMongoId: payload.orderMongoId,
+                  link: "/delivery",
+                },
+              },
+            );
+            // Also trigger a generic sound event for the first few partners.
+            for (const p of partners.slice(0, 5)) {
+              io.to(rooms.delivery(p.partnerId)).emit("play_notification_sound", {
                 orderId: payload.orderId,
                 orderMongoId: payload.orderMongoId,
-                link: "/delivery",
-              },
-            },
-          );
-          // Also trigger a generic sound event for the first few partners.
-          for (const p of partners.slice(0, 5)) {
-            io.to(rooms.delivery(p.partnerId)).emit("play_notification_sound", {
-              orderId: payload.orderId,
-              orderMongoId: payload.orderMongoId,
-            });
+              });
+            }
           }
         }
       }
@@ -2417,9 +2719,13 @@ export async function resendDeliveryNotificationRestaurant(orderId, restaurantId
     
     await order.save();
 
-    // Trigger smart dispatch logic immediately
-    const { tryAutoAssign } = await import('./order.service.js');
-    await tryAutoAssign(order._id);
+    if (isSplitDispatchOrder(order)) {
+        await notifySplitDispatchOffers(order);
+    } else {
+        // Trigger smart dispatch logic immediately
+        const { tryAutoAssign } = await import('./order.service.js');
+        await tryAutoAssign(order._id);
+    }
 
     return { success: true };
 }
@@ -2485,6 +2791,26 @@ export async function listOrdersAvailableDelivery(deliveryPartnerId, query) {
           ],
         },
       },
+      {
+        "dispatchPlan.legs": {
+          $elemMatch: {
+            deliveryPartnerId: null,
+            partnerCandidates: {
+              $elemMatch: {
+                partnerId: partnerObjectId,
+              },
+            },
+          },
+        },
+        orderStatus: {
+          $nin: [
+            "delivered",
+            "cancelled_by_user",
+            "cancelled_by_restaurant",
+            "cancelled_by_admin",
+          ],
+        },
+      },
     ],
   };
 
@@ -2496,12 +2822,16 @@ export async function listOrdersAvailableDelivery(deliveryPartnerId, query) {
 
   const docs = [];
   for (const order of orders) {
-    const isMarketplaceOrder =
-      order?.dispatch?.status === "unassigned" &&
-      ["preparing", "ready_for_pickup"].includes(order?.orderStatus);
     const assignedLeg = getAssignedDispatchLeg(order, deliveryPartnerId);
     const assignedWholeOrder =
       toIdString(order?.dispatch?.deliveryPartnerId) === toIdString(deliveryPartnerId);
+    const eligibleLegs = isSplitDispatchOrder(order)
+      ? getEligibleDispatchLegs(order, deliveryPartnerId)
+      : [];
+    const isMarketplaceOrder = isSplitDispatchOrder(order)
+      ? eligibleLegs.length > 0
+      : order?.dispatch?.status === "unassigned" &&
+        ["preparing", "ready_for_pickup"].includes(order?.orderStatus);
 
     if (assignedLeg) {
       docs.push(
@@ -2515,7 +2845,6 @@ export async function listOrdersAvailableDelivery(deliveryPartnerId, query) {
 
     if (isSplitDispatchOrder(order)) {
       if (!isMarketplaceOrder) continue;
-      const eligibleLegs = getEligibleDispatchLegs(order, deliveryPartnerId);
       for (const leg of eligibleLegs) {
         docs.push(
           buildDeliveryOrderView(order, deliveryPartnerId, {
@@ -2557,13 +2886,27 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId, body = {})
       { "dispatch.status": "unassigned" },
       { "dispatch.deliveryPartnerId": partnerId },
       { "dispatchPlan.legs": { $elemMatch: { deliveryPartnerId: partnerId } } },
+      {
+        "dispatchPlan.legs": {
+          $elemMatch: {
+            deliveryPartnerId: null,
+            partnerCandidates: {
+              $elemMatch: {
+                partnerId,
+              },
+            },
+          },
+        },
+      },
     ],
   });
 
   if (!order) throw new NotFoundError("Order not found");
 
   if (
-    !["preparing", "ready_for_pickup", "picked_up"].includes(order.orderStatus)
+    !["confirmed", "preparing", "ready_for_pickup", "picked_up"].includes(
+      order.orderStatus,
+    )
   ) {
     throw new ValidationError("Order not ready for delivery assignment");
   }
@@ -2571,6 +2914,11 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId, body = {})
   if (isSplitDispatchOrder(order)) {
     const requestedLegId = String(body?.legId || "").trim();
     const existingLeg = getAssignedDispatchLeg(order, deliveryPartnerId);
+    const eligibleLegs = getEligibleDispatchLegs(order, deliveryPartnerId).sort((a, b) => {
+      const aDistance = Number.isFinite(a?.candidateDistanceKm) ? a.candidateDistanceKm : Number.POSITIVE_INFINITY;
+      const bDistance = Number.isFinite(b?.candidateDistanceKm) ? b.candidateDistanceKm : Number.POSITIVE_INFINITY;
+      return aDistance - bDistance;
+    });
     let targetLeg =
       existingLeg ||
       (requestedLegId
@@ -2578,8 +2926,7 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId, body = {})
         : null);
 
     if (!targetLeg) {
-      const eligibleLegs = getEligibleDispatchLegs(order, deliveryPartnerId);
-      if (eligibleLegs.length === 1) {
+      if (eligibleLegs.length >= 1) {
         targetLeg = (order.dispatchPlan?.legs || []).find(
           (leg) => leg.legId === eligibleLegs[0].legId,
         );
@@ -2588,7 +2935,17 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId, body = {})
 
     if (!targetLeg) {
       throw new ValidationError(
-        "Dispatch leg id required for express split delivery acceptance",
+        "No dispatch leg is currently available for this rider",
+      );
+    }
+
+    if (
+      isExpressSplitDispatchOrder(order) &&
+      existingLeg &&
+      existingLeg.legId !== targetLeg.legId
+    ) {
+      throw new ValidationError(
+        "Express mixed delivery assigns separate riders per pickup leg",
       );
     }
 
@@ -2611,6 +2968,16 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId, body = {})
     targetLeg.deliveryPartnerId = partnerId;
     targetLeg.assignedAt = new Date();
 
+    if (isExpressSplitDispatchOrder(order)) {
+      for (const leg of order.dispatchPlan?.legs || []) {
+        if (leg.legId !== targetLeg.legId) {
+          leg.partnerCandidates = (leg.partnerCandidates || []).filter(
+            (candidate) => toIdString(candidate?.partnerId) !== toIdString(deliveryPartnerId),
+          );
+        }
+      }
+    }
+
     const assignedLegCount = (order.dispatchPlan?.legs || []).filter((leg) =>
       toIdString(leg.deliveryPartnerId),
     ).length;
@@ -2628,6 +2995,14 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId, body = {})
       from: previousDispatchStatus,
       to: order.dispatch.status,
       note: `Accepted split dispatch leg ${targetLeg.legId}`,
+    });
+
+    emitOrderClaimedToOtherPartners(order, {
+      acceptedBy: deliveryPartnerId,
+      legId: targetLeg.legId,
+      candidatePartnerIds: (targetLeg.partnerCandidates || []).map(
+        (candidate) => candidate?.partnerId,
+      ),
     });
 
     await order.save();
@@ -2656,6 +3031,14 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId, body = {})
     from,
     to: "accepted",
   });
+
+  emitOrderClaimedToOtherPartners(order, {
+    acceptedBy: deliveryPartnerId,
+    candidatePartnerIds: [
+      ...(order.dispatch?.offeredTo || []).map((entry) => entry?.partnerId),
+    ],
+  });
+
   await order.save();
   await order.populate('restaurantId');
 

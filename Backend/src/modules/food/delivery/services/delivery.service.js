@@ -140,11 +140,24 @@ export const updateDeliveryPartnerProfile = async (userId, payload, files) => {
         }
     }
 
-    let updatedDocsRequiringReapproval = false;
-
     if (files?.profilePhoto?.[0]) {
         partner.profilePhoto = await uploadImageBuffer(files.profilePhoto[0].buffer, 'food/delivery/profile');
     }
+    if (files?.aadharPhoto?.[0]) {
+        partner.aadharPhoto = await uploadImageBuffer(files.aadharPhoto[0].buffer, 'food/delivery/aadhar');
+    }
+    if (files?.panPhoto?.[0]) {
+        partner.panPhoto = await uploadImageBuffer(files.panPhoto[0].buffer, 'food/delivery/pan');
+    }
+    if (files?.drivingLicensePhoto?.[0]) {
+        partner.drivingLicensePhoto = await uploadImageBuffer(
+            files.drivingLicensePhoto[0].buffer,
+            'food/delivery/license'
+        );
+    }
+
+    if (aadharNumber !== undefined) partner.aadharNumber = aadharNumber;
+    if (panNumber !== undefined) partner.panNumber = panNumber;
 
     await partner.save();
     return {

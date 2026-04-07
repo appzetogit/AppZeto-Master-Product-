@@ -554,6 +554,7 @@ export default function OrderTracking() {
   const [timerNow, setTimerNow] = useState(Date.now())
   const handleEtaUpdate = useCallback((newEta) => setEstimatedTime(newEta), [])
   const lastRealtimeRefreshRef = useRef(0)
+  const confirmationShownAtRef = useRef(confirmed ? Date.now() : 0)
   const trackingOrderIdsRef = useRef(new Set())
   const terminalPollStopRef = useRef(false)
   const lookupIdsRef = useRef([])
@@ -1035,9 +1036,24 @@ export default function OrderTracking() {
   // Post-checkout splash only — real status comes from API / poll / socket.
   useEffect(() => {
     if (!confirmed) return
-    const timer1 = setTimeout(() => setShowConfirmation(false), 3000)
+    confirmationShownAtRef.current = Date.now()
+    setShowConfirmation(true)
+  }, [confirmed, orderId])
+
+  useEffect(() => {
+    if (!showConfirmation) return
+
+    const elapsed = Date.now() - confirmationShownAtRef.current
+    const minVisibleMs = 900
+    const maxVisibleMs = 1800
+    const hasResolvedData = Boolean(order) || Boolean(error) || !loading
+    const remaining = hasResolvedData
+      ? Math.max(0, minVisibleMs - elapsed)
+      : Math.max(0, maxVisibleMs - elapsed)
+
+    const timer1 = setTimeout(() => setShowConfirmation(false), remaining)
     return () => clearTimeout(timer1)
-  }, [confirmed])
+  }, [showConfirmation, order, error, loading])
 
   // Countdown timer
   useEffect(() => {

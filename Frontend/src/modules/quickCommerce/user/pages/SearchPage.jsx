@@ -21,9 +21,9 @@ const SearchPage = () => {
     const initialQuery = location.state?.query || new URLSearchParams(location.search).get('q') || '';
 
     const [query, setQuery] = useState(initialQuery);
-    const [results, setResults] = useState([]);
     const [allProducts, setAllProducts] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
+    const trimmedQuery = query.trim();
 
     // Manage Recent Searches with LocalStorage
     const [pastSearches, setPastSearches] = useState(() => {
@@ -39,7 +39,18 @@ const SearchPage = () => {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    // Fetch products
+    const mapProducts = (products = []) =>
+        products.map((p) => ({
+            ...p,
+            id: p._id,
+            image: p.mainImage || p.image || 'https://images.unsplash.com/photo-1550989460-0adf9ea622e2',
+            price: p.salePrice || p.price,
+            originalPrice: p.price,
+            weight: p.weight || '1 unit',
+            deliveryTime: '8-15 mins'
+        }));
+
+    // Fetch quick products
     useEffect(() => {
         const fetchProducts = async () => {
             const hasValidLocation =
@@ -66,16 +77,9 @@ const SearchPage = () => {
                         : Array.isArray(rawResult)
                         ? rawResult
                         : [];
-                    const formattedProds = dbProds.map(p => ({
-                        ...p,
-                        id: p._id,
-                        image: p.mainImage || p.image || 'https://images.unsplash.com/photo-1550989460-0adf9ea622e2',
-                        price: p.salePrice || p.price,
-                        originalPrice: p.price,
-                        weight: p.weight || '1 unit',
-                        deliveryTime: '8-15 mins'
-                    }));
-                    setAllProducts(formattedProds);
+                    if (!trimmedQuery) {
+                        setAllProducts(mapProducts(dbProds));
+                    }
                 }
             } catch (error) {
                 console.error('Error fetching products:', error);
@@ -84,7 +88,7 @@ const SearchPage = () => {
             }
         };
         fetchProducts();
-    }, [currentLocation?.latitude, currentLocation?.longitude]);
+    }, [currentLocation?.latitude, currentLocation?.longitude, trimmedQuery]);
 
     // Save search term to history
     const saveSearch = (term) => {
@@ -104,23 +108,73 @@ const SearchPage = () => {
 
     // Trigger save on Enter or clicking a result
     const handleKeyDown = (e) => {
-        if (e.key === 'Enter' && query.trim()) {
-            saveSearch(query);
+        if (e.key === 'Enter' && trimmedQuery) {
+            saveSearch(trimmedQuery);
         }
     };
 
-    // Real-time filtering logic
-    const filteredResults = useMemo(() => {
-        if (!query.trim()) return [];
-        return allProducts.filter(p =>
-            p.name.toLowerCase().includes(query.toLowerCase()) ||
-            p.categoryId?.name?.toLowerCase().includes(query.toLowerCase())
-        );
-    }, [query, allProducts]);
-
     useEffect(() => {
-        setResults(filteredResults);
-    }, [filteredResults]);
+        const hasValidLocation =
+            Number.isFinite(currentLocation?.latitude) &&
+            Number.isFinite(currentLocation?.longitude);
+
+        if (!trimmedQuery || !hasValidLocation) {
+            return undefined;
+        }
+
+        let isCancelled = false;
+
+        const fetchSearchResults = async () => {
+            setIsLoading(true);
+            try {
+                const response = await customerApi.searchProducts({
+                    search: trimmedQuery,
+                    limit: 100,
+                    lat: currentLocation.latitude,
+                    lng: currentLocation.longitude,
+                });
+
+                if (!response?.data?.success || isCancelled) {
+                    return;
+                }
+
+                const rawResult = response.data.result;
+                const dbProds = Array.isArray(response.data.results)
+                    ? response.data.results
+                    : Array.isArray(rawResult?.items)
+                    ? rawResult.items
+                    : Array.isArray(rawResult)
+                    ? rawResult
+                    : [];
+
+                setAllProducts(mapProducts(dbProds));
+            } catch (error) {
+                if (!isCancelled) {
+                    console.error('Error fetching quick search results:', error);
+                    setAllProducts([]);
+                }
+            } finally {
+                if (!isCancelled) {
+                    setIsLoading(false);
+                }
+            }
+        };
+
+        const timeoutId = window.setTimeout(fetchSearchResults, 250);
+
+        return () => {
+            isCancelled = true;
+            window.clearTimeout(timeoutId);
+        };
+    }, [trimmedQuery, currentLocation?.latitude, currentLocation?.longitude]);
+
+    const results = useMemo(() => {
+        if (!trimmedQuery) return [];
+        return allProducts.filter((p) =>
+            p.name?.toLowerCase().includes(trimmedQuery.toLowerCase()) ||
+            p.categoryId?.name?.toLowerCase().includes(trimmedQuery.toLowerCase())
+        );
+    }, [trimmedQuery, allProducts]);
 
     // Lowest Price Section
     const lowestPriceProducts = useMemo(() => {
@@ -131,7 +185,6 @@ const SearchPage = () => {
 
     const handleClear = () => {
         setQuery('');
-        setResults([]);
     };
 
     return (
@@ -163,7 +216,7 @@ const SearchPage = () => {
                         <input
                             autoFocus
                             type="text"
-                            placeholder='Search "eggs"'
+                            placeholder='Search quick products like "eggs"'
                             value={query}
                             onKeyDown={handleKeyDown}
                             onChange={(e) => setQuery(e.target.value)}
@@ -183,7 +236,7 @@ const SearchPage = () => {
 
             <div className="p-5 space-y-10 pb-24">
                 {/* Search Results List */}
-                {query ? (
+                {trimmedQuery ? (
                     <section>
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-xl font-black text-slate-800 tracking-tight">
@@ -195,7 +248,7 @@ const SearchPage = () => {
                         {results.length > 0 ? (
                             <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-2 md:gap-x-3 gap-y-5 md:gap-y-7">
                                 {results.map((product) => (
-                                    <div key={product.id} onClick={() => saveSearch(query)}>
+                                    <div key={product.id} onClick={() => saveSearch(trimmedQuery)}>
                                         <ProductCard product={product} compact={isMobile} />
                                     </div>
                                 ))}

@@ -197,15 +197,20 @@ export const useDeliveryNotifications = () => {
 
   // Step 3: All callbacks before effects (unconditional)
   const getOrderAlertKey = (orderData = {}) => (
-    String(
-      orderData?.orderMongoId ||
-      orderData?.order_mongo_id ||
-      orderData?.orderId ||
-      orderData?.order_id ||
-      orderData?._id ||
-      orderData?.id ||
-      ''
-    ).trim()
+    [
+      String(
+        orderData?.orderMongoId ||
+        orderData?.order_mongo_id ||
+        orderData?.orderId ||
+        orderData?.order_id ||
+        orderData?._id ||
+        orderData?.id ||
+        ''
+      ).trim(),
+      String(orderData?.dispatchLeg?.legId || orderData?.legId || '').trim(),
+    ]
+      .filter(Boolean)
+      .join(':')
   );
 
   const shouldProcessOrderAlert = (orderData = {}) => {
@@ -900,6 +905,22 @@ export const useDeliveryNotifications = () => {
 
     socketRef.current.on('order_status_update', (statusData) => {
       debugLog('?? Delivery order status update received via socket:', statusData);
+      const statusOrderId = String(
+        statusData?.orderId || statusData?.orderMongoId || ''
+      ).trim();
+      const statusLegId = String(statusData?.legId || '').trim();
+      const activeKey = getOrderAlertKey(activeOrderRef.current || {});
+      const statusKey = [statusOrderId, statusLegId].filter(Boolean).join(':');
+
+      if (
+        statusData?.dispatchStatus === 'accepted' &&
+        statusKey &&
+        statusKey === activeKey
+      ) {
+        stopAlertLoop();
+        activeOrderRef.current = null;
+        setNewOrder(null);
+      }
       setOrderStatusUpdate(statusData || null);
     });
 
@@ -921,8 +942,21 @@ export const useDeliveryNotifications = () => {
 
     socketRef.current.on('order_reassigned_elsewhere', (data) => {
       debugLog('?? Order reassigned to another partner:', data);
-      if (data.orderId === activeOrderRef.current?._id || data.orderId === activeOrderRef.current?.orderId) {
+      const eventKey = getOrderAlertKey(data || {});
+      const activeKey = getOrderAlertKey(activeOrderRef.current || {});
+      if (eventKey && eventKey === activeKey) {
         debugLog('?? Removing reassigned order from local state');
+        stopAlertLoop();
+        activeOrderRef.current = null;
+        setNewOrder(null);
+      }
+    });
+
+    socketRef.current.on('order_claimed', (data) => {
+      debugLog('?? Order claimed by another partner:', data);
+      const eventKey = getOrderAlertKey(data || {});
+      const activeKey = getOrderAlertKey(activeOrderRef.current || {});
+      if (eventKey && eventKey === activeKey) {
         stopAlertLoop();
         activeOrderRef.current = null;
         setNewOrder(null);

@@ -514,12 +514,20 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
 
         if (!cancelled && nextIncomingOrder) {
           setIncomingOrder((prev) => {
-            const prevId = prev?.orderId || prev?._id || prev?.orderMongoId;
-            const nextId =
+            const prevKey = [
+              prev?.orderId || prev?._id || prev?.orderMongoId || '',
+              prev?.dispatchLeg?.legId || prev?.legId || '',
+            ].filter(Boolean).join(':');
+            const nextKey = [
               nextIncomingOrder?.orderId ||
-              nextIncomingOrder?._id ||
-              nextIncomingOrder?.orderMongoId;
-            return prevId === nextId && prev ? prev : nextIncomingOrder;
+                nextIncomingOrder?._id ||
+                nextIncomingOrder?.orderMongoId ||
+                '',
+              nextIncomingOrder?.dispatchLeg?.legId ||
+                nextIncomingOrder?.legId ||
+                '',
+            ].filter(Boolean).join(':');
+            return prevKey === nextKey && prev ? prev : nextIncomingOrder;
           });
         }
       } catch (error) {

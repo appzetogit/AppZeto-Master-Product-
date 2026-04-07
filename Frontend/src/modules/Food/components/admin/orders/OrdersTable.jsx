@@ -27,6 +27,12 @@ const getPaymentStatusColor = (paymentStatus) => {
   return "text-slate-600"
 }
 
+const getOrderTypeColor = (orderType) => {
+  if (orderType === "Mixed") return "bg-amber-100 text-amber-700"
+  if (orderType === "Quick") return "bg-cyan-100 text-cyan-700"
+  return "bg-emerald-100 text-emerald-700"
+}
+
 export default function OrdersTable({
   orders,
   visibleColumns,
@@ -101,6 +107,14 @@ export default function OrdersTable({
                 <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
                   <div className="flex items-center gap-2">
                     <span>Order Date</span>
+                    <ArrowUpDown className="w-3 h-3 text-slate-400 cursor-pointer hover:text-slate-600" />
+                  </div>
+                </th>
+              )}
+              {visibleColumns.orderType && (
+                <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
+                  <div className="flex items-center gap-2">
+                    <span>Order Type</span>
                     <ArrowUpDown className="w-3 h-3 text-slate-400 cursor-pointer hover:text-slate-600" />
                   </div>
                 </th>
@@ -195,6 +209,13 @@ export default function OrdersTable({
                 {visibleColumns.orderDate && (
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="text-sm font-medium text-slate-700">{order.date}, {order.time}</span>
+                  </td>
+                )}
+                {visibleColumns.orderType && (
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getOrderTypeColor(order.orderType)}`}>
+                      {order.orderType || "Food"}
+                    </span>
                   </td>
                 )}
                 {visibleColumns.orderOtp && (

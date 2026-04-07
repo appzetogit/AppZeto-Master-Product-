@@ -120,3 +120,29 @@ export const customerApi = {
     return axiosInstance.post("/quick-commerce/wishlist/toggle", data, withQuickSession());
   },
 };
+
+export const prefetchQuickHomeBootstrap = async (location = null) => {
+  const hasValidLocation =
+    Number.isFinite(location?.latitude) && Number.isFinite(location?.longitude);
+  const productParams = { limit: 20 };
+
+  if (hasValidLocation) {
+    productParams.lat = location.latitude;
+    productParams.lng = location.longitude;
+  }
+
+  return Promise.allSettled([
+    customerApi.getCategories(),
+    hasValidLocation
+      ? customerApi.getProducts(productParams)
+      : Promise.resolve(null),
+    customerApi.getExperienceSections({ pageType: "home" }),
+    customerApi.getHeroConfig({ pageType: "home" }),
+    hasValidLocation
+      ? customerApi.getOfferSections({
+          lat: location.latitude,
+          lng: location.longitude,
+        })
+      : Promise.resolve(null),
+  ]);
+};

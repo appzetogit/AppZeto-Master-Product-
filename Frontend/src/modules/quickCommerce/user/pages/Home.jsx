@@ -406,12 +406,6 @@ const MARQUEE_MESSAGES = [
 
 const QUICK_THEME_STORAGE_KEY = "food.quick.headerColor";
 const QUICK_HEADER_RETURN_STORAGE_KEY = "food.quick.headerReturn";
-const FALLBACK_QUICK_THEME_COLOR = "#065f46";
-const getStoredQuickThemeColor = () => {
-  if (typeof window === "undefined") return null;
-  const stored = window.sessionStorage.getItem(QUICK_THEME_STORAGE_KEY);
-  return stored && /^#[0-9a-fA-F]{6}$/.test(stored) ? stored : null;
-};
 
 const getQuickCategoryImage = (category = {}) => {
   const candidate =
@@ -487,7 +481,9 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
 
   const initialAllCategory = {
     ...ALL_CATEGORY,
-    headerColor: getStoredQuickThemeColor() || FALLBACK_QUICK_THEME_COLOR,
+    // Avoid flashing a stale embedded color before the real dynamic header
+    // categories load for the standalone /quick home page.
+    headerColor: null,
   };
 
   const [categories, setCategories] = useState([initialAllCategory]);

@@ -315,17 +315,17 @@ const MainLocationHeader = ({
   const displayCart = embedded ? "block" : rawDisplayCart;
 
   const baseHeaderColor =
-    (embedded && embeddedHeaderColor) ||
-    activeCategory?.headerColor ||
-    "#2f7a46";
-  const headerGradient = embedded
-    ? `linear-gradient(180deg, ${baseHeaderColor} 0%, ${lightenHex(baseHeaderColor, 0.2)} 100%)`
-    : buildHeaderGradient(baseHeaderColor);
-  const searchBarBg = buildSearchBarBackgroundColor(baseHeaderColor);
+    (embedded && embeddedHeaderColor) || activeCategory?.headerColor || null;
+  const headerGradient = baseHeaderColor
+    ? embedded
+      ? `linear-gradient(180deg, ${baseHeaderColor} 0%, ${lightenHex(baseHeaderColor, 0.2)} 100%)`
+      : buildHeaderGradient(baseHeaderColor)
+    : "linear-gradient(180deg, #0f172a 0%, #1e293b 100%)";
+  const searchBarBg = buildSearchBarBackgroundColor(baseHeaderColor || "#1e293b");
   const categoryAccent = "#ffffff";
 
   useEffect(() => {
-    const c = buildMiniCartColor(baseHeaderColor);
+    const c = buildMiniCartColor(baseHeaderColor || "#1e293b");
     document.documentElement.style.setProperty("--customer-mini-cart-color", c);
     return () => {
       document.documentElement.style.removeProperty(

@@ -1,5 +1,7 @@
 import { useSearchParams, Link, useNavigate, useLocation as useRouterLocation } from "react-router-dom";
 import React, {
+  Suspense,
+  lazy,
   useRef,
   useEffect,
   useState,
@@ -38,10 +40,6 @@ import {
   Share2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import Footer from "@food/components/user/Footer";
-import AddToCartButton from "@food/components/user/AddToCartButton";
-import StickyCartCard from "@food/components/user/StickyCartCard";
-import OrderTrackingCard from "@food/components/user/OrderTrackingCard";
 import {
   CategoryChipRowSkeleton,
   ExploreGridSkeleton,
@@ -68,7 +66,6 @@ import {
   useSearchOverlay,
   useLocationSelector,
 } from "@food/components/user/UserLayout";
-import PageNavbar from "@food/components/user/PageNavbar";
 
 const debugLog = (...args) => {};
 const debugWarn = (...args) => {};
@@ -93,13 +90,17 @@ import { API_BASE_URL } from "@food/api/config";
 import OptimizedImage from "@food/components/OptimizedImage";
 import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability";
 import HomeHeader from "@food/components/user/home/HomeHeader";
-import QuickCommerceHomePage from "../../../quickCommerce/user/pages/Home";
 import { LocationProvider as QuickLocationProvider } from "../../../quickCommerce/user/context/LocationContext";
 import { ProductDetailProvider as QuickProductDetailProvider } from "../../../quickCommerce/user/context/ProductDetailContext";
 import { WishlistProvider as QuickWishlistProvider } from "../../../quickCommerce/user/context/WishlistContext";
 import { CartAnimationProvider as QuickCartAnimationProvider } from "../../../quickCommerce/user/context/CartAnimationContext";
 import { CartProvider as QuickCartProvider } from "../../../quickCommerce/user/context/CartContext";
+import { prefetchQuickHomeBootstrap } from "../../../quickCommerce/user/services/customerApi";
 import PromoRow from "@food/components/user/home/PromoRow";
+
+const StickyCartCard = lazy(() => import("@food/components/user/StickyCartCard"));
+const OrderTrackingCard = lazy(() => import("@food/components/user/OrderTrackingCard"));
+const QuickCommerceHomePage = lazy(() => import("../../../quickCommerce/user/pages/Home"));
 // import FestBanner from "@food/components/user/home/FestBanner";
 
 // Explore More Icons
@@ -133,6 +134,10 @@ const quickPlaceholders = [
   'Search "cold drink"',
   'Search "ice cream"',
 ];
+
+const InlineLazyFallback = ({ className = "" }) => (
+  <div className={`animate-pulse rounded-3xl bg-slate-100/90 ${className}`.trim()} />
+);
 
 const WEBVIEW_SESSION_CACHE_BUSTER = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -1286,6 +1291,28 @@ export default function Home() {
   const currentTabFromPath = routerLocation.pathname.endsWith("/quick") ? "quick" : "food";
   const [activeTab, setActiveTab] = useState(currentTabFromPath);
   const [quickThemeColor, setQuickThemeColor] = useState("#67c6f5");
+  const quickPrefetchStartedRef = useRef(false);
+
+  const quickPrefetchLocation = useMemo(() => {
+    if (
+      Number.isFinite(location?.latitude) &&
+      Number.isFinite(location?.longitude)
+    ) {
+      return {
+        latitude: location.latitude,
+        longitude: location.longitude,
+      };
+    }
+
+    if (
+      Number.isFinite(defaultSavedAddressLocation?.latitude) &&
+      Number.isFinite(defaultSavedAddressLocation?.longitude)
+    ) {
+      return defaultSavedAddressLocation;
+    }
+
+    return null;
+  }, [defaultSavedAddressLocation, location?.latitude, location?.longitude]);
 
   // Sync activeTab with URL changes (e.g. back/forward button)
   useEffect(() => {
@@ -1296,20 +1323,77 @@ export default function Home() {
     }
   }, [routerLocation.pathname]);
 
+  const warmQuickHome = useCallback(() => {
+    if (quickPrefetchStartedRef.current) return;
+    quickPrefetchStartedRef.current = true;
+
+    prefetchQuickHomeBootstrap(quickPrefetchLocation).finally(() => {
+      window.setTimeout(() => {
+        quickPrefetchStartedRef.current = false;
+      }, 1500);
+    });
+  }, [quickPrefetchLocation]);
+
+  useEffect(() => {
+    if (activeTab !== "food") return undefined;
+
+    let timeoutId = null;
+    let idleId = null;
+    let cancelled = false;
+
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      idleId = window.requestIdleCallback(
+        () => {
+          if (!cancelled) {
+            warmQuickHome();
+          }
+        },
+        { timeout: 1200 },
+      );
+    } else if (typeof window !== "undefined") {
+      timeoutId = window.setTimeout(() => {
+        if (!cancelled) {
+          warmQuickHome();
+        }
+      }, 350);
+    }
+
+    return () => {
+      cancelled = true;
+      if (idleId != null && "cancelIdleCallback" in window) {
+        window.cancelIdleCallback(idleId);
+      }
+      if (timeoutId != null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [activeTab, warmQuickHome]);
+
   const handleTabChange = (tab) => {
-    setActiveTab(tab);
+    if (tab === "quick") {
+      warmQuickHome();
+    }
+
+    startTransition(() => {
+      setActiveTab(tab);
+    });
+
     const normalizedPath =
       routerLocation.pathname.length > 1
         ? routerLocation.pathname.replace(/\/+$/, "")
         : routerLocation.pathname;
 
     if (tab === "quick" && normalizedPath !== "/quick") {
-      navigate("/quick");
+      window.requestAnimationFrame(() => {
+        navigate("/quick");
+      });
       return;
     }
 
     if (tab === "food" && normalizedPath === "/quick") {
-      navigate("/food/user");
+      window.requestAnimationFrame(() => {
+        navigate("/food/user");
+      });
       return;
     }
 
@@ -2541,30 +2625,20 @@ export default function Home() {
           placeholders={activeTab === "quick" ? quickPlaceholders : placeholders}
           vegMode={vegMode}
           onVegModeChange={handleVegModeChange}
+          headerVideoUrl={headerVideoUrl}
           quickThemeColor={quickThemeColor}
-          bannerContent={
-            headerVideoUrl ? (
-              <video
-                src={headerVideoUrl}
-                autoPlay
-                loop
-                muted
-                playsInline
-                className="h-[132%] w-[124%] max-w-none -translate-y-4 scale-[0.9] object-cover object-center"
-              />
-            ) : null
-          }
+          onQuickTabIntent={warmQuickHome}
         />
       </div>
 
-      <AnimatePresence>
+      <AnimatePresence initial={false} mode="wait">
         {activeTab === "food" ? (
           <motion.div
             key="food-content"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2, ease: "easeInOut" }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.16, ease: "easeOut" }}
             className="bg-white dark:bg-[#0a0a0a]"
           >
             <div className="relative z-10">
@@ -2951,10 +3025,10 @@ export default function Home() {
       ) : activeTab === "quick" ? (
         <motion.div
           key="quick-content"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          transition={{ duration: 0.2, ease: "easeInOut" }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.16, ease: "easeOut" }}
         >
           <div className="bg-white">
             <QuickLocationProvider>
@@ -2962,15 +3036,25 @@ export default function Home() {
                 <QuickWishlistProvider>
                   <QuickCartAnimationProvider>
                     <QuickProductDetailProvider>
-                      <QuickCommerceHomePage
-                        embedded
-                        onThemeChange={({ color }) => {
-                          if (color) {
-                            setQuickThemeColor(color);
-                          }
-                        }}
-                        embeddedHeaderColor={quickThemeColor}
-                      />
+                      <Suspense
+                        fallback={
+                          <div className="space-y-4 px-4 py-4">
+                            <InlineLazyFallback className="h-40 w-full" />
+                            <InlineLazyFallback className="h-24 w-full" />
+                            <InlineLazyFallback className="h-56 w-full" />
+                          </div>
+                        }
+                      >
+                        <QuickCommerceHomePage
+                          embedded
+                          onThemeChange={({ color }) => {
+                            if (color) {
+                              setQuickThemeColor(color);
+                            }
+                          }}
+                          embeddedHeaderColor={quickThemeColor}
+                        />
+                      </Suspense>
                     </QuickProductDetailProvider>
                   </QuickCartAnimationProvider>
                 </QuickWishlistProvider>
@@ -4133,10 +4217,15 @@ export default function Home() {
           </AnimatePresence>,
           document.body,
         )}
-
-      <StickyCartCard />
+      <Suspense fallback={null}>
+        <StickyCartCard />
+      </Suspense>
       {/* Live order strip: only on homepage (not in UserLayout) */}
-      <OrderTrackingCard hasBottomNav />
+      <Suspense
+        fallback={<InlineLazyFallback className="fixed bottom-3 left-3 right-3 z-40 h-16 rounded-2xl" />}
+      >
+        <OrderTrackingCard hasBottomNav />
+      </Suspense>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -98,9 +98,11 @@ export default function HomeHeader({
   placeholders,
   vegMode = false,
   onVegModeChange,
-  bannerContent,
+  headerVideoUrl,
   quickThemeColor,
+  onQuickTabIntent,
 }) {
+  const videoRef = useRef(null);
   const [notifications, setNotifications] = useState(() => {
     if (typeof window === "undefined") return [];
     const saved = localStorage.getItem("food_user_notifications");
@@ -127,6 +129,21 @@ export default function HomeHeader({
     savedAddressText || location?.area || location?.city || "Select Location";
   const locationSubtitle =
     location?.address || location?.city || "Tap to choose delivery location";
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (isFood) {
+      const playPromise = video.play();
+      if (playPromise?.catch) {
+        playPromise.catch(() => {});
+      }
+      return;
+    }
+
+    video.pause();
+  }, [isFood]);
 
   const mergedNotifications = useMemo(() => {
     const localItems = Array.isArray(notifications)
@@ -176,9 +193,21 @@ export default function HomeHeader({
       }`}
       style={{ background: isFood ? "transparent" : theme.topBg, color: theme.text }}
     >
-      {isFood && bannerContent && (
+      {headerVideoUrl && (
         <div className="absolute inset-0 z-0 flex justify-center overflow-hidden">
-          {bannerContent}
+          <video
+            ref={videoRef}
+            src={headerVideoUrl}
+            autoPlay
+            loop
+            muted
+            playsInline
+            preload="metadata"
+            aria-hidden="true"
+            className={`h-[132%] w-[124%] max-w-none -translate-y-4 scale-[0.9] object-cover object-center transition-opacity duration-200 ${
+              isFood ? "opacity-100" : "opacity-0"
+            }`}
+          />
           <div className="absolute inset-0 bg-gradient-to-b from-[#7f2d25]/88 via-[#7f2d25]/18 via-[28%] to-black/22" />
           <div className="absolute inset-0 bg-gradient-to-b from-black/18 via-transparent to-black/16" />
         </div>
@@ -323,10 +352,18 @@ export default function HomeHeader({
       <div className="px-3 pt-1 flex items-end justify-start gap-[6px] relative z-10">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
+          const handleTabIntent = () => {
+            if (tab.id === "quick") {
+              onQuickTabIntent?.();
+            }
+          };
           return (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
+              onMouseEnter={handleTabIntent}
+              onTouchStart={handleTabIntent}
+              onFocus={handleTabIntent}
               className={`relative flex flex-col items-center justify-start flex-1 min-w-0 h-[80px] transition-all duration-300 ${isActive ? "z-20" : "z-10"}`}
             >
               {tab.badge && (

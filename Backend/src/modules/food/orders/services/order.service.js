@@ -424,6 +424,16 @@ function getAssignedDispatchLeg(order, deliveryPartnerId) {
   );
 }
 
+function isOrderAssignedToDeliveryPartner(order, deliveryPartnerId) {
+  const partnerId = toIdString(deliveryPartnerId);
+  if (!partnerId) return false;
+
+  const wholeOrderPartnerId = toIdString(order?.dispatch?.deliveryPartnerId);
+  if (wholeOrderPartnerId === partnerId) return true;
+
+  return Boolean(getAssignedDispatchLeg(order, deliveryPartnerId));
+}
+
 function filterOrderItemsForLeg(order, leg) {
   const items = Array.isArray(order?.items) ? order.items : [];
   if (!leg?.legId) return items;
@@ -3302,11 +3312,9 @@ export async function confirmReachedPickupDelivery(orderId, deliveryPartnerId) {
 
   const order = await FoodOrder.findOne(identity);
   if (!order) throw new NotFoundError("Order not found");
-  if (
-    order.dispatch?.deliveryPartnerId?.toString() !==
-    deliveryPartnerId.toString()
-  )
+  if (!isOrderAssignedToDeliveryPartner(order, deliveryPartnerId)) {
     throw new ForbiddenError("Not your order");
+  }
   if (order.orderStatus === "delivered")
     throw new ValidationError("Order already delivered");
 
@@ -3382,11 +3390,9 @@ export async function confirmPickupDelivery(
   const identity = buildOrderIdentityFilter(orderId);
   const order = await FoodOrder.findOne(identity);
   if (!order) throw new NotFoundError("Order not found");
-  if (
-    order.dispatch?.deliveryPartnerId?.toString() !==
-    deliveryPartnerId.toString()
-  )
+  if (!isOrderAssignedToDeliveryPartner(order, deliveryPartnerId)) {
     throw new ForbiddenError("Not your order");
+  }
 
   const from = order.orderStatus;
   order.orderStatus = "picked_up";
@@ -3422,11 +3428,9 @@ export async function confirmReachedDropDelivery(orderId, deliveryPartnerId) {
 
   const order = await FoodOrder.findOne(identity).select("+deliveryOtp");
   if (!order) throw new NotFoundError("Order not found");
-  if (
-    order.dispatch?.deliveryPartnerId?.toString() !==
-    deliveryPartnerId.toString()
-  )
+  if (!isOrderAssignedToDeliveryPartner(order, deliveryPartnerId)) {
     throw new ForbiddenError("Not your order");
+  }
 
   if (order.deliveryVerification?.dropOtp?.verified) {
     emitOrderUpdate(order, deliveryPartnerId);
@@ -3489,11 +3493,9 @@ export async function verifyDropOtpDelivery(orderId, deliveryPartnerId, otp) {
   const identity = buildOrderIdentityFilter(orderId);
   const order = await FoodOrder.findOne(identity).select("+deliveryOtp");
   if (!order) throw new NotFoundError("Order not found");
-  if (
-    order.dispatch?.deliveryPartnerId?.toString() !==
-    deliveryPartnerId.toString()
-  )
+  if (!isOrderAssignedToDeliveryPartner(order, deliveryPartnerId)) {
     throw new ForbiddenError("Not your order");
+  }
 
   const otpStr = String(otp || "").trim();
   if (!otpStr) throw new ValidationError("OTP is required");
@@ -3535,11 +3537,9 @@ export async function completeDelivery(orderId, deliveryPartnerId, body = {}) {
   const identity = buildOrderIdentityFilter(orderId);
   const order = await FoodOrder.findOne(identity);
   if (!order) throw new NotFoundError("Order not found");
-  if (
-    order.dispatch?.deliveryPartnerId?.toString() !==
-    deliveryPartnerId.toString()
-  )
+  if (!isOrderAssignedToDeliveryPartner(order, deliveryPartnerId)) {
     throw new ForbiddenError("Not your order");
+  }
 
   const { otp, ratings } = body;
 

@@ -352,6 +352,118 @@ const buildPickupSources = (apiOrder, previousOrder = null, restaurantAddress = 
   ]
 }
 
+const getPartnerDisplayAvatar = (avatar, name = "Delivery Partner") => {
+  const trimmedAvatar = String(avatar || "").trim()
+  if (trimmedAvatar) return trimmedAvatar
+
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=eff6ff&color=1d4ed8&size=128`
+}
+
+const normalizeDeliveryPartner = (partnerRef, fallbackName = "Delivery Partner") => {
+  if (!partnerRef) return null
+
+  if (typeof partnerRef === "string") {
+    return {
+      id: partnerRef,
+      name: fallbackName,
+      phone: "",
+      avatar: "",
+    }
+  }
+
+  const name = String(
+    partnerRef?.name ||
+      partnerRef?.fullName ||
+      partnerRef?.displayName ||
+      fallbackName,
+  ).trim() || fallbackName
+
+  return {
+    id: partnerRef?._id || partnerRef?.id || "",
+    name,
+    phone: String(partnerRef?.phone || partnerRef?.phoneNumber || "").trim(),
+    avatar: String(
+      partnerRef?.avatar ||
+        partnerRef?.profilePicture ||
+        partnerRef?.profileImage ||
+        "",
+    ).trim(),
+  }
+}
+
+const buildTrackingDeliveryPartners = (apiOrder, previousOrder = null) => {
+  const previousPartners = Array.isArray(previousOrder?.deliveryPartners)
+    ? previousOrder.deliveryPartners
+    : []
+  const legs = Array.isArray(apiOrder?.dispatchPlan?.legs) ? apiOrder.dispatchPlan.legs : []
+  const seen = new Set()
+
+  const normalizedLegPartners = legs
+    .map((leg, index) => {
+      const deliveryPartner = normalizeDeliveryPartner(
+        leg?.deliveryPartnerId,
+        leg?.pickupType === "quick" ? "Store Rider" : "Restaurant Rider",
+      )
+
+      if (!deliveryPartner?.id && !deliveryPartner?.name) return null
+
+      const key = String(
+        leg?.legId ||
+          deliveryPartner?.id ||
+          `${leg?.pickupType || "delivery"}:${leg?.sourceId || index}`,
+      )
+
+      if (seen.has(key)) return null
+      seen.add(key)
+
+      const pickupType = leg?.pickupType === "quick" ? "quick" : "food"
+      const sourceLabel = pickupType === "quick" ? "Store pickup" : "Restaurant pickup"
+
+      return {
+        id: deliveryPartner?.id || key,
+        legId: leg?.legId || key,
+        pickupType,
+        sourceId: leg?.sourceId || null,
+        sourceName: String(leg?.sourceName || "").trim(),
+        label: sourceLabel,
+        statusText:
+          pickupType === "quick"
+            ? "Handling the store pickup for your express order"
+            : "Handling the restaurant pickup for your express order",
+        name: deliveryPartner.name,
+        phone: deliveryPartner.phone,
+        avatar: deliveryPartner.avatar,
+      }
+    })
+    .filter(Boolean)
+
+  if (normalizedLegPartners.length > 0) return normalizedLegPartners
+
+  const singlePartner = normalizeDeliveryPartner(
+    apiOrder?.deliveryPartnerId || apiOrder?.dispatch?.deliveryPartnerId,
+    "Delivery Partner",
+  )
+
+  if (singlePartner) {
+    return [
+      {
+        id: singlePartner.id || "primary-delivery-partner",
+        legId: null,
+        pickupType: "food",
+        sourceId: null,
+        sourceName: "",
+        label: "Delivery partner",
+        statusText: "Your delivery partner is arriving",
+        name: singlePartner.name,
+        phone: singlePartner.phone,
+        avatar: singlePartner.avatar,
+      },
+    ]
+  }
+
+  return previousPartners
+}
+
 const transformOrderForTracking = (apiOrder, previousOrder = null, explicitRestaurantCoords = null, explicitRestaurantAddress = null) => {
   const restaurantCoords = explicitRestaurantCoords || getRestaurantCoordsFromOrder(apiOrder, previousOrder?.restaurantLocation?.coordinates)
   const restaurantAddress = getRestaurantAddressFromOrder(apiOrder, previousOrder, explicitRestaurantAddress)
@@ -359,6 +471,8 @@ const transformOrderForTracking = (apiOrder, previousOrder = null, explicitResta
   const addr = apiOrder?.address || apiOrder?.deliveryAddress || {}
   const customerCoordsResolved = getCustomerCoordsFromApiOrder(apiOrder, previousOrder)
   const pickupSources = buildPickupSources(apiOrder, previousOrder, restaurantAddress)
+  const deliveryPartners = buildTrackingDeliveryPartners(apiOrder, previousOrder)
+  const primaryDeliveryPartner = deliveryPartners[0] || null
 
   return {
     id: apiOrder?.orderId || apiOrder?._id,
@@ -404,12 +518,16 @@ const transformOrderForTracking = (apiOrder, previousOrder = null, explicitResta
     total: apiOrder?.pricing?.total || previousOrder?.total || 0,
     // Backend canonical field is orderStatus; keep legacy `status` for UI compatibility.
     status: apiOrder?.orderStatus || apiOrder?.status || previousOrder?.status || 'pending',
-    deliveryPartner: apiOrder?.deliveryPartnerId ? {
-      name: apiOrder.deliveryPartnerId.name || apiOrder.deliveryPartnerId.fullName || 'Delivery Partner',
-      phone: apiOrder.deliveryPartnerId.phone || apiOrder.deliveryPartnerId.phoneNumber || '',
-      avatar: apiOrder.deliveryPartnerId.avatar || apiOrder.deliveryPartnerId.profilePicture || null
-    } : (previousOrder?.deliveryPartner || null),
-    deliveryPartnerId: apiOrder?.deliveryPartnerId?._id || apiOrder?.deliveryPartnerId || apiOrder?.dispatch?.deliveryPartnerId?._id || apiOrder?.dispatch?.deliveryPartnerId || apiOrder?.assignmentInfo?.deliveryPartnerId || null,
+    deliveryPartner: primaryDeliveryPartner || previousOrder?.deliveryPartner || null,
+    deliveryPartners,
+    deliveryPartnerId:
+      primaryDeliveryPartner?.id ||
+      apiOrder?.deliveryPartnerId?._id ||
+      apiOrder?.deliveryPartnerId ||
+      apiOrder?.dispatch?.deliveryPartnerId?._id ||
+      apiOrder?.dispatch?.deliveryPartnerId ||
+      apiOrder?.assignmentInfo?.deliveryPartnerId ||
+      null,
     dispatch: apiOrder?.dispatch || previousOrder?.dispatch || null,
     assignmentInfo: apiOrder?.assignmentInfo || previousOrder?.assignmentInfo || null,
     tracking: apiOrder?.tracking || previousOrder?.tracking || {},
@@ -879,10 +997,10 @@ export default function OrderTracking() {
     }
   };
 
-  const handleCallRider = (e) => {
+  const handleCallRider = (phone, e) => {
     if (e && e.stopPropagation) e.stopPropagation();
     
-    const rawPhone = order?.deliveryPartner?.phone || '';
+    const rawPhone = phone || order?.deliveryPartner?.phone || '';
     const cleanPhone = String(rawPhone).replace(/[^\d+]/g, '');
 
     if (!cleanPhone || cleanPhone.length < 5) {
@@ -1379,6 +1497,10 @@ export default function OrderTracking() {
     orderStatus === "delivered" ||
     order?.status === "delivered" ||
     Boolean(order?.deliveredAt)
+  const visibleDeliveryPartners = Array.isArray(order?.deliveryPartners)
+    ? order.deliveryPartners.filter(Boolean)
+    : []
+  const hasMultipleDeliveryPartners = visibleDeliveryPartners.length > 1
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-[#0a0a0a]">
@@ -1596,36 +1718,67 @@ export default function OrderTracking() {
         </motion.div>
 
         {/* Delivery Partner Info */}
-        {order?.deliveryPartnerId && (
+        {visibleDeliveryPartners.length > 0 && (
           <motion.div
             className="bg-white rounded-xl shadow-sm overflow-hidden"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.55 }}
           >
-            <div className="flex items-center gap-3 p-4 border-b border-dashed border-gray-200">
-              <div className="w-12 h-12 rounded-full bg-blue-50 overflow-hidden flex items-center justify-center flex-shrink-0 border border-blue-100 p-1">
-                {order.deliveryPartner?.avatar ? (
-                  <img src={order.deliveryPartner.avatar} alt="Rider" className="w-full h-full object-cover" />
-                ) : (
-                  <div 
-                    dangerouslySetInnerHTML={{ __html: RIDER_BIKE_SVG.replace(/width="\d+"/, 'width="100%"').replace(/height="\d+"/, 'height="100%"') }} 
-                    className="w-full h-full p-1" 
-                  />
-                )}
-              </div>
-              <div className="flex-1">
-                <p className="font-semibold text-gray-900">{order.deliveryPartner?.name || 'Delivery Partner'}</p>
-                <p className="text-sm text-gray-500">Your delivery partner is arriving</p>
-              </div>
-              <motion.button
-                className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center"
-                onClick={handleCallRider}
-                whileTap={{ scale: 0.9 }}
-              >
-                <Phone className="w-5 h-5 text-blue-600" />
-              </motion.button>
+            <div className="px-4 pt-4 pb-2 border-b border-dashed border-gray-200">
+              <p className="font-semibold text-gray-900">
+                {hasMultipleDeliveryPartners ? 'Express delivery partners' : 'Delivery partner'}
+              </p>
+              <p className="text-sm text-gray-500 mt-1">
+                {hasMultipleDeliveryPartners
+                  ? 'Each pickup in your express order can have its own rider.'
+                  : 'Your delivery partner is handling this order.'}
+              </p>
             </div>
+            {visibleDeliveryPartners.map((partner, index) => (
+              <div
+                key={partner?.legId || partner?.id || index}
+                className={`flex items-center gap-3 p-4 ${
+                  index !== visibleDeliveryPartners.length - 1 ? 'border-b border-dashed border-gray-200' : ''
+                }`}
+              >
+                <div className="w-12 h-12 rounded-full bg-blue-50 overflow-hidden flex items-center justify-center flex-shrink-0 border border-blue-100 p-1">
+                  <img
+                    src={getPartnerDisplayAvatar(partner?.avatar, partner?.name)}
+                    alt={partner?.name || 'Rider'}
+                    className="w-full h-full object-cover"
+                    onError={(event) => {
+                      event.currentTarget.onerror = null
+                      event.currentTarget.src = getPartnerDisplayAvatar("", partner?.name || "Rider")
+                    }}
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-semibold text-gray-900 truncate">
+                      {partner?.name || 'Delivery Partner'}
+                    </p>
+                    {hasMultipleDeliveryPartners && (
+                      <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                        {partner?.label || 'Pickup rider'}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-500 truncate">
+                    {partner?.sourceName
+                      ? `${partner.label} for ${partner.sourceName}`
+                      : partner?.statusText || 'Your delivery partner is arriving'}
+                  </p>
+                </div>
+                <motion.button
+                  className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center"
+                  onClick={(e) => handleCallRider(partner?.phone, e)}
+                  whileTap={{ scale: 0.9 }}
+                >
+                  <Phone className="w-5 h-5 text-blue-600" />
+                </motion.button>
+              </div>
+            ))}
             {order?.note && (
               <div className="bg-blue-50/50 p-3 mx-4 mb-4 rounded-lg flex items-start gap-2 border border-blue-100">
                 <MessageSquare className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />

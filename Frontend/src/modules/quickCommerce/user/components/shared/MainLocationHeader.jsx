@@ -285,10 +285,10 @@ const MainLocationHeader = ({
   // Content animations
   const rawContentHeight = useTransform(scrollY, [0, 160], ["64px", "0px"]);
   const rawContentOpacity = useTransform(scrollY, [0, 160], [1, 0]);
-  const rawNavHeight = useTransform(scrollY, [0, 200], ["60px", "0px"]);
-  const rawNavOpacity = useTransform(scrollY, [0, 200], [1, 0]);
-  const rawNavMargin = useTransform(scrollY, [0, 200], [4, 0]);
-  const rawCategorySpacing = useTransform(scrollY, [0, 200], [3, 0]);
+  const rawNavHeight = useTransform(scrollY, [0, 200], ["60px", "56px"]);
+  const rawNavOpacity = useTransform(scrollY, [0, 200], [1, 1]);
+  const rawNavMargin = useTransform(scrollY, [0, 200], [4, 2]);
+  const rawCategorySpacing = useTransform(scrollY, [0, 200], [3, 1]);
   const rawCartOpacity = useTransform(scrollY, [0, 110, 150], [1, 0.7, 0]);
   const rawCartScale = useTransform(scrollY, [0, 110, 150], [1, 0.9, 0.75]);
 
@@ -296,9 +296,7 @@ const MainLocationHeader = ({
   const rawDisplayContent = useTransform(scrollY, (value) =>
     value > 160 ? "none" : "block",
   );
-  const rawDisplayNav = useTransform(scrollY, (value) =>
-    value > 200 ? "none" : "flex",
-  );
+  const rawDisplayNav = useTransform(scrollY, () => "flex");
   const rawDisplayCart = useTransform(scrollY, (value) =>
     value > 150 ? "none" : "block",
   );

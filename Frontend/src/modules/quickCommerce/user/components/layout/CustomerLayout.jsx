@@ -14,9 +14,9 @@ const CustomerLayout = ({ children, showHeader: showHeaderProp, fullHeight = fal
     const { isOpen: isProductDetailOpen } = useProductDetail();
 
     // Route-based visibility logic with module prefix stripping
-    const path = location.pathname.replace(/^\/quick-commerce\/user/, '') || '/';
+    const path = location.pathname.replace(/^\/quick(?:-commerce(?:\/user)?)?/, '') || '/';
 
-    const hideHeaderRoutes = ['/', '/categories', '/orders', '/transactions', '/profile', '/profile/edit', '/wishlist', '/addresses', '/wallet', '/support', '/privacy', '/about', '/terms', '/checkout', '/search', '/chat', '/product', '/cart'];
+    const hideHeaderRoutes = ['/categories', '/orders', '/transactions', '/profile', '/profile/edit', '/wishlist', '/addresses', '/wallet', '/support', '/privacy', '/about', '/terms', '/checkout', '/search', '/chat', '/product', '/cart'];
     const hideBottomNavRoutes = ['/cart', '/checkout', '/search', '/chat'];
     const hideCartRoutes = ['/cart', '/checkout', '/search', '/chat'];
     const matchesRoutePrefix = (routePrefix) =>

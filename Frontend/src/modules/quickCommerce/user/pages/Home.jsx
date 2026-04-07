@@ -405,6 +405,7 @@ const MARQUEE_MESSAGES = [
 ];
 
 const QUICK_THEME_STORAGE_KEY = "food.quick.headerColor";
+const QUICK_HEADER_RETURN_STORAGE_KEY = "food.quick.headerReturn";
 const FALLBACK_QUICK_THEME_COLOR = "#065f46";
 const getStoredQuickThemeColor = () => {
   if (typeof window === "undefined") return null;
@@ -674,6 +675,22 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
         );
 
         // If we have a stored header to restore (coming back from a category page), set it
+        const storedHeaderReturn = window.sessionStorage.getItem(
+          QUICK_HEADER_RETURN_STORAGE_KEY,
+        );
+        if (storedHeaderReturn) {
+          try {
+            const parsed = JSON.parse(storedHeaderReturn);
+            if (parsed?.headerId) {
+              const match =
+                [mergedAllCategory, ...headersWithoutAll].find(
+                  (h) => h._id === parsed.headerId || h.id === parsed.headerId,
+                ) || null;
+              if (match) setActiveCategory(match);
+            }
+          } catch (e) {}
+        }
+
         const stored = window.sessionStorage.getItem("experienceReturn");
         if (stored) {
           try {
@@ -1261,7 +1278,25 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
                     key={cat.id}
                     whileHover={{ y: -4 }}
                     whileTap={{ scale: 0.96 }}
-                    onClick={() => navigate(getQuickCategoryPath(cat.id))}
+                    onClick={() => {
+                      if (typeof window !== "undefined") {
+                        window.sessionStorage.setItem(
+                          QUICK_HEADER_RETURN_STORAGE_KEY,
+                          JSON.stringify({
+                            headerId:
+                              activeCategory?._id ||
+                              activeCategory?.id ||
+                              ALL_CATEGORY._id,
+                            color:
+                              activeCategory?.headerColor ||
+                              ALL_CATEGORY.headerColor,
+                            name:
+                              activeCategory?.name || ALL_CATEGORY.name,
+                          }),
+                        );
+                      }
+                      navigate(getQuickCategoryPath(cat.id));
+                    }}
                     className="flex flex-col items-center gap-1 min-w-[84px] md:min-w-[112px] lg:min-w-[128px] cursor-pointer group/item snap-start">
                     <div
                       className="relative w-[84px] h-[96px] md:w-[112px] md:h-[126px] lg:w-[128px] lg:h-[140px] rounded-[22px] shadow-[0_10px_22px_rgba(15,23,42,0.10)] border flex items-start justify-center p-2 transition-all duration-300 group-hover/item:-translate-y-1 group-hover/item:shadow-[0_16px_30px_rgba(15,23,42,0.14)] overflow-hidden"

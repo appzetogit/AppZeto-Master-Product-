@@ -35,25 +35,27 @@ export default function QuickCommerceRoutes() {
               <ProductDetailProvider>
                 <Routes>
                   <Route element={<UserLayout />}>
-                    <Route path="user" element={<Home />} />
-                    <Route path="user/cart" element={<Cart />} />
-                    <Route path="user/orders" element={<Orders />} />
-                    <Route path="user/orders/:orderId" element={<OrderDetail />} />
-                    <Route path="user/products" element={<Products />} />
-                    <Route path="user/categories" element={<Categories />} />
-                    <Route path="user/categories/:categoryId" element={<CategoryProducts />} />
-                    <Route path="user/product/:productId" element={<ProductDetail />} />
-                    <Route path="user/checkout" element={<Checkout />} />
-                    <Route path="user/profile" element={<Profile />} />
-                    <Route path="user/wallet" element={<Wallet />} />
-                    <Route path="user/addresses" element={<Addresses />} />
-                    <Route path="user/support" element={<Support />} />
-                    <Route path="user/search" element={<Search />} />
+                    <Route index element={<Home />} />
+                    <Route path="cart" element={<Cart />} />
+                    <Route path="orders" element={<Orders />} />
+                    <Route path="orders/:orderId" element={<OrderDetail />} />
+                    <Route path="products" element={<Products />} />
+                    <Route path="categories" element={<Categories />} />
+                    <Route path="categories/:categoryId" element={<CategoryProducts />} />
+                    <Route path="product/:productId" element={<ProductDetail />} />
+                    <Route path="checkout" element={<Checkout />} />
+                    <Route path="profile" element={<Profile />} />
+                    <Route path="wallet" element={<Wallet />} />
+                    <Route path="addresses" element={<Addresses />} />
+                    <Route path="support" element={<Support />} />
+                    <Route path="search" element={<Search />} />
+                    <Route path="user" element={<Navigate to="/quick" replace />} />
+                    <Route path="user/*" element={<Navigate to="/quick" replace />} />
                   </Route>
                   
                   {/* Redirects */}
-                  <Route path="/" element={<Navigate to="/quick-commerce/user" replace />} />
-                  <Route path="*" element={<Navigate to="/quick-commerce/user" replace />} />
+                  <Route path="/" element={<Navigate to="/quick" replace />} />
+                  <Route path="*" element={<Navigate to="/quick" replace />} />
                 </Routes>
               </ProductDetailProvider>
             </CartAnimationProvider>

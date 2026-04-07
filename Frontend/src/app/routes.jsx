@@ -10,9 +10,6 @@ const NATIVE_LAST_ROUTE_KEY = 'native_last_route'
 
 // Lazy load the Food service module (Quick-spicy app)
 const FoodApp = lazy(() => import('../modules/Food/routes'))
-const FoodUserLayout = lazy(() => import('../modules/Food/components/user/UserLayout'))
-const FoodHome = lazy(() => import('../modules/Food/pages/user/Home'))
-const FoodQuickSearch = lazy(() => import('../modules/Food/pages/user/QuickSearch'))
 const AuthApp = lazy(() => import('../modules/auth/routes'))
 const QuickCommerceApp = lazy(() => import('../modules/quickCommerce/routes'))
 const SellerApp = lazy(() => import('../modules/seller/routes'))
@@ -35,28 +32,25 @@ const FoodAppWrapper = () => {
   )
 }
 
-const EmbeddedQuickFoodWrapper = () => {
-  return (
-    <Suspense fallback={<PageLoader />}>
-      <FoodUserLayout />
-    </Suspense>
-  )
-}
-
-const EmbeddedQuickFoodHome = () => {
-  return (
-    <Suspense fallback={<PageLoader />}>
-      <FoodHome />
-    </Suspense>
-  )
-}
-
 const RedirectToFood = () => {
   const location = useLocation();
   // We safely replace the exact current pathname with a /food prefixed pathname
   // This effectively catches programmatic navigation to absolute paths like '/restaurant/login'
   // and turns them into '/food/restaurant/login'
   return <Navigate to={`/food${location.pathname}${location.search}`} replace />;
+};
+
+const RedirectLegacyQuickCommerce = () => {
+  const location = useLocation();
+  const suffix = location.pathname
+    .replace(/^\/quick-commerce(?:\/user)?/, '');
+  const normalizedSuffix = suffix && suffix !== '/' ? suffix : '';
+  return (
+    <Navigate
+      to={`/quick${normalizedSuffix}${location.search}`}
+      replace
+    />
+  );
 };
 
 const SellerAuthEntry = () => {
@@ -111,22 +105,17 @@ const AppRoutes = () => {
       {/* Food Module */}
       <Route path="/food/*" element={<FoodAppWrapper />} />
 
-      {/* Embedded Quick Tab in food shell */}
-      <Route element={<EmbeddedQuickFoodWrapper />}>
-        <Route path="/quick" element={<EmbeddedQuickFoodHome />} />
-        <Route path="/quick/search" element={<FoodQuickSearch />} />
-      </Route>
-
-      {/* Quick-commerce Module */}
+      {/* Quick storefront */}
       <Route
-        path="/quick-commerce/*"
+        path="/quick/*"
         element={
           <Suspense fallback={<PageLoader />}>
             <QuickCommerceApp />
           </Suspense>
         }
       />
-      <Route path="/qc/*" element={<Navigate to="/quick-commerce" replace />} />
+      <Route path="/quick-commerce/*" element={<RedirectLegacyQuickCommerce />} />
+      <Route path="/qc/*" element={<Navigate to="/quick" replace />} />
 
       {/* Seller Module */}
       <Route path="/seller" element={<SellerAppWrapper />} />

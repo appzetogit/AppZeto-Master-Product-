@@ -210,6 +210,7 @@ export const placeOrder = async (req, res) => {
     const isOnlinePayment = String(req.body?.paymentMode || 'COD').toUpperCase() === 'ONLINE';
     const paymentMode = isOnlinePayment ? 'razorpay' : 'cash';
     const sellerPaymentMode = isOnlinePayment ? 'online' : 'cash';
+    const shouldFanOutSellerOrders = !isOnlinePayment;
     const deliveryAddress = normalizeDeliveryAddress(req.body?.address);
 
     const order = await QuickOrder.create({
@@ -319,15 +320,17 @@ export const placeOrder = async (req, res) => {
 
     emitQuickOrderStatusUpdate(order, 'Quick order placed successfully.');
 
-    void (async () => {
-      try {
-        if (!sellerOrders.length) return;
-        const insertedSellerOrders = await SellerOrder.insertMany(sellerOrders, { ordered: false });
-        emitQuickSellerOrders(insertedSellerOrders);
-      } catch (error) {
-        logger.error(`Quick seller order fanout failed for ${order.orderId}: ${error?.message || error}`);
-      }
-    })();
+    if (shouldFanOutSellerOrders) {
+      void (async () => {
+        try {
+          if (!sellerOrders.length) return;
+          const insertedSellerOrders = await SellerOrder.insertMany(sellerOrders, { ordered: false });
+          emitQuickSellerOrders(insertedSellerOrders);
+        } catch (error) {
+          logger.error(`Quick seller order fanout failed for ${order.orderId}: ${error?.message || error}`);
+        }
+      })();
+    }
 
     return res.status(201).json({
       success: true,

@@ -39,6 +39,7 @@ import * as foodTransactionService from './foodTransaction.service.js';
 const ORDER_ID_PREFIX = "FOD-";
 const ORDER_ID_LENGTH = 6;
 const USER_CANCEL_FULL_REFUND_WINDOW_MS = 30 * 1000;
+const USER_CANCEL_EDIT_WINDOW_MS = 60 * 1000;
 
 /**
  * Fire-and-forget BullMQ enqueue for order lifecycle events.
@@ -2336,9 +2337,33 @@ export async function cancelOrder(orderId, userId, reason, refundTo) {
   });
   if (!order) throw new NotFoundError("Order not found");
 
-  const allowed = ["created"];
-  if (!allowed.includes(order.orderStatus))
-    throw new ValidationError("Order cannot be cancelled");
+  const orderStatus = String(order.orderStatus || "").trim().toLowerCase();
+  const alwaysCancelableStatuses = ["created", "placed"];
+  const cancelWindowStatuses = ["confirmed", "preparing", "ready_for_pickup", "picked_up"];
+  const dispatchStatus = String(order.dispatch?.status || "").trim().toLowerCase();
+  const hasAcceptedDeliveryPartner =
+    dispatchStatus === "accepted" ||
+    Boolean(order.dispatch?.acceptedAt) ||
+    Boolean(order.dispatch?.deliveryPartnerId);
+  const canCancelBeforeDispatchStarts =
+    ["confirmed", "preparing", "ready_for_pickup"].includes(orderStatus) &&
+    !hasAcceptedDeliveryPartner;
+
+  if (!alwaysCancelableStatuses.includes(orderStatus)) {
+    const cancelWindowStartEntry = [...(order.statusHistory || [])]
+      .reverse()
+      .find((entry) => cancelWindowStatuses.includes(String(entry?.to || "").trim().toLowerCase()));
+    const cancelWindowStartAt = cancelWindowStartEntry?.at || order.updatedAt || order.createdAt || null;
+    const cancelWindowStartMs = cancelWindowStartAt ? new Date(cancelWindowStartAt).getTime() : NaN;
+    const isWithinCancelWindow =
+      cancelWindowStatuses.includes(orderStatus) &&
+      Number.isFinite(cancelWindowStartMs) &&
+      Date.now() - cancelWindowStartMs <= USER_CANCEL_EDIT_WINDOW_MS;
+
+    if (!isWithinCancelWindow && !canCancelBeforeDispatchStarts) {
+      throw new ValidationError("Order cannot be cancelled");
+    }
+  }
 
   const from = order.orderStatus;
   order.orderStatus = "cancelled_by_user";

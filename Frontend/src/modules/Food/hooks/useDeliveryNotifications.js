@@ -128,6 +128,33 @@ const buildDeliveryOrderNotification = (orderData = {}) => {
   };
 }
 
+const isActionableDeliveryOffer = (orderData = {}) => {
+  const orderStatus = String(
+    orderData?.orderStatus || orderData?.status || ''
+  ).trim().toLowerCase();
+  const dispatchStatus = String(
+    orderData?.dispatch?.status || orderData?.dispatchStatus || ''
+  ).trim().toLowerCase();
+
+  const actionableStatuses = ['confirmed', 'preparing', 'ready_for_pickup'];
+  const actionableDispatchStatuses = ['unassigned', 'assigned'];
+
+  if (orderStatus && !actionableStatuses.includes(orderStatus)) {
+    return false;
+  }
+
+  if (dispatchStatus && !actionableDispatchStatuses.includes(dispatchStatus)) {
+    return false;
+  }
+
+  return Boolean(
+    orderData?.orderId ||
+    orderData?.orderMongoId ||
+    orderData?._id ||
+    orderData?.id,
+  );
+};
+
 const triggerWebViewNativeNotification = async (orderData = {}) => {
   if (typeof window === 'undefined') return false;
 
@@ -856,6 +883,10 @@ export const useDeliveryNotifications = () => {
     });
 
     socketRef.current.on('new_order', (orderData) => {
+      if (!isActionableDeliveryOffer(orderData)) {
+        debugLog('Ignoring non-actionable new_order event', orderData);
+        return;
+      }
       debugLog('New order received via socket', {
         orderId: orderData?.orderId || orderData?.orderMongoId || orderData?._id,
         dispatchStatus: orderData?.dispatch?.status,
@@ -866,6 +897,10 @@ export const useDeliveryNotifications = () => {
 
     // Listen for priority-based order notifications (new_order_available)
     socketRef.current.on('new_order_available', (orderData) => {
+      if (!isActionableDeliveryOffer(orderData)) {
+        debugLog('Ignoring non-actionable new_order_available event', orderData);
+        return;
+      }
       debugLog('New order available received via socket', {
         orderId: orderData?.orderId || orderData?.orderMongoId || orderData?._id,
         phase: orderData?.phase || 'unknown',
@@ -877,15 +912,28 @@ export const useDeliveryNotifications = () => {
     });
 
     socketRef.current.on('play_notification_sound', (data) => {
-      debugLog('play_notification_sound received', {
-        orderId: data?.orderId || data?.orderMongoId || data?.order_id,
-      });
       const normalizedData = {
         orderId: data?.orderId || data?.order_id,
         orderMongoId: data?.orderMongoId || data?.order_mongo_id,
         ...data
       };
-      // Force immediate buzz for notification events, even if dedupe would skip.
+
+      const activeAlertKey = getOrderAlertKey(activeOrderRef.current || {});
+      const incomingAlertKey = getOrderAlertKey(normalizedData);
+      const shouldAllowStandaloneSound =
+        isActionableDeliveryOffer(normalizedData) ||
+        (incomingAlertKey && incomingAlertKey === activeAlertKey);
+
+      if (!shouldAllowStandaloneSound) {
+        debugLog('Ignoring standalone play_notification_sound event', normalizedData);
+        return;
+      }
+
+      debugLog('play_notification_sound received', {
+        orderId: normalizedData?.orderId || normalizedData?.orderMongoId || normalizedData?.order_id,
+      });
+
+      // Force immediate buzz for valid notification events, even if dedupe would skip.
       activeOrderRef.current = normalizedData || { id: Date.now() };
       playNotificationSound(normalizedData);
       startAlertLoop(playNotificationSound);

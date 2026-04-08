@@ -85,6 +85,10 @@ export async function getRestaurantCommissionSnapshot(orderDoc) {
  */
 export async function createInitialTransaction(order) {
     const { commissionAmount } = await getRestaurantCommissionSnapshot(order);
+    const normalizedOrderType = ['food', 'quick', 'mixed'].includes(String(order?.orderType || ''))
+        ? String(order.orderType)
+        : 'food';
+    const restaurantId = order?.restaurantId || null;
     
     // Split logic
     const totalCustomerPaid = order.pricing?.total || 0;
@@ -101,9 +105,10 @@ export async function createInitialTransaction(order) {
 
     const transaction = new FoodTransaction({
         orderId: order._id,
+        orderType: normalizedOrderType,
 
         userId: order.userId,
-        restaurantId: order.restaurantId,
+        restaurantId,
         deliveryPartnerId: order.dispatch?.deliveryPartnerId,
         paymentMethod: order.payment?.method || 'cash',
         status: order.payment?.status === 'paid' ? 'captured' : 'pending',

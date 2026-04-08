@@ -1050,14 +1050,8 @@ export default function OrderTracking() {
     if (isQuickOrder) return false
 
     const paymentMethod = String(order?.payment?.method || order?.paymentMethod || "").trim().toLowerCase()
-    const paymentStatus = String(order?.payment?.status || "").trim().toLowerCase()
-    const isOnlineMethod = ["razorpay", "razorpay_qr"].includes(paymentMethod)
-    const isPaidStatus =
-      !paymentStatus ||
-      ["paid", "authorized", "captured", "settled", "refunded"].includes(paymentStatus)
-
-    return isOnlineMethod && isPaidStatus
-  }, [isQuickOrder, order?.payment?.method, order?.payment?.status, order?.paymentMethod])
+    return ["razorpay", "razorpay_qr"].includes(paymentMethod)
+  }, [isQuickOrder, order?.payment?.method, order?.paymentMethod])
 
   // Single source of truth: backend order.status (+ deliveryState phase for live ride)
   useEffect(() => {

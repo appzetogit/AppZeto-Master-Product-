@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { customerApi } from '../../services/customerApi';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
+import { getQuickCartPath, getQuickCheckoutPath } from '../../utils/routes';
 
 const ProductDetailSheet = () => {
     const { selectedProduct, isOpen, closeProduct } = useProductDetail();
@@ -21,8 +22,8 @@ const ProductDetailSheet = () => {
     const supportEmail = settings?.supportEmail || 'support@example.com';
     const location = useLocation();
     const cartPath = location.pathname.startsWith('/quick')
-        ? '/food/user/cart'
-        : '/checkout';
+        ? getQuickCartPath(location.pathname)
+        : getQuickCheckoutPath(location.pathname);
 
     // Controls for sheet animation
     const controls = useAnimation();

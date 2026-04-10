@@ -18,7 +18,6 @@ import { useWishlist } from "../context/WishlistContext";
 import { useToast } from "@shared/components/ui/Toast";
 import { customerApi } from "../services/customerApi";
 import { resolveQuickImageUrl } from "../utils/image";
-import { getQuickCartPath } from "../utils/routes";
 
 const getProductIdentifier = (value) =>
   String(value?.productId || value?.itemId || value?.id || value?._id || "").split("::")[0];
@@ -133,10 +132,6 @@ const ProductDetailPage = () => {
   const { cart, addToCart, updateQuantity, removeFromCart } = useCart();
   const { toggleWishlist: toggleWishlistGlobal, isInWishlist } = useWishlist();
   const { showToast } = useToast();
-  const cartPath = getQuickCartPath(
-    typeof window !== "undefined" ? window.location.pathname : "",
-  );
-
   const quantity = useMemo(() => {
     if (!product) return 0;
     const cartItem = cart.find(
@@ -446,14 +441,13 @@ const ProductDetailPage = () => {
                 </button>
               </div>
             ) : (
-              <Button
-                onClick={async () => {
-                  await addToCart(product);
-                  showToast(`${product.name} added to cart`, "success");
-                  navigate(cartPath);
-                }}
-                className="h-16 w-full rounded-2xl bg-[#0c831f] text-lg font-black text-white shadow-xl shadow-green-100 transition-all hover:-translate-y-1 hover:bg-[#0b721b] sm:w-64"
-              >
+                <Button
+                  onClick={async () => {
+                    await addToCart(product);
+                    showToast(`${product.name} added to cart`, "success");
+                  }}
+                  className="h-16 w-full rounded-2xl bg-[#0c831f] text-lg font-black text-white shadow-xl shadow-green-100 transition-all hover:-translate-y-1 hover:bg-[#0b721b] sm:w-64"
+                >
                 <Plus className="mr-2" size={24} strokeWidth={3} />
                 ADD TO CART
               </Button>

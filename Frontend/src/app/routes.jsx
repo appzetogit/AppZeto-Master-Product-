@@ -13,6 +13,7 @@ const FoodApp = lazy(() => import('../modules/Food/routes'))
 const AuthApp = lazy(() => import('../modules/auth/routes'))
 const QuickCommerceApp = lazy(() => import('../modules/quickCommerce/routes'))
 const SellerApp = lazy(() => import('../modules/seller/routes'))
+const TaxiApp = lazy(() => import('../modules/taxi/TaxiModuleApp'))
 const FoodUserLayout = lazy(() => import('../modules/Food/components/user/UserLayout'))
 const FoodHomePage = lazy(() => import('../modules/Food/pages/user/Home'))
 const GlobalCartPage = lazy(() => import('../modules/Food/pages/user/cart/Cart'))
@@ -21,6 +22,19 @@ const GlobalSelectAddressPage = lazy(() => import('../modules/Food/pages/user/ca
 const GlobalAddressSelectorPage = lazy(() => import('../modules/Food/pages/user/cart/AddressSelectorPage'))
 
 const PageLoader = () => <AppShellSkeleton />
+const TaxiPageLoader = () => (
+  <div className="min-h-screen bg-[linear-gradient(180deg,#F8FAFC_0%,#F3F4F6_38%,#EEF2F7_100%)]">
+    <div className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center px-6 text-center">
+      <div className="h-14 w-14 animate-pulse rounded-[18px] bg-[linear-gradient(135deg,#F97316_0%,#FB923C_55%,#FDBA74_100%)] shadow-[0_18px_40px_rgba(249,115,22,0.22)]" />
+      <p className="mt-5 text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">
+        Loading taxi app
+      </p>
+      <div className="mt-4 h-2 w-40 overflow-hidden rounded-full bg-white/80 shadow-inner">
+        <div className="h-full w-1/2 animate-pulse rounded-full bg-[linear-gradient(90deg,#F97316_0%,#FDBA74_100%)]" />
+      </div>
+    </div>
+  </div>
+)
 
 /**
  * FoodAppWrapper — Quick-spicy App. को /food prefix के साथ render करता है.
@@ -107,15 +121,15 @@ const AppRoutes = () => {
     if (!isNativeLikeShell) return
 
     const route = `${location.pathname || ''}${location.search || ''}`
-    if (route.startsWith('/food/') || route.startsWith('/admin')) {
+    if (route.startsWith('/food/') || route.startsWith('/admin') || route.startsWith('/taxi/')) {
       localStorage.setItem(NATIVE_LAST_ROUTE_KEY, route)
     }
   }, [location.pathname, location.search])
 
   return (
     <Routes>
-      {/* Root now lands on the auth portal */}
-      <Route path="/" element={<Navigate to="/user/auth/portal" replace />} />
+      {/* Root now lands on the food homepage */}
+      <Route path="/" element={<Navigate to="/food/user" replace />} />
 
       {/* Auth Module */}
       <Route path="/user/auth/*" element={<AuthApp />} />
@@ -155,6 +169,15 @@ const AppRoutes = () => {
       <Route path="/quick-commerce/*" element={<RedirectLegacyQuickCommerce />} />
       <Route path="/qc/*" element={<Navigate to="/quick" replace />} />
 
+      <Route
+        path="/taxi/*"
+        element={
+          <Suspense fallback={<TaxiPageLoader />}>
+            <TaxiApp />
+          </Suspense>
+        }
+      />
+
       {/* Seller Module */}
       <Route path="/seller" element={<SellerAppWrapper />} />
       <Route path="/seller/auth" element={<SellerAuthEntry />} />
@@ -179,7 +202,7 @@ const AppRoutes = () => {
       <Route path="/orders/*" element={<RedirectToFood />} />
 
       {/* Fallback 404 */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<Navigate to="/food/user" replace />} />
     </Routes>
   )
 }

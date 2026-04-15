@@ -280,6 +280,7 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
   }
 
   const isQuickAdmin = location.pathname.startsWith("/admin/quick-commerce")
+  const isTaxiAdmin = location.pathname.startsWith("/taxi/admin") || location.pathname.startsWith("/admin/taxi")
   const activeMenuData = isQuickAdmin ? quickAdminSidebarMenu : adminSidebarMenu
 
   // Ensure expandable keys exist for whichever admin module is active (food/quick)
@@ -299,6 +300,8 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
   const switchAdminModule = (target) => {
     if (target === "quick") {
       navigate("/admin/quick-commerce")
+    } else if (target === "taxi") {
+      navigate("/taxi/admin/dashboard")
     } else {
       navigate("/admin/food")
     }
@@ -740,13 +743,13 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
                 Admin Panel
               </h2>
               <div className="mt-2 rounded-xl border border-neutral-800 bg-neutral-900/80 p-1">
-                <div className="grid grid-cols-2 gap-1">
+                <div className="grid grid-cols-3 gap-1">
                   <button
                     type="button"
                     onClick={() => switchAdminModule("food")}
                     className={cn(
                       "rounded-lg px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all",
-                      !isQuickAdmin
+                      !isQuickAdmin && !isTaxiAdmin
                         ? "bg-white text-neutral-900 shadow"
                         : "text-neutral-400 hover:text-white"
                     )}
@@ -764,6 +767,18 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
                     )}
                   >
                     Quick
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => switchAdminModule("taxi")}
+                    className={cn(
+                      "rounded-lg px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all",
+                      isTaxiAdmin
+                        ? "bg-orange-500 text-white shadow-[0_6px_20px_rgba(249,115,22,0.35)]"
+                        : "text-neutral-400 hover:text-white"
+                    )}
+                  >
+                    Taxi
                   </button>
                 </div>
               </div>

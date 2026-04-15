@@ -1,7 +1,8 @@
 import React from "react"
 import { motion } from "framer-motion"
-import { useNavigate } from "react-router-dom"
+import { useLocation, useNavigate } from "react-router-dom"
 import { UtensilsCrossed, ShoppingBasket, Car, Bed, ShieldCheck, User } from "lucide-react"
+import { hasLocalUserToken } from "../../taxi/modules/user/services/authService"
 
 const SERVICES = [
   {
@@ -31,7 +32,7 @@ const SERVICES = [
     name: "Taxi",
     description: "Safe city rides",
     image: "/super-app/taxi.png",
-    path: "/food/user",
+    path: "/taxi/user",
     icon: Car,
     color: "from-[#333333] to-[#000000]",
     badge: "Safe",
@@ -51,7 +52,22 @@ const SERVICES = [
 ]
 
 export default function SuperAppPortal() {
+  const location = useLocation()
   const navigate = useNavigate()
+  const redirectTo = typeof location.state?.redirectTo === "string" && location.state.redirectTo.trim()
+    ? location.state.redirectTo.trim()
+    : ""
+
+  const handleServiceClick = (service) => {
+    if (service.id === "taxi" && !hasLocalUserToken()) {
+      navigate("/user/auth/login", {
+        state: { redirectTo: redirectTo || service.path },
+      })
+      return
+    }
+
+    navigate(service.path)
+  }
 
   return (
     <div className="min-h-screen bg-[#fafafa] flex flex-col px-4 sm:px-6 pt-3 pb-3 overflow-hidden relative">
@@ -155,7 +171,7 @@ export default function SuperAppPortal() {
                 damping: 18
               }}
               whileTap={{ scale: 0.97 }}
-              onClick={() => navigate(service.path)}
+              onClick={() => handleServiceClick(service)}
               className="group cursor-pointer relative perspective"
             >
               <div className="relative h-[175px] sm:h-[205px] w-full rounded-[1.5rem] overflow-hidden shadow-xl bg-white border border-white/30 transition-all duration-500">

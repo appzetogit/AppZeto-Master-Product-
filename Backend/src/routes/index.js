@@ -20,12 +20,17 @@ import quickCommerceRoutes from '../modules/quick-commerce/routes/quick-commerce
 import webhookRoutes from '../core/payments/routes/webhook.routes.js';
 import sellerRoutes from '../modules/quick-commerce/seller/routes/seller.routes.js';
 import searchRoutes from '../modules/food/search/routes/search.routes.js';
+import { taxiRouter } from '../modules/taxi/routes/index.js';
 
 const router = express.Router();
 
 router.get('/v1/health', (req, res) => {
     res.status(200).json({ status: 'UP', message: 'Server is healthy' });
 });
+
+// Taxi module routes are available both on the shared API base and a dedicated taxi-prefixed base.
+router.use('/v1/taxi', taxiRouter);
+router.use('/v1', taxiRouter);
 
 // Food-prefixed auth routes (preferred)
 router.use('/v1/food/auth', authRoutes);

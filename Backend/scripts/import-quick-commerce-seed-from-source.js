@@ -5,6 +5,8 @@ dotenv.config();
 
 const sourceUri = process.env.SRC_MONGO_URI || process.env.SOURCE_MONGO_URI;
 const targetUri = process.env.TGT_MONGO_URI || process.env.TARGET_MONGO_URI || process.env.MONGODB_URI || process.env.MONGO_URI;
+const replaceExistingCollections =
+  String(process.env.REPLACE_EXISTING_COLLECTIONS || '').toLowerCase() === 'true';
 
 if (!sourceUri) {
   throw new Error('Missing SRC_MONGO_URI (or SOURCE_MONGO_URI)');
@@ -79,13 +81,26 @@ async function copyCollection(sourceDb, targetDb, mapping) {
   const sourceDocs = await sourceDb.collection(mapping.source).find({}).toArray();
   const targetCollection = targetDb.collection(mapping.target);
 
-  await targetCollection.deleteMany({});
   if (sourceDocs.length === 0) {
     return { ...mapping, count: 0 };
   }
 
   const docs = sourceDocs.map((doc) => sanitizeDoc(mapping, doc));
-  await targetCollection.insertMany(docs, { ordered: false });
+  if (replaceExistingCollections) {
+    await targetCollection.deleteMany({});
+    await targetCollection.insertMany(docs, { ordered: false });
+  } else {
+    await targetCollection.bulkWrite(
+      docs.map((doc) => ({
+        replaceOne: {
+          filter: { _id: doc._id },
+          replacement: doc,
+          upsert: true,
+        },
+      })),
+      { ordered: false },
+    );
+  }
   return { ...mapping, count: docs.length };
 }
 

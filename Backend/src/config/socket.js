@@ -3,6 +3,8 @@ import { config } from './env.js';
 import { logger } from '../utils/logger.js';
 import { verifyAccessToken } from '../core/auth/token.util.js';
 import { getFirebaseDB } from './firebase.js';
+import { registerTaxiSocketHandlers } from '../modules/taxi/socket/index.js';
+import { resolveTaxiIdentityFromToken } from '../modules/taxi/user/services/masterUserBridge.service.js';
 
 let io = null;
 
@@ -51,7 +53,7 @@ export const initSocket = async (server) => {
     });
 
     // Socket auth middleware (Bearer token).
-    io.use((socket, next) => {
+    io.use(async (socket, next) => {
         try {
             const token = getTokenFromHandshake(socket);
             if (!token) {
@@ -77,8 +79,32 @@ export const initSocket = async (server) => {
                 tokenPreview: maskToken(token),
             });
             const decoded = verifyAccessToken(token);
-            socket.user = { userId: decoded.userId, role: decoded.role };
-            logger.info(`Socket auth success: ${decoded.role}:${decoded.userId} for socket ${socket.id}`);
+            const normalizedRole = String(decoded.role || '').trim().toUpperCase();
+            const isTaxiCompatibleToken =
+                normalizedRole === 'USER' ||
+                (decoded.sub && ['admin', 'driver', 'owner', 'user'].includes(String(decoded.role || '').trim().toLowerCase()));
+
+            if (isTaxiCompatibleToken) {
+                const identity = await resolveTaxiIdentityFromToken(token);
+                const userId = identity.masterUserId || identity.sub;
+
+                socket.user = {
+                    userId,
+                    role: identity.authType === 'food' ? 'USER' : identity.role,
+                    authType: identity.authType,
+                };
+                socket.auth = identity;
+            } else {
+                const userId = decoded.userId || decoded.sub;
+                socket.user = { userId, role: decoded.role, authType: 'food' };
+                socket.auth = {
+                    sub: userId,
+                    role: String(decoded.role || '').toLowerCase(),
+                    authType: 'food',
+                };
+            }
+
+            logger.info(`Socket auth success: ${socket.user.role}:${socket.user.userId} for socket ${socket.id}`);
             return next();
         } catch (err) {
             logger.error(`Socket auth failed for socket ${socket.id}: ${err.message}`);
@@ -401,6 +427,8 @@ export const initSocket = async (server) => {
           }
         });
     });
+
+    registerTaxiSocketHandlers(io);
 
     logger.info('Socket.IO infrastructure initialized');
     return io;

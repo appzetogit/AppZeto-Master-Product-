@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react"
 import { motion } from "framer-motion"
-import { Routes, Route, Navigate, Link, useNavigate } from "react-router-dom"
+import { Routes, Route, Navigate, Link, useLocation, useNavigate } from "react-router-dom"
 import { Phone, Lock, ArrowRight, ShieldCheck, Loader2, UserRound } from "lucide-react"
 import { toast } from "sonner"
 import { authAPI, userAPI } from "@food/api"
@@ -17,8 +17,12 @@ export default function UnifiedOTPFastLogin() {
   const [showNameInput, setShowNameInput] = useState(false)
   const [name, setName] = useState("")
   const [nameError, setNameError] = useState("")
+  const location = useLocation()
   const navigate = useNavigate()
   const submitting = useRef(false)
+  const redirectTo = typeof location.state?.redirectTo === "string" && location.state.redirectTo.trim()
+    ? location.state.redirectTo.trim()
+    : "/food/user"
 
   const clearNameFlow = () => {
     setShowNameInput(false)
@@ -155,7 +159,7 @@ export default function UnifiedOTPFastLogin() {
       setAuthData("user", accessToken, user, refreshToken)
       window.dispatchEvent(new Event("userAuthChanged"))
       toast.success("Login successful!")
-      navigate("/user/auth/portal", { replace: true })
+      navigate(redirectTo, { replace: true })
     } catch (err) {
       const status = err?.response?.status
       let msg = err?.response?.data?.message || err?.response?.data?.error || err?.message || "Invalid OTP. Please try again."
@@ -210,7 +214,7 @@ export default function UnifiedOTPFastLogin() {
       window.dispatchEvent(new Event("userAuthChanged"))
       clearNameFlow()
       toast.success("Profile saved successfully!")
-      navigate("/user/auth/portal", { replace: true })
+      navigate(redirectTo, { replace: true })
     } catch (err) {
       const status = err?.response?.status
       let msg = err?.response?.data?.message || err?.response?.data?.error || err?.message || "Failed to save your name."

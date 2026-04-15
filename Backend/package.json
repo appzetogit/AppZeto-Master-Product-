@@ -16,6 +16,8 @@
     "migrate:fcm-tokens": "node scripts/migrate-fcm-tokens-to-profile-models.js",
     "migrate:order-payments": "node scripts/migrate-orders-to-transactions.js",
     "migrate:seller-quick-shared": "node scripts/migrate-seller-quick-commerce-to-shared.js",
+    "migrate:taxi-db:discover": "node scripts/migrate-taxi-db.js discover",
+    "migrate:taxi-db": "node scripts/migrate-taxi-db.js migrate",
     "cleanup:legacy-collections": "node scripts/cleanup-legacy-collections.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -29,6 +31,7 @@
     "cloudinary": "^1.41.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
+    "exceljs": "^4.4.0",
     "express": "^4.19.2",
     "express-rate-limit": "^7.4.0",
     "firebase-admin": "^13.7.0",
@@ -42,6 +45,7 @@
     "nodemailer": "^8.0.2",
     "razorpay": "^2.9.2",
     "redis": "^4.6.14",
+    "simplify-js": "^1.2.4",
     "socket.io": "^4.7.5",
     "xss-clean": "^0.1.4",
     "zod": "^3.23.8"

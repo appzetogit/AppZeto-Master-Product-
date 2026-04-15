@@ -86,3 +86,32 @@ export const config = {
     emailPass: process.env.EMAIL_PASS ? String(process.env.EMAIL_PASS).replace(/\s/g, '') : '',
     emailFrom: process.env.EMAIL_FROM || process.env.EMAIL_USER || 'noreply@example.com'
 };
+
+export const env = {
+    nodeEnv: config.nodeEnv,
+    port: Number(config.port),
+    mongoUri: config.mongodbUri,
+    mongoDbName: process.env.MONGODB_DB_NAME || 'appzeto_taxi',
+    jwtSecret: config.jwtAccessSecret,
+    jwtExpiresIn: config.jwtAccessExpiresIn,
+    corsOrigin: process.env.CORS_ORIGIN || process.env.FRONTEND_URL || '*',
+    cloudinary: {
+        cloudName: config.cloudinaryCloudName || '',
+        apiKey: config.cloudinaryApiKey || '',
+        apiSecret: config.cloudinaryApiSecret || '',
+        folder: process.env.CLOUDINARY_FOLDER || 'appzeto-taxi',
+    },
+    firebase: {
+        databaseURL: process.env.FIREBASE_DATABASE_URL || config.firebaseDatabaseUrl || '',
+        serviceAccountPath: config.firebaseServiceAccountPath || '',
+        serviceAccountJson: process.env.FIREBASE_SERVICE_ACCOUNT_JSON || config.firebaseServiceAccount || '',
+    },
+    driverWallet: {
+        defaultCashLimit: Number.isFinite(Number(process.env.DRIVER_WALLET_DEFAULT_CASH_LIMIT))
+            ? Number(process.env.DRIVER_WALLET_DEFAULT_CASH_LIMIT)
+            : 500,
+        commissionPercent: Number.isFinite(Number(process.env.DRIVER_COMMISSION_PERCENT))
+            ? Number(process.env.DRIVER_COMMISSION_PERCENT)
+            : 20,
+    },
+};

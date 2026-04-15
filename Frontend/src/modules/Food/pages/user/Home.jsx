@@ -1395,6 +1395,13 @@ export default function Home() {
       return;
     }
 
+    if (tab === "taxi") {
+      window.requestAnimationFrame(() => {
+        navigate("/taxi/user");
+      });
+      return;
+    }
+
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   };
 

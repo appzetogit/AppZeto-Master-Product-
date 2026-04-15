@@ -236,7 +236,11 @@ export default function HomeHeader({
       )}
 
       <div className="flex items-center justify-between px-5 pt-6 mb-3 relative z-10">
-        <div className="flex items-start gap-2 cursor-pointer flex-1 min-w-0" onClick={handleLocationClick}>
+        <button
+          type="button"
+          className="flex items-start gap-2 cursor-pointer flex-1 min-w-0 bg-transparent border-0 p-0 text-left outline-none"
+          onClick={handleLocationClick}
+        >
           {isFood ? (
             <>
               <Navigation
@@ -262,7 +266,7 @@ export default function HomeHeader({
               <span className="text-[11px] font-bold truncate opacity-70">To {locationTitle}</span>
             </div>
           )}
-        </div>
+        </button>
 
         <div className="flex items-center gap-2 shrink-0">
           <Link
@@ -404,8 +408,9 @@ export default function HomeHeader({
       <div className="relative z-10 pt-3 pb-1 px-3 -mt-[1px] overflow-hidden">
         {isFood && <div className="absolute inset-0 bg-gradient-to-b from-black/25 to-transparent pointer-events-none" />}
         <div className="flex items-center gap-2 mb-2">
-          <div
-            className="flex-1 rounded-[12px] h-[46px] flex items-center px-3 cursor-pointer relative overflow-hidden bg-white shadow-[0_6px_18px_rgba(15,23,42,0.10)]"
+          <button
+            type="button"
+            className="flex-1 rounded-[12px] h-[46px] flex items-center px-3 cursor-pointer relative overflow-hidden bg-white shadow-[0_6px_18px_rgba(15,23,42,0.10)] border-0 text-left"
             onClick={handleSearchFocus}
           >
             <div className="absolute left-0 top-0 bottom-0 w-[2.5px] rounded-l-[12px] bg-gradient-to-b from-[#F6881F] to-[#FF5E3A]" />
@@ -430,19 +435,16 @@ export default function HomeHeader({
                 <Mic className="h-[14px] w-[14px] text-[#F6881F]" strokeWidth={2.3} />
               </div>
             </div>
-          </div>
+          </button>
 
           {isFood ? (
-            <div
-              onClick={() => onVegModeChange?.(!vegMode)}
-              className="px-2 flex flex-col items-center justify-center min-w-[64px] cursor-pointer"
-            >
+            <div className="px-2 flex flex-col items-center justify-center min-w-[64px]">
               <span className="text-[9px] font-black tracking-[0.5px] text-black mb-1">VEG</span>
               <div className="scale-[0.80]">
                 <Switch
                   checked={vegMode}
-                  onCheckedChange={() => {}}
-                  className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-gray-400 pointer-events-none"
+                  onCheckedChange={(checked) => onVegModeChange?.(checked)}
+                  className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-gray-400"
                 />
               </div>
             </div>

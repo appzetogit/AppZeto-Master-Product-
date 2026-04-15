@@ -78,6 +78,119 @@ export function calculateDistance(lat1, lng1, lat2, lng2) {
   return R * c;
 }
 
+const toFinitePoint = (point) => {
+  if (!point) return null;
+  const lat = Number(point.lat ?? point.latitude);
+  const lng = Number(point.lng ?? point.longitude);
+  return Number.isFinite(lat) && Number.isFinite(lng) ? { ...point, lat, lng } : null;
+};
+
+const getSqDist = (p1, p2) => {
+  const dx = p1.x - p2.x;
+  const dy = p1.y - p2.y;
+  return dx * dx + dy * dy;
+};
+
+const getSqSegDist = (point, start, end) => {
+  let x = start.x;
+  let y = start.y;
+  let dx = end.x - x;
+  let dy = end.y - y;
+
+  if (dx !== 0 || dy !== 0) {
+    const t = ((point.x - x) * dx + (point.y - y) * dy) / (dx * dx + dy * dy);
+    if (t > 1) {
+      x = end.x;
+      y = end.y;
+    } else if (t > 0) {
+      x += dx * t;
+      y += dy * t;
+    }
+  }
+
+  dx = point.x - x;
+  dy = point.y - y;
+  return dx * dx + dy * dy;
+};
+
+const simplifyRadialDist = (points, sqTolerance) => {
+  let prevPoint = points[0];
+  const newPoints = [prevPoint];
+  let point = prevPoint;
+
+  for (let i = 1; i < points.length; i++) {
+    point = points[i];
+    if (getSqDist(point, prevPoint) > sqTolerance) {
+      newPoints.push(point);
+      prevPoint = point;
+    }
+  }
+
+  if (prevPoint !== point) newPoints.push(point);
+  return newPoints;
+};
+
+const simplifyDPStep = (points, first, last, sqTolerance, simplified) => {
+  let maxSqDist = sqTolerance;
+  let index = -1;
+
+  for (let i = first + 1; i < last; i++) {
+    const sqDist = getSqSegDist(points[i], points[first], points[last]);
+    if (sqDist > maxSqDist) {
+      index = i;
+      maxSqDist = sqDist;
+    }
+  }
+
+  if (index > -1) {
+    if (index - first > 1) simplifyDPStep(points, first, index, sqTolerance, simplified);
+    simplified.push(points[index]);
+    if (last - index > 1) simplifyDPStep(points, index, last, sqTolerance, simplified);
+  }
+};
+
+const simplifyDouglasPeucker = (points, sqTolerance) => {
+  const last = points.length - 1;
+  const simplified = [points[0]];
+  simplifyDPStep(points, 0, last, sqTolerance, simplified);
+  simplified.push(points[last]);
+  return simplified;
+};
+
+/**
+ * simplify-js style route reduction, but projected to meters before simplifying.
+ * This keeps tolerance consistent in India, Europe, or anywhere else on the map.
+ * @param {Array<{lat: number, lng: number}>} polyline
+ * @param {{toleranceMeters?: number, highestQuality?: boolean}} options
+ * @returns {Array<{lat: number, lng: number}>}
+ */
+export function simplifyLivePolyline(polyline, options = {}) {
+  if (!Array.isArray(polyline) || polyline.length <= 2) {
+    return Array.isArray(polyline) ? polyline : [];
+  }
+
+  const normalized = polyline.map(toFinitePoint).filter(Boolean);
+  if (normalized.length <= 2) return normalized;
+
+  const toleranceMeters = Math.max(0.5, Number(options.toleranceMeters) || 4);
+  const avgLat = normalized.reduce((sum, point) => sum + point.lat, 0) / normalized.length;
+  const lngScale = 111320 * Math.cos((avgLat * Math.PI) / 180);
+  const latScale = 110540;
+  const projected = normalized.map((point, index) => ({
+    x: point.lng * lngScale,
+    y: point.lat * latScale,
+    index,
+  }));
+
+  const sqTolerance = toleranceMeters * toleranceMeters;
+  const coarse = options.highestQuality
+    ? projected
+    : simplifyRadialDist(projected, sqTolerance);
+  const simplified = simplifyDouglasPeucker(coarse, sqTolerance);
+
+  return simplified.map((point) => normalized[point.index]);
+}
+
 /**
  * Calculate distance from a point to a line segment
  * @param {Object} point - {lat, lng}
@@ -409,6 +522,45 @@ export function calculateBearing(lat1, lng1, lat2, lng2) {
   bearing = (bearing + 360) % 360; // Normalize to 0-360
   
   return bearing;
+}
+
+export function normalizeBearing(bearing, fallback = 0) {
+  const numeric = Number(bearing);
+  const fallbackNumeric = Number(fallback);
+  const base = Number.isFinite(numeric)
+    ? numeric
+    : (Number.isFinite(fallbackNumeric) ? fallbackNumeric : 0);
+  return ((base % 360) + 360) % 360;
+}
+
+export function interpolateBearing(startBearing, endBearing, progress) {
+  const start = normalizeBearing(startBearing);
+  const end = normalizeBearing(endBearing);
+  let diff = end - start;
+  if (diff > 180) diff -= 360;
+  if (diff < -180) diff += 360;
+  return normalizeBearing(start + diff * Math.max(0, Math.min(1, Number(progress) || 0)));
+}
+
+/**
+ * Derive the rider marker heading from the forward route segment nearest to the rider.
+ * Falls back to the supplied GPS heading when the route is too short.
+ */
+export function getRouteHeading(polyline, riderPosition, fallbackHeading = 0) {
+  if (!Array.isArray(polyline) || polyline.length < 2 || !riderPosition) {
+    return normalizeBearing(fallbackHeading);
+  }
+
+  const nearest = findNearestPointOnPolyline(polyline, riderPosition);
+  const start = nearest?.nearestPoint || toFinitePoint(riderPosition);
+  let end = polyline[Math.min((nearest?.segmentIndex || 0) + 1, polyline.length - 1)];
+
+  if (start && end && calculateDistance(start.lat, start.lng, end.lat, end.lng) < 2) {
+    end = polyline[Math.min((nearest?.segmentIndex || 0) + 2, polyline.length - 1)];
+  }
+
+  if (!start || !end) return normalizeBearing(fallbackHeading);
+  return calculateBearing(start.lat, start.lng, end.lat, end.lng);
 }
 
 /**

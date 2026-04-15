@@ -12,7 +12,13 @@ import io from 'socket.io-client';
 import { API_BASE_URL } from '@food/api/config';
 import bikeLogo from '@food/assets/bikelogo.png';
 import { subscribeOrderTracking } from '@food/realtimeTracking';
-import { buildVisibleRouteFromRiderPosition } from '@food/utils/liveTrackingPolyline';
+import {
+  buildVisibleRouteFromRiderPosition,
+  getRouteHeading,
+  interpolateBearing,
+  simplifyLivePolyline,
+  trimPolylineFromDistanceAlongRoute,
+} from '@food/utils/liveTrackingPolyline';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Navigation, Info, Circle } from 'lucide-react';
 
@@ -55,6 +61,10 @@ const DeliveryTrackingMap = ({
   const [smoothLocation, setSmoothLocation] = useState(null);
   const socketRef = useRef(null);
   const interpStateRef = useRef({ lastPos: null, nextPos: null, startTime: 0 });
+  const riderLocationRef = useRef(null);
+  const latestDisplayLocationRef = useRef(null);
+  const routeProgressDistanceRef = useRef(0);
+  const routeProgressSignatureRef = useRef('');
 
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
@@ -72,6 +82,19 @@ const DeliveryTrackingMap = ({
     return (API_BASE_URL || '').replace(/\/api\/v1\/?$/i, '').replace(/\/api\/?$/i, '');
   }, []);
 
+  const beginRiderTransition = useCallback((nextPos) => {
+    if (!nextPos || !Number.isFinite(nextPos.lat) || !Number.isFinite(nextPos.lng)) return;
+    const previousPos = latestDisplayLocationRef.current || riderLocationRef.current || nextPos;
+    interpStateRef.current = {
+      lastPos: previousPos,
+      nextPos,
+      startTime: Date.now(),
+    };
+    latestDisplayLocationRef.current = previousPos;
+    riderLocationRef.current = nextPos;
+    setRiderLocation(nextPos);
+  }, []);
+
   // 1. Initial State from Order Payload
   useEffect(() => {
     const loc = order?.deliveryState?.currentLocation;
@@ -79,7 +102,10 @@ const DeliveryTrackingMap = ({
       const lat = typeof loc.lat === 'number' ? loc.lat : (Array.isArray(loc.coordinates) ? Number(loc.coordinates[1]) : null);
       const lng = typeof loc.lng === 'number' ? loc.lng : (Array.isArray(loc.coordinates) ? Number(loc.coordinates[0]) : null);
       if (Number.isFinite(lat) && Number.isFinite(lng)) {
-        setRiderLocation({ lat, lng, heading: loc.bearing || loc.heading || 0 });
+        const initialLocation = { lat, lng, heading: loc.bearing || loc.heading || 0 };
+        riderLocationRef.current = initialLocation;
+        latestDisplayLocationRef.current = initialLocation;
+        setRiderLocation(initialLocation);
       }
     }
   }, [order, riderLocation]);
@@ -93,11 +119,11 @@ const DeliveryTrackingMap = ({
       const lat = Number(data?.lat ?? data?.boy_lat);
       const lng = Number(data?.lng ?? data?.boy_lng);
       if (Number.isFinite(lat) && Number.isFinite(lng)) {
-        setRiderLocation(prev => ({
+        beginRiderTransition({
           lat,
           lng,
-          heading: Number(data?.heading ?? data?.bearing ?? prev?.heading ?? 0)
-        }));
+          heading: Number(data?.heading ?? data?.bearing ?? latestDisplayLocationRef.current?.heading ?? 0)
+        });
       }
 
       // Sync Cloud Polyline and ETA to eliminate Directions API usage on user side
@@ -132,15 +158,8 @@ const DeliveryTrackingMap = ({
           lng: data.lng,
           heading: data.heading || data.bearing || 0
         };
-        
-        // Trigger Smooth Interpolation
-        interpStateRef.current = {
-           lastPos: smoothLocation || riderLocation || nextPos,
-           nextPos: nextPos,
-           startTime: Date.now()
-        };
-        
-        setRiderLocation(nextPos);
+
+        beginRiderTransition(nextPos);
 
         if (data.polyline) {
           setCloudPolyline(data.polyline);
@@ -157,7 +176,7 @@ const DeliveryTrackingMap = ({
       unsubs.forEach(u => u?.());
       socketRef.current?.disconnect();
     };
-  }, [trackingIds, backendUrl, smoothLocation, riderLocation]);
+  }, [trackingIds, backendUrl, beginRiderTransition, onEtaUpdate]);
 
   // 3. Smooth Animation Loop (60 FPS Glide)
   useEffect(() => {
@@ -180,9 +199,10 @@ const DeliveryTrackingMap = ({
           if (nextHead > lastHead) lastHead += 360;
           else nextHead += 360;
         }
-        const heading = lastHead + (nextHead - lastHead) * progress;
-
-        setSmoothLocation({ lat, lng, heading: heading % 360 });
+        const heading = interpolateBearing(lastHead, nextHead, progress);
+        const nextSmoothLocation = { lat, lng, heading };
+        latestDisplayLocationRef.current = nextSmoothLocation;
+        setSmoothLocation(nextSmoothLocation);
       }
       frame = requestAnimationFrame(update);
     };
@@ -288,20 +308,72 @@ const DeliveryTrackingMap = ({
         lng: typeof point.lng === 'function' ? point.lng() : point.lng,
       }));
 
-      const visiblePolyline = displayRiderLocation
-        ? buildVisibleRouteFromRiderPosition(decodedPoints, displayRiderLocation).visiblePolyline
-        : decodedPoints;
+      const routeSignature = [
+        trackingIds[0] || '',
+        isOrderPickedUp ? 'drop' : 'pickup',
+        decodedPoints.length,
+        decodedPoints[0]?.lat,
+        decodedPoints[0]?.lng,
+        decodedPoints[decodedPoints.length - 1]?.lat,
+        decodedPoints[decodedPoints.length - 1]?.lng,
+      ].join(':');
+
+      if (routeProgressSignatureRef.current !== routeSignature) {
+        routeProgressSignatureRef.current = routeSignature;
+        routeProgressDistanceRef.current = 0;
+      }
+
+      let visiblePolyline = decodedPoints;
+      if (displayRiderLocation) {
+        const visibleRoute = buildVisibleRouteFromRiderPosition(decodedPoints, displayRiderLocation, {
+          offRouteThresholdMeters: 35,
+        });
+        const forwardOnlyDistance = Math.max(
+          routeProgressDistanceRef.current || 0,
+          Number(visibleRoute?.distanceAlongRoute || 0),
+        );
+        routeProgressDistanceRef.current = forwardOnlyDistance;
+        const clampedRoute = trimPolylineFromDistanceAlongRoute(decodedPoints, forwardOnlyDistance);
+        visiblePolyline = visibleRoute?.isOffRoute
+          ? [displayRiderLocation, ...clampedRoute.trimmedPolyline]
+          : clampedRoute.trimmedPolyline;
+      }
+
+      const reducedPolyline = simplifyLivePolyline(visiblePolyline, {
+        toleranceMeters: visiblePolyline?.length > 80 ? 6 : 4,
+        highestQuality: false,
+      });
 
       debugLog(
-        `Visible Cloud Polyline prepared (${visiblePolyline?.length || 0}/${decodedPoints.length} points)`,
+        `Visible Cloud Polyline prepared (${reducedPolyline?.length || 0}/${decodedPoints.length} points)`,
       );
 
-      return visiblePolyline;
+      return reducedPolyline;
     } catch (err) {
       console.error('[DeliveryTrackingMap] Error decoding/trimming cloud polyline:', err);
       return null;
     }
-  }, [cloudPolyline, displayRiderLocation]);
+  }, [cloudPolyline, displayRiderLocation, isOrderPickedUp, trackingIds]);
+
+  const fallbackDirectionsPath = useMemo(() => {
+    const overviewPath = directions?.routes?.[0]?.overview_path;
+    if (!Array.isArray(overviewPath)) return [];
+    return overviewPath.map((point) => ({
+      lat: typeof point.lat === 'function' ? point.lat() : point.lat,
+      lng: typeof point.lng === 'function' ? point.lng() : point.lng,
+    }));
+  }, [directions]);
+
+  const activeHeadingPath = visibleCloudPolylinePath?.length > 1
+    ? visibleCloudPolylinePath
+    : fallbackDirectionsPath;
+
+  const markerRiderLocation = displayRiderLocation
+    ? {
+        ...displayRiderLocation,
+        heading: getRouteHeading(activeHeadingPath, displayRiderLocation, displayRiderLocation.heading),
+      }
+    : null;
 
   const baselineDirectionsServiceOptions = useMemo(() => {
     if (!restaurantCoords || !customerCoords) return null;
@@ -474,15 +546,15 @@ const DeliveryTrackingMap = ({
         </OverlayView>
 
         {/* PRO RIDER (OVERLAY VIEW FOR SMOOTH ROTATION / GLIDE) */}
-        {displayRiderLocation && (
+        {markerRiderLocation && (
           <OverlayView
-            position={displayRiderLocation}
+            position={markerRiderLocation}
             mapPaneName={OverlayView.MARKER_LAYER}
           >
             <div 
               style={{
-                transform: `translate(-50%, -50%) rotate(${displayRiderLocation.heading || 0}deg)`,
-                transition: 'all 0.1s linear', // Micro-damping for heading
+                transform: `translate(-50%, -50%) rotate(${markerRiderLocation.heading || 0}deg)`,
+                transition: 'transform 0.18s linear',
               }}
               className="relative w-16 h-16"
             >

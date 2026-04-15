@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { socketService } from '../../../shared/api/socket';
 import { useSettings } from '../../../shared/context/SettingsContext';
 import { clearModuleAuth, getCurrentUser, getModuleToken } from '../../../../Food/utils/auth';
+import AdminModuleSwitcher from '../../../../../shared/components/AdminModuleSwitcher';
 import {
   BarChart3,
   Bell,
@@ -654,6 +655,7 @@ const AdminLayout = () => {
           </div>
 
           <div className="flex items-center gap-3">
+            <AdminModuleSwitcher className="hidden md:flex" />
             <ModeSwitcher mode={mode} setMode={setMode} />
 
             <div className="mr-1 flex items-center gap-1 border-r border-gray-100 pr-4 leading-none">

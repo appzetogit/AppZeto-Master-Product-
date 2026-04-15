@@ -28,8 +28,10 @@ router.get('/v1/health', (req, res) => {
     res.status(200).json({ status: 'UP', message: 'Server is healthy' });
 });
 
-// Taxi module routes are available both on the shared API base and a dedicated taxi-prefixed base.
+// Preferred Taxi module base. New clients should use /api/v1/taxi/*.
 router.use('/v1/taxi', taxiRouter);
+// Legacy Taxi base kept for existing admin pages that still call /api/v1/admin/*.
+// Do not add new clients here; migrate remaining legacy callers to /api/v1/taxi/*.
 router.use('/v1', taxiRouter);
 
 // Food-prefixed auth routes (preferred)

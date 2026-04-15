@@ -172,6 +172,8 @@ adminRouter.get('/admin', getAdminStatus);
 adminRouter.get('/admin/status', getAdminStatus);
 adminRouter.post('/admin/login', loginAdmin);
 
+adminRouter.use('/admin', authenticate(['admin']));
+
 adminRouter.get('/admin/users', getUsers);
 adminRouter.post('/admin/users/bulk-import', bulkImportUsers);
 adminRouter.post('/admin/users', createUser);

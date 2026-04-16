@@ -92,7 +92,7 @@ const ProfileSettings = lazy(() => import('./modules/user/pages/profile/ProfileS
 const PaymentSettings = lazy(() => import('./modules/user/pages/profile/PaymentSettings'));
 const AddressSettings = lazy(() => import('./modules/user/pages/profile/AddressSettings'));
 // Driver Module - Common
-import DriverLayout from './modules/driver/components/DriverLayout';
+const DriverLayout = lazy(() => import('./modules/driver/components/DriverLayout'));
 
 // Driver Module - Registration
 const LanguageSelect = lazy(() => import('./modules/driver/pages/registration/LanguageSelect'));

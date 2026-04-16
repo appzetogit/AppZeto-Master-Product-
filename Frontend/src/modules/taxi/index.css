@@ -1,15 +1,23 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
-
-@import "tailwindcss";
-
-:root {
+.redigo-app,
+.redigo-admin-root {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
-  color-scheme: light dark;
+  color-scheme: light;
   color: #1C2833;
   background-color: #F9F9F9;
+  --primary: #E85D04;
+  --secondary: #F48C06;
+  --color-primary: #E85D04;
+  --color-secondary: #F48C06;
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-display: 'Outfit', sans-serif;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+  --radius-3xl: 2rem;
+  --shadow-premium: 0 10px 40px -10px rgba(0,0,0,0.1);
+  --shadow-soft: 0 4px 20px -2px rgba(0,0,0,0.05);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -25,20 +33,6 @@ body {
 
 #root {
   width: 100%;
-}
-
-@theme {
-  --color-primary: #E85D04;
-  --color-secondary: #F48C06;
-  --font-sans: 'Inter', system-ui, sans-serif;
-  --font-display: 'Outfit', sans-serif;
-  
-  --radius-xl: 1rem;
-  --radius-2xl: 1.5rem;
-  --radius-3xl: 2rem;
-  
-  --shadow-premium: 0 10px 40px -10px rgba(0,0,0,0.1);
-  --shadow-soft: 0 4px 20px -2px rgba(0,0,0,0.05);
 }
 
 /* Global scrollbar hiding for a cleaner mobile experience */
@@ -65,6 +59,8 @@ body {
     /* Centralized Color Controls - Update these to change the entire driver module appearance */
     --color-primary: #1C2833;      /* Driver Brand Primary (Dark Navy/Slate for professional SaaS feel) */
     --color-secondary: #334155;    /* Driver Brand Secondary (Lighter Slate) */
+    --primary: #1C2833;
+    --secondary: #334155;
     
     /* Dedicated Variable-Based Mapping */
     --driver-accent: #FFD700;

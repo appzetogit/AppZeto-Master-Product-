@@ -45,7 +45,7 @@ const SelectLocation = () => {
   const lastCenterRef = useRef(INDIA_CENTER);
   const { isLoaded, loadError } = useAppGoogleMapsLoader();
   const navigate = useNavigate();
-  const routePrefix = window.location.pathname.startsWith('/taxi/user') ? '/taxi/user' : '';
+  const routePrefix = location.pathname.startsWith('/taxi/user') ? '/taxi/user' : '';
 
   // All known locations â€” filtered live as user types
   const allResults = [
@@ -215,11 +215,24 @@ const SelectLocation = () => {
       (pos) => {
         setIsLocating(false);
         const { latitude, longitude } = pos.coords;
+        const coords = [longitude, latitude];
+
+        if (!window.google?.maps?.Geocoder) {
+          const raw = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+          if (activeInput === 'drop') {
+            setDrop(raw);
+            setDropCoords(coords);
+            handleConfirmNavigate(raw, coords);
+          } else {
+            handleSelectResult(raw, coords);
+          }
+          return;
+        }
+
         const geocoder = new window.google.maps.Geocoder();
         geocoder.geocode({ location: { lat: latitude, lng: longitude } }, (results, status) => {
           if (status === 'OK' && results[0]) {
             const addr = results[0].formatted_address;
-            const coords = [longitude, latitude];
             if (activeInput === 'drop') {
               setDrop(addr);
               setDropCoords(coords);
@@ -229,7 +242,6 @@ const SelectLocation = () => {
             }
           } else {
             const raw = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
-            const coords = [longitude, latitude];
             if (activeInput === 'drop') {
               setDrop(raw);
               setDropCoords(coords);

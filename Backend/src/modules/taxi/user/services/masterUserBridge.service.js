@@ -1,4 +1,5 @@
 import { verifyAccessToken } from '../../../../core/auth/token.util.js';
+import { FoodAdmin } from '../../../../core/admin/admin.model.js';
 import { FoodUser as MasterFoodUser } from '../../../../core/users/user.model.js';
 import { ApiError } from '../../../../utils/ApiError.js';
 import { Admin } from '../../admin/models/Admin.js';
@@ -18,6 +19,9 @@ const isDuplicateKeyError = (error) => Number(error?.code) === 11000;
 
 const isMasterUserPayload = (payload) =>
   Boolean(payload?.userId) && String(payload?.role || '').trim().toUpperCase() === 'USER';
+
+const isMasterAdminPayload = (payload) =>
+  Boolean(payload?.userId) && String(payload?.role || '').trim().toUpperCase() === 'ADMIN';
 
 const isTaxiPayload = (payload) =>
   Boolean(payload?.sub) && Object.prototype.hasOwnProperty.call(TAXI_ROLE_MODEL_MAP, normalizeRole(payload?.role));
@@ -192,6 +196,29 @@ export const resolveTaxiIdentityFromToken = async (token, allowedRoles = []) => 
 
     return {
       sub: String(taxiUser._id),
+      role: resolvedRole,
+      authType: 'food',
+      masterUserId: String(payload.userId),
+    };
+  }
+
+  if (isMasterAdminPayload(payload)) {
+    const resolvedRole = 'admin';
+
+    if (allowedRoles.length > 0 && !allowedRoles.includes(resolvedRole)) {
+      throw new ApiError(403, 'Insufficient permissions for this resource');
+    }
+
+    const admin = await FoodAdmin.findById(payload.userId)
+      .select('_id isActive servicesAccess')
+      .lean();
+
+    if (!admin || admin.isActive === false) {
+      throw new ApiError(401, 'Admin account is not active');
+    }
+
+    return {
+      sub: String(admin._id),
       role: resolvedRole,
       authType: 'food',
       masterUserId: String(payload.userId),

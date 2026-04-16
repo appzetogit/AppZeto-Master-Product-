@@ -73,7 +73,7 @@ export default function MasterLandingPage() {
           </div>
           
           <button 
-            onClick={() => navigate("/user/auth/portal")}
+            onClick={() => navigate("/portal")}
             className="flex items-center gap-2 bg-white hover:bg-gray-50 border border-gray-200 px-5 py-2.5 rounded-full transition-all group shadow-sm hover:shadow-md"
           >
             <User className="w-5 h-5 text-gray-500 group-hover:text-orange-500 transition-colors" />

@@ -133,6 +133,8 @@ const AppRoutes = () => {
 
       {/* Auth Module */}
       <Route path="/user/auth/*" element={<AuthApp />} />
+      <Route path="/portal" element={<Navigate to="/user/auth/portal" replace />} />
+      <Route path="/login" element={<Navigate to="/user/auth/login" replace />} />
 
       {/* Shared home entry so /food/user <-> /quick doesn't remount through different app trees */}
       <Route path="/food/user" element={<SharedFoodHomeRoute />} />

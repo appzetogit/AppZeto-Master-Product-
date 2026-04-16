@@ -2802,21 +2802,39 @@ const formatRidePointLabel = (point, fallback = 'Unknown') => {
   return fallback;
 };
 
-const toAdminRideRow = (ride) => {
-  const requestCode = `REQ_${String(ride._id).slice(-12).toUpperCase()}`;
+const formatRideLocationLabel = (address, point, fallback) =>
+  String(address || '').trim() || formatRidePointLabel(point, fallback);
+
+const getAdminTripStatus = (ride, ongoingLabel = 'ONGOING') => {
   const status = String(ride.status || '').toLowerCase();
   const liveStatus = String(ride.liveStatus || '').toLowerCase();
 
-  let tripStatus = 'UPCOMING';
-  if (status === RIDE_STATUS.COMPLETED) {
-    tripStatus = 'COMPLETED';
-  } else if (status === RIDE_STATUS.CANCELLED) {
-    tripStatus = 'CANCELLED';
-  } else if (status === RIDE_STATUS.ONGOING || liveStatus === RIDE_LIVE_STATUS.STARTED) {
-    tripStatus = 'ONGOING';
-  } else if (status === RIDE_STATUS.ACCEPTED || liveStatus === RIDE_LIVE_STATUS.ACCEPTED || liveStatus === RIDE_LIVE_STATUS.ARRIVING) {
-    tripStatus = 'ACCEPTED';
+  if (status === RIDE_STATUS.COMPLETED || liveStatus === RIDE_LIVE_STATUS.COMPLETED) {
+    return 'COMPLETED';
   }
+
+  if (status === RIDE_STATUS.CANCELLED || liveStatus === RIDE_LIVE_STATUS.CANCELLED) {
+    return 'CANCELLED';
+  }
+
+  if (status === RIDE_STATUS.ONGOING || liveStatus === RIDE_LIVE_STATUS.STARTED) {
+    return ongoingLabel;
+  }
+
+  if (
+    status === RIDE_STATUS.ACCEPTED ||
+    liveStatus === RIDE_LIVE_STATUS.ACCEPTED ||
+    liveStatus === RIDE_LIVE_STATUS.ARRIVING
+  ) {
+    return 'ACCEPTED';
+  }
+
+  return 'UPCOMING';
+};
+
+const toAdminRideRow = (ride) => {
+  const requestCode = `REQ_${String(ride._id).slice(-12).toUpperCase()}`;
+  const tripStatus = getAdminTripStatus(ride);
 
   return {
     id: String(ride._id),
@@ -2828,13 +2846,87 @@ const toAdminRideRow = (ride) => {
     tripStatus,
     rideStatus: ride.status,
     liveStatus: ride.liveStatus,
-    paymentOption: 'CASH',
+    paymentOption: String(ride.paymentMethod || 'cash').toUpperCase(),
     fare: Number(ride.fare || 0),
-    pickupLabel: formatRidePointLabel(ride.pickupLocation, 'Pickup'),
-    dropLabel: formatRidePointLabel(ride.dropLocation, 'Drop'),
+    pickupLabel: formatRideLocationLabel(ride.pickupAddress, ride.pickupLocation, 'Pickup'),
+    dropLabel: formatRideLocationLabel(ride.dropAddress, ride.dropLocation, 'Drop'),
     pickupLocation: ride.pickupLocation,
     dropLocation: ride.dropLocation,
     lastDriverLocation: ride.lastDriverLocation || null,
+    user: ride.userId ? {
+      id: String(ride.userId._id),
+      name: ride.userId.name || '',
+      phone: ride.userId.phone || '',
+    } : null,
+    driver: ride.driverId ? {
+      id: String(ride.driverId._id),
+      name: ride.driverId.name || '',
+      phone: ride.driverId.phone || '',
+      vehicleType: ride.driverId.vehicleType || '',
+      vehicleNumber: ride.driverId.vehicleNumber || '',
+    } : null,
+  };
+};
+
+const toAdminDeliveryRow = (ride) => {
+  const delivery = ride.deliveryId && typeof ride.deliveryId === 'object' ? ride.deliveryId : null;
+  const parcel = delivery?.parcel || ride.parcel || {};
+
+  return {
+    id: String(ride._id),
+    deliveryId: delivery?._id ? String(delivery._id) : ride.deliveryId ? String(ride.deliveryId) : null,
+    requestId: `DEL_${String(ride._id).slice(-12).toUpperCase()}`,
+    date: ride.createdAt,
+    userName: ride.userId?.name || 'Unknown User',
+    driverName: ride.driverId?.name || 'Unassigned',
+    transportType: 'Delivery',
+    tripStatus: getAdminTripStatus(ride, 'ON_TRIP'),
+    rideStatus: ride.status,
+    liveStatus: ride.liveStatus,
+    paymentOption: String(ride.paymentMethod || 'cash').toUpperCase(),
+    fare: Number(ride.fare || 0),
+    pickupLabel: formatRideLocationLabel(ride.pickupAddress, ride.pickupLocation, 'Pickup'),
+    dropLabel: formatRideLocationLabel(ride.dropAddress, ride.dropLocation, 'Drop'),
+    pickupLocation: ride.pickupLocation,
+    dropLocation: ride.dropLocation,
+    parcel,
+    user: ride.userId ? {
+      id: String(ride.userId._id),
+      name: ride.userId.name || '',
+      phone: ride.userId.phone || '',
+    } : null,
+    driver: ride.driverId ? {
+      id: String(ride.driverId._id),
+      name: ride.driverId.name || '',
+      phone: ride.driverId.phone || '',
+      vehicleType: ride.driverId.vehicleType || '',
+      vehicleNumber: ride.driverId.vehicleNumber || '',
+    } : null,
+  };
+};
+
+const toAdminIntercityTripRow = (ride) => {
+  const intercity = ride.intercity || {};
+  const routeLabel = [intercity.fromCity, intercity.toCity].filter(Boolean).join(' to ');
+
+  return {
+    id: String(ride._id),
+    requestId: intercity.bookingId || `INT_${String(ride._id).slice(-12).toUpperCase()}`,
+    date: ride.createdAt,
+    userName: ride.userId?.name || 'Unknown User',
+    driverName: ride.driverId?.name || 'Unassigned',
+    transportType: intercity.vehicleName || ride.driverId?.vehicleType || ride.vehicleIconType || 'Intercity',
+    tripStatus: getAdminTripStatus(ride, 'ON_TRIP'),
+    rideStatus: ride.status,
+    liveStatus: ride.liveStatus,
+    paymentOption: String(ride.paymentMethod || 'cash').toUpperCase(),
+    fare: Number(ride.fare || 0),
+    pickupLabel: routeLabel || formatRideLocationLabel(ride.pickupAddress, ride.pickupLocation, 'Pickup'),
+    dropLabel: formatRideLocationLabel(ride.dropAddress, ride.dropLocation, 'Drop'),
+    routeLabel,
+    tripType: intercity.tripType || '',
+    travelDate: intercity.travelDate || '',
+    intercity,
     user: ride.userId ? {
       id: String(ride.userId._id),
       name: ride.userId.name || '',

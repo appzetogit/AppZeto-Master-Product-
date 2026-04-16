@@ -45,6 +45,7 @@ import { adminAPI } from "@food/api";
 import { clearModuleAuth } from "@food/utils/auth";
 import { getCachedSettings, loadBusinessSettings } from "@food/utils/businessSettings";
 import useAdminNotifications from "@food/hooks/useAdminNotifications";
+import AdminModuleSwitcher from "@/shared/components/AdminModuleSwitcher";
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -321,6 +322,8 @@ export default function AdminNavbar({ onMenuClick }) {
 
           {/* Right: User Profile */}
           <div className="flex items-center gap-3">
+            <AdminModuleSwitcher className="hidden xl:flex" />
+
             <Popover open={notificationsOpen} onOpenChange={setNotificationsOpen}>
               <PopoverTrigger asChild>
                 <button

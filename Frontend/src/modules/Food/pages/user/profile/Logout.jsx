@@ -83,9 +83,9 @@ export default function Logout() {
       // Dispatch auth change event to notify other components
       window.dispatchEvent(new Event("userAuthChanged"))
 
-      // Small delay for UX, then return to the shared portal
+      // Small delay for UX, then return to the shared login screen.
       setTimeout(() => {
-        navigate("/user/auth/portal", { replace: true })
+        navigate("/user/auth/login", { replace: true })
       }, 500)
     } catch (err) {
       // Even if there's an error, we should still clear local data and logout
@@ -104,9 +104,9 @@ export default function Logout() {
 
       setError("An error occurred during logout, but you have been signed out locally.")
       
-      // Still return to the shared portal after showing error
+      // Still return to the shared login screen after showing error.
       setTimeout(() => {
-        navigate("/user/auth/portal", { replace: true })
+        navigate("/user/auth/login", { replace: true })
       }, 2000)
     }
   }

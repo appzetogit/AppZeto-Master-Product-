@@ -12,6 +12,8 @@ import { useDeliveryStore } from '@/modules/DeliveryV2/store/useDeliveryStore';
 import { zoneAPI } from '@food/api';
 import {
   buildVisibleRouteFromRiderPosition,
+  getRouteHeading,
+  simplifyLivePolyline,
   trimPolylineFromDistanceAlongRoute,
 } from '@food/utils/liveTrackingPolyline';
 import { normalizeLocationPoint, normalizePickupPoints } from '@/modules/DeliveryV2/utils/orderRouting';
@@ -165,10 +167,14 @@ export const LiveMap = ({
     if (directions) {
       const path = directions.routes[0]?.overview_path;
       if (path && onPathReceivedRef.current) {
-        const simplePath = path.map(p => ({
+        const decodedPath = path.map(p => ({
           lat: typeof p.lat === 'function' ? p.lat() : (p.lat || p.latitude),
           lng: typeof p.lng === 'function' ? p.lng() : (p.lng || p.longitude)
         }));
+        const simplePath = simplifyLivePolyline(decodedPath, {
+          toleranceMeters: 3,
+          highestQuality: true,
+        });
         onPathReceivedRef.current(simplePath);
       }
 
@@ -242,6 +248,11 @@ export const LiveMap = ({
 
     if (fullPath.length < 2) return fullPath;
 
+    const simplifyVisibleRoute = (path, toleranceMeters = 5) => simplifyLivePolyline(path, {
+      toleranceMeters,
+      highestQuality: false,
+    });
+
     if (simulationLocked) {
       let traversedDistance = 0;
       const safeIndex = Math.max(0, Math.min(Number(simulationIndex) || 0, fullPath.length - 2));
@@ -262,7 +273,10 @@ export const LiveMap = ({
         traversedDistance += currentSegmentDistance * safeProgress;
       }
 
-      return trimPolylineFromDistanceAlongRoute(fullPath, traversedDistance).trimmedPolyline;
+      return simplifyVisibleRoute(
+        trimPolylineFromDistanceAlongRoute(fullPath, traversedDistance).trimmedPolyline,
+        3,
+      );
     }
 
     const routeSignature = [
@@ -292,10 +306,20 @@ export const LiveMap = ({
 
     const clampedRoute = trimPolylineFromDistanceAlongRoute(fullPath, forwardOnlyDistance);
 
-    return visibleRoute?.isOffRoute
+    const unclutteredRoute = visibleRoute?.isOffRoute
       ? [parsedRiderLocation, ...clampedRoute.trimmedPolyline]
       : clampedRoute.trimmedPolyline;
+
+    return simplifyVisibleRoute(unclutteredRoute, visibleRoute?.isOffRoute ? 3 : 5);
   }, [activeOrder?._id, activeOrder?.orderId, directions, parsedRiderLocation, simulationIndex, simulationLocked, simulationPath, simulationProgress, tripStatus]);
+
+  const riderMarkerLocation = useMemo(() => {
+    if (!parsedRiderLocation) return null;
+    return {
+      ...parsedRiderLocation,
+      heading: getRouteHeading(remainingPath, parsedRiderLocation, parsedRiderLocation.heading),
+    };
+  }, [parsedRiderLocation, remainingPath]);
 
   if (loadError) return <div className="absolute inset-0 flex items-center justify-center bg-gray-50 text-red-500 font-bold">Map Load Error</div>;
   if (!isLoaded) return <div className="absolute inset-0 flex items-center justify-center bg-gray-50"><div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin" /></div>;
@@ -329,9 +353,9 @@ export const LiveMap = ({
           <Polyline path={directions.routes[0].overview_path} options={{ strokeColor: '#94a3b8', strokeOpacity: 0, strokeWeight: 4, zIndex: 1, icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.3, scale: 3, strokeWeight: 4, strokeColor: '#64748b' }, offset: '0', repeat: '15px' }] }} />
         )}
 
-        {parsedRiderLocation && (
-          <OverlayView position={parsedRiderLocation} mapPaneName={OverlayView.MARKER_LAYER}>
-            <div style={{ transform: `translate(-50%, -50%) rotate(${parsedRiderLocation.heading || 0}deg)`, transition: 'transform 0.5s linear' }} className="relative w-[72px] h-[72px]">
+        {riderMarkerLocation && (
+          <OverlayView position={riderMarkerLocation} mapPaneName={OverlayView.MARKER_LAYER}>
+            <div style={{ transform: `translate(-50%, -50%) rotate(${riderMarkerLocation.heading || 0}deg)`, transition: 'transform 0.35s linear' }} className="relative w-[72px] h-[72px]">
               <img src="/MapRider.png" alt="Rider" className="w-full h-full object-contain" />
             </div>
           </OverlayView>

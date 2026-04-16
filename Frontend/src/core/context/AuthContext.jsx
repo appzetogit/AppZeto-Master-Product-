@@ -120,11 +120,24 @@ export const AuthProvider = ({ children }) => {
         Object.values(ROLE_STORAGE_KEYS).forEach(key => {
             localStorage.removeItem(key);
         });
+        Object.values(LEGACY_ROLE_STORAGE_KEYS).flat().forEach(key => {
+            localStorage.removeItem(key);
+        });
 
         const path = window.location.pathname;
 
-        // Also clear common 'token' key if implemented
+        // Also clear common/compat keys used by older module code.
         localStorage.removeItem('token');
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('adminInfo');
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        ['admin', 'seller', 'delivery', 'user'].forEach((module) => {
+            localStorage.removeItem(`${module}_accessToken`);
+            localStorage.removeItem(`${module}_refreshToken`);
+            localStorage.removeItem(`${module}_authenticated`);
+            localStorage.removeItem(`${module}_user`);
+        });
 
         // Reset auth state for all roles to null
         setAuthData({
@@ -139,10 +152,10 @@ export const AuthProvider = ({ children }) => {
 
         // Final fallback: redirect based on current path if needed
         // (ProtectedRoute usually handles this, but explicit navigation is safer for some UI edge cases)
-        if (path.startsWith('/admin')) window.location.href = '/admin/auth';
+        if (path.startsWith('/admin')) window.location.href = '/admin/login';
         else if (path.startsWith('/seller')) window.location.href = '/seller/auth';
         else if (path.startsWith('/delivery')) window.location.href = '/delivery/auth';
-        else window.location.href = '/user/auth/portal';
+        else window.location.href = '/user/auth/login';
     };
 
     const refreshUser = async () => {

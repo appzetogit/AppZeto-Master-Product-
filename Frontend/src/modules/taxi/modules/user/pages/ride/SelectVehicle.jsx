@@ -515,7 +515,7 @@ const SelectVehicle = () => {
   const routePrefix = location.pathname.startsWith('/taxi/user') ? '/taxi/user' : '';
   const pickupPosition = useMemo(() => toLatLng(pickupCoords), [pickupCoords]);
   const dropPosition = useMemo(() => toLatLng(dropCoords, null), [dropCoords]);
-  const { isLoaded: isMapLoaded, loadError: mapLoadError } = useAppGoogleMapsLoader({ libraries: [] });
+  const { isLoaded: isMapLoaded, loadError: mapLoadError } = useAppGoogleMapsLoader();
 
   const handleScroll = () => {
     if (!scrollRef.current) return;

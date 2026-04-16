@@ -23,9 +23,9 @@ export const getLatLng = (source, fallback = INDIA_CENTER) => {
   return fallback;
 };
 
-export const useAppGoogleMapsLoader = (options = {}) =>
+export const useAppGoogleMapsLoader = () =>
   useJsApiLoader({
     id: GOOGLE_MAPS_LOADER_ID,
     googleMapsApiKey: HAS_VALID_GOOGLE_MAPS_KEY ? GOOGLE_MAPS_API_KEY : '',
-    libraries: options.libraries || GOOGLE_MAPS_LIBRARIES,
+    libraries: GOOGLE_MAPS_LIBRARIES,
   });

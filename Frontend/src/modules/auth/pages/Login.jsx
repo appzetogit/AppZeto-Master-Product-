@@ -22,11 +22,11 @@ export default function UnifiedOTPFastLogin() {
   const submitting = useRef(false)
   const redirectTo = typeof location.state?.redirectTo === "string" && location.state.redirectTo.trim()
     ? location.state.redirectTo.trim()
-    : "/user/auth/portal"
+    : "/portal"
 
   useEffect(() => {
     if (!isModuleAuthenticated("user")) return
-    navigate("/user/auth/portal", { replace: true })
+    navigate("/portal", { replace: true })
   }, [navigate])
 
   const clearNameFlow = () => {

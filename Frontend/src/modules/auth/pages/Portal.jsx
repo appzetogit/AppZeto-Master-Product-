@@ -21,7 +21,7 @@ const SERVICES = [
     name: "Quick Commerce",
     description: "20-Min Essentials",
     image: "/super-app/grocery.png",
-    path: "/food/user",
+    path: "/quick",
     icon: ShoppingBasket,
     color: "from-[#4CAF50] to-[#2DAB52]",
     badge: "Instant",

@@ -35,6 +35,8 @@ import {
   listPublicZones,
 } from '../controllers/admin.controller.js';
 
+import { authMiddleware } from '../../../core/auth/auth.middleware.js';
+import { requireRoles } from '../../../core/roles/role.middleware.js';
 import { verifyAccessToken } from '../../../core/auth/token.util.js';
 
 const optionalAuth = (req, res, next) => {
@@ -52,6 +54,7 @@ const optionalAuth = (req, res, next) => {
 };
 
 const router = express.Router();
+const adminOnly = [authMiddleware, requireRoles('ADMIN')];
 
 router.get('/health', (_req, res) => res.json({ success: true, module: 'quick-commerce', status: 'ok' }));
 
@@ -83,30 +86,30 @@ router.delete('/wishlist/remove/:productId', optionalAuth, removeFromWishlist);
 router.post('/wishlist/toggle', optionalAuth, toggleWishlist);
 
 // Admin endpoints (quick-commerce dashboard)
-router.get('/admin/stats', getAdminStats);
-router.get('/admin/categories', getAdminCategories);
-router.post('/admin/categories', upload.single('image'), createCategory);
-router.put('/admin/categories/:categoryId', upload.single('image'), updateCategory);
-router.delete('/admin/categories/:categoryId', removeCategory);
-router.get('/admin/products', getAdminProducts);
-router.post('/admin/products', upload.fields([
+router.get('/admin/stats', ...adminOnly, getAdminStats);
+router.get('/admin/categories', ...adminOnly, getAdminCategories);
+router.post('/admin/categories', ...adminOnly, upload.single('image'), createCategory);
+router.put('/admin/categories/:categoryId', ...adminOnly, upload.single('image'), updateCategory);
+router.delete('/admin/categories/:categoryId', ...adminOnly, removeCategory);
+router.get('/admin/products', ...adminOnly, getAdminProducts);
+router.post('/admin/products', ...adminOnly, upload.fields([
   { name: 'mainImage', maxCount: 1 },
   { name: 'galleryImages', maxCount: 8 },
 ]), createProduct);
-router.put('/admin/products/:productId', upload.fields([
+router.put('/admin/products/:productId', ...adminOnly, upload.fields([
   { name: 'mainImage', maxCount: 1 },
   { name: 'galleryImages', maxCount: 8 },
 ]), updateProduct);
-router.delete('/admin/products/:productId', removeProduct);
-router.get('/admin/orders', getAdminOrders);
-router.delete('/admin/orders/:orderId', deleteAdminOrder);
-router.get('/admin/seller-requests', getAdminSellerRequests);
-router.put('/admin/seller-requests/:sellerId/approve', approveAdminSellerRequest);
-router.put('/admin/seller-requests/:sellerId/reject', rejectAdminSellerRequest);
-router.get('/admin/zones', getAdminZones);
-router.get('/admin/zones/:zoneId', getAdminZoneById);
-router.post('/admin/zones', createAdminZone);
-router.patch('/admin/zones/:zoneId', updateAdminZone);
-router.delete('/admin/zones/:zoneId', deleteAdminZone);
+router.delete('/admin/products/:productId', ...adminOnly, removeProduct);
+router.get('/admin/orders', ...adminOnly, getAdminOrders);
+router.delete('/admin/orders/:orderId', ...adminOnly, deleteAdminOrder);
+router.get('/admin/seller-requests', ...adminOnly, getAdminSellerRequests);
+router.put('/admin/seller-requests/:sellerId/approve', ...adminOnly, approveAdminSellerRequest);
+router.put('/admin/seller-requests/:sellerId/reject', ...adminOnly, rejectAdminSellerRequest);
+router.get('/admin/zones', ...adminOnly, getAdminZones);
+router.get('/admin/zones/:zoneId', ...adminOnly, getAdminZoneById);
+router.post('/admin/zones', ...adminOnly, createAdminZone);
+router.patch('/admin/zones/:zoneId', ...adminOnly, updateAdminZone);
+router.delete('/admin/zones/:zoneId', ...adminOnly, deleteAdminZone);
 
 export default router;

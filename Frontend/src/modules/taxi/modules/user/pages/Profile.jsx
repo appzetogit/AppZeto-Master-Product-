@@ -102,7 +102,7 @@ const Profile = () => {
       phone: '',
       profileImage: '',
     });
-    navigate('/user/auth/portal', { replace: true });
+    navigate('/user/auth/login', { replace: true });
   };
 
   const initials = (profile.name || 'User')

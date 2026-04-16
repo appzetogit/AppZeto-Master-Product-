@@ -377,8 +377,8 @@ export default function Profile() {
       // Dispatch auth change event to notify other components
       window.dispatchEvent(new Event("userAuthChanged"));
 
-      // Return to the shared portal after logout
-      navigate("/user/auth/portal", { replace: true });
+      // Return to the shared login screen after logout.
+      navigate("/user/auth/login", { replace: true });
     } catch (err) {
       // Even if there's an error, we should still clear local data and logout
       debugError("Error during logout:", err);
@@ -395,8 +395,8 @@ export default function Profile() {
       USER_SESSION_PREFERENCE_KEYS.forEach((key) => localStorage.removeItem(key));
       window.dispatchEvent(new Event("userAuthChanged"));
 
-      // Still return to the shared portal
-      navigate("/user/auth/portal", { replace: true });
+      // Still return to the shared login screen.
+      navigate("/user/auth/login", { replace: true });
     } finally {
       setIsLoggingOut(false);
     }

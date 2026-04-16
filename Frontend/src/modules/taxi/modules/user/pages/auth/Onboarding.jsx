@@ -51,7 +51,7 @@ const Onboarding = () => {
 
   const finish = () => {
     localStorage.setItem('onboarding_complete', '1');
-    navigate('/login');
+    navigate('/user/auth/login');
   };
 
   const handleNext = () => {

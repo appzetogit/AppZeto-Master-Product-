@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     MessageSquare,
@@ -20,7 +20,7 @@ import {
     MapPinned,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { GoogleMap, MarkerF, PolylineF } from '@react-google-maps/api';
+import { GoogleMap, MarkerF, OverlayView, PolylineF } from '@react-google-maps/api';
 import { HAS_VALID_GOOGLE_MAPS_KEY, useAppGoogleMapsLoader } from '../../admin/utils/googleMaps';
 import { socketService } from '../../../shared/api/socket';
 import api from '../../../shared/api/axiosInstance';
@@ -90,6 +90,83 @@ const getTripTitle = (type) => {
 };
 
 const buildFallbackRoute = (origin, destination) => [origin, destination];
+const toRadians = (value) => (Number(value) * Math.PI) / 180;
+const DRIVER_ICON_ROTATION_OFFSET = 0;
+
+const getDistanceMeters = (first, second) => {
+    const lat1 = toRadians(first?.lat || 0);
+    const lat2 = toRadians(second?.lat || 0);
+    const deltaLat = toRadians((second?.lat || 0) - (first?.lat || 0));
+    const deltaLng = toRadians((second?.lng || 0) - (first?.lng || 0));
+    const a =
+        Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+        Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLng / 2) * Math.sin(deltaLng / 2);
+
+    return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+const interpolatePosition = (start, end, ratio) => ({
+    lat: Number(start.lat) + (Number(end.lat) - Number(start.lat)) * ratio,
+    lng: Number(start.lng) + (Number(end.lng) - Number(start.lng)) * ratio,
+});
+
+const getBearingDegrees = (start, end) => {
+    if (!start || !end || arePositionsNearlyEqual(start, end, 0.000001)) {
+        return null;
+    }
+
+    const startLat = toRadians(start.lat);
+    const endLat = toRadians(end.lat);
+    const deltaLng = toRadians(Number(end.lng) - Number(start.lng));
+    const y = Math.sin(deltaLng) * Math.cos(endLat);
+    const x =
+        Math.cos(startLat) * Math.sin(endLat) -
+        Math.sin(startLat) * Math.cos(endLat) * Math.cos(deltaLng);
+    const bearing = (Math.atan2(y, x) * 180) / Math.PI;
+
+    return (bearing + 360) % 360;
+};
+
+const buildSimulationRoute = (path, minimumSteps = 90) => {
+    const cleanPath = (path || []).filter((point) =>
+        Number.isFinite(Number(point?.lat)) && Number.isFinite(Number(point?.lng)),
+    );
+
+    if (cleanPath.length <= 1) {
+        return cleanPath;
+    }
+
+    const segmentDistances = cleanPath.slice(1).map((point, index) => getDistanceMeters(cleanPath[index], point));
+    const totalDistance = segmentDistances.reduce((sum, distance) => sum + distance, 0);
+
+    if (!totalDistance) {
+        return cleanPath;
+    }
+
+    const steps = Math.max(minimumSteps, Math.min(180, Math.ceil(totalDistance / 18)));
+    const result = [];
+
+    for (let step = 0; step <= steps; step += 1) {
+        const targetDistance = (totalDistance * step) / steps;
+        let walked = 0;
+
+        for (let segmentIndex = 0; segmentIndex < segmentDistances.length; segmentIndex += 1) {
+            const segmentDistance = segmentDistances[segmentIndex];
+            const nextWalked = walked + segmentDistance;
+
+            if (targetDistance <= nextWalked || segmentIndex === segmentDistances.length - 1) {
+                const ratio = segmentDistance ? (targetDistance - walked) / segmentDistance : 0;
+                result.push(interpolatePosition(cleanPath[segmentIndex], cleanPath[segmentIndex + 1], Math.min(Math.max(ratio, 0), 1)));
+                break;
+            }
+
+            walked = nextWalked;
+        }
+    }
+
+    return result;
+};
+
 const unwrapApiPayload = (response) => response?.data?.data || response?.data || response;
 const withDriverAuthorization = (token) => (
     token
@@ -100,12 +177,6 @@ const withDriverAuthorization = (token) => (
         }
         : {}
 );
-
-const createTaxiMarkerIcon = () => ({
-    url: carIcon,
-    scaledSize: new window.google.maps.Size(44, 44),
-    anchor: new window.google.maps.Point(22, 22),
-});
 
 const getCurrentCoords = () => new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
@@ -236,11 +307,31 @@ const ActiveTrip = () => {
     const [selectedPaymentMode, setSelectedPaymentMode] = useState('');
     const [map, setMap] = useState(null);
     const [driverPosition, setDriverPosition] = useState(initialDriverPosition);
+    const [driverHeading, setDriverHeading] = useState(0);
+    const driverPositionRef = useRef(initialDriverPosition);
+    const driverHeadingRef = useRef(0);
     const [routePath, setRoutePath] = useState([]);
     const [routeError, setRouteError] = useState('');
+    const [isSimulatingMovement, setIsSimulatingMovement] = useState(false);
+    const [simulationRoute, setSimulationRoute] = useState([]);
+    const [simulationStep, setSimulationStep] = useState(0);
+    const simulationActiveRef = useRef(false);
     const { isLoaded, loadError } = useAppGoogleMapsLoader();
 
     const activeDestination = phase === 'to_pickup' || phase === 'otp_verification' ? pickupPosition : dropPosition;
+    const canSimulateMovement = phase === 'to_pickup' || phase === 'in_trip';
+    const visibleRoutePath = useMemo(() => {
+        if (!isSimulatingMovement || simulationRoute.length <= 1) {
+            return routePath;
+        }
+
+        return [driverPosition, ...simulationRoute.slice(simulationStep + 1)];
+    }, [driverPosition, isSimulatingMovement, routePath, simulationRoute, simulationStep]);
+
+    const simulationProgress = useMemo(() => {
+        if (!simulationRoute.length) return 0;
+        return Math.min(100, Math.round((simulationStep / Math.max(simulationRoute.length - 1, 1)) * 100));
+    }, [simulationRoute.length, simulationStep]);
 
     const tripData = isParcel ? {
         sender: {
@@ -271,13 +362,62 @@ const ActiveTrip = () => {
     const displayFare = liveRequest?.fare || tripData.fare;
     const expectedOtp = String(liveRequest?.otp || effectiveState?.otp || '1234');
 
-    const publishRideStatus = (nextStatus) => {
+    const publishRideStatus = useCallback((nextStatus) => {
         if (!rideId) {
             return;
         }
 
         socketService.emit('ride:status:update', { rideId, status: nextStatus });
-    };
+    }, [rideId]);
+
+    const updateDriverPosition = useCallback((position, heading = null) => {
+        const nextHeading = Number.isFinite(Number(heading))
+            ? Number(heading)
+            : getBearingDegrees(driverPositionRef.current, position);
+
+        if (Number.isFinite(Number(nextHeading))) {
+            driverHeadingRef.current = nextHeading;
+            setDriverHeading(nextHeading);
+        }
+
+        driverPositionRef.current = position;
+        setDriverPosition(position);
+    }, []);
+
+    const publishDriverPosition = useCallback((position, heading = null) => {
+        if (!rideId) {
+            return;
+        }
+
+        socketService.emit('ride:driver-location:update', {
+            rideId,
+            coordinates: [position.lng, position.lat],
+            heading: Number.isFinite(Number(heading)) ? Number(heading) : driverHeadingRef.current,
+        });
+    }, [rideId]);
+
+    const startMovementSimulation = useCallback(() => {
+        if (!canSimulateMovement || isSimulatingMovement) {
+            return;
+        }
+
+        const basePath = routePath.length > 1 ? routePath : buildFallbackRoute(driverPosition, activeDestination);
+        const nextSimulationRoute = buildSimulationRoute([driverPosition, ...basePath.slice(1)]);
+
+        if (nextSimulationRoute.length <= 1) {
+            const nextHeading = getBearingDegrees(driverPosition, activeDestination);
+            updateDriverPosition(activeDestination, nextHeading);
+            publishDriverPosition(activeDestination, nextHeading);
+            return;
+        }
+
+        const initialHeading = getBearingDegrees(nextSimulationRoute[0], nextSimulationRoute[1]) ?? driverHeading;
+        setSimulationRoute(nextSimulationRoute);
+        setSimulationStep(0);
+        setIsSimulatingMovement(true);
+        updateDriverPosition(nextSimulationRoute[0], initialHeading);
+        publishDriverPosition(nextSimulationRoute[0], initialHeading);
+    }, [activeDestination, canSimulateMovement, driverHeading, driverPosition, isSimulatingMovement, publishDriverPosition, routePath, updateDriverPosition]);
 
     const startTripAfterOtp = (enteredOtp) => {
         if (String(enteredOtp).length !== 4) {
@@ -296,8 +436,61 @@ const ActiveTrip = () => {
     };
 
     useEffect(() => {
-        setDriverPosition(initialDriverPosition);
-    }, [initialDriverPosition]);
+        simulationActiveRef.current = isSimulatingMovement;
+    }, [isSimulatingMovement]);
+
+    useEffect(() => {
+        driverPositionRef.current = driverPosition;
+    }, [driverPosition]);
+
+    useEffect(() => {
+        driverHeadingRef.current = driverHeading;
+    }, [driverHeading]);
+
+    useEffect(() => {
+        if (!isSimulatingMovement || simulationRoute.length <= 1) {
+            return undefined;
+        }
+
+        const timer = window.setInterval(() => {
+            setSimulationStep((currentStep) => {
+                const nextStep = Math.min(currentStep + 1, simulationRoute.length - 1);
+                const nextPosition = simulationRoute[nextStep];
+
+                if (nextPosition) {
+                    const nextHeading =
+                        getBearingDegrees(simulationRoute[currentStep], nextPosition) ??
+                        getBearingDegrees(nextPosition, simulationRoute[nextStep + 1]) ??
+                        driverHeadingRef.current;
+
+                    updateDriverPosition(nextPosition, nextHeading);
+                    publishDriverPosition(nextPosition, nextHeading);
+                }
+
+                if (nextStep >= simulationRoute.length - 1) {
+                    window.clearInterval(timer);
+                    setIsSimulatingMovement(false);
+
+                    if (phase === 'to_pickup') {
+                        setPhase('otp_verification');
+                        publishRideStatus('arriving');
+                    } else if (phase === 'in_trip') {
+                        setPhase('payment_confirm');
+                    }
+                }
+
+                return nextStep;
+            });
+        }, 180);
+
+        return () => window.clearInterval(timer);
+    }, [isSimulatingMovement, phase, publishDriverPosition, publishRideStatus, simulationRoute, updateDriverPosition]);
+
+    useEffect(() => {
+        if (!simulationActiveRef.current) {
+            updateDriverPosition(initialDriverPosition);
+        }
+    }, [initialDriverPosition, updateDriverPosition]);
 
     useEffect(() => {
         let watchId = null;
@@ -325,14 +518,9 @@ const ActiveTrip = () => {
 
         getCurrentCoords()
             .then((position) => {
-                if (!cancelled) {
-                    setDriverPosition(position);
-                    if (rideId) {
-                        socketService.emit('ride:driver-location:update', {
-                            rideId,
-                            coordinates: [position.lng, position.lat],
-                        });
-                    }
+                if (!cancelled && !simulationActiveRef.current) {
+                    updateDriverPosition(position);
+                    publishDriverPosition(position);
                 }
             })
             .catch(() => {});
@@ -347,7 +535,7 @@ const ActiveTrip = () => {
 
         watchId = navigator.geolocation.watchPosition(
             (pos) => {
-                if (cancelled) {
+                if (cancelled || simulationActiveRef.current) {
                     return;
                 }
 
@@ -355,14 +543,17 @@ const ActiveTrip = () => {
                     lat: pos.coords.latitude,
                     lng: pos.coords.longitude,
                 };
+                const nextHeading = Number.isFinite(Number(pos.coords.heading))
+                    ? Number(pos.coords.heading)
+                    : getBearingDegrees(driverPositionRef.current, nextPosition);
 
-                setDriverPosition(nextPosition);
+                updateDriverPosition(nextPosition, nextHeading);
 
                 if (rideId) {
                     socketService.emit('ride:driver-location:update', {
                         rideId,
                         coordinates: [nextPosition.lng, nextPosition.lat],
-                        heading: pos.coords.heading,
+                        heading: Number.isFinite(Number(nextHeading)) ? nextHeading : driverHeadingRef.current,
                         speed: pos.coords.speed,
                     });
                 }
@@ -383,9 +574,13 @@ const ActiveTrip = () => {
                 navigator.geolocation.clearWatch(watchId);
             }
         };
-    }, [navigate, rideId]);
+    }, [navigate, publishDriverPosition, rideId, updateDriverPosition]);
 
     useEffect(() => {
+        if (isSimulatingMovement) {
+            return undefined;
+        }
+
         if (!isLoaded || !window.google?.maps?.DirectionsService) {
             setRoutePath(buildFallbackRoute(driverPosition, activeDestination));
             setRouteError('');
@@ -432,7 +627,7 @@ const ActiveTrip = () => {
         return () => {
             active = false;
         };
-    }, [activeDestination, driverPosition, isLoaded]);
+    }, [activeDestination, driverPosition, isLoaded, isSimulatingMovement]);
 
     useEffect(() => {
         if (!map || !window.google?.maps) {
@@ -447,8 +642,8 @@ const ActiveTrip = () => {
 
         const bounds = new window.google.maps.LatLngBounds();
 
-        if (routePath.length > 1) {
-            routePath.forEach((point) => bounds.extend(point));
+        if (visibleRoutePath.length > 1) {
+            visibleRoutePath.forEach((point) => bounds.extend(point));
             bounds.extend(driverPosition);
             bounds.extend(activeDestination);
             map.fitBounds(bounds, 72);
@@ -458,7 +653,7 @@ const ActiveTrip = () => {
         bounds.extend(driverPosition);
         bounds.extend(activeDestination);
         map.fitBounds(bounds, 80);
-    }, [activeDestination, driverPosition, map, routePath]);
+    }, [activeDestination, driverPosition, map, visibleRoutePath]);
 
     const handleOTPChange = (index, value) => {
         if (!/^\d*$/.test(value)) return;
@@ -545,9 +740,9 @@ const ActiveTrip = () => {
                         onUnmount={() => setMap(null)}
                         options={mapOptions}
                     >
-                        {routePath.length > 1 && (
+                        {visibleRoutePath.length > 1 && (
                             <PolylineF
-                                path={routePath}
+                                path={visibleRoutePath}
                                 options={{
                                     strokeColor: '#111827',
                                     strokeOpacity: 0.9,
@@ -555,11 +750,32 @@ const ActiveTrip = () => {
                                 }}
                             />
                         )}
-                        <MarkerF
+                        <OverlayView
                             position={driverPosition}
-                            title="Driver"
-                            icon={createTaxiMarkerIcon()}
-                        />
+                            mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+                        >
+                            <div
+                                className="pointer-events-none"
+                                style={{
+                                    transform: 'translate(-50%, -50%)',
+                                }}
+                            >
+                                <div
+                                    className="h-11 w-11"
+                                    style={{
+                                        transform: `rotate(${driverHeading + DRIVER_ICON_ROTATION_OFFSET}deg)`,
+                                        transformOrigin: '50% 50%',
+                                        transition: 'transform 180ms linear',
+                                    }}
+                                >
+                                    <img
+                                        src={carIcon}
+                                        alt="Driver vehicle"
+                                        className="h-full w-full object-contain drop-shadow-[0_8px_12px_rgba(15,23,42,0.35)]"
+                                    />
+                                </div>
+                            </div>
+                        </OverlayView>
                         <MarkerF
                             position={activeDestination}
                             title={phase === 'to_pickup' || phase === 'otp_verification' ? 'Pickup' : 'Drop'}
@@ -627,6 +843,40 @@ const ActiveTrip = () => {
                         </div>
                     </div>
                 </div>
+
+                {canSimulateMovement && (
+                    <div className="absolute top-44 left-4 z-40 w-[168px] rounded-2xl border border-white/80 bg-white/94 px-3 py-2 shadow-lg backdrop-blur">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                                <p className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">Simulation</p>
+                                <p className="mt-0.5 truncate text-[10px] font-black uppercase text-slate-900">
+                                    {isSimulatingMovement ? `${simulationProgress}% complete` : 'Vehicle movement'}
+                                </p>
+                            </div>
+                            <div className="h-8 w-8 shrink-0 rounded-xl bg-slate-900 p-1.5">
+                                <img src={carIcon} alt="" className="h-full w-full object-contain" />
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={startMovementSimulation}
+                            disabled={isSimulatingMovement}
+                            className={`h-9 w-full rounded-xl text-[10px] font-black uppercase tracking-wider transition active:scale-95 ${
+                                isSimulatingMovement
+                                    ? 'bg-slate-100 text-slate-400'
+                                    : 'bg-emerald-500 text-white shadow-md shadow-emerald-500/25'
+                            }`}
+                        >
+                            {isSimulatingMovement ? 'Driving...' : 'Simulate Drive'}
+                        </button>
+                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                            <div
+                                className="h-full rounded-full bg-emerald-500 transition-all duration-200"
+                                style={{ width: `${simulationProgress}%` }}
+                            />
+                        </div>
+                    </div>
+                )}
 
                 {routeError && (
                     <div className="absolute top-44 right-4 z-40 rounded-2xl bg-white/92 border border-amber-100 shadow-lg px-3 py-2 min-w-[148px]">

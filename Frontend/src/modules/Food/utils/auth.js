@@ -150,6 +150,11 @@ export function clearModuleAuth(module) {
   localStorage.removeItem(`${module}_refreshToken`);
   localStorage.removeItem(`${module}_authenticated`);
   localStorage.removeItem(`${module}_user`);
+  if (module === "admin") {
+    localStorage.removeItem("auth_admin");
+    localStorage.removeItem("adminToken");
+    localStorage.removeItem("adminInfo");
+  }
   if (module === "user") {
     localStorage.removeItem("auth_customer");
     localStorage.removeItem("accessToken");
@@ -275,6 +280,13 @@ export function setAuthData(module, token, user, refreshToken = null) {
     }
 
     localStorage.setItem(tokenKey, token);
+    if (module === "admin") {
+      localStorage.setItem("auth_admin", token);
+      localStorage.setItem("adminToken", token);
+      if (user) {
+        localStorage.setItem("adminInfo", JSON.stringify(user));
+      }
+    }
     if (module === "user") {
       localStorage.setItem("auth_customer", token);
       localStorage.setItem("accessToken", token);
@@ -327,6 +339,13 @@ export function setAuthData(module, token, user, refreshToken = null) {
         }
         // Retry storing
         localStorage.setItem(`${module}_accessToken`, token);
+        if (module === "admin") {
+          localStorage.setItem("auth_admin", token);
+          localStorage.setItem("adminToken", token);
+          if (user) {
+            localStorage.setItem("adminInfo", JSON.stringify(user));
+          }
+        }
         if (module === "user") {
           localStorage.setItem("auth_customer", token);
           localStorage.setItem("accessToken", token);

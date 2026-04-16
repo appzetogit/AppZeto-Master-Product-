@@ -2,23 +2,33 @@ import { initializeApp } from 'firebase/app';
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 import { isWebView } from './deviceDetect';
 
-// Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyDvZuIOlJce5MFqM7UdaPnMxnHggOVwUnA",
-  authDomain: "rukkooin-39480.firebaseapp.com",
-  projectId: "rukkooin-39480",
-  storageBucket: "rukkooin-39480.firebasestorage.app",
-  messagingSenderId: "463389493822",
-  appId: "1:463389493822:web:79fa9aabcb1d88f6965f6f"
+const sanitizeEnv = (value) => {
+  if (typeof value !== 'string') return '';
+  return value.trim();
 };
 
-const VAPID_KEY = "BOF0yWdjH2UD1rGca-rOpwA2zrKW0Xy3ZmPmwH8KFTJcbXNJ5AHE8v4rM_xXUqW0fvd3SaZl_Qbnuazzc6lFdRM";
+// Firebase configuration
+const firebaseConfig = {
+  apiKey: sanitizeEnv(import.meta.env.VITE_FIREBASE_API_KEY),
+  authDomain: sanitizeEnv(import.meta.env.VITE_FIREBASE_AUTH_DOMAIN),
+  projectId: sanitizeEnv(import.meta.env.VITE_FIREBASE_PROJECT_ID),
+  storageBucket: sanitizeEnv(import.meta.env.VITE_FIREBASE_STORAGE_BUCKET),
+  messagingSenderId: sanitizeEnv(import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID),
+  appId: sanitizeEnv(import.meta.env.VITE_FIREBASE_APP_ID)
+};
 
-const app = initializeApp(firebaseConfig);
+const VAPID_KEY = sanitizeEnv(import.meta.env.VITE_FIREBASE_VAPID_KEY);
+const HAS_FIREBASE_WEB_CONFIG = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.appId);
+
+const app = HAS_FIREBASE_WEB_CONFIG ? initializeApp(firebaseConfig) : null;
 
 let messaging = null;
 
 const getMessagingInstance = () => {
+  if (!HAS_FIREBASE_WEB_CONFIG || !app) {
+    return null;
+  }
+
   // Firebase Web Messaging requires serviceWorker support.
   // Flutter WebViews do NOT support service workers, so skip in that context.
   if (typeof window !== 'undefined' && 'serviceWorker' in navigator && !isWebView()) {
@@ -63,7 +73,12 @@ export const requestNotificationPermission = async () => {
 
     const messagingInstance = getMessagingInstance();
     if (!messagingInstance) {
-      console.warn('[FCM] Could not get messaging instance (possibly in WebView or incompatible browser).');
+      console.warn('[FCM] Could not get messaging instance (missing Firebase config, WebView, or incompatible browser).');
+      return null;
+    }
+
+    if (!VAPID_KEY) {
+      console.warn('[FCM] Missing VITE_FIREBASE_VAPID_KEY. Skipping web push registration.');
       return null;
     }
 

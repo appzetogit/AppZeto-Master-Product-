@@ -67,6 +67,13 @@ const AdminLayout = () => {
         navigate('/admin/login', { replace: true });
     };
 
+    const ADMIN_MODULES = [
+        { key: 'food', label: 'Food', path: '/admin/food', active: location.pathname.startsWith('/admin/food') },
+        { key: 'quick', label: 'Quick', path: '/admin/quick-commerce', active: location.pathname.startsWith('/admin/quick-commerce') },
+        { key: 'taxi', label: 'Taxi', path: '/taxi/admin/dashboard', active: location.pathname.startsWith('/taxi/admin') || location.pathname.startsWith('/admin/taxi') },
+        { key: 'hotel', label: 'Hotel', path: '/hotel/admin/dashboard', active: location.pathname.startsWith('/hotel/admin') || location.pathname.startsWith('/admin/hotel') },
+    ];
+
     const MENU_ITEMS = [
         { icon: LayoutDashboard, label: 'Dashboard', path: '/hotel/admin/dashboard' },
         { icon: Users, label: 'User Management', path: '/hotel/admin/users' },
@@ -98,6 +105,48 @@ const AdminLayout = () => {
                         className={`object-contain transition-all duration-300 ${isSidebarOpen ? 'h-20 w-auto' : 'h-10 w-10'}`}
                     />
                 </div>
+
+                {isSidebarOpen ? (
+                    <div className="px-3 pt-4 pb-2 border-b border-gray-800">
+                        <p className="px-2 text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">
+                            Switch Module
+                        </p>
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                            {ADMIN_MODULES.map((module) => (
+                                <button
+                                    key={module.key}
+                                    type="button"
+                                    onClick={() => navigate(module.path)}
+                                    className={`rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wide transition-all ${module.active
+                                        ? 'bg-white text-black shadow-sm'
+                                        : 'bg-gray-900 text-gray-300 hover:bg-gray-800 hover:text-white'
+                                        }`}
+                                >
+                                    {module.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="px-2 pt-4 pb-2 border-b border-gray-800">
+                        <div className="flex flex-col items-center gap-2">
+                            {ADMIN_MODULES.map((module) => (
+                                <button
+                                    key={module.key}
+                                    type="button"
+                                    onClick={() => navigate(module.path)}
+                                    className={`w-11 h-9 rounded-lg text-[10px] font-bold uppercase transition-all ${module.active
+                                        ? 'bg-white text-black shadow-sm'
+                                        : 'bg-gray-900 text-gray-300 hover:bg-gray-800 hover:text-white'
+                                        }`}
+                                    title={module.label}
+                                >
+                                    {module.label.slice(0, 1)}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* Navigation */}
                 <nav className="flex-1 py-6 px-3 space-y-2 overflow-y-auto custom-scrollbar">

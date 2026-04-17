@@ -70,12 +70,12 @@ export default function SuperAppPortal() {
   }
 
   return (
-    <div className="min-h-screen bg-[#fafafa] flex flex-col px-4 sm:px-6 pt-3 pb-3 overflow-hidden relative">
+    <div className="relative flex min-h-[100dvh] flex-col overflow-x-hidden bg-[#fafafa] px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6">
       {/* Floating profile action */}
       <button
         type="button"
         onClick={() => navigate("/user/auth/login")}
-        className="fixed top-2 right-2 sm:top-3 sm:right-3 z-40 flex items-center gap-1.5 bg-white hover:bg-gray-50 border border-gray-200 px-3 py-2 rounded-full transition-all shadow-md hover:shadow-lg"
+        className="absolute right-2 top-[max(0.5rem,env(safe-area-inset-top))] z-40 flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-2 shadow-md transition-all hover:bg-gray-50 hover:shadow-lg sm:right-3 sm:top-3"
       >
         <User className="w-4 h-4 text-gray-500" />
         <span className="font-bold text-xs sm:text-sm text-gray-700">Profile</span>
@@ -120,7 +120,7 @@ export default function SuperAppPortal() {
       </div>
 
       {/* Top Header Section */}
-      <div className="flex-1 flex flex-col items-center text-center justify-start space-y-3 sm:space-y-4 mt-10 sm:mt-12 relative z-10">
+      <div className="relative z-10 mt-14 flex flex-1 flex-col items-center justify-start space-y-3 text-center sm:mt-12 sm:space-y-4">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}

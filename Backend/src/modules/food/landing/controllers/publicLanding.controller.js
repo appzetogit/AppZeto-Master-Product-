@@ -10,7 +10,20 @@ import { sendResponse } from '../../../../utils/response.js';
 /** Public hero banners for user home: active only, sorted, with linkedRestaurants populated for click-through */
 export const getPublicHeroBannersController = async (req, res, next) => {
     try {
-        const docs = await FoodHeroBanner.find({ isActive: true })
+        const requestedZoneId =
+            typeof req.query?.zoneId === 'string' ? req.query.zoneId.trim() : '';
+        const query = { isActive: true };
+
+        if (requestedZoneId) {
+            query.$or = [
+                { zoneId: requestedZoneId },
+                { zoneId: '' },
+                { zoneId: null },
+                { zoneId: { $exists: false } }
+            ];
+        }
+
+        const docs = await FoodHeroBanner.find(query)
             .sort({ sortOrder: 1, createdAt: -1 })
             .populate({
                 path: 'linkedRestaurantIds',

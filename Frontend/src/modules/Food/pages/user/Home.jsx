@@ -45,6 +45,7 @@ import {
   ExploreGridSkeleton,
   HeroBannerSkeleton,
   LoadingSkeletonRegion,
+  RestaurantCardSkeleton,
   RestaurantGridSkeleton,
 } from "@food/components/ui/loading-skeletons";
 import { useProfile } from "@food/context/ProfileContext";
@@ -141,6 +142,47 @@ const InlineLazyFallback = ({ className = "" }) => (
 );
 
 const WEBVIEW_SESSION_CACHE_BUSTER = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+const LazyComponent = React.memo(({ children, placeholder, rootMargin = "300px" }) => {
+  const [inView, setInView] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (inView) return;
+    const currentRef = ref.current;
+    if (!currentRef) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setInView(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin, threshold: 0.01 }
+    );
+
+    observer.observe(currentRef);
+    return () => observer.disconnect();
+  }, [inView, rootMargin]);
+
+  return (
+    <div ref={ref} className="h-full min-h-[150px]">
+      {inView ? (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
+          className="h-full"
+        >
+          {children}
+        </motion.div>
+      ) : (
+        placeholder || <div className="h-full w-full animate-pulse rounded-3xl bg-slate-100/60" />
+      )}
+    </div>
+  );
+});
 
 const getRestaurantDisplayName = (restaurant) => {
   const nameCandidates = [
@@ -448,7 +490,7 @@ export default function Home() {
   const [, setRestaurantDietMeta] = useState({});
   const [showAllCategoriesModal, setShowAllCategoriesModal] = useState(false);
   const [availabilityTick, setAvailabilityTick] = useState(Date.now());
-  const RESTAURANTS_BATCH_SIZE = 9;
+  const RESTAURANTS_BATCH_SIZE = 6;
   const [visibleRestaurantCount, setVisibleRestaurantCount] = useState(
     RESTAURANTS_BATCH_SIZE,
   );
@@ -836,41 +878,6 @@ export default function Home() {
     };
   }, [showVegModePopup]);
 
-  // Fetch hero banners from public API (no auth required)
-  useEffect(() => {
-    let cancelled = false;
-    setLoadingBanners(true);
-    publicGetOnce("/food/hero-banners/public")
-      .then((response) => {
-        if (cancelled) return;
-        const data = response?.data?.data;
-        const list = Array.isArray(data?.banners)
-          ? data.banners
-          : Array.isArray(data)
-            ? data
-            : [];
-        const images = list
-          .map((b) => (b && typeof b.imageUrl === "string" ? b.imageUrl : ""))
-          .filter(Boolean);
-        
-        setHeroBannerImages(images);
-        setHeroBannersData(list);
-        setCurrentBannerIndex(0);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        debugError("Failed to fetch hero banners", err);
-        setHeroBannerImages([]);
-        setHeroBannersData([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingBanners(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   // Old backend endpoint removed: keep UI stable with empty categories.
   useEffect(() => {
     setLoadingRealCategories(true);
@@ -1251,6 +1258,44 @@ export default function Home() {
     !savedAddressZoneLoading &&
     !savedAddressZoneError &&
     isSavedAddressOutOfService;
+
+  // Fetch hero banners from public API (zone-aware)
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingBanners(true);
+    const heroBannerPath = zoneId
+      ? `/food/hero-banners/public?zoneId=${encodeURIComponent(String(zoneId))}`
+      : "/food/hero-banners/public";
+    publicGetOnce(heroBannerPath)
+      .then((response) => {
+        if (cancelled) return;
+        const data = response?.data?.data;
+        const list = Array.isArray(data?.banners)
+          ? data.banners
+          : Array.isArray(data)
+            ? data
+            : [];
+        const images = list
+          .map((b) => (b && typeof b.imageUrl === "string" ? b.imageUrl : ""))
+          .filter(Boolean);
+
+        setHeroBannerImages(images);
+        setHeroBannersData(list);
+        setCurrentBannerIndex(0);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        debugError("Failed to fetch hero banners", err);
+        setHeroBannerImages([]);
+        setHeroBannersData([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingBanners(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [zoneId]);
 
   // Fetch categories (zone-aware) for the homepage category rail.
   useEffect(() => {
@@ -2548,7 +2593,7 @@ export default function Home() {
             aria-label={`Open hero banner ${currentBannerIndex + 1}`}
           />
 
-          <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex gap-1.5 px-3 py-1.5 bg-black/20 backdrop-blur-md rounded-full border border-white/10 z-30">
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 px-2.5 py-1.5 bg-black/20 backdrop-blur-md rounded-full border border-white/10 shadow-[0_8px_20px_-14px_rgba(15,23,42,0.8)] z-30">
             {heroBannerImages.map((_, index) => (
               <button
                 key={index}
@@ -2737,6 +2782,20 @@ export default function Home() {
                 </motion.section>
               )}
 
+              {HeroBannerSection && (
+                <motion.section
+                  className="content-auto px-4 pt-3 sm:pt-4 lg:pt-5"
+                  initial={false}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <div className="overflow-hidden rounded-[22px] border border-slate-100 bg-white shadow-[0_18px_40px_-24px_rgba(15,23,42,0.3)]">
+                    <div className="aspect-[16/8.8] w-full sm:aspect-[16/7.2]">
+                      {HeroBannerSection}
+                    </div>
+                  </div>
+                </motion.section>
+              )}
+
               <motion.section
                 className="content-auto pt-2 sm:pt-3 lg:pt-4"
                 initial={false}
@@ -2906,18 +2965,18 @@ export default function Home() {
                         restaurantSlug ||
                         index
                       }
-                      className="h-full transform transition-all duration-300 hover:-translate-y-3 hover:scale-[1.02]"
+                      className="h-full"
                       style={{
                         perspective: 1000,
-                        animation:
-                          index < 10
-                            ? `fade-in-up 0.5s ease-out ${index * 0.05}s backwards`
-                            : "none",
                       }}>
-                      <div className="h-full group">
-                        <Link
-                          to={`/user/restaurants/${restaurantSlug}`}
-                          className="h-full flex">
+                      <LazyComponent 
+                        placeholder={<RestaurantCardSkeleton />}
+                        rootMargin="500px"
+                      >
+                        <div className="h-full group hover:-translate-y-3 hover:scale-[1.02] transform transition-all duration-300">
+                          <Link
+                            to={`/user/restaurants/${restaurantSlug}`}
+                            className="h-full flex">
                           <Card
                             className={`overflow-hidden gap-0 cursor-pointer border-0 dark:border-gray-800 group bg-white dark:bg-[#1a1a1a] border-background transition-all duration-500 py-0 rounded-[28px] flex flex-col h-full w-full relative shadow-sm hover:shadow-xl ${
                               isOutOfService || !availability.isOpen
@@ -3037,8 +3096,10 @@ export default function Home() {
                           </Card>
                         </Link>
                       </div>
-                    </div>
-                  );
+                    </LazyComponent>
+                  </div>
+                );
+
                 })}
               </div>
             </div>

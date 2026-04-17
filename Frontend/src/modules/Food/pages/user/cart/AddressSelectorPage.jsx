@@ -9,9 +9,9 @@ import { useLocation as useGeoLocation } from "@food/hooks/useLocation"
 import { useProfile } from "@food/context/ProfileContext"
 import { toast } from "sonner"
 import { locationAPI, userAPI } from "@food/api"
-import { Loader } from '@googlemaps/js-api-loader'
 import AnimatedPage from "@food/components/user/AnimatedPage"
 import useAppBackNavigation from "@food/hooks/useAppBackNavigation"
+import { loadGoogleMaps } from "@/core/services/googleMapsLoader"
 
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -126,6 +126,7 @@ export default function AddressSelectorPage() {
   const [isKeywordSearching, setIsKeywordSearching] = useState(false)
   const [lockMapToAutocomplete, setLockMapToAutocomplete] = useState(true)
   const [GOOGLE_MAPS_API_KEY, setGOOGLE_MAPS_API_KEY] = useState(null)
+  const [mapUnavailable, setMapUnavailable] = useState(false)
   const [formScrollTop, setFormScrollTop] = useState(0)
   const [keyboardInset, setKeyboardInset] = useState(0)
   const [baseMapHeight, setBaseMapHeight] = useState(320)
@@ -216,15 +217,18 @@ export default function AddressSelectorPage() {
 
   // Map Initialization logic
   useEffect(() => {
-    if (!MAPS_ENABLED || !showAddressForm || !mapContainerRef.current || !GOOGLE_MAPS_API_KEY) return
+    if (!MAPS_ENABLED || mapUnavailable || !showAddressForm || !mapContainerRef.current || !GOOGLE_MAPS_API_KEY) return
 
     let isMounted = true
     setMapLoading(true)
 
     const initializeGoogleMap = async () => {
       try {
-        const loader = new Loader({ apiKey: GOOGLE_MAPS_API_KEY, version: "weekly" })
-        const google = await loader.load()
+        const maps = await loadGoogleMaps(GOOGLE_MAPS_API_KEY)
+        const google = typeof window !== "undefined" ? window.google : null
+        if (!maps || !google?.maps?.Map) {
+          throw new Error("Google Maps is unavailable")
+        }
         if (!isMounted || !mapContainerRef.current) return
 
         const initialPos = { lat: mapPosition[0], lng: mapPosition[1] }
@@ -254,12 +258,13 @@ export default function AddressSelectorPage() {
         setMapLoading(false)
       } catch (err) {
         debugError("Map init error:", err)
+        setMapUnavailable(true)
         setMapLoading(false)
       }
     }
     initializeGoogleMap()
     return () => { isMounted = false }
-  }, [showAddressForm, GOOGLE_MAPS_API_KEY])
+  }, [showAddressForm, GOOGLE_MAPS_API_KEY, mapPosition, mapUnavailable])
 
   const handleUseCurrentLocation = async () => {
     try {
@@ -292,7 +297,6 @@ export default function AddressSelectorPage() {
       persistSelectedLocation(buildLocationPayloadFromAddress(address))
       try { localStorage.setItem("deliveryAddressMode", "saved") } catch {}
       toast.success("Address selected")
-      handleBack()
     }
   }
 
@@ -411,7 +415,9 @@ export default function AddressSelectorPage() {
         persistSelectedLocation(buildLocationPayloadFromAddress(created || payload))
         try { localStorage.setItem("deliveryAddressMode", "saved") } catch {}
         toast.success("Address saved")
-        handleBack()
+        setShowAddressForm(false)
+        setAddressAutocompleteValue("")
+        setKeywordAddressSuggestions([])
       }
     } catch (error) {
       toast.error("Failed to save address")
@@ -541,6 +547,12 @@ export default function AddressSelectorPage() {
             </div>
 
             <div ref={mapContainerRef} className="w-full h-full bg-gray-100 dark:bg-gray-800" />
+
+            {mapUnavailable && (
+              <div className="absolute inset-x-4 top-20 z-20 rounded-2xl border border-amber-200 bg-white/95 px-4 py-3 text-sm text-amber-900 shadow-lg backdrop-blur">
+                Map preview could not load here. You can still enter and save the address manually below.
+              </div>
+            )}
             
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
                <div className="relative mb-8 flex flex-col items-center">

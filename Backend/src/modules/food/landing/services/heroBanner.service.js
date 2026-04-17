@@ -23,6 +23,7 @@ export const createHeroBannersFromFiles = async (files, meta = {}) => {
                 title: meta.title,
                 ctaText: meta.ctaText,
                 ctaLink: meta.ctaLink,
+                zoneId: typeof meta.zoneId === 'string' ? meta.zoneId.trim() : '',
                 linkedRestaurantIds: meta.linkedRestaurantIds || [],
                 sortOrder: meta.sortOrder ?? 0,
                 isActive: true
@@ -70,6 +71,20 @@ export const toggleHeroBannerStatus = async (id, isActive) => {
         { isActive },
         { new: true }
     ).lean();
+    return updated;
+};
+
+export const updateHeroBanner = async (id, updates = {}) => {
+    const payload = {};
+
+    if (Object.prototype.hasOwnProperty.call(updates, 'zoneId')) {
+        payload.zoneId = typeof updates.zoneId === 'string' ? updates.zoneId.trim() : '';
+    }
+
+    const updated = await FoodHeroBanner.findByIdAndUpdate(id, payload, {
+        new: true
+    }).lean();
+
     return updated;
 };
 

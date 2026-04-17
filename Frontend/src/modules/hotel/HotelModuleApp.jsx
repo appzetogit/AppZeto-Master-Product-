@@ -2,7 +2,8 @@ import React, { Suspense } from 'react';
 import { Routes, Route, useLocation, Navigate, Outlet } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import toast from 'react-hot-toast';
-import { Clock, Loader2 } from 'lucide-react';
+import { Clock } from 'lucide-react';
+import { HotelShellSkeleton } from '@food/components/ui/loading-skeletons';
 import './index.css';
 
 // Eager Imports (Critical UI)
@@ -132,16 +133,7 @@ const getHotelAuthToken = () => (
 );
 
 // Loading Fallback Component
-const PageLoader = () => (
-  <div className="min-h-screen bg-white flex items-center justify-center px-6">
-    <div className="flex flex-col items-center gap-4 text-center">
-      <div className="w-16 h-16 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-teal-600" />
-      </div>
-      <p className="text-slate-500 text-sm font-medium animate-pulse">Loading...</p>
-    </div>
-  </div>
-);
+const PageLoader = () => <HotelShellSkeleton />;
 
 const AMBIGUOUS_PARTNER_ROUTE_SEGMENTS = new Set([
   'about',

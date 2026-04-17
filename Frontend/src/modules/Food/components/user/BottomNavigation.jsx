@@ -29,18 +29,16 @@ export default function BottomNavigation() {
       <Link
         to="/user/auth/portal"
         state={{ redirectTo }}
-        className="relative z-10 -mb-3 ml-auto mr-3 flex w-fit items-center gap-2 rounded-t-[18px] rounded-b-[10px] border border-b-0 border-white/40 bg-white/95 px-3 pb-3 pt-2 backdrop-blur-2xl shadow-[0_-2px_0_rgba(255,255,255,0.9),0_-10px_28px_-10px_rgba(0,0,0,0.15)]"
+        className="relative z-10 -mb-2 ml-auto mr-4 flex h-9 w-fit items-center gap-2 rounded-t-[16px] rounded-b-[8px] border border-b-0 border-gray-200 bg-white px-3 pb-2 pt-1.5 shadow-[0_-1px_0_rgba(255,255,255,0.9),0_-6px_18px_-10px_rgba(0,0,0,0.12)]"
       >
-        <div className="pointer-events-none absolute -bottom-3 left-0 right-0 h-4 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(255,255,255,0)_100%)]" />
-        <div className="pointer-events-none absolute -left-3 bottom-0 h-6 w-6 rounded-br-[18px] border-b border-r border-white/40 bg-white/95 backdrop-blur-2xl" />
-        <div className="pointer-events-none absolute -right-3 bottom-0 h-6 w-6 rounded-bl-[18px] border-b border-l border-white/40 bg-white/95 backdrop-blur-2xl" />
+        <div className="pointer-events-none absolute -bottom-2 left-2 right-2 h-2 rounded-b-full bg-white" />
         <div className="text-left leading-none">
-          <span className="block text-[9px] font-black uppercase tracking-[0.2em] text-[#b56f4e]">
+          <span className="block text-[8px] font-black uppercase tracking-[0.2em] text-[#b56f4e]">
             Explore
           </span>
         </div>
-        <div className="flex h-7 w-7 items-center justify-center rounded-[10px] bg-[#fff4ec] text-[#8f5638]">
-          <ArrowUpRight className="h-3.5 w-3.5" strokeWidth={2.6} />
+        <div className="flex h-6 w-6 items-center justify-center rounded-[8px] bg-[#fff4ec] text-[#8f5638]">
+          <ArrowUpRight className="h-3 w-3" strokeWidth={2.6} />
         </div>
       </Link>
 

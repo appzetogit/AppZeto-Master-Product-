@@ -10,20 +10,26 @@ const ServiceTile = ({ icon, label, description, path, accentClass }) => {
   return (
     <motion.button
       type="button"
-      whileHover={{ y: -1.5 }}
+      whileHover={{ y: -4, scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
       onClick={() => path && navigate(path)}
-      className="flex w-full flex-col items-center justify-center gap-1.5 rounded-[18px] border border-white/80 bg-white/90 px-1.5 py-2.5 shadow-[0_8px_14px_rgba(15,23,42,0.05)] transition-transform"
+      className="group relative flex w-full flex-col items-center gap-2.5 overflow-hidden rounded-[20px] border border-white/90 bg-white/60 p-1.5 shadow-[0_8px_20px_-4px_rgba(15,23,42,0.06)] transition-all duration-300 hover:bg-white hover:shadow-[0_16px_32px_-8px_rgba(15,23,42,0.12)]"
     >
-      <div className={`flex h-12 w-12 items-center justify-center rounded-[18px] ${accentClass || 'bg-gray-50'}`}>
-        <img src={icon} alt={label} className="h-10 w-10 object-contain drop-shadow-sm" />
+      <div
+        className={`relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-[16px] shadow-[inset_0_1px_4px_rgba(255,255,255,0.6)] ${accentClass || 'bg-gray-50'}`}
+      >
+        <div className="absolute inset-0 bg-gradient-to-br from-white/30 to-transparent opacity-50" />
+        <img
+          src={icon}
+          alt={label}
+          className="h-[75%] w-[75%] object-contain drop-shadow-[0_6px_12px_rgba(15,23,42,0.1)] transition-all duration-500 group-hover:scale-110"
+        />
       </div>
 
-      <div className="flex flex-col items-center gap-0.5 text-center">
-        <span className="min-h-[24px] text-[10.5px] font-black leading-tight tracking-tight text-slate-900 line-clamp-2 uppercase">
+      <div className="flex flex-col items-center px-1 pb-1">
+        <span className="text-[10px] font-bold uppercase leading-tight tracking-[0.02em] text-slate-700">
           {label}
         </span>
-        <span className="sr-only">{description}</span>
       </div>
     </motion.button>
   );
@@ -37,7 +43,6 @@ const ServiceGrid = () => {
     if (module.service_type === 'rental') return '/taxi/user/rental';
     if (module.service_type === 'outstation') return '/taxi/user/intercity';
     
-    // Default taxi paths based on name/keywords if needed, or just generic select-location
     if (module.name.toLowerCase().includes('cab') || module.name.toLowerCase().includes('taxi')) {
         return '/taxi/user/cab';
     }
@@ -46,25 +51,21 @@ const ServiceGrid = () => {
 
   const getAccent = (index) => {
     const accnets = [
-      'bg-[linear-gradient(135deg,#FFF7ED_0%,#FFE5C2_100%)]', // Orange
-      'bg-[linear-gradient(135deg,#FEFCE8_0%,#FDE68A_100%)]', // Yellow
-      'bg-[linear-gradient(135deg,#EFF6FF_0%,#DBEAFE_100%)]', // Blue
-      'bg-[linear-gradient(135deg,#F5F3FF_0%,#E9D5FF_100%)]', // Purple
-      'bg-[linear-gradient(135deg,#ECFDF5_0%,#A7F3D0_100%)]', // Green
-      'bg-[linear-gradient(135deg,#FFF1F2_0%,#FECDD3_100%)]', // Rose
+      'bg-orange-50/80',
+      'bg-yellow-50/80',
+      'bg-blue-50/80',
+      'bg-purple-50/80',
+      'bg-emerald-50/80',
+      'bg-rose-50/80',
     ];
     return accnets[index % accnets.length];
-    };
+  };
 
   useEffect(() => {
     const fetchServices = async () => {
       try {
         const res = await userService.getAppModules();
-        
-        // Extract results: res could be { results: [] } or { data: { results: [] } } depending on service
         const results = res?.results || res?.data?.results || [];
-        
-        // Only show active modules
         const activeModules = results.filter(m => m.active);
         
         const mapped = activeModules.map((m, idx) => ({
@@ -91,24 +92,23 @@ const ServiceGrid = () => {
   return (
     <div className="px-5">
       <motion.section
-        initial={{ opacity: 0, y: 10 }}
+        initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, ease: 'easeOut' }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
         className="py-1"
       >
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.26em] text-slate-400">Services</p>
-            <h2 className="mt-1 text-[18px] font-black tracking-tight text-slate-900">Choose your ride</h2>
-            <p className="mt-0.5 text-[11px] font-bold text-slate-500">Tap to start quickly.</p>
+        <div className="flex items-end justify-between px-0.5">
+          <div className="space-y-1">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Services</p>
+            <h2 className="text-[20px] font-extrabold tracking-tight text-slate-900">Choose your ride</h2>
           </div>
 
-          <div className="rounded-full border border-white/80 bg-white/90 px-3 py-2 text-[11px] font-black text-slate-600 shadow-sm">
+          <div className="rounded-full border border-slate-100 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-500 shadow-sm ring-1 ring-slate-900/5">
             {optionCount} {optionLabel}
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-4 gap-3">
+        <div className="mt-5 grid grid-cols-4 gap-3.5">
           {services.map((service) => (
             <ServiceTile key={service.label} {...service} />
           ))}

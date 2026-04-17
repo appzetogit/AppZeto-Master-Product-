@@ -1,6 +1,11 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Suspense, lazy, useEffect } from 'react'
-import { AppShellSkeleton } from '@food/components/ui/loading-skeletons'
+import {
+  AppShellSkeleton,
+  AuthPortalSkeleton,
+  ContentPageSkeleton,
+  HotelShellSkeleton,
+} from '@food/components/ui/loading-skeletons'
 import ProtectedRoute from '@core/guards/ProtectedRoute'
 import RoleGuard from '@core/guards/RoleGuard'
 import { UserRole } from '@core/constants/roles'
@@ -22,7 +27,24 @@ const GlobalCheckoutPage = lazy(() => import('../modules/Food/pages/user/cart/Ch
 const GlobalSelectAddressPage = lazy(() => import('../modules/Food/pages/user/cart/SelectAddress'))
 const GlobalAddressSelectorPage = lazy(() => import('../modules/Food/pages/user/cart/AddressSelectorPage'))
 
-const PageLoader = () => <AppShellSkeleton />
+const RouteAwarePageLoader = () => {
+  const location = useLocation()
+  const pathname = location.pathname || ''
+
+  if (pathname.startsWith('/user/auth')) {
+    return <AuthPortalSkeleton />
+  }
+
+  if (pathname.startsWith('/hotel')) {
+    return <HotelShellSkeleton />
+  }
+
+  if (pathname.startsWith('/admin')) {
+    return <ContentPageSkeleton hero={false} />
+  }
+
+  return <AppShellSkeleton />
+}
 const TaxiPageLoader = () => (
   <div className="min-h-screen bg-[linear-gradient(180deg,#F8FAFC_0%,#F3F4F6_38%,#EEF2F7_100%)]">
     <div className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center px-6 text-center">
@@ -218,5 +240,7 @@ const AppRoutes = () => {
       </Routes>
   )
 }
+
+const PageLoader = () => <RouteAwarePageLoader />
 
 export default AppRoutes

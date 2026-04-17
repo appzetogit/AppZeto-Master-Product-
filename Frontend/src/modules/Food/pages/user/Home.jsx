@@ -464,7 +464,6 @@ export default function Home() {
   const [vegModeOption, setVegModeOption] = useState("all"); // "all" or "pure-veg"
   const [isApplyingVegMode, setIsApplyingVegMode] = useState(false);
   const [isSwitchingOffVegMode, setIsSwitchingOffVegMode] = useState(false);
-  const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0, triangleLeft: 0 });
   const vegModeToggleRef = useRef(null);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const [heroBannerImages, setHeroBannerImages] = useState([]);
@@ -815,23 +814,6 @@ export default function Home() {
 
     if (newValue && !prevVegMode) {
       // Veg mode was just turned ON
-      // Calculate popup position relative to toggle
-      if (vegModeToggleRef.current) {
-        const rect = vegModeToggleRef.current.getBoundingClientRect();
-        const screenWidth = window.innerWidth;
-        const popupWidth = Math.min(screenWidth - 32, 320); // 320 is max-w-xs
-        
-        let left = rect.left + rect.width / 2 - popupWidth / 2;
-        left = Math.max(16, Math.min(left, screenWidth - popupWidth - 16));
-        
-        const triangleLeft = rect.left + rect.width / 2 - left;
-        
-        setPopupPosition({
-          top: rect.bottom + 10,
-          left: left,
-          triangleLeft: triangleLeft
-        });
-      }
       setShowVegModePopup(true);
       // Don't update context yet - wait for user to apply or cancel
     } else if (!newValue && prevVegMode) {
@@ -845,38 +827,6 @@ export default function Home() {
       setPrevVegMode(newValue);
     }
   };
-
-  // Update popup position on scroll/resize
-  useEffect(() => {
-    if (!showVegModePopup) return;
-
-    const updatePosition = () => {
-      if (vegModeToggleRef.current) {
-        const rect = vegModeToggleRef.current.getBoundingClientRect();
-        const screenWidth = window.innerWidth;
-        const popupWidth = Math.min(screenWidth - 32, 320);
-        
-        let left = rect.left + rect.width / 2 - popupWidth / 2;
-        left = Math.max(16, Math.min(left, screenWidth - popupWidth - 16));
-        
-        const triangleLeft = rect.left + rect.width / 2 - left;
-        
-        setPopupPosition({
-          top: rect.bottom + 10,
-          left: left,
-          triangleLeft: triangleLeft
-        });
-      }
-    };
-
-    window.addEventListener("scroll", updatePosition, true);
-    window.addEventListener("resize", updatePosition);
-
-    return () => {
-      window.removeEventListener("scroll", updatePosition, true);
-      window.removeEventListener("resize", updatePosition);
-    };
-  }, [showVegModePopup]);
 
   // Old backend endpoint removed: keep UI stable with empty categories.
   useEffect(() => {
@@ -3642,118 +3592,97 @@ export default function Home() {
                   setVegModeContext(false);
                   setPrevVegMode(false);
                 }}
-                className="fixed inset-0 bg-black/30 z-[9998] backdrop-blur-sm"
+                className="fixed inset-0 bg-black/40 z-[9998] backdrop-blur-sm"
               />
 
-              {/* Popup */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9, y: -10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9, y: -10 }}
-                transition={{
-                  type: "spring",
-                  damping: 25,
-                  stiffness: 300,
-                  mass: 0.8,
-                }}
-                className="fixed z-[9999] bg-white dark:bg-[#1a1a1a] rounded-2xl shadow-2xl p-4 w-[calc(100%-2rem)] max-w-xs"
-                style={{
-                  top: `${popupPosition.top}px`,
-                  left: `${popupPosition.left}px`,
-                }}
-                onClick={(e) => e.stopPropagation()}>
-                {/* Pointer Triangle */}
-                <div
-                  className="absolute -top-2 w-3 h-3 bg-white dark:bg-[#1a1a1a] transform rotate-45"
-                  style={{
-                    left: `${popupPosition.triangleLeft - 6}px`,
-                    boxShadow: "-2px -2px 4px rgba(0,0,0,0.1)",
+              {/* Popup Container */}
+              <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pointer-events-none">
+                {/* Popup Content */}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                  transition={{
+                    type: "spring",
+                    damping: 25,
+                    stiffness: 400,
                   }}
-                />
+                  className="bg-white dark:bg-[#1a1a1a] rounded-[24px] shadow-2xl p-6 w-full max-w-sm pointer-events-auto border border-gray-100 dark:border-gray-800"
+                  onClick={(e) => e.stopPropagation()}>
+                  
+                  <div className="flex flex-col items-center text-center mb-6">
+                    <div className="w-16 h-16 bg-green-50 dark:bg-green-900/20 rounded-full flex items-center justify-center mb-4">
+                      <Leaf className="w-8 h-8 text-green-600 dark:text-green-500" />
+                    </div>
+                    {/* Title */}
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                      See veg dishes from
+                    </h3>
+                  </div>
 
-                {/* Title */}
-                <h3 className="text-base font-bold text-gray-900 dark:text-white mb-3">
-                  See veg dishes from
-                </h3>
-
-                {/* Radio Options */}
-                <div className="space-y-2 mb-4">
-                  {/* All restaurants */}
-                  <label
-                    className="flex items-center gap-2.5 cursor-pointer p-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                    onClick={() => setVegModeOption("all")}>
-                    <div className="relative flex items-center justify-center">
-                      <input
-                        type="radio"
-                        name="vegModeOption"
-                        value="all"
-                        checked={vegModeOption === "all"}
-                        onChange={() => setVegModeOption("all")}
-                        className="sr-only"
-                      />
-                      <div
-                        className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
-                          vegModeOption === "all"
-                            ? "border-green-600 dark:border-green-500 bg-green-600 dark:bg-green-500"
-                            : "border-gray-300 dark:border-gray-600 bg-white dark:bg-[#2a2a2a]"
-                        }`}>
+                  {/* Radio Options */}
+                  <div className="space-y-3 mb-6">
+                    {/* All restaurants */}
+                    <button
+                      className={`w-full flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${
+                        vegModeOption === "all"
+                          ? "border-green-600 bg-green-50 dark:border-green-500 dark:bg-green-900/20"
+                          : "border-gray-100 dark:border-gray-800 bg-white dark:bg-[#2a2a2a] hover:border-gray-200"
+                      }`}
+                      onClick={() => setVegModeOption("all")}>
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                        vegModeOption === "all"
+                          ? "border-green-600 bg-green-600 dark:border-green-500 dark:bg-green-500"
+                          : "border-gray-300 dark:border-gray-600"
+                      }`}>
                         {vegModeOption === "all" && (
-                          <div className="w-1.5 h-1.5 rounded-full bg-white dark:bg-white" />
+                          <div className="w-2 h-2 rounded-full bg-white" />
                         )}
                       </div>
-                    </div>
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">
-                      All restaurants
-                    </span>
-                  </label>
+                      <span className={`text-base font-semibold ${vegModeOption === "all" ? "text-green-700 dark:text-green-400" : "text-gray-700 dark:text-gray-300"}`}>
+                        All restaurants
+                      </span>
+                    </button>
 
-                  {/* Pure Veg restaurants only */}
-                  <label
-                    className="flex items-center gap-2.5 cursor-pointer p-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                    onClick={() => setVegModeOption("pure-veg")}>
-                    <div className="relative flex items-center justify-center">
-                      <input
-                        type="radio"
-                        name="vegModeOption"
-                        value="pure-veg"
-                        checked={vegModeOption === "pure-veg"}
-                        onChange={() => setVegModeOption("pure-veg")}
-                        className="sr-only"
-                      />
-                      <div
-                        className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
-                          vegModeOption === "pure-veg"
-                            ? "border-green-600 dark:border-green-500 bg-green-600 dark:bg-green-500"
-                            : "border-gray-300 dark:border-gray-600 bg-white dark:bg-[#2a2a2a]"
-                        }`}>
+                    {/* Pure Veg restaurants only */}
+                    <button
+                      className={`w-full flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${
+                        vegModeOption === "pure-veg"
+                          ? "border-green-600 bg-green-50 dark:border-green-500 dark:bg-green-900/20"
+                          : "border-gray-100 dark:border-gray-800 bg-white dark:bg-[#2a2a2a] hover:border-gray-200"
+                      }`}
+                      onClick={() => setVegModeOption("pure-veg")}>
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                        vegModeOption === "pure-veg"
+                          ? "border-green-600 bg-green-600 dark:border-green-500 dark:bg-green-500"
+                          : "border-gray-300 dark:border-gray-600"
+                      }`}>
                         {vegModeOption === "pure-veg" && (
-                          <div className="w-1.5 h-1.5 rounded-full bg-white dark:bg-white" />
+                          <div className="w-2 h-2 rounded-full bg-white" />
                         )}
                       </div>
-                    </div>
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">
-                      Pure Veg restaurants only
-                    </span>
-                  </label>
-                </div>
+                      <span className={`text-base font-semibold ${vegModeOption === "pure-veg" ? "text-green-700 dark:text-green-400" : "text-gray-700 dark:text-gray-300"}`}>
+                        Pure Veg restaurants only
+                      </span>
+                    </button>
+                  </div>
 
-                {/* Apply Button */}
-                <button
-                  onClick={() => {
-                    setShowVegModePopup(false);
-                    setIsApplyingVegMode(true);
-                    // Confirm veg mode is ON by updating context and prevVegMode
-                    setVegModeContext(true);
-                    setPrevVegMode(true);
-                    // Simulate applying veg mode settings
-                    setTimeout(() => {
-                      setIsApplyingVegMode(false);
-                    }, 2000);
-                  }}
-                  className="w-full bg-[#EB590E] text-white font-semibold py-2.5 rounded-xl hover:bg-[#D94F0C] transition-colors mb-2 text-sm">
-                  Apply
-                </button>
-              </motion.div>
+                  {/* Apply Button */}
+                  <button
+                    onClick={() => {
+                      setShowVegModePopup(false);
+                      setIsApplyingVegMode(true);
+                      setVegModeContext(true);
+                      setPrevVegMode(true);
+                      setTimeout(() => {
+                        setIsApplyingVegMode(false);
+                      }, 2000);
+                    }}
+                    className="w-full bg-[#EB590E] text-white font-bold py-4 rounded-2xl hover:bg-[#D94F0C] transition-all shadow-lg active:scale-[0.98] text-base">
+                    Apply Settings
+                  </button>
+                </motion.div>
+              </div>
             </>
           )}
         </AnimatePresence>
@@ -3788,32 +3717,32 @@ export default function Home() {
                   stiffness: 300,
                   mass: 0.8,
                 }}
-                className="fixed inset-0 z-[9999] flex dark:bg-[#lalala] dark:text-white items-center justify-center p-4"
+                className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
                 onClick={(e) => e.stopPropagation()}>
-                <div className="bg-white dark:bg-[#lalala] dark:text-white rounded-2xl shadow-2xl w-[85%] max-w-sm p-6">
+                <div className="bg-white dark:bg-[#1a1a1a] rounded-[24px] shadow-2xl w-[90%] max-w-sm p-6 border border-gray-100 dark:border-gray-800">
                   {/* Warning Icon */}
-                  <div className="flex justify-center mb-4">
-                    <div className="w-20 h-20 rounded-full bg-pink-100 flex items-center justify-center">
+                  <div className="flex justify-center mb-6">
+                    <div className="w-20 h-20 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center animate-pulse">
                       <AlertCircle
-                        className="w-20 h-20 text-white bg-red-500/90 rounded-full p-2"
-                        strokeWidth={2.5}
+                        className="w-14 h-14 text-red-600 dark:text-red-500"
+                        strokeWidth={2}
                       />
                     </div>
                   </div>
 
                   {/* Title */}
-                  <h2 className="text-2xl font-bold text-gray-900  text-center mb-2">
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white text-center mb-3">
                     Switch off Veg Mode?
                   </h2>
 
                   {/* Description */}
-                  <p className="text-gray-600 text-center mb-6 text-sm">
+                  <p className="text-gray-500 dark:text-gray-400 text-center mb-8 text-base">
                     You'll see all restaurants, including those serving non-veg
                     dishes
                   </p>
 
                   {/* Buttons */}
-                  <div className="space-y-3">
+                  <div className="flex flex-col gap-3">
                     <button
                       onClick={() => {
                         setShowSwitchOffPopup(false);
@@ -3826,7 +3755,7 @@ export default function Home() {
                           setPrevVegMode(false); // Set to false to match current state (veg mode is OFF)
                         }, 2000);
                       }}
-                      className="w-full bg-transparent text-red-600 font-normal py-1 text-normal rounded-xl hover:bg-red-50 transition-colors text-base">
+                      className="w-full bg-red-600 text-white font-bold py-4 rounded-2xl hover:bg-red-700 transition-all shadow-md active:scale-[0.98]">
                       Switch off
                     </button>
 
@@ -3837,7 +3766,7 @@ export default function Home() {
                         setVegModeContext(true);
                         // prevVegMode stays true (from before), which is correct
                       }}
-                      className="w-full text-gray-900 font-normal py-1 text-center rounded-xl hover:bg-gray-200 transition-colors text-base">
+                      className="w-full text-gray-600 dark:text-gray-400 font-bold py-4 text-center rounded-2xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-all active:scale-[0.98]">
                       Keep using this mode
                     </button>
                   </div>

@@ -8,19 +8,43 @@ const QUICK_CART_STORAGE_KEY = "quick_commerce_cart";
 
 export const useCart = () => useContext(CartContext);
 
+const isQuickCartItem = (item) => {
+  if (!item || typeof item !== "object") return false;
+  if (item.orderType === "quick" || item.type === "quick") return true;
+
+  return Boolean(
+    item.quickStoreId ||
+      item.storeId ||
+      item.store?.id ||
+      item.store?._id ||
+      item.sellerId ||
+      item.seller?.id ||
+      item.seller?._id,
+  );
+};
+
 const readStoredQuickCart = () => {
   try {
     const quickCart = localStorage.getItem(QUICK_CART_STORAGE_KEY);
-    if (quickCart) return JSON.parse(quickCart);
+    if (quickCart) {
+      const parsedQuickCart = JSON.parse(quickCart);
+      return Array.isArray(parsedQuickCart)
+        ? parsedQuickCart.filter(isQuickCartItem)
+        : [];
+    }
 
     const legacyCart = localStorage.getItem("cart");
     if (!legacyCart) return [];
 
     const parsedLegacyCart = JSON.parse(legacyCart);
-    if (Array.isArray(parsedLegacyCart)) {
-      localStorage.setItem(QUICK_CART_STORAGE_KEY, JSON.stringify(parsedLegacyCart));
+    const quickItems = Array.isArray(parsedLegacyCart)
+      ? parsedLegacyCart.filter(isQuickCartItem)
+      : [];
+
+    if (quickItems.length > 0) {
+      localStorage.setItem(QUICK_CART_STORAGE_KEY, JSON.stringify(quickItems));
     }
-    return Array.isArray(parsedLegacyCart) ? parsedLegacyCart : [];
+    return quickItems;
   } catch (error) {
     console.error("Failed to load quick cart from localStorage", error);
     return [];
@@ -89,10 +113,7 @@ const normalizeQuickProductForSharedCart = (product) => {
 
 const useStandaloneQuickCart = () => {
   const { isAuthenticated } = useAuth();
-  const [cart, setCart] = useState(() => {
-    if (isAuthenticated) return [];
-    return readStoredQuickCart();
-  });
+  const [cart, setCart] = useState(() => readStoredQuickCart());
 
   const [loading, setLoading] = useState(Boolean(isAuthenticated));
   const pendingRequestsRef = useRef(0);
@@ -134,7 +155,8 @@ const useStandaloneQuickCart = () => {
       try {
         const response = await customerApi.getCart();
         const items = response.data?.result?.items || response.data?.items || [];
-        setCart(normalizeBackendCart(items));
+        const normalizedItems = normalizeBackendCart(items);
+        setCart((prev) => (normalizedItems.length > 0 ? normalizedItems : prev));
       } catch (error) {
         console.error("Failed to fetch cart from backend", error);
       } finally {
@@ -145,7 +167,6 @@ const useStandaloneQuickCart = () => {
 
   useEffect(() => {
     if (isAuthenticated) {
-      setCart([]);
       fetchCart();
     } else {
       try {
@@ -158,10 +179,16 @@ const useStandaloneQuickCart = () => {
   }, [isAuthenticated]);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      localStorage.setItem(QUICK_CART_STORAGE_KEY, JSON.stringify(cart));
+    try {
+      if (cart.length > 0) {
+        localStorage.setItem(QUICK_CART_STORAGE_KEY, JSON.stringify(cart));
+      } else {
+        localStorage.removeItem(QUICK_CART_STORAGE_KEY);
+      }
+    } catch (error) {
+      console.error("Failed to persist quick cart to localStorage", error);
     }
-  }, [cart, isAuthenticated]);
+  }, [cart]);
 
   const addToCart = async (product) => {
     const id = getProductId(product);
@@ -291,9 +318,31 @@ const useStandaloneQuickCart = () => {
 export const CartProvider = ({ children }) => {
   const foodCart = useFoodCart();
   const standaloneCart = useStandaloneQuickCart();
+  const isUsingFoodCart = foodCart?._isProvider === true;
+
+  const quickItemsFromFoodCart = useMemo(
+    () => (Array.isArray(foodCart?.cart) ? foodCart.cart.filter(isQuickCartItem) : []),
+    [foodCart],
+  );
+
+  useEffect(() => {
+    if (!isUsingFoodCart) return;
+
+    try {
+      if (quickItemsFromFoodCart.length > 0) {
+        localStorage.setItem(
+          QUICK_CART_STORAGE_KEY,
+          JSON.stringify(quickItemsFromFoodCart),
+        );
+      } else {
+        localStorage.removeItem(QUICK_CART_STORAGE_KEY);
+      }
+    } catch (error) {
+      console.error("Failed to mirror quick cart into localStorage", error);
+    }
+  }, [isUsingFoodCart, quickItemsFromFoodCart]);
 
   const bridgedValue = useMemo(() => {
-    const isUsingFoodCart = foodCart?._isProvider === true;
     if (!isUsingFoodCart) {
       return standaloneCart;
     }
@@ -322,16 +371,22 @@ export const CartProvider = ({ children }) => {
     };
 
     return {
-      cart: foodCart.cart || [],
+      cart: quickItemsFromFoodCart,
       addToCart,
       removeFromCart,
       updateQuantity,
       clearCart,
-      cartTotal: foodCart.total || 0,
-      cartCount: foodCart.itemCount || 0,
+      cartTotal: quickItemsFromFoodCart.reduce(
+        (total, item) => total + Number(item.price || 0) * Number(item.quantity || 0),
+        0,
+      ),
+      cartCount: quickItemsFromFoodCart.reduce(
+        (total, item) => total + Number(item.quantity || 0),
+        0,
+      ),
       loading: false,
     };
-  }, [foodCart, standaloneCart]);
+  }, [foodCart, isUsingFoodCart, quickItemsFromFoodCart, standaloneCart]);
 
   return <CartContext.Provider value={bridgedValue}>{children}</CartContext.Provider>;
 };

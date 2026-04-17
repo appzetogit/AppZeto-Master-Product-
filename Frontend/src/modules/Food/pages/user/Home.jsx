@@ -1107,78 +1107,16 @@ export default function Home() {
   const { addToCart, cart } = useCart();
   const { location, loading, requestLocation } = useLocation();
   const {
-    zoneId,
-    zoneStatus,
-    isInService,
-    isOutOfService,
-    loading: zoneLoading,
-    error: zoneError,
+    zoneId: liveZoneId,
+    zoneStatus: liveZoneStatus,
+    isInService: isLiveLocationInService,
+    isOutOfService: isLiveLocationOutOfService,
+    loading: liveZoneLoading,
+    error: liveZoneError,
   } = useZone(location);
   const [showToast, setShowToast] = useState(false);
   const [showManageCollections, setShowManageCollections] = useState(false);
   const [selectedRestaurantSlug, setSelectedRestaurantSlug] = useState(null);
-
-  // Fetch categories (zone-aware) for the homepage category rail.
-  useEffect(() => {
-    let cancelled = false
-    const run = async () => {
-      const zoneKey = String(zoneId || "global")
-      try {
-        // Dedupe repeated calls (StrictMode + zone settling). Cache per zoneKey and share in-flight request.
-        const cached = publicCategoriesCacheRef.current.get(zoneKey)
-        if (cached) {
-          if (!cancelled) setRealCategories(cached)
-          return
-        }
-
-        const inFlight = publicCategoriesInFlightRef.current.get(zoneKey)
-        if (inFlight) {
-          const categories = await inFlight
-          if (!cancelled) setRealCategories(categories)
-          return
-        }
-
-        setLoadingRealCategories(true)
-        const promise = (async () => {
-          const res = await adminAPI.getPublicCategories(zoneId ? { zoneId } : {})
-          const list =
-            res?.data?.data?.categories ||
-            res?.data?.categories ||
-            []
-          const categories = Array.isArray(list)
-            ? list.map((cat, idx) => ({
-                id: String(cat?.id || cat?._id || cat?.slug || idx),
-                name: cat?.name || "",
-                slug: cat?.slug || String(cat?.name || "").toLowerCase().replace(/\s+/g, "-"),
-                image:
-                  normalizeImageUrl(cat?.image || cat?.imageUrl) ||
-                  foodImages[idx % foodImages.length] ||
-                  foodImages[0],
-                type: cat?.type || "",
-              }))
-            : []
-
-          publicCategoriesCacheRef.current.set(zoneKey, categories)
-          return categories
-        })()
-
-        publicCategoriesInFlightRef.current.set(zoneKey, promise)
-        const categories = await promise
-        publicCategoriesInFlightRef.current.delete(zoneKey)
-
-        if (!cancelled) setRealCategories(categories)
-      } catch (err) {
-        debugWarn("Failed to fetch categories:", err)
-        if (!cancelled) setRealCategories([])
-      } finally {
-        if (!cancelled) setLoadingRealCategories(false)
-      }
-    }
-    run()
-    return () => {
-      cancelled = true
-    }
-  }, [zoneId, normalizeImageUrl])
 
   // Memoize cartCount to prevent recalculation on every render - use cart directly
   const cartCount = useMemo(
@@ -1268,18 +1206,113 @@ export default function Home() {
   }, [defaultSavedAddress]);
 
   const {
+    zoneId: savedAddressZoneId,
+    zoneStatus: savedAddressZoneStatus,
+    isInService: isSavedAddressInService,
     isOutOfService: isSavedAddressOutOfService,
     loading: savedAddressZoneLoading,
     error: savedAddressZoneError,
   } = useZone(defaultSavedAddressLocation);
 
   const hasSavedAddress = Boolean(defaultSavedAddress && savedAddressText);
+  const effectiveDeliveryLocation = useMemo(() => {
+    if (
+      Number.isFinite(defaultSavedAddressLocation?.latitude) &&
+      Number.isFinite(defaultSavedAddressLocation?.longitude)
+    ) {
+      return defaultSavedAddressLocation;
+    }
+
+    if (
+      Number.isFinite(location?.latitude) &&
+      Number.isFinite(location?.longitude)
+    ) {
+      return {
+        latitude: location.latitude,
+        longitude: location.longitude,
+      };
+    }
+
+    return null;
+  }, [
+    defaultSavedAddressLocation,
+    location?.latitude,
+    location?.longitude,
+  ]);
+  const zoneId = hasSavedAddress ? savedAddressZoneId : liveZoneId;
+  const zoneStatus = hasSavedAddress ? savedAddressZoneStatus : liveZoneStatus;
+  const isInService = hasSavedAddress ? isSavedAddressInService : isLiveLocationInService;
+  const isOutOfService = hasSavedAddress ? isSavedAddressOutOfService : isLiveLocationOutOfService;
+  const zoneLoading = hasSavedAddress ? savedAddressZoneLoading : liveZoneLoading;
+  const zoneError = hasSavedAddress ? savedAddressZoneError : liveZoneError;
   const shouldShowOutOfZoneHome =
     hasSavedAddress &&
     Boolean(defaultSavedAddressLocation) &&
     !savedAddressZoneLoading &&
     !savedAddressZoneError &&
     isSavedAddressOutOfService;
+
+  // Fetch categories (zone-aware) for the homepage category rail.
+  useEffect(() => {
+    let cancelled = false
+    const run = async () => {
+      const zoneKey = String(zoneId || "global")
+      try {
+        // Dedupe repeated calls (StrictMode + zone settling). Cache per zoneKey and share in-flight request.
+        const cached = publicCategoriesCacheRef.current.get(zoneKey)
+        if (cached) {
+          if (!cancelled) setRealCategories(cached)
+          return
+        }
+
+        const inFlight = publicCategoriesInFlightRef.current.get(zoneKey)
+        if (inFlight) {
+          const categories = await inFlight
+          if (!cancelled) setRealCategories(categories)
+          return
+        }
+
+        setLoadingRealCategories(true)
+        const promise = (async () => {
+          const res = await adminAPI.getPublicCategories(zoneId ? { zoneId } : {})
+          const list =
+            res?.data?.data?.categories ||
+            res?.data?.categories ||
+            []
+          const categories = Array.isArray(list)
+            ? list.map((cat, idx) => ({
+                id: String(cat?.id || cat?._id || cat?.slug || idx),
+                name: cat?.name || "",
+                slug: cat?.slug || String(cat?.name || "").toLowerCase().replace(/\s+/g, "-"),
+                image:
+                  normalizeImageUrl(cat?.image || cat?.imageUrl) ||
+                  foodImages[idx % foodImages.length] ||
+                  foodImages[0],
+                type: cat?.type || "",
+              }))
+            : []
+
+          publicCategoriesCacheRef.current.set(zoneKey, categories)
+          return categories
+        })()
+
+        publicCategoriesInFlightRef.current.set(zoneKey, promise)
+        const categories = await promise
+        publicCategoriesInFlightRef.current.delete(zoneKey)
+
+        if (!cancelled) setRealCategories(categories)
+      } catch (err) {
+        debugWarn("Failed to fetch categories:", err)
+        if (!cancelled) setRealCategories([])
+      } finally {
+        if (!cancelled) setLoadingRealCategories(false)
+      }
+    }
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [zoneId, normalizeImageUrl])
 
   // Mock points value - replace with actual points from context/store
   const userPoints = 99;
@@ -1471,11 +1504,11 @@ export default function Home() {
 
         // Always send user coordinates when available so backend can compute distance/sort.
         if (
-          Number.isFinite(location?.latitude) &&
-          Number.isFinite(location?.longitude)
+          Number.isFinite(effectiveDeliveryLocation?.latitude) &&
+          Number.isFinite(effectiveDeliveryLocation?.longitude)
         ) {
-          params.lat = location.latitude;
-          params.lng = location.longitude;
+          params.lat = effectiveDeliveryLocation.latitude;
+          params.lng = effectiveDeliveryLocation.longitude;
         }
 
         // Sort by
@@ -1574,8 +1607,8 @@ export default function Home() {
           };
 
           // Get user coordinates
-          const userLat = location?.latitude;
-          const userLng = location?.longitude;
+          const userLat = effectiveDeliveryLocation?.latitude;
+          const userLng = effectiveDeliveryLocation?.longitude;
 
           // Transform API data to match expected format
           const transformedRestaurants = restaurantsArray
@@ -1828,8 +1861,8 @@ export default function Home() {
     [
       extractImages,
       buildRestaurantImageCandidates,
-      location?.latitude,
-      location?.longitude,
+      effectiveDeliveryLocation?.latitude,
+      effectiveDeliveryLocation?.longitude,
       zoneId,
     ],
   );

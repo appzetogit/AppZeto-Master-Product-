@@ -89,6 +89,53 @@ const foodTheme = {
   inactiveBorder: "rgba(255,255,255,0.12)",
 };
 
+const isMeaningfulLocationValue = (value) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  return Boolean(
+    normalized &&
+      normalized !== "select location" &&
+      normalized !== "current location"
+  );
+};
+
+const buildLocationDisplay = (savedAddressText, location) => {
+  if (isMeaningfulLocationValue(savedAddressText)) {
+    const parts = String(savedAddressText)
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+    if (parts.length >= 3) {
+      return {
+        title: parts.slice(0, 2).join(", "),
+        subtitle: parts.slice(2).join(", "),
+      };
+    }
+
+    if (parts.length === 2) {
+      return {
+        title: parts.join(", "),
+        subtitle: "Tap to choose delivery location",
+      };
+    }
+
+    return {
+      title: String(savedAddressText).trim(),
+      subtitle: "Tap to choose delivery location",
+    };
+  }
+
+  const fallbackTitle =
+    location?.area || location?.city || "Select Location";
+  const fallbackSubtitle =
+    location?.address || location?.city || "Tap to choose delivery location";
+
+  return {
+    title: fallbackTitle,
+    subtitle: fallbackSubtitle,
+  };
+};
+
 export default function HomeHeader({
   activeTab,
   setActiveTab,
@@ -130,10 +177,10 @@ export default function HomeHeader({
   const theme = activeTab === "quick" ? quickTheme(quickThemeColor) : foodTheme;
   const isFood = activeTab === "food";
   const walletPath = isFood ? "/food/user/wallet" : "/quick/wallet";
-  const locationTitle =
-    savedAddressText || location?.area || location?.city || "Select Location";
-  const locationSubtitle =
-    location?.address || location?.city || "Tap to choose delivery location";
+  const { title: locationTitle, subtitle: locationSubtitle } = useMemo(
+    () => buildLocationDisplay(savedAddressText, location),
+    [savedAddressText, location],
+  );
 
   useEffect(() => {
     const video = videoRef.current;

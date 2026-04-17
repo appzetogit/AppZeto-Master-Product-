@@ -6,6 +6,7 @@ import { clearModuleAuth } from "@food/utils/auth"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@food/components/ui/dropdown-menu"
 import { exportRestaurantsToPDF } from "@food/components/admin/restaurants/restaurantsExportUtils"
 import { getGoogleMapsApiKey } from "@food/utils/googleMapsApiKey"
+import { Loader } from "@googlemaps/js-api-loader"
 
 // Import icons from Dashboard-icons
 import locationIcon from "@food/assets/Dashboard-icons/image1.png"
@@ -152,6 +153,15 @@ export default function RestaurantsList() {
   })
   const locationSearchInputRef = useRef(null)
   const placesAutocompleteRef = useRef(null)
+  const googleMapsLoaderRef = useRef(null)
+  const locationMapRef = useRef(null)
+  const locationMapInstanceRef = useRef(null)
+  const locationZonePolygonRef = useRef(null)
+  const locationMarkerRef = useRef(null)
+  const locationZoneMarkersRef = useRef([])
+  const [locationMapLoading, setLocationMapLoading] = useState(false)
+  const [locationMapError, setLocationMapError] = useState("")
+  const [locationZoneHint, setLocationZoneHint] = useState("")
 
   // Format Restaurant ID to REST format (e.g., REST422829)
   const formatRestaurantId = (id) => {
@@ -439,9 +449,14 @@ export default function RestaurantsList() {
     const looksUnset = hasValidNumbers && Math.abs(latNum) < 1 && Math.abs(lngNum) < 1
     const latitude = (hasValidNumbers && !looksUnset) ? latNum : ""
     const longitude = (hasValidNumbers && !looksUnset) ? lngNum : ""
+    const resolvedZoneId = restaurant?.zoneId || restaurant?.location?.zoneId || loc?.zoneId || ""
+    const zoneId =
+      typeof resolvedZoneId === "object"
+        ? (resolvedZoneId?._id || resolvedZoneId?.id || "")
+        : resolvedZoneId
 
     return {
-      zoneId: restaurant?.zoneId || restaurant?.location?.zoneId || "",
+      zoneId: zoneId || "",
       latitude: latitude || "",
       longitude: longitude || "",
       formattedAddress: loc.formattedAddress || loc.address || "",
@@ -453,6 +468,119 @@ export default function RestaurantsList() {
       landmark: loc.landmark || "",
       pincode: loc.pincode || loc.zipCode || loc.postalCode || "",
     }
+  }
+
+  const getZoneDisplayName = (zone) => {
+    if (!zone) return "Zone"
+    return zone.name || zone.zoneName || zone.displayName || zone.serviceLocation || "Zone"
+  }
+
+  const getZoneCoordinatePath = (zone, google) => {
+    if (!zone || !Array.isArray(zone.coordinates)) return []
+
+    return zone.coordinates
+      .map((coord) => {
+        const latValue =
+          typeof coord === "object"
+            ? (coord.latitude ?? coord.lat)
+            : null
+        const lngValue =
+          typeof coord === "object"
+            ? (coord.longitude ?? coord.lng)
+            : null
+
+        const lat = Number(latValue)
+        const lng = Number(lngValue)
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+        return new google.maps.LatLng(lat, lng)
+      })
+      .filter(Boolean)
+  }
+
+  const resolveMatchingZonesForPoint = (google, lat, lng) => {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return []
+    if (!google?.maps?.geometry?.poly?.containsLocation) return []
+
+    const point = new google.maps.LatLng(lat, lng)
+
+    return zones.filter((zone) => {
+      const path = getZoneCoordinatePath(zone, google)
+      if (path.length < 3) return false
+
+      const polygon = new google.maps.Polygon({ paths: path })
+      return google.maps.geometry.poly.containsLocation(point, polygon)
+    })
+  }
+
+  const syncZoneForCoordinates = (google, lat, lng) => {
+    const matches = resolveMatchingZonesForPoint(google, lat, lng)
+
+    if (matches.length === 0) {
+      setLocationZoneHint("This pin is outside all configured Zone Setup boundaries.")
+      return
+    }
+
+    const selectedZoneId = String(locationForm.zoneId || "")
+    const currentStillMatches = matches.some(
+      (zone) => String(zone?._id || zone?.id || "") === selectedZoneId,
+    )
+
+    if (!currentStillMatches) {
+      const nextZone = matches[0]
+      const nextZoneId = String(nextZone?._id || nextZone?.id || "")
+      setLocationForm((prev) => ({
+        ...prev,
+        zoneId: nextZoneId,
+      }))
+    }
+
+    const matchedNames = matches.map((zone) => getZoneDisplayName(zone)).join(", ")
+    setLocationZoneHint(`Pin matches zone${matches.length > 1 ? "s" : ""}: ${matchedNames}`)
+  }
+
+  const reverseGeocodeLocation = async (lat, lng) => {
+    if (!window.google?.maps?.Geocoder) return
+
+    try {
+      const geocoder = new window.google.maps.Geocoder()
+      const response = await geocoder.geocode({ location: { lat, lng } })
+      const first = response?.results?.[0]
+      if (!first) return
+
+      const comps = Array.isArray(first.address_components) ? first.address_components : []
+      const get = (types) =>
+        comps.find((component) => types.some((type) => component.types?.includes(type)))?.long_name || ""
+
+      setLocationForm((prev) => ({
+        ...prev,
+        formattedAddress: first.formatted_address || prev.formattedAddress,
+        addressLine1: first.formatted_address || prev.addressLine1,
+        area:
+          get(["sublocality_level_1", "sublocality", "neighborhood"]) ||
+          get(["locality"]) ||
+          prev.area,
+        city: get(["locality"]) || get(["administrative_area_level_2"]) || prev.city,
+        state: get(["administrative_area_level_1"]) || prev.state,
+        pincode: get(["postal_code"]) || prev.pincode,
+        latitude: Number(lat.toFixed(6)),
+        longitude: Number(lng.toFixed(6)),
+      }))
+    } catch (error) {
+      debugWarn("Reverse geocoding dragged pin failed:", error)
+    }
+  }
+
+  const updatePinLocation = async (google, lat, lng) => {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
+
+    setLocationForm((prev) => ({
+      ...prev,
+      latitude: Number(lat.toFixed(6)),
+      longitude: Number(lng.toFixed(6)),
+    }))
+
+    syncZoneForCoordinates(google, lat, lng)
+    await reverseGeocodeLocation(lat, lng)
   }
 
   const loadGoogleMapsScript = async () => {
@@ -470,33 +598,160 @@ export default function RestaurantsList() {
       setLocationEditError(
         "Google Maps authentication failed. Check: Maps JavaScript API enabled, billing enabled, and HTTP referrer restrictions allow this domain."
       )
+      setLocationMapError(
+        "Google Maps authentication failed. Check billing, Maps JavaScript API access, and allowed referrers."
+      )
     }
 
-    const existingScript = document.getElementById("admin-google-maps-script")
-    if (existingScript) {
-      await new Promise((resolve, reject) => {
-        if (window.google?.maps?.places?.Autocomplete) {
-          resolve()
-          return
-        }
-        existingScript.addEventListener("load", resolve, { once: true })
-        existingScript.addEventListener("error", reject, { once: true })
-      })
+    try {
+      if (!googleMapsLoaderRef.current) {
+        googleMapsLoaderRef.current = new Loader({
+          apiKey,
+          version: "weekly",
+          libraries: ["places", "geometry"],
+        })
+      }
+
+      await googleMapsLoaderRef.current.load()
       return !!window.google?.maps?.places?.Autocomplete
+    } catch (error) {
+      debugError("Failed to load Google Maps:", error)
+      setLocationEditError("Unable to load Google Maps services.")
+      return false
+    }
+  }
+
+  const drawLocationPreviewMap = (google, selectedZone) => {
+    if (!locationMapRef.current) return false
+
+    const latitude = Number(locationForm.latitude)
+    const longitude = Number(locationForm.longitude)
+    const hasPin = Number.isFinite(latitude) && Number.isFinite(longitude)
+    const zonePath = getZoneCoordinatePath(selectedZone, google)
+
+    if (!locationMapInstanceRef.current) {
+      locationMapInstanceRef.current = new google.maps.Map(locationMapRef.current, {
+        center: hasPin ? { lat: latitude, lng: longitude } : { lat: 20.5937, lng: 78.9629 },
+        zoom: hasPin ? 15 : zonePath.length >= 3 ? 12 : 5,
+        mapTypeControl: true,
+        mapTypeControlOptions: {
+          style: google.maps.MapTypeControlStyle.HORIZONTAL_BAR,
+          position: google.maps.ControlPosition.TOP_RIGHT,
+          mapTypeIds: [google.maps.MapTypeId.ROADMAP, google.maps.MapTypeId.SATELLITE],
+        },
+        zoomControl: true,
+        streetViewControl: false,
+        fullscreenControl: false,
+        scrollwheel: true,
+        gestureHandling: "greedy",
+        disableDoubleClickZoom: false,
+      })
     }
 
-    await new Promise((resolve, reject) => {
-      const script = document.createElement("script")
-      script.id = "admin-google-maps-script"
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&v=weekly`
-      script.async = true
-      script.defer = true
-      script.onload = resolve
-      script.onerror = reject
-      document.head.appendChild(script)
+    const map = locationMapInstanceRef.current
+
+    if (locationZonePolygonRef.current) {
+      locationZonePolygonRef.current.setMap(null)
+      locationZonePolygonRef.current = null
+    }
+
+    if (locationMarkerRef.current) {
+      locationMarkerRef.current.setMap(null)
+      locationMarkerRef.current = null
+    }
+
+    locationZoneMarkersRef.current.forEach((marker) => marker?.setMap?.(null))
+    locationZoneMarkersRef.current = []
+
+    const bounds = new google.maps.LatLngBounds()
+
+    if (zonePath.length >= 3) {
+      const polygon = new google.maps.Polygon({
+        paths: zonePath,
+        strokeColor: "#4f46e5",
+        strokeOpacity: 0.95,
+        strokeWeight: 3,
+        fillColor: "#6366f1",
+        fillOpacity: 0.18,
+        editable: false,
+        draggable: false,
+        clickable: false,
+      })
+
+      polygon.setMap(map)
+      locationZonePolygonRef.current = polygon
+
+      zonePath.forEach((point, index) => {
+        bounds.extend(point)
+        const zoneMarker = new google.maps.Marker({
+          position: point,
+          map,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 5,
+            fillColor: "#4338ca",
+            fillOpacity: 1,
+            strokeColor: "#ffffff",
+            strokeWeight: 2,
+          },
+          zIndex: 5,
+          title: `${getZoneDisplayName(selectedZone)} point ${index + 1}`,
+        })
+        locationZoneMarkersRef.current.push(zoneMarker)
+      })
+    }
+
+    if (hasPin) {
+      const position = { lat: latitude, lng: longitude }
+      bounds.extend(position)
+      locationMarkerRef.current = new google.maps.Marker({
+        position,
+        map,
+        title: locationForm.formattedAddress || "Restaurant location",
+        draggable: true,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 8,
+          fillColor: "#f97316",
+          fillOpacity: 1,
+          strokeColor: "#ffffff",
+          strokeWeight: 3,
+        },
+        zIndex: 10,
+      })
+
+      locationMarkerRef.current.addListener("dragend", async (event) => {
+        const nextLat = event?.latLng?.lat?.()
+        const nextLng = event?.latLng?.lng?.()
+        await updatePinLocation(google, nextLat, nextLng)
+      })
+    }
+
+    google.maps.event.clearListeners(map, "click")
+    map.addListener("click", async (event) => {
+      const nextLat = event?.latLng?.lat?.()
+      const nextLng = event?.latLng?.lng?.()
+      await updatePinLocation(google, nextLat, nextLng)
     })
 
-    return !!window.google?.maps?.places?.Autocomplete
+    if (!bounds.isEmpty()) {
+      map.fitBounds(bounds, 48)
+      const zoom = map.getZoom?.()
+      if (typeof zoom === "number" && zoom > 16) {
+        map.setZoom(16)
+      }
+    } else {
+      map.setCenter({ lat: 20.5937, lng: 78.9629 })
+      map.setZoom(5)
+    }
+
+    setTimeout(() => {
+      if (window.google?.maps && map) {
+        google.maps.event.trigger(map, "resize")
+      }
+    }, 80)
+
+    return true
   }
 
   const initPlacesAutocomplete = async () => {
@@ -556,6 +811,10 @@ export default function RestaurantsList() {
         latitude: parsed.latitude !== "" ? parsed.latitude : prev.latitude,
         longitude: parsed.longitude !== "" ? parsed.longitude : prev.longitude,
       }))
+
+      if (parsed.latitude !== "" && parsed.longitude !== "" && window.google?.maps) {
+        syncZoneForCoordinates(window.google, parsed.latitude, parsed.longitude)
+      }
     })
   }
 
@@ -619,6 +878,14 @@ export default function RestaurantsList() {
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !locationForm.formattedAddress) {
       alert("Please select a location from dropdown")
       return
+    }
+
+    if (window.google?.maps && zones.length > 0) {
+      const matches = resolveMatchingZonesForPoint(window.google, latitude, longitude)
+      if (matches.length === 0) {
+        alert("The selected pin is outside all configured Zone Setup boundaries.")
+        return
+      }
     }
 
     try {
@@ -694,6 +961,7 @@ export default function RestaurantsList() {
     const initialForm = normalizeLocationFormFromRestaurant(sourceRestaurant)
     setLocationForm(initialForm)
     setLocationEditError("")
+    setLocationZoneHint("")
 
     setZonesLoading(true)
     adminAPI.getZones({ limit: 1000 })
@@ -712,6 +980,65 @@ export default function RestaurantsList() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditingLocation, selectedRestaurant, restaurantDetails?._id])
+
+  const selectedZone = useMemo(() => {
+    const targetZoneId = String(locationForm.zoneId || "")
+    if (!targetZoneId) return null
+    return zones.find((zone) => String(zone?._id || zone?.id || "") === targetZoneId) || null
+  }, [zones, locationForm.zoneId])
+
+  useEffect(() => {
+    if (!isEditingLocation) return
+
+    let cancelled = false
+
+    const renderPreviewMap = async () => {
+      setLocationMapError("")
+      setLocationMapLoading(true)
+
+      const loaded = await loadGoogleMapsScript()
+      if (cancelled) return
+
+      if (!loaded || !window.google?.maps) {
+        setLocationMapError("Map preview could not be loaded.")
+        setLocationMapLoading(false)
+        return
+      }
+
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          if (cancelled) return
+
+          const rendered = drawLocationPreviewMap(window.google, selectedZone)
+          if (!rendered) {
+            setTimeout(() => {
+              if (cancelled) return
+              const retried = drawLocationPreviewMap(window.google, selectedZone)
+              if (!retried) {
+                setLocationMapError("Map preview could not be initialized.")
+              }
+              setLocationMapLoading(false)
+            }, 180)
+            return
+          }
+          setLocationMapLoading(false)
+        }, 90)
+      })
+    }
+
+    renderPreviewMap().catch((error) => {
+      debugError("Location preview map failed:", error)
+      if (!cancelled) {
+        setLocationMapError("Map preview could not be loaded.")
+        setLocationMapLoading(false)
+      }
+    })
+
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditingLocation, selectedZone?._id, selectedZone?.id, locationForm.latitude, locationForm.longitude, locationForm.formattedAddress])
 
   const getDetailsEditSource = () => {
     return restaurantDetails || selectedRestaurant?.originalData || selectedRestaurant || null
@@ -2294,9 +2621,78 @@ export default function RestaurantsList() {
                               className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm"
                             />
                           </div>
+
+                          <div className="md:col-span-2">
+                            <div className="overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-[0_12px_32px_rgba(79,70,229,0.08)]">
+                              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+                                <div>
+                                  <p className="text-[11px] font-black uppercase tracking-[0.2em] text-indigo-500">
+                                    Zone Preview
+                                  </p>
+                                  <h5 className="mt-1 text-sm font-semibold text-slate-900">
+                                    {selectedZone ? getZoneDisplayName(selectedZone) : "Select a zone to preview"}
+                                  </h5>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-[11px] font-semibold text-slate-500">
+                                    {selectedZone?.coordinates?.length ? `${selectedZone.coordinates.length} boundary points` : "No boundary points"}
+                                  </p>
+                                  <p className="text-[11px] text-slate-400">
+                                    {Number.isFinite(Number(locationForm.latitude)) && Number.isFinite(Number(locationForm.longitude))
+                                      ? `${Number(locationForm.latitude).toFixed(5)}, ${Number(locationForm.longitude).toFixed(5)}`
+                                      : "Pick a location to place the marker"}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="relative">
+                                <div
+                                  ref={locationMapRef}
+                                  className="h-[260px] w-full bg-[linear-gradient(180deg,#eef2ff_0%,#f8fafc_100%)]"
+                                />
+
+                                {locationMapLoading && (
+                                  <div className="absolute inset-0 flex items-center justify-center bg-white/72 backdrop-blur-[2px]">
+                                    <div className="flex items-center gap-2 rounded-full border border-indigo-100 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm">
+                                      <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
+                                      Loading map preview...
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="grid grid-cols-1 gap-2 border-t border-slate-100 bg-slate-50/70 px-4 py-3 text-[12px] text-slate-600 md:grid-cols-3">
+                                <div>
+                                  <span className="font-semibold text-slate-800">Available zone:</span>{" "}
+                                  {selectedZone ? getZoneDisplayName(selectedZone) : "Not selected"}
+                                </div>
+                                <div>
+                                  <span className="font-semibold text-slate-800">Zone status:</span>{" "}
+                                  {selectedZone ? (selectedZone.isActive === false ? "Inactive" : "Active") : "Unknown"}
+                                </div>
+                                <div>
+                                  <span className="font-semibold text-slate-800">Restaurant pin:</span>{" "}
+                                  {locationForm.formattedAddress ? "Placed" : "Waiting for location"}
+                                </div>
+                              </div>
+
+                              <div className="border-t border-slate-100 bg-white px-4 py-3">
+                                <p className="text-[12px] font-medium text-slate-600">
+                                  Drag the orange pin or tap anywhere on the map to change the saved restaurant location.
+                                </p>
+                                {locationZoneHint && (
+                                  <p className="mt-1 text-[12px] font-semibold text-indigo-600">
+                                    {locationZoneHint}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
                         </div>
 
-                        {locationEditError && <p className="text-xs text-red-600">{locationEditError}</p>}
+                        {(locationEditError || locationMapError) && (
+                          <p className="text-xs text-red-600">{locationEditError || locationMapError}</p>
+                        )}
                         <button
                           onClick={handleSaveLocation}
                           disabled={savingLocation}

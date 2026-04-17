@@ -10,6 +10,7 @@ import {
   Calendar,
   Copy,
   ChevronRight,
+  ChevronLeft,
   HelpCircle,
   X,
 } from "lucide-react"
@@ -150,6 +151,8 @@ export default function AllOrdersPage() {
   const [error, setError] = useState(null)
   const [restaurantData, setRestaurantData] = useState(null)
   const { newOrder } = useRestaurantNotifications()
+  const ORDERS_PER_PAGE = 10
+  const [currentPage, setCurrentPage] = useState(1)
 
   // Fetch restaurant data
   useEffect(() => {
@@ -477,6 +480,22 @@ export default function AllOrdersPage() {
     return true
   })
 
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / ORDERS_PER_PAGE))
+  const paginatedOrders = filteredOrders.slice(
+    (currentPage - 1) * ORDERS_PER_PAGE,
+    currentPage * ORDERS_PER_PAGE,
+  )
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, filters, startDate, endDate])
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
+
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
@@ -610,7 +629,7 @@ export default function AllOrdersPage() {
                   </p>
                 </div>
               </div>
-            ) : filteredOrders.map((order, index) => (
+            ) : paginatedOrders.map((order, index) => (
             <motion.div
               key={order.id}
               layout
@@ -692,6 +711,69 @@ export default function AllOrdersPage() {
             </motion.div>
             ))}
           </AnimatePresence>
+        )}
+
+        {!loading && !error && filteredOrders.length > ORDERS_PER_PAGE && (
+          <div className="mt-5 rounded-xl border border-gray-200 bg-white p-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-medium text-gray-500">
+                Showing {(currentPage - 1) * ORDERS_PER_PAGE + 1}-
+                {Math.min(currentPage * ORDERS_PER_PAGE, filteredOrders.length)} of {filteredOrders.length}
+              </p>
+              <p className="text-xs font-semibold text-gray-700">
+                Page {currentPage} / {totalPages}
+              </p>
+            </div>
+
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className={`inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  currentPage === 1
+                    ? "cursor-not-allowed bg-gray-100 text-gray-400"
+                    : "bg-gray-900 text-white hover:bg-black"
+                }`}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Prev
+              </button>
+
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, index) => index + 1)
+                  .slice(Math.max(0, currentPage - 2), Math.min(totalPages, currentPage + 1))
+                  .map((pageNumber) => (
+                    <button
+                      key={pageNumber}
+                      type="button"
+                      onClick={() => setCurrentPage(pageNumber)}
+                      className={`h-9 min-w-[36px] rounded-lg px-2 text-sm font-semibold transition-colors ${
+                        currentPage === pageNumber
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      {pageNumber}
+                    </button>
+                  ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className={`inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  currentPage === totalPages
+                    ? "cursor-not-allowed bg-gray-100 text-gray-400"
+                    : "bg-gray-900 text-white hover:bg-black"
+                }`}
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
         )}
       </div>
 

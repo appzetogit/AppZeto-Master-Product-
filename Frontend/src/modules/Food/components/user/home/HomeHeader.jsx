@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation as useRouterLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Navigation,
@@ -47,8 +47,9 @@ const tabs = [
   },
   {
     id: "hotel",
-    name: "Scenes",
-    icon: "https://cdn-icons-png.flaticon.com/512/3163/3163478.png",
+    name: "Explore",
+    icon: "https://cdn-icons-png.flaticon.com/512/854/854878.png",
+    route: "/user/auth/portal",
   },
 ];
 
@@ -103,6 +104,8 @@ export default function HomeHeader({
   quickThemeColor,
   onQuickTabIntent,
 }) {
+  const navigate = useNavigate();
+  const routerLocation = useRouterLocation();
   const videoRef = useRef(null);
   const [notifications, setNotifications] = useState(() => {
     if (typeof window === "undefined") return [];
@@ -362,10 +365,19 @@ export default function HomeHeader({
               onQuickTabIntent?.();
             }
           };
+          const handleTabClick = () => {
+            if (tab.route) {
+              const redirectTo =
+                `${routerLocation.pathname || "/food/user"}${routerLocation.search || ""}${routerLocation.hash || ""}`;
+              navigate(tab.route, { state: { redirectTo } });
+              return;
+            }
+            setActiveTab(tab.id);
+          };
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={handleTabClick}
               onMouseEnter={handleTabIntent}
               onTouchStart={handleTabIntent}
               onFocus={handleTabIntent}

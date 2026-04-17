@@ -1,9 +1,10 @@
 import { Link, useLocation } from "react-router-dom"
-import { Tag, User, Truck, UtensilsCrossed } from "lucide-react"
+import { Tag, User, Truck, UtensilsCrossed, ArrowUpRight } from "lucide-react"
 
 export default function BottomNavigation() {
   const location = useLocation()
   const pathname = location.pathname
+  const redirectTo = `${location.pathname || "/food/user"}${location.search || ""}${location.hash || ""}`
 
   // Check active routes - support both /user/* and /* paths
   const isDining = pathname === "/food/dining" || pathname.startsWith("/food/user/dining")
@@ -23,8 +24,27 @@ export default function BottomNavigation() {
 
   return (
     <div
-      className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-[#1a1a1a] border-t border-gray-200 dark:border-gray-800 z-50 shadow-lg"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-50"
     >
+      <Link
+        to="/user/auth/portal"
+        state={{ redirectTo }}
+        className="relative z-10 -mb-2 ml-auto mr-4 flex h-9 items-center gap-2 rounded-t-[16px] rounded-b-[8px] border border-b-0 border-gray-200 bg-white px-3 pb-2 pt-1.5 shadow-[0_-1px_0_rgba(255,255,255,0.9),0_-6px_18px_-10px_rgba(0,0,0,0.12)]"
+      >
+        <div className="pointer-events-none absolute -bottom-2 left-2 right-2 h-2 rounded-b-full bg-white" />
+        <div className="text-left leading-none">
+          <span className="block text-[8px] font-black uppercase tracking-[0.2em] text-[#b56f4e]">
+            Explore
+          </span>
+        </div>
+        <div className="flex h-6 w-6 items-center justify-center rounded-[8px] bg-[#fff4ec] text-[#8f5638]">
+          <ArrowUpRight className="h-3 w-3" strokeWidth={2.6} />
+        </div>
+      </Link>
+
+      <div
+        className="relative bg-white dark:bg-[#1a1a1a] border-t border-gray-200 dark:border-gray-800 shadow-lg"
+      >
       <div className="flex items-center justify-around h-auto px-2 sm:px-4">
         {/* Delivery Tab */}
         <Link
@@ -102,6 +122,7 @@ export default function BottomNavigation() {
             <div className="absolute top-0 left-0 right-0 h-0.5 bg-green-700 dark:bg-green-500 rounded-b-full" />
           )}
         </Link>
+      </div>
       </div>
     </div>
   )

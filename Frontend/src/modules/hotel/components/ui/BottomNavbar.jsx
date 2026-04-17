@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Briefcase, Navigation, User } from 'lucide-react';
+import { Home, Briefcase, Navigation, User, ArrowUpRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { propertyService } from '../../services/propertyService';
@@ -8,6 +8,7 @@ import { toast } from 'react-hot-toast';
 const BottomNavbar = () => {
     const navigate = useNavigate();
     const location = useLocation();
+    const redirectTo = `${location.pathname || '/hotel'}${location.search || ''}${location.hash || ''}`;
 
     const navItems = [
         { name: 'Home', icon: Home, route: '/hotel' },
@@ -48,10 +49,34 @@ const BottomNavbar = () => {
 
     return (
         <div className="md:hidden fixed bottom-4 left-4 right-4 z-50 print:hidden">
+            <div className="relative overflow-visible pt-7">
+            <motion.button
+                type="button"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => navigate('/user/auth/portal', { state: { redirectTo } })}
+                className="absolute right-3 top-0 z-10 flex items-center gap-2 rounded-t-[18px] rounded-b-[10px] border border-b-0 border-white/40 bg-white/95 px-3 pb-3 pt-2 backdrop-blur-2xl shadow-[0_-2px_0_rgba(255,255,255,0.9),0_-10px_28px_-10px_rgba(0,0,0,0.15)]"
+                style={{ transform: 'translateY(-18%)' }}
+            >
+                <div className="pointer-events-none absolute -bottom-3 left-0 right-0 h-4 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(255,255,255,0)_100%)]" />
+                <div className="pointer-events-none absolute -left-3 bottom-0 h-6 w-6 rounded-br-[18px] border-b border-r border-white/40 bg-white/95 backdrop-blur-2xl" />
+                <div className="pointer-events-none absolute -right-3 bottom-0 h-6 w-6 rounded-bl-[18px] border-b border-l border-white/40 bg-white/95 backdrop-blur-2xl" />
+
+                <div className="text-left leading-none">
+                    <span className="block text-[9px] font-black uppercase tracking-[0.2em] text-[#b56f4e]">
+                        Explore
+                    </span>
+                </div>
+                <div className="flex h-7 w-7 items-center justify-center rounded-[10px] bg-[#fff4ec] text-[#8f5638]">
+                    <ArrowUpRight size={14} strokeWidth={2.6} />
+                </div>
+            </motion.button>
+
             <div className="
         bg-white/95 backdrop-blur-2xl 
         border border-white/40 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)]
-        rounded-[24px]
+        rounded-[24px] relative
         flex justify-between items-center 
         px-3 py-3
       ">
@@ -86,6 +111,7 @@ const BottomNavbar = () => {
                         </button>
                     );
                 })}
+            </div>
             </div>
         </div>
     );

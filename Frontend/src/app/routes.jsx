@@ -129,93 +129,93 @@ const AppRoutes = () => {
 
   return (
     <Routes>
-      {/* Root now lands on the food homepage */}
-      <Route path="/" element={<Navigate to="/food/user" replace />} />
+        {/* Root now lands on the food homepage */}
+        <Route path="/" element={<Navigate to="/food/user" replace />} />
 
-      {/* Auth Module */}
-      <Route path="/user/auth/*" element={<AuthApp />} />
-      <Route path="/portal" element={<Navigate to="/user/auth/portal" replace />} />
-      <Route path="/login" element={<Navigate to="/user/auth/login" replace />} />
+        {/* Auth Module */}
+        <Route path="/user/auth/*" element={<AuthApp />} />
+        <Route path="/portal" element={<Navigate to="/user/auth/portal" replace />} />
+        <Route path="/login" element={<Navigate to="/user/auth/login" replace />} />
 
-      {/* Shared home entry so /food/user <-> /quick doesn't remount through different app trees */}
-      <Route path="/food/user" element={<SharedFoodHomeRoute />} />
+        {/* Shared home entry so /food/user <-> /quick doesn't remount through different app trees */}
+        <Route path="/food/user" element={<SharedFoodHomeRoute />} />
 
-      {/* Food Module */}
-      <Route path="/food/*" element={<FoodAppWrapper />} />
+        {/* Food Module */}
+        <Route path="/food/*" element={<FoodAppWrapper />} />
 
-      <Route
-        path="/hotel/*"
-        element={
-          <Suspense fallback={<PageLoader />}>
-            <HotelModuleApp />
-          </Suspense>
-        }
-      />
+        <Route
+          path="/hotel/*"
+          element={
+            <Suspense fallback={<PageLoader />}>
+              <HotelModuleApp />
+            </Suspense>
+          }
+        />
 
-      {/* Quick storefront landing keeps the shared food layout */}
-      <Route path="/quick" element={<SharedFoodHomeRoute />} />
+        {/* Quick storefront landing keeps the shared food layout */}
+        <Route path="/quick" element={<SharedFoodHomeRoute />} />
 
-      {/* Global shared cart */}
-      <Route
-        element={
-          <Suspense fallback={<PageLoader />}>
-            <FoodUserLayout />
-          </Suspense>
-        }
-      >
-        <Route path="/cart" element={<GlobalCartPage />} />
-        <Route path="/cart/checkout" element={<GlobalCheckoutPage />} />
-        <Route path="/cart/select-address" element={<GlobalSelectAddressPage />} />
-        <Route path="/cart/address-selector" element={<GlobalAddressSelectorPage />} />
-      </Route>
+        {/* Global shared cart */}
+        <Route
+          element={
+            <Suspense fallback={<PageLoader />}>
+              <FoodUserLayout />
+            </Suspense>
+          }
+        >
+          <Route path="/cart" element={<GlobalCartPage />} />
+          <Route path="/cart/checkout" element={<GlobalCheckoutPage />} />
+          <Route path="/cart/select-address" element={<GlobalSelectAddressPage />} />
+          <Route path="/cart/address-selector" element={<GlobalAddressSelectorPage />} />
+        </Route>
 
-      {/* Quick storefront */}
-      <Route
-        path="/quick/*"
-        element={
-          <Suspense fallback={<PageLoader />}>
-            <QuickCommerceApp />
-          </Suspense>
-        }
-      />
-      <Route path="/quick-commerce/*" element={<RedirectLegacyQuickCommerce />} />
-      <Route path="/qc/*" element={<Navigate to="/quick" replace />} />
+        {/* Quick storefront */}
+        <Route
+          path="/quick/*"
+          element={
+            <Suspense fallback={<PageLoader />}>
+              <QuickCommerceApp />
+            </Suspense>
+          }
+        />
+        <Route path="/quick-commerce/*" element={<RedirectLegacyQuickCommerce />} />
+        <Route path="/qc/*" element={<Navigate to="/quick" replace />} />
 
-      <Route
-        path="/taxi/*"
-        element={
-          <Suspense fallback={<TaxiPageLoader />}>
-            <TaxiApp />
-          </Suspense>
-        }
-      />
+        <Route
+          path="/taxi/*"
+          element={
+            <Suspense fallback={<TaxiPageLoader />}>
+              <TaxiApp />
+            </Suspense>
+          }
+        />
 
-      {/* Seller Module */}
-      <Route path="/seller" element={<SellerAppWrapper />} />
-      <Route path="/seller/auth" element={<SellerAuthEntry />} />
-      <Route path="/seller/*" element={<SellerAppWrapper />} />
+        {/* Seller Module */}
+        <Route path="/seller" element={<SellerAppWrapper />} />
+        <Route path="/seller/auth" element={<SellerAuthEntry />} />
+        <Route path="/seller/*" element={<SellerAppWrapper />} />
 
-      {/* Global Admin Portal - wrap lazy router in Suspense to avoid blank/crash on direct admin URLs */}
-      <Route
-        path="/admin/*"
-        element={
-          <Suspense fallback={<PageLoader />}>
-            <AdminRouter />
-          </Suspense>
-        }
-      />
-      
-      {/* Dynamic intercept redirects for bare paths (accessed programmatically) */}
-      <Route path="/user/*" element={<RedirectToFood />} />
-      <Route path="/restaurant/*" element={<RedirectToFood />} />
-      <Route path="/delivery/*" element={<RedirectToFood />} />
-      <Route path="/usermain/*" element={<RedirectToFood />} />
-      <Route path="/profile/*" element={<RedirectToFood />} />
-      <Route path="/orders/*" element={<RedirectToFood />} />
+        {/* Global Admin Portal - wrap lazy router in Suspense to avoid blank/crash on direct admin URLs */}
+        <Route
+          path="/admin/*"
+          element={
+            <Suspense fallback={<PageLoader />}>
+              <AdminRouter />
+            </Suspense>
+          }
+        />
+        
+        {/* Dynamic intercept redirects for bare paths (accessed programmatically) */}
+        <Route path="/user/*" element={<RedirectToFood />} />
+        <Route path="/restaurant/*" element={<RedirectToFood />} />
+        <Route path="/delivery/*" element={<RedirectToFood />} />
+        <Route path="/usermain/*" element={<RedirectToFood />} />
+        <Route path="/profile/*" element={<RedirectToFood />} />
+        <Route path="/orders/*" element={<RedirectToFood />} />
 
-      {/* Fallback 404 */}
-      <Route path="*" element={<Navigate to="/food/user" replace />} />
-    </Routes>
+        {/* Fallback 404 */}
+        <Route path="*" element={<Navigate to="/food/user" replace />} />
+      </Routes>
   )
 }
 

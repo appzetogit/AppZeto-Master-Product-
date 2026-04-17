@@ -1,7 +1,47 @@
 import axios from 'axios';
 
+const isNativeLikeShell = () => {
+  if (typeof window === 'undefined') return false;
+
+  const protocol = String(window.location?.protocol || '').toLowerCase();
+  const userAgent = String(window.navigator?.userAgent || '').toLowerCase();
+
+  return (
+    Boolean(window.flutter_inappwebview) ||
+    Boolean(window.ReactNativeWebView) ||
+    protocol === 'file:' ||
+    userAgent.includes(' wv') ||
+    userAgent.includes('; wv') ||
+    userAgent.includes('flutterwebview')
+  );
+};
+
+const resolveApiRoot = () => {
+  const configured =
+    import.meta.env.VITE_API_BASE_URL ||
+    import.meta.env.VITE_API_URL ||
+    'http://localhost:5000/api/v1';
+
+  const trimmed = String(configured || '').replace(/\/$/, '');
+
+  try {
+    const parsed = new URL(trimmed);
+    const isLocalApiHost = /^(localhost|127\.0\.0\.1)$/i.test(parsed.hostname);
+
+    if (isNativeLikeShell() && isLocalApiHost) {
+      // Android emulators cannot reach host-machine localhost directly.
+      parsed.hostname = '10.0.2.2';
+      return parsed.toString().replace(/\/$/, '');
+    }
+  } catch {
+    // Fall back to the raw configured value below.
+  }
+
+  return trimmed;
+};
+
 // Base URL configuration
-const API_ROOT = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1').replace(/\/$/, '');
+const API_ROOT = resolveApiRoot();
 const API_URL = `${API_ROOT}/hotel`;
 const AUTH_URL = `${API_ROOT}/auth`;
 

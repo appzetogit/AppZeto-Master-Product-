@@ -1239,6 +1239,7 @@ export default function OrderTracking() {
 
     let isSubscribed = true;
     let requestInProgress = false;
+    const NO_RESULT = Symbol("no-order-result");
 
     const poll = async (isInitial = false) => {
       if (!isSubscribed || requestInProgress) return;
@@ -1259,10 +1260,38 @@ export default function OrderTracking() {
 
       requestInProgress = true;
       try {
-        const response = await fetchOrderDetailsWithFallback({ force: isInitial });
-        if (!isSubscribed) return;
+        let response = null;
+        let finalOrderData = null;
 
-        let finalOrderData = extractOrderDetailsPayload(response);
+        if (isInitial && !isQuickOrder) {
+          const detailPromise = fetchOrderDetailsWithFallback({ force: true })
+            .then((res) => {
+              response = res;
+              const payload = extractOrderDetailsPayload(res);
+              if (!payload) throw new Error("detail lookup returned empty payload");
+              return payload;
+            });
+
+          const listPromise = resolveOrderFromList(orderId).then((matchedOrder) => {
+            if (!matchedOrder) throw new Error("order not found in list");
+            return matchedOrder;
+          });
+
+          try {
+            finalOrderData = await Promise.any([detailPromise, listPromise]);
+          } catch {
+            response = await fetchOrderDetailsWithFallback({ force: true });
+            finalOrderData = extractOrderDetailsPayload(response) || NO_RESULT;
+            if (finalOrderData === NO_RESULT) {
+              finalOrderData = await resolveOrderFromList(orderId) || null;
+            }
+          }
+        } else {
+          response = await fetchOrderDetailsWithFallback({ force: isInitial });
+          finalOrderData = extractOrderDetailsPayload(response);
+        }
+
+        if (!isSubscribed) return;
 
         if (!finalOrderData && isInitial) {
           const matchedOrder = await resolveOrderFromList(orderId);

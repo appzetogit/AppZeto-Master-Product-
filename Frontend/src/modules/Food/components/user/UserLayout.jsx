@@ -130,12 +130,8 @@ export default function UserLayout() {
     normalizedPath === "/profile" ||
     normalizedPath === "/user/profile"
 
-  const isQuickRoute =
-    normalizedPath === "/quick" || normalizedPath.startsWith("/quick/")
-
   const showBottomNav = normalizedPath === "/" ||
     normalizedPath === "/user" ||
-    isQuickRoute ||
     normalizedPath === "/dining" ||
     normalizedPath === "/user/dining" ||
     normalizedPath === "/under-250" ||

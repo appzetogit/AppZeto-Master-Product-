@@ -58,16 +58,6 @@ const getVehicleIcon = (type = 'car') => {
 const DRIVER_PLACEHOLDER = { name: 'Captain', rating: '4.9', vehicle: 'Taxi', plate: 'Assigned', phone: '', eta: 2 };
 const STAGES = { SEARCHING: 'searching', ASSIGNED: 'assigned', ACCEPTED: 'accepted', COMPLETING: 'completing' };
 
-// Simulated nearby drivers for "Dynamic" Uber experience
-const generateNearbyDrivers = (center) => {
-  return Array.from({ length: 6 }).map((_, i) => ({
-    id: i,
-    lat: center.lat + (Math.random() - 0.5) * 0.012,
-    lng: center.lng + (Math.random() - 0.5) * 0.012,
-    rotation: Math.floor(Math.random() * 360)
-  }));
-};
-
 const normalizeDriver = (driver = {}) => ({
   name: driver.name || 'Captain',
   rating: driver.rating || '4.9',
@@ -76,6 +66,16 @@ const normalizeDriver = (driver = {}) => ({
   phone: driver.phone || '',
   eta: driver.eta || 2,
 });
+
+const getOnlineDriverPosition = (driver) => {
+  const [lng, lat] = driver?.location?.coordinates || [];
+
+  if (Number.isFinite(Number(lat)) && Number.isFinite(Number(lng))) {
+    return { lat: Number(lat), lng: Number(lng) };
+  }
+
+  return null;
+};
 
 const ActionBtn = ({ icon: Icon, label, onClick }) => (
   <motion.button whileTap={{ scale: 0.94 }} onClick={onClick}
@@ -135,6 +135,12 @@ const SearchingDriver = () => {
     () => routeState.vehicleTypeId || routeState.vehicle?.vehicleTypeId,
     [routeState],
   );
+  const selectedVehicleIconType = useMemo(
+    () => routeState.vehicleIconType || routeState.vehicle?.iconType || routeState.vehicle?.name || 'car',
+    [routeState],
+  );
+  const selectedVehicleIcon = routeState.vehicle?.icon || getVehicleIcon(selectedVehicleIconType);
+  const selectedVehicleName = routeState.vehicle?.name || 'Ride';
   const activeRideIdRef = useRef('');
   const [nearbyDrivers, setNearbyDrivers] = useState([]);
 
@@ -149,28 +155,45 @@ const SearchingDriver = () => {
     [routeState.pickupCoords],
   );
 
-  // Initialize nearby drivers
   useEffect(() => {
-    if (pickupPos) {
-      setNearbyDrivers(generateNearbyDrivers(pickupPos));
+    if (stage !== STAGES.SEARCHING || !selectedVehicleTypeId || !pickupPos) {
+      setNearbyDrivers([]);
+      return undefined;
     }
-  }, [pickupPos]);
 
-  // Jitter movement to make it feel "Alive"
-  useEffect(() => {
-    if (stage !== STAGES.SEARCHING) return;
-    
-    const interval = setInterval(() => {
-      setNearbyDrivers(prev => prev.map(d => ({
-        ...d,
-        lat: d.lat + (Math.random() - 0.5) * 0.0004,
-        lng: d.lng + (Math.random() - 0.5) * 0.0004,
-        rotation: d.rotation + (Math.random() - 0.5) * 10
-      })));
-    }, 2500);
-    
-    return () => clearInterval(interval);
-  }, [stage]);
+    let active = true;
+
+    const loadOnlineDrivers = async () => {
+      try {
+        const response = await api.get('/rides/available-drivers', {
+          params: {
+            vehicleTypeId: selectedVehicleTypeId,
+            vehicleIconType: selectedVehicleIconType,
+            lng: pickupPos.lng,
+            lat: pickupPos.lat,
+          },
+        });
+        const payload = unwrap(response);
+        const onlineDrivers = Array.isArray(payload?.drivers) ? payload.drivers : [];
+
+        if (active) {
+          setNearbyDrivers(onlineDrivers.filter(getOnlineDriverPosition));
+        }
+      } catch (_error) {
+        if (active) {
+          setNearbyDrivers([]);
+        }
+      }
+    };
+
+    loadOnlineDrivers();
+    const interval = setInterval(loadOnlineDrivers, 6000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [pickupPos, selectedVehicleIconType, selectedVehicleTypeId, stage]);
 
   const dropPos = useMemo(
     () => (
@@ -199,12 +222,9 @@ const SearchingDriver = () => {
 
     const onRideSearchUpdate = ({ matchedDrivers, radius }) => {
       const radiusKm = radius ? (Number(radius) / 1000).toFixed(1) : '';
-      if (matchedDrivers > 0) {
-        setStage(STAGES.ASSIGNED);
-      }
       setSearchStatus(
         matchedDrivers > 0
-          ? `${matchedDrivers} captain${matchedDrivers > 1 ? 's' : ''} found within ${radiusKm} km`
+          ? `${matchedDrivers} captain${matchedDrivers > 1 ? 's' : ''} nearby. Waiting for one to accept...`
           : `Searching within ${radiusKm} km`,
       );
     };
@@ -512,6 +532,39 @@ const SearchingDriver = () => {
               </OverlayView>
             )}
 
+            {/* Real online selected-vehicle drivers around pickup */}
+            {isSearching && nearbyDrivers.map((nearbyDriver, index) => (
+              <OverlayView
+                key={nearbyDriver.id || nearbyDriver._id || index}
+                position={getOnlineDriverPosition(nearbyDriver)}
+                mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+              >
+                <motion.div
+                  animate={{
+                    opacity: [0.35, 1, 0.45],
+                    scale: [0.82, 1.12, 0.88],
+                    y: [0, -3, 0],
+                  }}
+                  transition={{
+                    repeat: Infinity,
+                    duration: 1.45,
+                    delay: index * 0.18,
+                    ease: 'easeInOut',
+                  }}
+                  className="relative -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                >
+                  <div className="absolute inset-0 rounded-full bg-orange-400/30 blur-md" />
+                  <div className="relative w-11 h-11 rounded-full border-2 border-white bg-white/95 p-2 shadow-[0_10px_26px_rgba(15,23,42,0.22)]">
+                    <img
+                      src={getVehicleIcon(nearbyDriver.vehicleIconType || nearbyDriver.vehicleType || selectedVehicleIconType)}
+                      alt={nearbyDriver.vehicleType || selectedVehicleName}
+                      className="h-full w-full object-contain drop-shadow-sm"
+                    />
+                  </div>
+                </motion.div>
+              </OverlayView>
+            ))}
+
             {/* Simplified Route Line */}
             {dropPos && (
               <Polyline 
@@ -569,6 +622,24 @@ const SearchingDriver = () => {
               <div className="text-center space-y-1.5">
                 <h1 className="text-[22px] font-extrabold text-slate-950 tracking-tight">Finding your ride</h1>
                 <p className="text-[13px] font-semibold text-slate-400 max-w-[260px] mx-auto leading-normal">{searchStatus}</p>
+              </div>
+
+              <div className="flex justify-center py-1">
+                <motion.div
+                  animate={{
+                    scale: [1, 1.12, 1],
+                    opacity: [0.72, 1, 0.72],
+                  }}
+                  transition={{ repeat: Infinity, duration: 1.05, ease: 'easeInOut' }}
+                  className="relative h-20 w-20 rounded-[28px] bg-gradient-to-br from-orange-50 to-white p-3 shadow-[0_18px_38px_rgba(249,115,22,0.20)] border border-orange-100"
+                >
+                  <motion.div
+                    animate={{ scale: [0.8, 1.65], opacity: [0.35, 0] }}
+                    transition={{ repeat: Infinity, duration: 1.2, ease: 'easeOut' }}
+                    className="absolute inset-0 rounded-[28px] border-2 border-orange-300"
+                  />
+                  <img src={selectedVehicleIcon} alt={selectedVehicleName} className="relative h-full w-full object-contain drop-shadow-md" />
+                </motion.div>
               </div>
 
               {/* Animated Progress Dots */}

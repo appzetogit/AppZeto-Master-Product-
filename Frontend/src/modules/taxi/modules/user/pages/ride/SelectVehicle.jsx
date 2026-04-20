@@ -453,6 +453,15 @@ const getAvailabilityBadge = (availability) => {
   return null;
 };
 
+const getAvailabilitySortRank = (vehicle, availabilityByVehicleId) => {
+  if (!Object.prototype.hasOwnProperty.call(availabilityByVehicleId, vehicle.id)) {
+    return 1;
+  }
+
+  const availability = availabilityByVehicleId[vehicle.id] || DEFAULT_AVAILABILITY;
+  return availability.totalDrivers > 0 ? 0 : 2;
+};
+
 const normalizeVehicleType = (type, index) => {
   const id = String(type?._id || type?.id || type?.name || index);
 
@@ -682,6 +691,31 @@ const SelectVehicle = () => {
   const selectedVehicle = useMemo(() => pricedVehicles.find((v) => v.id === selected), [pricedVehicles, selected]);
   const selectedAvailability = selectedVehicle ? (availabilityByVehicleId[selectedVehicle.id] || DEFAULT_AVAILABILITY) : DEFAULT_AVAILABILITY;
   const onlineDrivers = selectedAvailability.drivers || [];
+  const sortedPricedVehicles = useMemo(
+    () =>
+      pricedVehicles
+        .map((vehicle, index) => ({ ...vehicle, originalIndex: index }))
+        .sort((first, second) => {
+          const rankDiff =
+            getAvailabilitySortRank(first, availabilityByVehicleId) -
+            getAvailabilitySortRank(second, availabilityByVehicleId);
+
+          if (rankDiff !== 0) {
+            return rankDiff;
+          }
+
+          const firstAvailability = availabilityByVehicleId[first.id] || DEFAULT_AVAILABILITY;
+          const secondAvailability = availabilityByVehicleId[second.id] || DEFAULT_AVAILABILITY;
+          const driverCountDiff = (secondAvailability.totalDrivers || 0) - (firstAvailability.totalDrivers || 0);
+
+          if (driverCountDiff !== 0) {
+            return driverCountDiff;
+          }
+
+          return first.originalIndex - second.originalIndex;
+        }),
+    [availabilityByVehicleId, pricedVehicles],
+  );
 
   useEffect(() => {
     let active = true;
@@ -758,6 +792,23 @@ const SelectVehicle = () => {
       active = false;
     };
   }, [pickupCoords, selected, vehicles]);
+
+  useEffect(() => {
+    const firstAvailableVehicle = sortedPricedVehicles.find((vehicle) => {
+      const availability = availabilityByVehicleId[vehicle.id];
+      return availability?.totalDrivers > 0;
+    });
+
+    if (!firstAvailableVehicle) {
+      return;
+    }
+
+    const selectedHasDrivers = (availabilityByVehicleId[selected]?.totalDrivers || 0) > 0;
+
+    if (!selectedHasDrivers) {
+      setSelected(firstAvailableVehicle.id);
+    }
+  }, [availabilityByVehicleId, selected, sortedPricedVehicles]);
 
   const handleBook = () => {
     if (!selectedVehicle) {
@@ -883,14 +934,14 @@ const SelectVehicle = () => {
               </div>
             )}
 
-            {!isLoadingVehicles && !vehicleLoadError && pricedVehicles.length === 0 && (
+            {!isLoadingVehicles && !vehicleLoadError && sortedPricedVehicles.length === 0 && (
               <div className="bg-white border border-slate-50 rounded-[18px] px-4 py-5 text-center">
                 <p className="text-[13px] font-bold text-slate-900">No vehicles available</p>
                 <p className="text-[11px] font-bold text-slate-400 mt-1">Try changing your location or method.</p>
               </div>
             )}
 
-          {!isLoadingVehicles && !vehicleLoadError && pricedVehicles.map((v, i) => {
+          {!isLoadingVehicles && !vehicleLoadError && sortedPricedVehicles.map((v, i) => {
             const isSelected = selected === v.id;
             const availability = availabilityByVehicleId[v.id] || DEFAULT_AVAILABILITY;
             const badge = getAvailabilityBadge(availability) || v.badge;

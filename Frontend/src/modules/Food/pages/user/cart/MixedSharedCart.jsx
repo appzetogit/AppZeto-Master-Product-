@@ -298,7 +298,7 @@ export default function MixedSharedCart() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-28">
+    <div className="min-h-screen overflow-x-hidden bg-slate-50 pb-28">
       <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">
         <button
           type="button"
@@ -309,8 +309,8 @@ export default function MixedSharedCart() {
           Back to shopping
         </button>
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
-          <div className="space-y-4">
+        <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="min-w-0 space-y-4">
             <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-center gap-3">
                 <div className="rounded-2xl bg-amber-100 p-3 text-amber-700">
@@ -380,13 +380,13 @@ export default function MixedSharedCart() {
               </div>
             </section>
 
-            <section className="grid gap-4 md:grid-cols-2">
+            <section className="grid min-w-0 gap-4 md:grid-cols-2">
               {[{ title: "Food items", items: foodItems }, { title: "Quick items", items: quickItems }].map((section) => (
-                <div key={section.title} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div key={section.title} className="min-w-0 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                   <h2 className="text-lg font-black text-slate-900">{section.title}</h2>
                   <div className="mt-4 space-y-3">
                     {section.items.map((item) => (
-                      <div key={item.id} className="flex items-center gap-3 rounded-2xl border border-slate-200 p-3">
+                      <div key={item.id} className="flex min-w-0 items-center gap-3 rounded-2xl border border-slate-200 p-3">
                         <img
                           src={item.image || item.imageUrl || "https://placehold.co/96x96?text=Item"}
                           alt={item.name || "Item"}
@@ -402,7 +402,7 @@ export default function MixedSharedCart() {
                             {Number(item.price || 0).toFixed(0)}
                           </p>
                         </div>
-                        <div className="flex items-center gap-2 rounded-full border border-slate-200 px-2 py-1">
+                        <div className="flex shrink-0 items-center gap-2 rounded-full border border-slate-200 px-2 py-1">
                           <button type="button" onClick={() => decrement(item)} className="px-2 text-sm font-bold text-slate-600">
                             -
                           </button>

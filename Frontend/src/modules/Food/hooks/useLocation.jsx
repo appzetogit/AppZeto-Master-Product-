@@ -32,6 +32,93 @@ let globalReverseGeocodeLastSuccess = null
 // then rely on localStorage/DB. Live watching is enabled only via explicit user action.
 const AUTO_START_LIVE_WATCH = false
 
+const isMeaningfulAddressValue = (value) => {
+  const normalized = String(value || "").trim().toLowerCase()
+  return Boolean(
+    normalized &&
+      normalized !== "select location" &&
+      normalized !== "current location" &&
+      !/^-?\d+\.\d+,\s*-?\d+\.\d+$/.test(normalized)
+  )
+}
+
+const buildBigDataCloudAddress = (data, latitude, longitude) => {
+  const administrative = Array.isArray(data?.localityInfo?.administrative)
+    ? data.localityInfo.administrative
+    : []
+
+  const adminNames = administrative
+    .map((item) => String(item?.name || "").trim())
+    .filter(Boolean)
+
+  const locality = String(data?.locality || data?.city || "").trim()
+  const city = String(data?.city || data?.locality || "").trim()
+  const state = String(data?.principalSubdivision || "").trim()
+  const postcode = String(data?.postcode || "").trim()
+
+  const areaCandidates = [
+    data?.locality,
+    data?.city,
+    administrative.find((item) => Number(item?.adminLevel) >= 8)?.name,
+    administrative.find((item) => Number(item?.adminLevel) === 6)?.name,
+    administrative.find((item) => Number(item?.adminLevel) === 5)?.name,
+  ]
+    .map((item) => String(item || "").trim())
+    .filter(Boolean)
+
+  const uniqueParts = []
+  const pushUnique = (value) => {
+    const next = String(value || "").trim()
+    if (!next) return
+    if (uniqueParts.some((part) => part.toLowerCase() === next.toLowerCase())) return
+    uniqueParts.push(next)
+  }
+
+  const explicitFormattedAddress =
+    data?.formattedAddress || data?.lookupSourceAddress || data?.displayName
+  if (isMeaningfulAddressValue(explicitFormattedAddress)) {
+    return {
+      area: areaCandidates[0] || city || "",
+      city: city || "Unknown City",
+      state,
+      country: String(data?.countryName || "").trim(),
+      postalCode: postcode,
+      address: String(explicitFormattedAddress).trim(),
+      formattedAddress: String(explicitFormattedAddress).trim(),
+    }
+  }
+
+  pushUnique(areaCandidates[0])
+  pushUnique(areaCandidates[1])
+  pushUnique(areaCandidates[2])
+  pushUnique(city)
+  pushUnique(state)
+  pushUnique(postcode)
+
+  if (uniqueParts.length === 0) {
+    const fallbackText = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
+    return {
+      area: "",
+      city: city || "Unknown City",
+      state,
+      country: String(data?.countryName || "").trim(),
+      postalCode: postcode,
+      address: fallbackText,
+      formattedAddress: fallbackText,
+    }
+  }
+
+  return {
+    area: areaCandidates[0] || locality || city || adminNames[0] || "",
+    city: city || "Unknown City",
+    state,
+    country: String(data?.countryName || "").trim(),
+    postalCode: postcode,
+    address: uniqueParts.join(", "),
+    formattedAddress: uniqueParts.join(", "),
+  }
+}
+
 const reverseGeocodeDirect = async (latitude, longitude) => {
   const now = Date.now()
   const movedMeters = geoDistanceMeters(
@@ -83,18 +170,7 @@ const reverseGeocodeDirect = async (latitude, longitude) => {
 
       const data = await res.json()
 
-      const value = {
-        city: data.city || data.locality || "Unknown City",
-        state: data.principalSubdivision || "",
-        country: data.countryName || "",
-        area: data.subLocality || "",
-        address:
-          data.formattedAddress ||
-          `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
-        formattedAddress:
-          data.formattedAddress ||
-          `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
-      }
+      const value = buildBigDataCloudAddress(data, latitude, longitude)
 
       globalReverseGeocodeLastSuccess = value
       return value

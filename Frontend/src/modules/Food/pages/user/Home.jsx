@@ -143,6 +143,11 @@ const InlineLazyFallback = ({ className = "" }) => (
 
 const WEBVIEW_SESSION_CACHE_BUSTER = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+const getStoredDeliveryAddressMode = () => {
+  if (typeof window === "undefined") return "saved";
+  return window.localStorage.getItem("deliveryAddressMode") || "saved";
+};
+
 const LazyComponent = React.memo(({ children, placeholder, rootMargin = "300px" }) => {
   const [inView, setInView] = useState(false);
   const ref = useRef(null);
@@ -1114,7 +1119,8 @@ export default function Home() {
 
     if (
       address.formattedAddress &&
-      address.formattedAddress !== "Select location"
+      address.formattedAddress !== "Select location" &&
+      !/^-?\d+\.\d+,\s*-?\d+\.\d+$/.test(String(address.formattedAddress).trim())
     ) {
       return address.formattedAddress;
     }
@@ -1122,9 +1128,11 @@ export default function Home() {
     const parts = [];
     if (address.additionalDetails) parts.push(address.additionalDetails);
     if (address.street) parts.push(address.street);
+    if (address.area) parts.push(address.area);
     if (address.city) parts.push(address.city);
     if (address.state) parts.push(address.state);
-    if (address.zipCode) parts.push(address.zipCode);
+    if (address.zipCode || address.postalCode)
+      parts.push(address.zipCode || address.postalCode);
 
     if (parts.length > 0) return parts.join(", ");
     if (address.address && address.address !== "Select location")
@@ -1133,10 +1141,37 @@ export default function Home() {
     return "";
   }, []);
 
+  const [deliveryAddressMode, setDeliveryAddressMode] = useState(
+    getStoredDeliveryAddressMode,
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const syncDeliveryAddressMode = () => {
+      setDeliveryAddressMode(getStoredDeliveryAddressMode());
+    };
+
+    window.addEventListener("storage", syncDeliveryAddressMode);
+    window.addEventListener("userLocationUpdated", syncDeliveryAddressMode);
+    window.addEventListener("focus", syncDeliveryAddressMode);
+
+    return () => {
+      window.removeEventListener("storage", syncDeliveryAddressMode);
+      window.removeEventListener("userLocationUpdated", syncDeliveryAddressMode);
+      window.removeEventListener("focus", syncDeliveryAddressMode);
+    };
+  }, []);
+
   const savedAddressText = useMemo(() => {
     const defaultAddress = getDefaultAddress?.();
     return formatSavedAddress(defaultAddress);
   }, [getDefaultAddress, formatSavedAddress]);
+
+  const currentLocationText = useMemo(
+    () => formatSavedAddress(location),
+    [formatSavedAddress, location],
+  );
 
   const defaultSavedAddress = useMemo(
     () => getDefaultAddress?.() || null,
@@ -1175,8 +1210,26 @@ export default function Home() {
     error: savedAddressZoneError,
   } = useZone(defaultSavedAddressLocation);
 
-  const hasSavedAddress = Boolean(defaultSavedAddress && savedAddressText);
+  const shouldUseCurrentDeliveryLocation =
+    deliveryAddressMode === "current" && Boolean(currentLocationText);
+  const preferredAddressText = shouldUseCurrentDeliveryLocation
+    ? currentLocationText
+    : savedAddressText;
+  const hasSavedAddress =
+    !shouldUseCurrentDeliveryLocation &&
+    Boolean(defaultSavedAddress && savedAddressText);
   const effectiveDeliveryLocation = useMemo(() => {
+    if (
+      shouldUseCurrentDeliveryLocation &&
+      Number.isFinite(location?.latitude) &&
+      Number.isFinite(location?.longitude)
+    ) {
+      return {
+        latitude: location.latitude,
+        longitude: location.longitude,
+      };
+    }
+
     if (
       Number.isFinite(defaultSavedAddressLocation?.latitude) &&
       Number.isFinite(defaultSavedAddressLocation?.longitude)
@@ -1197,6 +1250,7 @@ export default function Home() {
     return null;
   }, [
     defaultSavedAddressLocation,
+    shouldUseCurrentDeliveryLocation,
     location?.latitude,
     location?.longitude,
   ]);
@@ -2655,7 +2709,7 @@ export default function Home() {
           activeTab={activeTab}
           setActiveTab={handleTabChange}
           location={location}
-          savedAddressText={savedAddressText}
+          savedAddressText={preferredAddressText}
           handleLocationClick={handleLocationClick}
           handleSearchFocus={handleSearchFocus}
           placeholderIndex={placeholderIndex}

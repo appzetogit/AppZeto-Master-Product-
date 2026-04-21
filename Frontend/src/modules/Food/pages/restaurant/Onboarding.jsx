@@ -23,7 +23,7 @@ import { useCompanyName } from "@food/hooks/useCompanyName"
 import { getGoogleMapsApiKey } from "@food/utils/googleMapsApiKey"
 import { clearModuleAuth, clearAuthData } from "@food/utils/auth"
 import { ImageSourcePicker } from "@food/components/ImageSourcePicker"
-import { isFlutterBridgeAvailable, openCamera } from "@food/utils/imageUploadUtils"
+import { convertBase64ToFile, isFlutterBridgeAvailable, openCamera } from "@food/utils/imageUploadUtils"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -51,9 +51,11 @@ const IFSC_CODE_REGEX = /^[A-Z0-9]{11}$/
 const ACCOUNT_HOLDER_NAME_REGEX = /^[A-Za-z ]+$/
 const GST_LEGAL_NAME_REGEX = /^[A-Za-z ]+$/
 const FEATURED_DISH_NAME_REGEX = /^[A-Za-z ]+$/
+const OWNER_EMAIL_REGEX = /^[a-zA-Z0-9]([a-zA-Z0-9._%+-]*[a-zA-Z0-9])?@[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)+$/
 const LOCAL_IMAGE_FILE_ACCEPT = ".jpg,.jpeg,.png,.webp,.heic,.heif"
 const GALLERY_IMAGE_ACCEPT =
   ".jpg,.jpeg,.png,.webp,.heic,.heif,image/jpeg,image/png,image/webp,image/heic,image/heif"
+const ONBOARDING_DRAFT_FILE_MAX_SIZE = 2.5 * 1024 * 1024
 let onboardingFileCache = {
   step2: {
     menuImages: [],
@@ -79,6 +81,64 @@ const isUploadableFile = (value) => {
 }
 
 const normalizePhoneDigits = (value) => String(value || "").replace(/\D/g, "").slice(-15)
+
+const fileToDataUrl = (file) =>
+  new Promise((resolve, reject) => {
+    try {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result)
+      reader.onerror = () => reject(new Error("Failed to read image"))
+      reader.readAsDataURL(file)
+    } catch (error) {
+      reject(error)
+    }
+  })
+
+const serializeDraftImage = async (value, fallbackPrefix) => {
+  if (!value) return null
+
+  if (isUploadableFile(value)) {
+    if (Number(value.size || 0) > ONBOARDING_DRAFT_FILE_MAX_SIZE) {
+      return null
+    }
+
+    const dataUrl = await fileToDataUrl(value)
+    return {
+      kind: "draft-file",
+      dataUrl,
+      name: value.name || `${fallbackPrefix}-${Date.now()}.jpg`,
+      mimeType: value.type || "image/jpeg",
+      lastModified: Number(value.lastModified || Date.now()),
+    }
+  }
+
+  if (typeof value === "string" && value.startsWith("http")) return value
+  if (value?.url && typeof value.url === "string") return value
+
+  return null
+}
+
+const restoreDraftImage = (value, fallbackPrefix) => {
+  if (!value) return null
+
+  if (value?.kind === "draft-file" && value?.dataUrl) {
+    try {
+      return convertBase64ToFile(
+        value.dataUrl,
+        value.mimeType || "image/jpeg",
+        fallbackPrefix,
+        value.name || "",
+      )
+    } catch {
+      return null
+    }
+  }
+
+  if (typeof value === "string" && value.startsWith("http")) return value
+  if (value?.url && typeof value.url === "string") return value
+
+  return null
+}
 
 const getVerifiedPhoneFromStoredRestaurant = () => {
   try {
@@ -124,39 +184,25 @@ const normalizeZoneIdValue = (value) => {
 const getTodayLocalYMD = () => formatDateToLocalYMD(new Date())
 
 // Helper functions for localStorage
-const saveOnboardingToLocalStorage = (step1, step2, step3, step4, currentStep) => {
+const saveOnboardingToLocalStorage = async (step1, step2, step3, step4, currentStep) => {
   try {
-    // Persist only stable URL-based values. File/Blob objects are not serializable and
-    // restoring metadata-only placeholders breaks preview/upload flows.
+    const serializedMenuImages = await Promise.all(
+      (step2.menuImages || []).map((img, index) =>
+        serializeDraftImage(img, `menu-image-${index + 1}`),
+      ),
+    )
+
     const serializableStep2 = {
       ...step2,
-      menuImages: (step2.menuImages || []).filter(
-        (img) => !isUploadableFile(img) && (img?.url || (typeof img === "string" && img.startsWith("http")))
-      ),
-      profileImage:
-        !isUploadableFile(step2.profileImage) &&
-        (step2.profileImage?.url || (typeof step2.profileImage === "string" && step2.profileImage.startsWith("http")))
-          ? step2.profileImage
-          : null,
+      menuImages: serializedMenuImages.filter(Boolean),
+      profileImage: await serializeDraftImage(step2.profileImage, "restaurant-profile"),
     }
 
     const serializableStep3 = {
       ...step3,
-      panImage:
-        !isUploadableFile(step3.panImage) &&
-        (step3.panImage?.url || (typeof step3.panImage === "string" && step3.panImage.startsWith("http")))
-          ? step3.panImage
-          : null,
-      gstImage:
-        !isUploadableFile(step3.gstImage) &&
-        (step3.gstImage?.url || (typeof step3.gstImage === "string" && step3.gstImage.startsWith("http")))
-          ? step3.gstImage
-          : null,
-      fssaiImage:
-        !isUploadableFile(step3.fssaiImage) &&
-        (step3.fssaiImage?.url || (typeof step3.fssaiImage === "string" && step3.fssaiImage.startsWith("http")))
-          ? step3.fssaiImage
-          : null,
+      panImage: await serializeDraftImage(step3.panImage, "pan-image"),
+      gstImage: await serializeDraftImage(step3.gstImage, "gst-image"),
+      fssaiImage: await serializeDraftImage(step3.fssaiImage, "fssai-image"),
     }
 
     const dataToSave = {
@@ -438,6 +484,7 @@ export default function RestaurantOnboarding() {
   const locationSearchInputRef = useRef(null)
   const placesAutocompleteRef = useRef(null)
   const mapsScriptLoadedRef = useRef(false)
+  const hasRestoredDraftStepRef = useRef(false)
   const menuImagesInputRef = useRef(null)
   const profileImageInputRef = useRef(null)
   const panImageInputRef = useRef(null)
@@ -517,6 +564,20 @@ export default function RestaurantOnboarding() {
     await openCamera(pickerConfig)
   }
 
+  const openOnboardingImagePicker = ({
+    title,
+    fallbackInputRef,
+    fileNamePrefix,
+    onSelectFile,
+  }) => {
+    openImageSourcePicker({
+      title,
+      fallbackInputRef,
+      fileNamePrefix,
+      onSelectFile,
+    })
+  }
+
 
   // Load from localStorage on mount and check URL parameter
   useEffect(() => {
@@ -526,7 +587,7 @@ export default function RestaurantOnboarding() {
     const stepParam = searchParams.get("step")
     if (stepParam) {
       const stepNum = parseInt(stepParam, 10)
-      if (stepNum >= 1 && stepNum <= 3) {
+      if (stepNum >= 1 && stepNum <= 4) {
         setStep(stepNum)
       }
     }
@@ -560,16 +621,14 @@ export default function RestaurantOnboarding() {
         })
       }
       if (localData.step2) {
-        const restoredMenuImages = (localData.step2.menuImages || []).filter(
-          (img) => img?.url || (typeof img === "string" && img.startsWith("http"))
-        )
+        const restoredMenuImages = (localData.step2.menuImages || [])
+          .map((img, index) => restoreDraftImage(img, `menu-image-${index + 1}`))
+          .filter(Boolean)
         const cachedMenuImages = onboardingFileCache.step2.menuImages || []
-        const restoredProfileImage =
-          localData.step2.profileImage?.url ||
-            (typeof localData.step2.profileImage === "string" &&
-            localData.step2.profileImage.startsWith("http"))
-            ? localData.step2.profileImage
-            : null
+        const restoredProfileImage = restoreDraftImage(
+          localData.step2.profileImage,
+          "restaurant-profile",
+        )
         const cachedProfileImage = onboardingFileCache.step2.profileImage || null
 
         setStep2({
@@ -585,15 +644,24 @@ export default function RestaurantOnboarding() {
         setStep3({
           panNumber: localData.step3.panNumber || "",
           nameOnPan: localData.step3.nameOnPan || "",
-          panImage: onboardingFileCache.step3.panImage || localData.step3.panImage || null,
+          panImage:
+            onboardingFileCache.step3.panImage ||
+            restoreDraftImage(localData.step3.panImage, "pan-image") ||
+            null,
           gstRegistered: localData.step3.gstRegistered || false,
           gstNumber: localData.step3.gstNumber || "",
           gstLegalName: localData.step3.gstLegalName || "",
           gstAddress: localData.step3.gstAddress || "",
-          gstImage: onboardingFileCache.step3.gstImage || localData.step3.gstImage || null,
+          gstImage:
+            onboardingFileCache.step3.gstImage ||
+            restoreDraftImage(localData.step3.gstImage, "gst-image") ||
+            null,
           fssaiNumber: localData.step3.fssaiNumber || "",
           fssaiExpiry: localData.step3.fssaiExpiry || "",
-          fssaiImage: onboardingFileCache.step3.fssaiImage || localData.step3.fssaiImage || null,
+          fssaiImage:
+            onboardingFileCache.step3.fssaiImage ||
+            restoreDraftImage(localData.step3.fssaiImage, "fssai-image") ||
+            null,
           accountNumber: localData.step3.accountNumber || "",
           confirmAccountNumber: localData.step3.confirmAccountNumber || "",
           ifscCode: (localData.step3.ifscCode || "").toUpperCase(),
@@ -609,9 +677,15 @@ export default function RestaurantOnboarding() {
           offer: localData.step4.offer || "",
         })
       }
+      // Mark that we have local data and should NOT override from API
+      hasRestoredDraftStepRef.current = true
       // Only set step from localStorage if URL doesn't have a step parameter
       if (localData.currentStep && !stepParam) {
         setStep(localData.currentStep)
+      } else if (!stepParam) {
+        // If no step in localStorage, determine which step to show based on completed data
+        const stepToShow = determineStepToShow({ step1: localData.step1, step2: localData.step2, step3: localData.step3, step4: localData.step4 })
+        setStep(stepToShow)
       }
     }
   }, [searchParams])
@@ -644,7 +718,16 @@ export default function RestaurantOnboarding() {
 
   // Save to localStorage whenever step data changes
   useEffect(() => {
-    saveOnboardingToLocalStorage(step1, step2, step3, step4, step)
+    let active = true
+
+    ;(async () => {
+      await saveOnboardingToLocalStorage(step1, step2, step3, step4, step)
+      if (!active) return
+    })()
+
+    return () => {
+      active = false
+    }
   }, [step1, step2, step3, step4, step])
 
   useEffect(() => {
@@ -737,7 +820,7 @@ export default function RestaurantOnboarding() {
 
           // Only determine step automatically if not specified in URL
           const stepParam = searchParams.get("step")
-          if (!stepParam) {
+          if (!stepParam && !hasRestoredDraftStepRef.current) {
             // If already registered/pending, stay on step 1 for editing
             if (data.status === "approved" || data.status === "pending") {
                setStep(1)
@@ -792,8 +875,8 @@ export default function RestaurantOnboarding() {
     }
     if (!step1.ownerEmail?.trim()) {
       errors.push("Owner email is required")
-    } else if (!/^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(step1.ownerEmail.trim())) {
-      errors.push("Please enter a valid email address")
+    } else if (!OWNER_EMAIL_REGEX.test(step1.ownerEmail.trim())) {
+      errors.push("Email should be in format (ex - aaa@gmail.com)")
     }
     if (!step1.ownerPhone?.trim()) {
       errors.push("Owner phone number is required")
@@ -1224,8 +1307,16 @@ export default function RestaurantOnboarding() {
               type="email"
               value={step1.ownerEmail || ""}
               onChange={(e) => setStep1({ ...step1, ownerEmail: e.target.value })}
+              onBlur={(e) =>
+                setStep1((prev) => ({
+                  ...prev,
+                  ownerEmail: String(e.target.value || "").trim().toLowerCase(),
+                }))
+              }
               className="mt-1 bg-white text-sm text-black placeholder-black"
               placeholder="owner@example.com"
+              inputMode="email"
+              pattern={OWNER_EMAIL_REGEX.source}
               disabled={!isEditing}
             />
           </div>
@@ -1563,7 +1654,18 @@ export default function RestaurantOnboarding() {
               type="button"
               variant="outline"
               className="w-full text-xs"
-              onClick={() => menuImagesInputRef.current?.click()}
+              onClick={() =>
+                openOnboardingImagePicker({
+                  title: "Add menu image",
+                  fallbackInputRef: menuImagesInputRef,
+                  fileNamePrefix: "menu-image",
+                  onSelectFile: (file) =>
+                    setStep2((prev) => ({
+                      ...prev,
+                      menuImages: [...(prev.menuImages || []), file],
+                    })),
+                })
+              }
             >
               <Upload className="w-4 h-4 mr-1.5" />
               Upload
@@ -1709,7 +1811,18 @@ export default function RestaurantOnboarding() {
             type="button"
             variant="outline"
             className="w-full text-xs"
-            onClick={() => profileImageInputRef.current?.click()}
+            onClick={() =>
+              openOnboardingImagePicker({
+                title: "Upload profile image",
+                fallbackInputRef: profileImageInputRef,
+                fileNamePrefix: "restaurant-profile",
+                onSelectFile: (file) =>
+                  setStep2((prev) => ({
+                    ...prev,
+                    profileImage: file,
+                  })),
+              })
+            }
           >
             <Upload className="w-4 h-4 mr-1.5" />
             Upload
@@ -1829,7 +1942,15 @@ export default function RestaurantOnboarding() {
             type="button"
             variant="outline"
             className="mt-2 w-full text-xs"
-            onClick={() => panImageInputRef.current?.click()}
+            onClick={() =>
+              openOnboardingImagePicker({
+                title: "Upload PAN image",
+                fallbackInputRef: panImageInputRef,
+                fileNamePrefix: "pan-image",
+                onSelectFile: (file) =>
+                  setStep3((prev) => ({ ...prev, panImage: file })),
+              })
+            }
           >
             <Upload className="w-4 h-4 mr-1.5" />
             Upload
@@ -1927,7 +2048,15 @@ export default function RestaurantOnboarding() {
               type="button"
               variant="outline"
               className="w-full text-xs"
-              onClick={() => gstImageInputRef.current?.click()}
+              onClick={() =>
+                openOnboardingImagePicker({
+                  title: "Upload GST certificate",
+                  fallbackInputRef: gstImageInputRef,
+                  fileNamePrefix: "gst-image",
+                  onSelectFile: (file) =>
+                    setStep3((prev) => ({ ...prev, gstImage: file })),
+                })
+              }
             >
               <Upload className="w-4 h-4 mr-1.5" />
               Upload
@@ -2030,7 +2159,15 @@ export default function RestaurantOnboarding() {
           type="button"
           variant="outline"
           className="w-full text-xs"
-          onClick={() => fssaiImageInputRef.current?.click()}
+          onClick={() =>
+            openOnboardingImagePicker({
+              title: "Upload FSSAI image",
+              fallbackInputRef: fssaiImageInputRef,
+              fileNamePrefix: "fssai-image",
+              onSelectFile: (file) =>
+                setStep3((prev) => ({ ...prev, fssaiImage: file })),
+            })
+          }
         >
           <Upload className="w-4 h-4 mr-1.5" />
           Upload

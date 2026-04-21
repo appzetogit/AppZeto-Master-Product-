@@ -177,49 +177,16 @@ export const openCamera = async ({ onSelectFile, fileNamePrefix = "camera-photo"
  */
 export const openGallery = async ({ onSelectFile, fileNamePrefix = "gallery-photo" }) => {
   try {
-    if (isFlutterBridgeAvailable()) {
-      const result = await window.flutter_inappwebview.callHandler("openCamera", {
-        source: "gallery",
-        accept: "image/*",
-        multiple: false,
-      })
-
-      const isSuccess = result?.success === true || Boolean(result?.base64 || result?.base64String || result?.data?.base64)
-      if (!result || !isSuccess) return
-
-      let selectedFile = null
-      const base64Value = result?.base64 || result?.base64String || result?.data?.base64
-      const mimeType = result?.mimeType || result?.type || result?.data?.mimeType || "image/jpeg"
-      const originalFileName = result?.fileName || result?.name || result?.data?.fileName || ""
-
-      if (base64Value) {
-        selectedFile = convertBase64ToFile(
-          base64Value,
-          mimeType,
-          fileNamePrefix,
-          originalFileName,
-        )
-      } else if (result.file instanceof File || result.file instanceof Blob) {
-        selectedFile = result.file
-      }
-
-      if (selectedFile && String(selectedFile.type || "").startsWith("image/")) {
-        onSelectFile(selectedFile)
-        return
-      }
-    }
-
-    // Fallback to standard browser input if bridge not available or failed
-    openTransientImageInput({
-      onSelectFile,
-      accept: "image/jpeg,image/png,image/webp,image/heic,image/heif",
-    })
-  } catch (error) {
-    console.error("Gallery pick failed:", error)
-    // Final fallback
+    // For Gallery, we use the standard browser input.
+    // Why? Because the browser's native file picker on Android/iOS
+    // is highly reliable and provides direct gallery access.
+    // The bridge "openCamera" seems to force camera even for gallery source.
     openTransientImageInput({
       onSelectFile,
       accept: "image/*",
     })
+  } catch (error) {
+    console.error("Gallery pick failed:", error)
+    toast.error("Failed to open gallery")
   }
 }

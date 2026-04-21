@@ -246,13 +246,27 @@ export default function AddressSelectorPage() {
         })
         googleMapRef.current = map
 
-        // Update coordinates on map idle (center of the map is the chosen location)
+        // Debounce handleMapMoveEnd to avoid excessive API calls
+        let idleTimeout = null
+        let lastLat = initialPos.lat
+        let lastLng = initialPos.lng
+
         map.addListener("idle", () => {
-          const center = map.getCenter()
-          const lat = center.lat()
-          const lng = center.lng()
-          setMapPosition([lat, lng])
-          handleMapMoveEnd(lat, lng)
+          clearTimeout(idleTimeout)
+          idleTimeout = setTimeout(() => {
+            const center = map.getCenter()
+            const lat = center.lat()
+            const lng = center.lng()
+            
+            // Only update if moved more than ~5 meters (roughly 0.00005 degrees)
+            const dist = Math.sqrt(Math.pow(lat - lastLat, 2) + Math.pow(lng - lastLng, 2))
+            if (dist > 0.00005) {
+              lastLat = lat
+              lastLng = lng
+              setMapPosition([lat, lng])
+              handleMapMoveEnd(lat, lng)
+            }
+          }, 500) // 500ms debounce for better stability
         })
 
         setMapLoading(false)
@@ -264,26 +278,49 @@ export default function AddressSelectorPage() {
     }
     initializeGoogleMap()
     return () => { isMounted = false }
-  }, [showAddressForm, GOOGLE_MAPS_API_KEY, mapPosition, mapUnavailable])
+  }, [showAddressForm, GOOGLE_MAPS_API_KEY, mapUnavailable])
 
   const handleUseCurrentLocation = async () => {
     try {
       toast.loading("Getting location...", { id: "geo" })
       const loc = await requestLocation(true, true)
+      
       if (loc?.latitude) {
+        // Update state
         const newPos = [loc.latitude, loc.longitude]
         setMapPosition(newPos)
-        persistSelectedLocation(loc)
+        setCurrentAddress(loc.formattedAddress || loc.address || "")
         
-        // Explicitly pan the map to center the user location
+        // Persist
+        persistSelectedLocation(loc)
+        try { localStorage.setItem("deliveryAddressMode", "current") } catch {}
+        
+        // Update map
         if (googleMapRef.current) {
           googleMapRef.current.panTo({ lat: loc.latitude, lng: loc.longitude })
           googleMapRef.current.setZoom(17)
         }
         
-        try { localStorage.setItem("deliveryAddressMode", "current") } catch {}
-        toast.success("Location updated", { id: "geo" })
-        // Removed handleBack() to prevent unwanted redirection
+        // Update form data if form is open
+        if (showAddressForm) {
+          setAddressFormData(prev => ({
+            ...prev,
+            street: loc.street || loc.area || prev.street,
+            city: loc.city || prev.city,
+            state: loc.state || prev.state,
+            zipCode: loc.postalCode || prev.zipCode,
+          }))
+          toast.success("Location updated", { id: "geo" })
+          // Don't redirect if they are explicitly in the "Add Address" form
+        } else {
+          toast.success("Location updated", { id: "geo" })
+          // Redirect if they are on the main selection page
+          setTimeout(() => {
+            navigate("/food/user")
+          }, 800)
+        }
+      } else {
+        toast.error("Could not determine location", { id: "geo" })
       }
     } catch (e) {
       toast.error("Failed to get location", { id: "geo" })
@@ -297,6 +334,11 @@ export default function AddressSelectorPage() {
       persistSelectedLocation(buildLocationPayloadFromAddress(address))
       try { localStorage.setItem("deliveryAddressMode", "saved") } catch {}
       toast.success("Address selected")
+      
+      // Redirect to home page after selection
+      setTimeout(() => {
+        navigate("/food/user")
+      }, 500)
     }
   }
 
@@ -352,6 +394,12 @@ export default function AddressSelectorPage() {
 
   const handleMapMoveEnd = async (lat, lng) => {
     if (!ENABLE_LOCATION_REVERSE_GEOCODE) return
+    
+    // Prevent redundant calls for the same coordinates
+    const coordKey = `${lat.toFixed(5)},${lng.toFixed(5)}`
+    if (manualFieldRefs.current._lastCoords === coordKey) return
+    manualFieldRefs.current._lastCoords = coordKey
+
     try {
       // Use Nominatim for free reverse geocoding on the client side
       const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`
@@ -379,14 +427,20 @@ export default function AddressSelectorPage() {
         const state = addr.state || ""
         const postcode = addr.postcode || ""
 
-        setCurrentAddress(formatted)
-        setAddressFormData(prev => ({
-          ...prev,
-          street: street || formatted.split(",")[0] || prev.street,
-          city: city || prev.city,
-          state: state || prev.state,
-          zipCode: postcode || prev.zipCode,
-        }))
+        // Update state ONLY if values changed significantly
+        setCurrentAddress(prev => prev === formatted ? prev : formatted)
+        setAddressFormData(prev => {
+          if (prev.street === street && prev.city === city && prev.state === state && prev.zipCode === postcode) {
+            return prev
+          }
+          return {
+            ...prev,
+            street: street || formatted.split(",")[0] || prev.street,
+            city: city || prev.city,
+            state: state || prev.state,
+            zipCode: postcode || prev.zipCode,
+          }
+        })
       }
     } catch (e) {
       debugError("Reverse geocode error:", e)
@@ -418,6 +472,11 @@ export default function AddressSelectorPage() {
         setShowAddressForm(false)
         setAddressAutocompleteValue("")
         setKeywordAddressSuggestions([])
+        
+        // Redirect to home page after saving new address
+        setTimeout(() => {
+          navigate("/food/user")
+        }, 500)
       }
     } catch (error) {
       toast.error("Failed to save address")

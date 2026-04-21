@@ -91,6 +91,11 @@ export default function DiningReservations() {
     const [savingDiningSettings, setSavingDiningSettings] = useState(false)
     const [diningSettingsMessage, setDiningSettingsMessage] = useState("")
     const [diningSettingsError, setDiningSettingsError] = useState("")
+    const [diningCategories, setDiningCategories] = useState([])
+    const [selectedDiningCategoryIds, setSelectedDiningCategoryIds] = useState([])
+
+    const activeDiningRequest = restaurant?.pendingDiningRequest || null
+    const isDiningToggleOn = Boolean(diningEnabled)
 
     const syncRestaurantMediaState = (restaurantData) => {
         setRestaurant(restaurantData || null)
@@ -99,15 +104,35 @@ export default function DiningReservations() {
         setRestaurantPhotos(coverImages)
         setRestaurantPhoto(coverImages[0]?.url || profileImage)
         setMenuPhotos(getMenuImages(restaurantData))
-        setDiningEnabled(Boolean(restaurantData?.diningSettings?.isEnabled))
-        setMaxGuestsLimit(Math.max(1, parseInt(restaurantData?.diningSettings?.maxGuests, 10) || 6))
+        const draftDiningState = restaurantData?.pendingDiningRequest || restaurantData?.diningSettings || {}
+        setDiningEnabled(Boolean(draftDiningState?.isEnabled))
+        setMaxGuestsLimit(
+            draftDiningState?.isEnabled
+                ? Math.max(1, parseInt(draftDiningState?.maxGuests, 10) || 6)
+                : 0
+        )
+        setSelectedDiningCategoryIds(
+            draftDiningState?.isEnabled && Array.isArray(draftDiningState?.categoryIds) && draftDiningState.categoryIds.length > 0
+                ? draftDiningState.categoryIds.map((id) => String(id))
+                : (Array.isArray(restaurantData?.diningCategoryIds) && restaurantData?.diningSettings?.isEnabled !== false)
+                    ? restaurantData.diningCategoryIds.map((id) => String(id))
+                    : []
+        )
     }
 
     useEffect(() => {
         const fetchAll = async () => {
             try {
                 // First get the current restaurant
-                const resResponse = await restaurantAPI.getCurrentRestaurant()
+                const [resResponse, categoriesResponse] = await Promise.all([
+                    restaurantAPI.getCurrentRestaurant(),
+                    diningAPI.getCategories().catch(() => null),
+                ])
+
+                if (categoriesResponse?.data?.success) {
+                    setDiningCategories(Array.isArray(categoriesResponse.data.data) ? categoriesResponse.data.data : [])
+                }
+
                 if (resResponse.data.success) {
                     const resData = getRestaurantFromResponse(resResponse)
 
@@ -251,13 +276,17 @@ export default function DiningReservations() {
 
     const handleSaveDiningSettings = async () => {
         if (!restaurant || savingDiningSettings) return
+        if (isDiningToggleOn && selectedDiningCategoryIds.length === 0) {
+            setDiningSettingsError("Select at least one dining category.")
+            return
+        }
 
-        const nextMaxGuests = Math.max(1, parseInt(maxGuestsLimit, 10) || 1)
+        const nextMaxGuests = isDiningToggleOn ? Math.max(1, parseInt(maxGuestsLimit, 10) || 1) : 0
         const nextDiningSettings = {
-            ...(restaurant?.diningSettings || {}),
-            isEnabled: Boolean(diningEnabled),
+            isEnabled: isDiningToggleOn,
             maxGuests: nextMaxGuests,
-            diningType: restaurant?.diningSettings?.diningType || "family-dining",
+            categoryIds: isDiningToggleOn ? selectedDiningCategoryIds : [],
+            primaryCategoryId: isDiningToggleOn ? selectedDiningCategoryIds[0] : null,
         }
 
         setDiningSettingsError("")
@@ -272,15 +301,27 @@ export default function DiningReservations() {
                 syncRestaurantMediaState(updatedRestaurant)
             }
 
-            setDiningSettingsMessage("Dining settings saved successfully.")
-            toast.success("Dining settings updated")
+            setDiningSettingsMessage("Dining request sent to admin. Changes will apply after approval.")
+            toast.success("Dining request sent for approval")
         } catch (error) {
             debugError("Error saving dining settings:", error)
-            setDiningSettingsError(error?.response?.data?.message || "Failed to save dining settings.")
-            toast.error(error?.response?.data?.message || "Failed to save dining settings")
+            setDiningSettingsError(error?.response?.data?.message || "Failed to submit dining request.")
+            toast.error(error?.response?.data?.message || "Failed to submit dining request")
         } finally {
             setSavingDiningSettings(false)
         }
+    }
+
+    const toggleDiningCategory = (categoryId) => {
+        if (!isDiningToggleOn) return
+        const nextCategoryId = String(categoryId || "").trim()
+        if (!nextCategoryId) return
+
+        setSelectedDiningCategoryIds((prev) =>
+            prev.includes(nextCategoryId)
+                ? prev.filter((id) => id !== nextCategoryId)
+                : [...prev, nextCategoryId]
+        )
     }
 
     const handleStatusUpdate = async (bookingId, newStatus) => {
@@ -628,12 +669,12 @@ export default function DiningReservations() {
 
                 {activeSection === "reservations" && (
                     <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                             <div className="max-w-xl">
                                 <p className="text-xs font-bold uppercase tracking-[0.22em] text-slate-400">Dining Controls</p>
                                 <h2 className="mt-1 text-lg font-black text-slate-900">Manage dining availability and booking limit</h2>
                                 <p className="mt-1 text-sm text-slate-500">
-                                    These settings update the same dining profile the guest booking flow reads, so restaurant changes are reflected on the user side too.
+                                    Save your dining changes as an approval request. They will go live for customers only after admin approval.
                                 </p>
                             </div>
 
@@ -649,7 +690,18 @@ export default function DiningReservations() {
                                     <span className="text-sm font-medium text-slate-700">Turn dining on/off</span>
                                     <button
                                         type="button"
-                                        onClick={() => setDiningEnabled((prev) => !prev)}
+                                        onClick={() => {
+                                            setDiningEnabled((prev) => {
+                                                const nextValue = !prev
+                                                if (!nextValue) {
+                                                    setSelectedDiningCategoryIds([])
+                                                    setMaxGuestsLimit(0)
+                                                } else {
+                                                    setMaxGuestsLimit((current) => Math.max(1, parseInt(current, 10) || 6))
+                                                }
+                                                return nextValue
+                                            })
+                                        }}
                                         className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${diningEnabled ? "bg-emerald-600" : "bg-slate-300"}`}
                                         aria-pressed={diningEnabled}
                                     >
@@ -661,23 +713,103 @@ export default function DiningReservations() {
                                     <span className="text-sm font-medium text-slate-700">Customer limit</span>
                                     <input
                                         type="number"
-                                        min="1"
+                                        min={isDiningToggleOn ? "1" : "0"}
                                         max="20"
                                         value={maxGuestsLimit}
                                         onChange={(e) => setMaxGuestsLimit(e.target.value)}
+                                        disabled={!isDiningToggleOn}
                                         className="w-20 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-center text-sm font-semibold text-slate-900 outline-none focus:border-blue-500"
                                     />
                                 </div>
 
-                                <button
-                                    type="button"
-                                    onClick={handleSaveDiningSettings}
-                                    disabled={savingDiningSettings}
-                                    className="rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                    {savingDiningSettings ? "Saving..." : "Save settings"}
-                                </button>
                             </div>
+                        </div>
+
+                        <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <div className="flex items-center justify-between gap-3">
+                                <div>
+                                    <p className="text-sm font-semibold text-slate-900">Dining categories</p>
+                                    <p className="mt-1 text-xs text-slate-500">Choose one or multiple categories for this request.</p>
+                                </div>
+                                {activeDiningRequest?.requestedAt ? (
+                                    <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+                                        Approval pending
+                                    </span>
+                                ) : null}
+                            </div>
+
+                            <div className="mt-4 grid grid-cols-2 gap-3">
+                                {diningCategories.length === 0 ? (
+                                    <p className="col-span-2 text-sm text-slate-500">No dining categories available right now.</p>
+                                ) : (
+                                    diningCategories.map((category) => {
+                                        const isSelected = selectedDiningCategoryIds.includes(String(category?._id))
+                                        return (
+                                            <button
+                                                key={category?._id}
+                                                type="button"
+                                                onClick={() => toggleDiningCategory(category?._id)}
+                                                className={`overflow-hidden rounded-2xl border text-left transition-all ${isSelected
+                                                    ? "border-slate-900 bg-slate-900 text-white shadow-lg shadow-slate-300/40"
+                                                    : "border-slate-200 bg-white text-slate-700 hover:border-slate-400 hover:shadow-sm"
+                                                    }`}
+                                                disabled={!isDiningToggleOn}
+                                            >
+                                                <div className="relative h-24 w-full overflow-hidden">
+                                                    {category?.imageUrl ? (
+                                                        <img
+                                                            src={category.imageUrl}
+                                                            alt={category?.name || "Category"}
+                                                            className={`h-full w-full object-cover transition-transform duration-300 ${isSelected ? "scale-105 opacity-80" : "hover:scale-105"}`}
+                                                        />
+                                                    ) : (
+                                                        <div className={`flex h-full w-full items-center justify-center ${isSelected ? "bg-slate-800" : "bg-slate-100"}`}>
+                                                            <span className={`text-2xl font-black ${isSelected ? "text-white/90" : "text-slate-400"}`}>
+                                                                {String(category?.name || "C").charAt(0).toUpperCase()}
+                                                            </span>
+                                                        </div>
+                                                    )}
+
+                                                    <div className={`absolute inset-0 ${isSelected ? "bg-slate-900/35" : "bg-slate-900/10"}`} />
+
+                                                    {isSelected ? (
+                                                        <div className="absolute right-2 top-2 rounded-full bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-900">
+                                                            Selected
+                                                        </div>
+                                                    ) : null}
+                                                </div>
+
+                                                <div className="p-3">
+                                                    <p className={`text-sm font-bold ${isSelected ? "text-white" : "text-slate-900"}`}>
+                                                        {category?.name || "Category"}
+                                                    </p>
+                                                    <p className={`mt-1 text-[11px] ${isSelected ? "text-white/75" : "text-slate-500"}`}>
+                                                        {!isDiningToggleOn ? "Enable dining to select" : isSelected ? "Included in this request" : "Tap to include"}
+                                                    </p>
+                                                </div>
+                                            </button>
+                                        )
+                                    })
+                                )}
+                            </div>
+
+                            {activeDiningRequest?.requestedAt ? (
+                                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                                    Pending request: {activeDiningRequest?.isEnabled ? "Dining On" : "Dining Off"}, guest limit {Number(activeDiningRequest?.maxGuests ?? 0)}
+                                    {Array.isArray(activeDiningRequest?.categories) && activeDiningRequest.categories.length > 0
+                                        ? `, categories ${activeDiningRequest.categories.map((category) => category?.name).filter(Boolean).join(", ")}`
+                                        : ""}
+                                </div>
+                            ) : null}
+
+                            <button
+                                type="button"
+                                onClick={handleSaveDiningSettings}
+                                disabled={savingDiningSettings}
+                                className="mt-4 w-full rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                {savingDiningSettings ? "Sending..." : "Save settings"}
+                            </button>
                         </div>
 
                         {(diningSettingsMessage || diningSettingsError) && (

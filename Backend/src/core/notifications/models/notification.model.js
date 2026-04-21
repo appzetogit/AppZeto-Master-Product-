@@ -42,7 +42,7 @@ const notificationSchema = new mongoose.Schema(
         broadcastId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'BroadcastNotification',
-            default: null,
+            default: undefined,
             index: true
         },
         metadata: {

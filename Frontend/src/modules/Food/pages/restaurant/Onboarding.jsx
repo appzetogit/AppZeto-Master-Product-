@@ -52,7 +52,7 @@ const ACCOUNT_HOLDER_NAME_REGEX = /^[A-Za-z ]+$/
 const GST_LEGAL_NAME_REGEX = /^[A-Za-z ]+$/
 const FEATURED_DISH_NAME_REGEX = /^[A-Za-z ]+$/
 const OWNER_EMAIL_REGEX = /^[a-zA-Z0-9]([a-zA-Z0-9._%+-]*[a-zA-Z0-9])?@[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)+$/
-const LOCAL_IMAGE_FILE_ACCEPT = ".jpg,.jpeg,.png,.webp,.heic,.heif"
+const LOCAL_IMAGE_FILE_ACCEPT = "image/jpeg,image/png,image/webp,image/heic,image/heif"
 const GALLERY_IMAGE_ACCEPT =
   ".jpg,.jpeg,.png,.webp,.heic,.heif,image/jpeg,image/png,image/webp,image/heic,image/heif"
 const ONBOARDING_DRAFT_FILE_MAX_SIZE = 2.5 * 1024 * 1024
@@ -733,6 +733,32 @@ export default function RestaurantOnboarding() {
   useEffect(() => {
     syncOnboardingFileCache(step2, step3)
   }, [step2, step3])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const handlePopState = (e) => {
+      // If user is at step > 1, intercept the back button to go to previous step
+      if (step > 1) {
+        // We need to push the state back so the next back button also gets intercepted
+        window.history.pushState(null, "", window.location.href)
+        setStep((s) => Math.max(1, s - 1))
+        window.scrollTo({ top: 0, behavior: "instant" })
+      } else {
+        // If at step 1, let the default back behavior happen (usually goes to /explore or login)
+      }
+    }
+
+    // Push an initial state for interception if we are at step > 1
+    if (step > 1) {
+      window.history.pushState(null, "", window.location.href)
+    }
+
+    window.addEventListener("popstate", handlePopState)
+    return () => {
+      window.removeEventListener("popstate", handlePopState)
+    }
+  }, [step])
 
   useEffect(() => {
     return () => {

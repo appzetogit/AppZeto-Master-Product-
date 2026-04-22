@@ -40,6 +40,7 @@ import { orderAPI, restaurantAPI } from "@food/api"
 import { useCompanyName } from "@food/hooks/useCompanyName"
 import { useUserNotifications } from "@food/hooks/useUserNotifications"
 import { customerApi } from "../../../../quickCommerce/user/services/customerApi"
+import DeliveryOtpDisplay from "../../../../quickCommerce/user/components/DeliveryOtpDisplay"
 import circleIcon from "@food/assets/circleicon.png"
 import { RESTAURANT_PIN_SVG, CUSTOMER_PIN_SVG, RIDER_BIKE_SVG } from "@food/constants/mapIcons"
 
@@ -1216,10 +1217,25 @@ export default function OrderTracking() {
   };
 
   const customerDeliveryOtp = useMemo(() => {
-    const codeFromOrder = order?.deliveryVerification?.dropOtp?.code
+    const rawDropOtp = order?.deliveryVerification?.dropOtp
+    const primitiveDropOtp =
+      typeof rawDropOtp === "string" || typeof rawDropOtp === "number"
+        ? rawDropOtp
+        : null
+    const codeFromOrder =
+      order?.deliveryVerification?.dropOtp?.code ??
+      order?.handoverOtp ??
+      order?.deliveryOtp ??
+      primitiveDropOtp
     const code = codeFromOrder ?? socketDropOtpCode
     return code ? String(code) : null
-  }, [order?.deliveryVerification?.dropOtp?.code, socketDropOtpCode])
+  }, [
+    order?.deliveryVerification?.dropOtp?.code,
+    order?.deliveryVerification?.dropOtp,
+    order?.handoverOtp,
+    order?.deliveryOtp,
+    socketDropOtpCode,
+  ])
 
   useEffect(() => {
     if (!isEditWindowOpen) return
@@ -2187,6 +2203,16 @@ export default function OrderTracking() {
             <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Delivery OTP</p>
             <p className="text-2xl font-extrabold text-blue-900 mt-1 tracking-widest">{customerDeliveryOtp}</p>
             <p className="text-xs text-blue-700 mt-1">Share this 4-digit OTP with your delivery partner at drop-off.</p>
+          </motion.div>
+        )}
+
+        {isQuickOrder && !customerDeliveryOtp && orderStatus !== 'delivered' && orderStatus !== 'cancelled' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.28 }}
+          >
+            <DeliveryOtpDisplay orderId={order?.orderId || order?.mongoId || orderId} />
           </motion.div>
         )}
 

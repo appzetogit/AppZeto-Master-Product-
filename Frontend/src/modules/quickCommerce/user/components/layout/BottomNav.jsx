@@ -12,6 +12,9 @@ import {
 
 const BottomNav = () => {
     const location = useLocation();
+    const isSharedQuickProfileRoute =
+        location.pathname === '/profile' &&
+        new URLSearchParams(location.search).get('from') === 'quick';
     const navItems = [
         { label: 'Home', icon: Home, path: getQuickHomePath(location.pathname) },
         { label: 'Category', icon: LayoutGrid, path: getQuickCategoriesPath() },
@@ -19,6 +22,9 @@ const BottomNav = () => {
         { label: 'Profile', icon: User, path: getQuickProfilePath() },
     ];
     const isActivePath = (targetPath) => {
+        if (targetPath === getQuickProfilePath() && isSharedQuickProfileRoute) {
+            return true;
+        }
         if (targetPath === getQuickHomePath(location.pathname)) {
             return location.pathname === targetPath;
         }

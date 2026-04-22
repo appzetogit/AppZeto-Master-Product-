@@ -67,8 +67,21 @@ const OrderDetail = () => {
         }
     }, [orderId]);
 
+    const getNormalizedStatus = (rawOrder) => {
+        const rawStatus =
+            rawOrder?.status ??
+            rawOrder?.orderStatus ??
+            rawOrder?.workflowStatus ??
+            rawOrder?.sellerOrder?.status ??
+            rawOrder?.sellerOrder?.workflowStatus ??
+            "pending";
+
+        return String(rawStatus || "pending").trim().toLowerCase() || "pending";
+    };
+
     const getStatusStyles = (status) => {
-        switch (status.toLowerCase()) {
+        const normalizedStatus = String(status || "pending").trim().toLowerCase();
+        switch (normalizedStatus) {
             case 'pending': return 'bg-amber-100 text-amber-600 border-amber-200';
             case 'confirmed': return 'bg-blue-100 text-blue-600 border-blue-200';
             case 'packed': return 'bg-indigo-100 text-indigo-600 border-indigo-200';
@@ -104,6 +117,12 @@ const OrderDetail = () => {
         );
     }
 
+    const currentStatus = getNormalizedStatus(order);
+    const orderItems = Array.isArray(order?.items) ? order.items : [];
+    const customerAddress = order?.address || {};
+    const customerLocation = customerAddress?.location || {};
+    const deliveryBoy = order?.deliveryBoy || null;
+
     return (
         <div className="ds-section-spacing animate-in fade-in slide-in-from-bottom-4 duration-700 pb-12">
             {/* Control Bar */}
@@ -120,11 +139,11 @@ const OrderDetail = () => {
                             <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Order #{order.orderId}</h1>
                             <div className="relative inline-block w-44">
                                 <select
-                                    value={order.status}
+                                    value={currentStatus}
                                     onChange={(e) => handleStatusUpdate(e.target.value)}
                                     className={cn(
                                         "w-full text-[10px] pl-3 pr-8 py-1.5 rounded-xl font-black uppercase tracking-widest border appearance-none cursor-pointer focus:ring-2 focus:ring-offset-1 transition-all outline-none shadow-sm",
-                                        getStatusStyles(order.status)
+                                        getStatusStyles(currentStatus)
                                     )}
                                 >
                                     <option value="pending">Pending</option>
@@ -165,7 +184,7 @@ const OrderDetail = () => {
                                 <Box className="h-4 w-4 text-indigo-500" />
                                 Items in Order
                             </h3>
-                            <Badge className="bg-indigo-50 text-indigo-700 border-none text-[9px] font-black">{order.items.length} ITEMS</Badge>
+                            <Badge className="bg-indigo-50 text-indigo-700 border-none text-[9px] font-black">{orderItems.length} ITEMS</Badge>
                         </div>
                         <div className="p-0 overflow-x-auto">
                             <table className="w-full text-left border-collapse">
@@ -178,7 +197,7 @@ const OrderDetail = () => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-50">
-                                    {order.items.map((item) => (
+                                    {orderItems.map((item) => (
                                         <tr key={item._id} className="group hover:bg-slate-50/30 transition-all">
                                             <td className="px-6 py-5">
                                                 <div className="flex items-center gap-4">
@@ -253,11 +272,11 @@ const OrderDetail = () => {
                                 <div className="flex-1 pb-4">
                                     <div className="flex items-center justify-between mb-1">
                                         <h4 className="text-xs font-black uppercase tracking-tight text-slate-900">
-                                            Status: {order.status.replace(/_/g, ' ')}
+                                            Status: {currentStatus.replace(/_/g, ' ')}
                                         </h4>
                                         <span className="text-[10px] font-bold text-slate-400 uppercase">{new Date(order.updatedAt).toLocaleTimeString()}</span>
                                     </div>
-                                    <p className="text-[11px] font-bold text-slate-400 leading-relaxed italic">"System verified current logistical state as {order.status}."</p>
+                                    <p className="text-[11px] font-bold text-slate-400 leading-relaxed italic">"System verified current logistical state as {currentStatus}."</p>
                                 </div>
                             </div>
                         </div>
@@ -299,13 +318,13 @@ const OrderDetail = () => {
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                                         Destination Protocol
                                     </span>
-                                    {order?.address?.location &&
-                                        typeof order.address.location.lat === "number" &&
-                                        typeof order.address.location.lng === "number" && (
+                                    {customerLocation &&
+                                        typeof customerLocation.lat === "number" &&
+                                        typeof customerLocation.lng === "number" && (
                                             <button
                                                 type="button"
                                                 onClick={() => {
-                                                    const { lat, lng } = order.address.location;
+                                                    const { lat, lng } = customerLocation;
                                                     window.open(
                                                         `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`,
                                                         "_blank",
@@ -319,11 +338,11 @@ const OrderDetail = () => {
                                         )}
                                 </div>
                                 <p className="text-xs font-bold text-slate-600 leading-relaxed italic">
-                                    "{order.address?.address}, {order.address?.landmark}, {order.address?.city}"
+                                    "{customerAddress?.address}, {customerAddress?.landmark}, {customerAddress?.city}"
                                 </p>
                             </div>
-                            {order.address?.type === "Other" &&
-                                (order.address?.name || order.address?.phone) && (
+                            {customerAddress?.type === "Other" &&
+                                (customerAddress?.name || customerAddress?.phone) && (
                                     <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 space-y-2">
                                         <div className="flex items-center justify-between gap-2 mb-1">
                                             <span className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">
@@ -331,12 +350,12 @@ const OrderDetail = () => {
                                             </span>
                                         </div>
                                         <p className="text-xs font-black text-slate-800">
-                                            {order.address?.name}
+                                            {customerAddress?.name}
                                         </p>
-                                        {order.address?.phone && (
+                                        {customerAddress?.phone && (
                                             <p className="text-[11px] font-bold text-emerald-700 flex items-center gap-2">
                                                 <Phone className="h-3.5 w-3.5" />
-                                                {order.address.phone}
+                                                {customerAddress.phone}
                                             </p>
                                         )}
                                     </div>
@@ -351,21 +370,21 @@ const OrderDetail = () => {
                                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                                     <Truck className="h-3.5 w-3.5" /> Logistical Agent
                                 </h4>
-                                <Badge variant={order.deliveryBoy ? "success" : "secondary"} className="text-[8px] font-black uppercase tracking-widest">
-                                    {order.deliveryBoy ? "ASSIGNED" : "UNASSIGNED"}
+                                <Badge variant={deliveryBoy ? "success" : "secondary"} className="text-[8px] font-black uppercase tracking-widest">
+                                    {deliveryBoy ? "ASSIGNED" : "UNASSIGNED"}
                                 </Badge>
                             </div>
                             <div className="flex items-center gap-3 mt-2">
                                 <div className="h-10 w-10 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-center text-slate-300 overflow-hidden">
-                                    {order.deliveryBoy ? (
-                                        <div className="h-full w-full flex items-center justify-center font-black text-slate-400 bg-emerald-50 ds-h3">{order.deliveryBoy.name.charAt(0)}</div>
+                                    {deliveryBoy ? (
+                                        <div className="h-full w-full flex items-center justify-center font-black text-slate-400 bg-emerald-50 ds-h3">{String(deliveryBoy?.name || "R").charAt(0)}</div>
                                     ) : (
                                         <User className="h-5 w-5" />
                                     )}
                                 </div>
                                 <div>
-                                    <h5 className="text-sm font-black text-slate-900">{order.deliveryBoy?.name || "Pending Rider Assignment"}</h5>
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">CONTACT: {order.deliveryBoy?.phone || "N/A"}</p>
+                                    <h5 className="text-sm font-black text-slate-900">{deliveryBoy?.name || "Pending Rider Assignment"}</h5>
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">CONTACT: {deliveryBoy?.phone || "N/A"}</p>
                                 </div>
                             </div>
                         </div>

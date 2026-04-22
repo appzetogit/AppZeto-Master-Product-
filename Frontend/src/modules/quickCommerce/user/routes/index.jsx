@@ -1,12 +1,11 @@
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import Home from '../pages/Home';
 import CategoriesPage from '../pages/CategoriesPage';
 import CategoryProductsPage from '../pages/CategoryProductsPage';
 import WishlistPage from '../pages/WishlistPage';
 import CartPage from '../pages/CartPage';
 import OffersPage from '../pages/OffersPage';
-import ProfilePage from '../pages/ProfilePage';
 import OrdersPage from '../pages/OrdersPage';
 import OrderTransactionsPage from '../pages/OrderTransactionsPage';
 import AddressesPage from '../pages/AddressesPage';
@@ -55,8 +54,8 @@ const CustomerRoutes = () => {
                             <Route path="support" element={<ProtectedRoute><SupportPage /></ProtectedRoute>} />
                             <Route path="chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
                             <Route path="checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
-                            <Route path="profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-                            <Route path="profile/edit" element={<ProtectedRoute><EditProfilePage /></ProtectedRoute>} />
+                            <Route path="profile" element={<Navigate to="/profile?from=quick" replace />} />
+                            <Route path="profile/edit" element={<Navigate to="/profile/edit?from=quick" replace />} />
                         </Routes>
                     </CartAnimationProvider>
                 </CartProvider>

@@ -37,8 +37,15 @@ const publicCategoryFilter = {
 };
 
 const publicProductFilter = {
-  isActive: true,
-  ...approvedOrLegacyFilter,
+  $and: [
+    approvedOrLegacyFilter,
+    {
+      $or: [
+        { isActive: true },
+        { isActive: { $exists: false }, status: 'active' },
+      ],
+    },
+  ],
 };
 
 const mapCategory = (category) => ({

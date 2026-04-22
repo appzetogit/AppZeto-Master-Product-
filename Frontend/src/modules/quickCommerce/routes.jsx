@@ -13,8 +13,6 @@ const Categories = lazy(() => import("./user/pages/CategoriesPage"))
 const CategoryProducts = lazy(() => import("./user/pages/CategoryProductsPage"))
 const ProductDetail = lazy(() => import("./user/pages/ProductDetailPage"))
 const Checkout = lazy(() => import("./user/pages/CheckoutPage"))
-const Profile = lazy(() => import("./user/pages/ProfilePage"))
-const EditProfile = lazy(() => import("./user/pages/EditProfilePage"))
 const Wallet = lazy(() => import("./user/pages/WalletPage"))
 const Addresses = lazy(() => import("./user/pages/AddressesPage"))
 const Support = lazy(() => import("./user/pages/SupportPage"))
@@ -50,8 +48,8 @@ export default function QuickCommerceRoutes() {
                     <Route path="categories/:categoryId" element={<CategoryProducts />} />
                     <Route path="product/:productId" element={<ProductDetail />} />
                     <Route path="checkout" element={<Checkout />} />
-                    <Route path="profile" element={<Profile />} />
-                    <Route path="profile/edit" element={<EditProfile />} />
+                    <Route path="profile" element={<Navigate to="/profile?from=quick" replace />} />
+                    <Route path="profile/edit" element={<Navigate to="/profile/edit?from=quick" replace />} />
                     <Route path="wallet" element={<Wallet />} />
                     <Route path="addresses" element={<Addresses />} />
                     <Route path="support" element={<Support />} />

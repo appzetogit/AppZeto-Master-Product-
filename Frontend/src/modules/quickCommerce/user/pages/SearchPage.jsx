@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation as useRouterLocation } from 'react-router-dom';
-import { Search, Mic, ArrowLeft, X, TrendingUp, ChevronRight, History } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Search, ArrowLeft, X, ChevronRight, History } from 'lucide-react';
 import { customerApi } from '../services/customerApi';
 import ProductCard from '../components/shared/ProductCard';
 import { useProductDetail } from '../context/ProductDetailContext';
 import { useSettings } from '@core/context/SettingsContext';
 import { cn } from '@/lib/utils';
 import { useLocation as useAppLocation } from '../context/LocationContext';
+import MiniCart from '../components/shared/MiniCart';
 
 const SearchPage = () => {
     const navigate = useNavigate();
@@ -15,7 +15,6 @@ const SearchPage = () => {
     const { isOpen: isProductDetailOpen } = useProductDetail();
     const { settings } = useSettings();
     const { currentLocation } = useAppLocation();
-    const appName = settings?.appName || 'App';
 
     // Get initial query from URL state or params
     const initialQuery = location.state?.query || new URLSearchParams(location.search).get('q') || '';
@@ -189,19 +188,12 @@ const SearchPage = () => {
 
     return (
         <div className="min-h-screen bg-white font-outfit">
-            {/* Header / Search Input */}
+            {/* Search Input */}
             <div className={cn(
                 "sticky top-0 z-50 bg-white shadow-sm",
                 isProductDetailOpen && "hidden md:block"
             )}>
-                <div className="px-4 pt-4 pb-2 flex items-center justify-between">
-                    <h1 className="text-2xl font-black tracking-tight" style={{ color: settings?.primaryColor || 'var(--primary)' }}>{appName}</h1>
-                    <button className="p-2 hover:bg-slate-50 rounded-full" style={{ color: settings?.primaryColor || 'var(--primary)' }}>
-                        <Mic size={24} />
-                    </button>
-                </div>
-
-                <div className="relative px-4 pb-5 flex items-center md:justify-center gap-3">
+                <div className="relative px-4 pt-4 pb-4 flex items-center md:justify-center gap-3">
                     <button
                         onClick={() => navigate(-1)}
                         className="p-2 -ml-2 hover:bg-slate-50 rounded-full transition-colors flex-shrink-0 md:absolute md:left-4 z-10"
@@ -234,7 +226,7 @@ const SearchPage = () => {
                 </div>
             </div>
 
-            <div className="p-5 space-y-10 pb-24">
+            <div className="mx-auto w-full max-w-7xl p-4 md:p-5 space-y-8 pb-28">
                 {/* Search Results List */}
                 {trimmedQuery ? (
                     <section>
@@ -246,7 +238,7 @@ const SearchPage = () => {
                         </div>
 
                         {results.length > 0 ? (
-                            <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-2 md:gap-x-3 gap-y-5 md:gap-y-7">
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-5">
                                 {results.map((product) => (
                                     <div key={product.id} onClick={() => saveSearch(trimmedQuery)}>
                                         <ProductCard product={product} compact={isMobile} />
@@ -315,6 +307,8 @@ const SearchPage = () => {
                     </>
                 )}
             </div>
+
+            <MiniCart />
         </div>
     );
 };

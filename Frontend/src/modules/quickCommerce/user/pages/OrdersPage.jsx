@@ -82,6 +82,7 @@ const OrdersPage = () => {
         ) : (
           orders.map((order) => {
             const orderCode = order.orderId || order.orderNumber || order.id || "";
+            const orderLookupId = order.orderId || order._id || order.id || orderCode;
             const legacy = getLegacyStatusFromOrder(order);
             const itemSummary = Array.isArray(order.items) && order.items.length > 0
               ? order.items.map((item) => item.name).filter(Boolean).join(", ")
@@ -90,7 +91,28 @@ const OrdersPage = () => {
             return (
               <article
                 key={String(order.id || order._id || orderCode)}
-                className="rounded-2xl border border-slate-100/80 bg-white px-4 py-3.5 shadow-[0_8px_24px_rgba(15,23,42,0.06)]"
+                role="button"
+                tabIndex={0}
+                onClick={() => navigate(`/quick/orders/${encodeURIComponent(String(orderLookupId))}`, {
+                  state: {
+                    order,
+                    prefetchedOrder: order,
+                    orderType: "quick",
+                  },
+                })}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    navigate(`/quick/orders/${encodeURIComponent(String(orderLookupId))}`, {
+                      state: {
+                        order,
+                        prefetchedOrder: order,
+                        orderType: "quick",
+                      },
+                    });
+                  }
+                }}
+                className="cursor-pointer rounded-2xl border border-slate-100/80 bg-white px-4 py-3.5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] transition-all hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(15,23,42,0.1)] focus:outline-none focus:ring-2 focus:ring-[#0c831f]/20"
               >
                 <div className="mb-3.5 flex items-start justify-between gap-3">
                   <div className="flex min-w-0 flex-1 gap-3.5">

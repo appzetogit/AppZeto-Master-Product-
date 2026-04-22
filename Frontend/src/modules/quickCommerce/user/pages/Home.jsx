@@ -728,8 +728,13 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
             p.mainImage ||
             p.image ||
             "https://images.unsplash.com/photo-1550989460-0adf9ea622e2",
-          price: p.salePrice || p.price,
-          originalPrice: p.price,
+          price:
+            Number(p.salePrice || 0) > 0
+              ? Number(p.salePrice)
+              : Number(p.price || 0),
+          originalPrice: Number(
+            p.originalPrice || p.mrp || p.price || p.salePrice || 0,
+          ),
           weight: p.weight || "1 unit",
           deliveryTime: "8-15 mins",
         }));
@@ -1414,8 +1419,13 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
                   _id: p._id,
                   name: p.name,
                   image: p.mainImage || p.image || "",
-                  price: p.salePrice ?? p.price,
-                  originalPrice: p.price ?? p.salePrice,
+                  price:
+                    Number(p.salePrice || 0) > 0
+                      ? Number(p.salePrice)
+                      : Number(p.price || 0),
+                  originalPrice: Number(
+                    p.originalPrice || p.mrp || p.price || p.salePrice || 0,
+                  ),
                   weight: p.weight,
                   deliveryTime: p.deliveryTime,
                 }));

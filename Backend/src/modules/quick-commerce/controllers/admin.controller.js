@@ -58,7 +58,50 @@ const toProduct = (product) => ({
   isActive: product.isActive,
   approvalStatus: product.approvalStatus || 'approved',
   approvedAt: product.approvedAt || null,
+  sellerId: product.sellerId || null,
+  seller: product.seller || null,
+  storeName: product.storeName || '',
+  restaurantName: product.restaurantName || '',
 });
+
+const buildProductSellerMap = async (products = []) => {
+  const sellerIds = [...new Set(
+    products
+      .map((product) => String(product?.sellerId || '').trim())
+      .filter(Boolean),
+  )];
+
+  if (!sellerIds.length) return {};
+
+  const sellers = await Seller.find({ _id: { $in: sellerIds } })
+    .select('_id shopName name')
+    .lean();
+
+  return sellers.reduce((acc, seller) => {
+    acc[String(seller._id)] = seller;
+    return acc;
+  }, {});
+};
+
+const withProductSeller = (product, sellerMap = {}) => {
+  const seller = sellerMap[String(product?.sellerId || '')] || null;
+  const sellerInfo = seller
+    ? {
+        _id: seller._id,
+        id: seller._id,
+        name: seller.name || '',
+        shopName: seller.shopName || seller.name || 'Store',
+      }
+    : null;
+
+  return {
+    ...product,
+    sellerId: product?.sellerId || sellerInfo?._id || null,
+    seller: sellerInfo,
+    storeName: sellerInfo?.shopName || sellerInfo?.name || '',
+    restaurantName: sellerInfo?.shopName || sellerInfo?.name || '',
+  };
+};
 
 const slugify = (value = '') =>
   String(value)
@@ -405,11 +448,12 @@ export const getAdminProducts = async (req, res) => {
       .lean(),
     QuickProduct.countDocuments(query),
   ]);
+  const sellerMap = await buildProductSellerMap(products);
 
   return res.json({
     success: true,
     result: {
-      items: products.map(toProduct),
+      items: products.map((product) => toProduct(withProductSeller(product, sellerMap))),
       page: currentPage,
       limit: perPage,
       total,

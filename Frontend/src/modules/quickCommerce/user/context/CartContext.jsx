@@ -89,6 +89,12 @@ const normalizeQuickProductForSharedCart = (product) => {
   const id = getProductId(product);
   const quickStoreId = getQuickStoreId(product);
   const quickStoreName = getQuickStoreName(product);
+  const salePrice = Number(product?.salePrice || 0);
+  const basePrice = Number(product?.price || 0);
+  const originalPrice = Number(
+    product?.originalPrice ?? product?.mrp ?? product?.price ?? salePrice ?? 0,
+  );
+
   return {
     ...product,
     id,
@@ -97,11 +103,10 @@ const normalizeQuickProductForSharedCart = (product) => {
     type: "quick",
     image: product?.image || product?.mainImage,
     mainImage: product?.mainImage || product?.image,
-    price:
-      typeof product?.price === "number"
-        ? product.price
-        : product?.salePrice ?? 0,
-    originalPrice: product?.originalPrice ?? product?.price ?? product?.salePrice ?? 0,
+    price: salePrice > 0 ? salePrice : basePrice,
+    salePrice,
+    mrp: originalPrice,
+    originalPrice,
     quickStoreName,
     quickStoreId,
     sourceId: quickStoreId,

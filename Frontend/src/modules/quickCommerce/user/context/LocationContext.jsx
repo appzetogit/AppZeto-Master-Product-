@@ -6,13 +6,59 @@ import React, {
   useCallback,
 } from "react";
 import { customerApi } from "../services/customerApi";
+import { useAuth } from "@core/context/AuthContext";
+import { userAPI } from "@food/api";
 
 const LocationContext = createContext(undefined);
 // v2 key to force one-time refresh from Google Maps for users
 // who previously only had the default/static location cached.
 const STORAGE_KEY = "location_v2";
 
+const normalizeAddressLabel = (label = "") => {
+  const normalized = String(label || "").trim().toLowerCase();
+  if (normalized === "home") return "Home";
+  if (normalized === "office" || normalized === "work") return "Office";
+  return "Other";
+};
+
+const mapSharedAddress = (addr = {}, idx = 0, profile = {}) => {
+  const location =
+    addr?.location &&
+    typeof addr.location.lat === "number" &&
+    typeof addr.location.lng === "number" &&
+    Number.isFinite(addr.location.lat) &&
+    Number.isFinite(addr.location.lng)
+      ? { lat: addr.location.lat, lng: addr.location.lng }
+      : null;
+
+  const addressText =
+    addr.fullAddress ||
+    [
+      addr.additionalDetails,
+      addr.street,
+      addr.landmark,
+      addr.city,
+      addr.state,
+      addr.zipCode || addr.pincode,
+    ]
+      .filter(Boolean)
+      .join(", ") ||
+    "";
+
+  return {
+    id: addr._id ?? addr.id ?? String(idx),
+    label: normalizeAddressLabel(addr.label),
+    address: addressText,
+    location,
+    placeId: typeof addr?.placeId === "string" ? addr.placeId : null,
+    phone: profile?.phone ?? addr?.phone ?? "",
+    name: profile?.name ?? "",
+    isCurrent: addr.isDefault === true || idx === 0,
+  };
+};
+
 export const LocationProvider = ({ children }) => {
+  const { user, isAuthenticated } = useAuth();
   // Default location (used until we can resolve a better one)
   const [currentLocation, setCurrentLocation] = useState({
     name: "214, Rajshri Palace Colony, Pipliyahana, Indore, Madhya Pradesh 452018, India",
@@ -233,41 +279,49 @@ export const LocationProvider = ({ children }) => {
     });
 
   const refreshAddresses = useCallback(async () => {
-    // Skip if user is not logged in – getProfile would 401 and trigger axios reload loop
-    if (!localStorage.getItem("auth_customer")) return;
-    try {
-      const { data } = await customerApi.getProfile();
-      const profile = data?.result ?? data?.data ?? data;
-      const raw = Array.isArray(profile?.addresses) ? profile.addresses : [];
-      setSavedAddresses(
-        raw.map((addr, idx) => ({
-          id: addr._id ?? String(idx),
-          label:
-            (addr.label || "Home").charAt(0).toUpperCase() +
-            (addr.label || "home").slice(1),
-          address:
-            addr.fullAddress ||
-            [addr.landmark, addr.city, addr.state, addr.pincode]
-              .filter(Boolean)
-              .join(", ") ||
-            "",
-          location:
-            addr?.location &&
-            typeof addr.location.lat === "number" &&
-            typeof addr.location.lng === "number" &&
-            Number.isFinite(addr.location.lat) &&
-            Number.isFinite(addr.location.lng)
-              ? { lat: addr.location.lat, lng: addr.location.lng }
-              : null,
-          placeId: typeof addr?.placeId === "string" ? addr.placeId : null,
-          phone: profile?.phone ?? "",
-          isCurrent: idx === 0,
-        })),
-      );
-    } catch {
-      // If API fails, keep existing in-memory addresses.
+    if (!isAuthenticated) {
+      setSavedAddresses([]);
+      return [];
     }
-  }, []);
+
+    try {
+      const addressesResponse = await userAPI.getAddresses();
+      const sharedAddresses =
+        addressesResponse?.data?.data?.addresses ||
+        addressesResponse?.data?.addresses ||
+        [];
+      const normalizedShared = Array.isArray(sharedAddresses)
+        ? sharedAddresses.map((addr, idx) => mapSharedAddress(addr, idx, user))
+        : [];
+
+      setSavedAddresses(normalizedShared);
+      return normalizedShared;
+    } catch {
+      try {
+        const { data } = await customerApi.getProfile();
+        const profile = data?.result ?? data?.data ?? data;
+        const raw = Array.isArray(profile?.addresses) ? profile.addresses : [];
+        const normalizedProfile = raw.map((addr, idx) =>
+          mapSharedAddress(addr, idx, profile || user || {}),
+        );
+        setSavedAddresses(normalizedProfile);
+        return normalizedProfile;
+      } catch {
+        try {
+          const rawStored = localStorage.getItem("userAddresses");
+          const parsedStored = rawStored ? JSON.parse(rawStored) : [];
+          const normalizedStored = Array.isArray(parsedStored)
+            ? parsedStored.map((addr, idx) => mapSharedAddress(addr, idx, user || {}))
+            : [];
+          setSavedAddresses(normalizedStored);
+          return normalizedStored;
+        } catch {
+          setSavedAddresses([]);
+          return [];
+        }
+      }
+    }
+  }, [isAuthenticated, user]);
 
   // On mount: hydrate saved addresses from profile (only when customer is logged in)
   useEffect(() => {

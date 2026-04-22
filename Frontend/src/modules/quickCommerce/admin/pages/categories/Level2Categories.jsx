@@ -17,6 +17,35 @@ import { motion, AnimatePresence } from "framer-motion";
 import { adminApi } from "../../services/adminApi";
 import { toast } from "sonner";
 
+const fetchAllCategoriesByType = async (type) => {
+  const pageSize = 100;
+  const firstRes = await adminApi.getCategories({ type, page: 1, limit: pageSize });
+  const firstPayload = firstRes.data?.result || {};
+  const firstItems = Array.isArray(firstPayload.items)
+    ? firstPayload.items
+    : firstRes.data?.results || [];
+  const total = Number(firstPayload.total || firstItems.length || 0);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  if (totalPages === 1) {
+    return firstItems;
+  }
+
+  const remainingResponses = await Promise.all(
+    Array.from({ length: totalPages - 1 }, (_, index) =>
+      adminApi.getCategories({ type, page: index + 2, limit: pageSize }),
+    ),
+  );
+
+  return [
+    ...firstItems,
+    ...remainingResponses.flatMap((response) => {
+      const payload = response.data?.result || {};
+      return Array.isArray(payload.items) ? payload.items : response.data?.results || [];
+    }),
+  ];
+};
+
 const Level2Categories = () => {
   const [categories, setCategories] = useState([]);
   const [headerCategories, setHeaderCategories] = useState([]);
@@ -50,12 +79,12 @@ const Level2Categories = () => {
   const fetchCategories = async () => {
     setIsLoading(true);
     try {
-      const res = await adminApi.getCategories();
-      if (res.data.success) {
-        const allCats = res.data.results || res.data.result || [];
-        setCategories(allCats.filter((c) => c.type === "category"));
-        setHeaderCategories(allCats.filter((c) => c.type === "header"));
-      }
+      const [allLevel2Categories, allHeaderCategories] = await Promise.all([
+        fetchAllCategoriesByType("category"),
+        fetchAllCategoriesByType("header"),
+      ]);
+      setCategories(allLevel2Categories);
+      setHeaderCategories(allHeaderCategories);
     } catch (error) {
       toast.error("Failed to fetch categories");
     } finally {

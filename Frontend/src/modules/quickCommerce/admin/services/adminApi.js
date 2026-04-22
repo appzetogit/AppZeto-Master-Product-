@@ -66,6 +66,10 @@ const normalizeProduct = (item = {}) => ({
   categoryId: item.categoryId || null,
   subcategoryId: item.subcategoryId || null,
   headerId: item.headerId || null,
+  sellerId: item.sellerId || item.seller?._id || null,
+  seller: item.seller || null,
+  storeName: item.storeName || item.seller?.shopName || item.seller?.name || '',
+  restaurantName: item.restaurantName || item.seller?.shopName || item.seller?.name || '',
 });
 
 async function getQuickStatsPayload() {

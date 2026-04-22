@@ -175,19 +175,11 @@ export default function UserRouter() {
           {/* Profile - Protected (require user auth) */}
           <Route
             path="profile"
-            element={
-              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
-                <Profile />
-              </ProtectedRoute>
-            }
+            element={<Navigate to="/profile?from=food" replace />}
           />
           <Route
             path="profile/edit"
-            element={
-              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
-                <EditProfile />
-              </ProtectedRoute>
-            }
+            element={<Navigate to="/profile/edit?from=food" replace />}
           />
           <Route
             path="profile/payments"
@@ -223,27 +215,15 @@ export default function UserRouter() {
           />
           <Route
             path="profile/support"
-            element={
-              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
-                <Support />
-              </ProtectedRoute>
-            }
+            element={<Navigate to="/profile/support?from=food" replace />}
           />
           <Route
             path="profile/coupons"
-            element={
-              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
-                <Coupons />
-              </ProtectedRoute>
-            }
+            element={<Navigate to="/profile/coupons?from=food" replace />}
           />
           <Route
             path="profile/about"
-            element={
-              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
-                <About />
-              </ProtectedRoute>
-            }
+            element={<Navigate to="/profile/about?from=food" replace />}
           />
 
           <Route

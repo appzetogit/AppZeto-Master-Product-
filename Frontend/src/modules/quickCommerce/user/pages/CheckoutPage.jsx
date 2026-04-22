@@ -65,11 +65,11 @@ const RECIPIENT_STORAGE_KEY = "appzeto_checkout_recipient_v1";
 
 const DEFAULT_CURRENT_ADDRESS = {
   type: "Home",
-  name: "Harshvardhan Panchal",
-  address: "81 Pipliyahana Road, Near 214",
+  name: "",
+  address: "",
   landmark: "",
-  city: "Indore - 452018",
-  phone: "6268423925",
+  city: "",
+  phone: "",
 };
 
 const DEFAULT_RECIPIENT_DATA = {
@@ -80,13 +80,47 @@ const DEFAULT_RECIPIENT_DATA = {
   phone: "",
 };
 
+const isLegacyStaticCheckoutValue = (value = "") => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) return false;
+
+  return [
+    "harshvardhan panchal",
+    "6268423925",
+    "pipliyahana",
+    "rajshri palace",
+    "indore - 452018",
+    "214, rajshri palace colony",
+  ].some((token) => normalized.includes(token));
+};
+
+const sanitizeCheckoutAddress = (address = {}) => {
+  if (!address || typeof address !== "object") {
+    return { ...DEFAULT_CURRENT_ADDRESS };
+  }
+
+  const next = { ...DEFAULT_CURRENT_ADDRESS, ...address };
+
+  if (isLegacyStaticCheckoutValue(next.name)) next.name = "";
+  if (isLegacyStaticCheckoutValue(next.phone)) next.phone = "";
+  if (isLegacyStaticCheckoutValue(next.address)) next.address = "";
+  if (isLegacyStaticCheckoutValue(next.city)) next.city = "";
+
+  return next;
+};
+
 const readStoredCheckoutState = () => {
   try {
     if (typeof window === "undefined") return {};
     const raw = window.localStorage.getItem(CHECKOUT_STORAGE_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : {};
+    if (!parsed || typeof parsed !== "object") return {};
+
+    return {
+      ...parsed,
+      currentAddress: sanitizeCheckoutAddress(parsed.currentAddress),
+    };
   } catch {
     return {};
   }
@@ -202,13 +236,6 @@ const CheckoutPage = () => {
     storedCheckoutState.manualCode || "",
   );
 
-  const deliveryAddress = {
-    type: "Home",
-    name: "John Doe",
-    address: "Flat 402, Sunshine Apartments, Sector 12, Dwarka",
-    city: "New Delhi - 110075",
-  };
-
   const timeSlots = [
     { id: "now", label: "Now", sublabel: "10-15 min" },
     { id: "30min", label: "30 min", sublabel: "Standard" },
@@ -252,6 +279,16 @@ const CheckoutPage = () => {
   const discountAmount = selectedCoupon
     ? selectedCoupon.discountAmount || selectedCoupon.discount || 0
     : 0;
+  const discountedItemsTotal = cart.reduce((sum, item) => {
+    const unitPrice = Number(item.salePrice || item.price || 0);
+    return sum + unitPrice * Number(item.quantity || 0);
+  }, 0);
+  const originalItemsTotal = cart.reduce((sum, item) => {
+    const originalUnitPrice = Number(
+      item.originalPrice || item.mrp || item.price || item.salePrice || 0,
+    );
+    return sum + originalUnitPrice * Number(item.quantity || 0);
+  }, 0);
   const totalAmount = pricingPreview?.grandTotal || 0;
 
   const displayCartItems = showAllCartItems ? cart : cart;
@@ -287,12 +324,17 @@ const CheckoutPage = () => {
     ).trim();
 
   // Derived display values for primary delivery card
-  const displayName = savedRecipient?.name || currentAddress.name;
-  const displayPhone =
-    savedRecipient?.phone || currentAddress.phone || "6268423925";
+  const displayName =
+    savedRecipient?.name ||
+    user?.name ||
+    currentAddress.name ||
+    "Customer";
+  const displayPhone = savedRecipient?.phone || currentAddress.phone || "";
   const displayAddress = savedRecipient
     ? `${savedRecipient.completeAddress}${savedRecipient.landmark ? `, ${savedRecipient.landmark}` : ""}${savedRecipient.pincode ? ` - ${savedRecipient.pincode}` : ""}`
-    : `${currentAddress.address}${currentAddress.landmark ? `, ${currentAddress.landmark}` : ""}, ${currentAddress.city}`;
+    : [currentAddress.address, currentAddress.landmark, currentAddress.city]
+        .filter(Boolean)
+        .join(", ");
 
   useEffect(() => {
     if (!paymentMethods.length) return;
@@ -301,6 +343,38 @@ const CheckoutPage = () => {
       setSelectedPayment(paymentMethods[0].id);
     }
   }, [paymentMethods, selectedPayment]);
+
+  useEffect(() => {
+    const hasUsableAddress = [currentAddress.address, currentAddress.city, currentAddress.landmark]
+      .some((value) => String(value || "").trim());
+
+    if (hasUsableAddress || !locationSavedAddresses.length) {
+      return;
+    }
+
+    const primaryAddress = locationSavedAddresses[0];
+    if (!primaryAddress?.address) {
+      return;
+    }
+
+    setCurrentAddress((prev) => ({
+      ...prev,
+      type: primaryAddress.label || prev.type || "Home",
+      name: user?.name || "",
+      address: primaryAddress.address || "",
+      city: "",
+      phone: primaryAddress.phone || "",
+      landmark: "",
+      ...(primaryAddress.placeId ? { placeId: primaryAddress.placeId } : {}),
+      ...(primaryAddress.location ? { location: primaryAddress.location } : {}),
+    }));
+  }, [
+    currentAddress.address,
+    currentAddress.city,
+    currentAddress.landmark,
+    locationSavedAddresses,
+    user?.name,
+  ]);
 
   const buildAddressForOrder = () => {
     if (savedRecipient) {
@@ -460,7 +534,7 @@ const CheckoutPage = () => {
 
       setCurrentAddress({
         type: addr.label,
-        name: user?.name || currentAddress.name,
+        name: user?.name || "",
         address: rawText,
         city: "", // already part of addr.address string
         phone: addr.phone || currentAddress.phone,
@@ -720,7 +794,10 @@ const CheckoutPage = () => {
 
     setIsPreviewLoading(true);
     const subtotal = cart.reduce(
-      (sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0),
+      (sum, item) =>
+        sum +
+        Number(item.salePrice || item.price || 0) *
+          Number(item.quantity || 0),
       0,
     );
     const deliveryFeeCharged = 25;
@@ -1228,9 +1305,11 @@ const CheckoutPage = () => {
                         </button>
                       </div>
                     </div>
-                    <p className="text-xs text-slate-500 font-medium mt-0.5">
-                      {displayPhone}
-                    </p>
+                    {displayPhone ? (
+                      <p className="text-xs text-slate-500 font-medium mt-0.5">
+                        {displayPhone}
+                      </p>
+                    ) : null}
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                       {displayAddress}
                     </p>
@@ -1499,9 +1578,16 @@ const CheckoutPage = () => {
                   <span className="text-slate-500 font-bold text-[13px] uppercase tracking-wider">
                     Item Total
                   </span>
-                  <span className="font-black text-slate-800">
-                    ₹{pricingPreview?.productSubtotal ?? cartTotal}
+                  <div className="flex items-baseline gap-2">
+                    {originalItemsTotal > discountedItemsTotal ? (
+                      <span className="text-sm font-bold text-slate-400 line-through">
+                        ₹{originalItemsTotal}
+                      </span>
+                    ) : null}
+                    <span className="font-black text-slate-800">
+                    ₹{discountedItemsTotal}
                   </span>
+                  </div>
                 </div>
                 <div className="flex justify-between items-center px-2">
                   <span className="text-slate-500 font-bold text-[13px] uppercase tracking-wider">
@@ -1643,7 +1729,7 @@ const CheckoutPage = () => {
                   </span>
                 </div>
                 <p className="text-sm font-bold text-slate-800">
-                  {user?.name || currentAddress.name}
+                  {addr.name || user?.name || currentAddress.name || "Customer"}
                 </p>
                 <p className="text-xs text-slate-500 leading-relaxed mb-1">
                   {addr.address}

@@ -471,3 +471,90 @@ export const getOrderById = async (req, res) => {
   }
 };
 
+export const cancelOrder = async (req, res) => {
+  try {
+    const idQuery = resolveId(req);
+
+    if (!idQuery) {
+      return res.status(400).json({ success: false, message: 'sessionId or userId is required' });
+    }
+
+    const rawOrderId = String(req.params.orderId || '').trim();
+    if (!rawOrderId) {
+      return res.status(400).json({ success: false, message: 'orderId is required' });
+    }
+
+    const orderIdentityQuery = [{ orderId: rawOrderId }];
+    if (mongoose.isValidObjectId(rawOrderId)) {
+      orderIdentityQuery.unshift({ _id: rawOrderId });
+    }
+
+    const query = {
+      ...idQuery,
+      orderType: 'quick',
+      $or: orderIdentityQuery,
+    };
+
+    const order = await QuickOrder.findOne(query);
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    const currentStatus = String(order.orderStatus || '').toLowerCase();
+    if (['delivered', 'cancelled_by_user', 'cancelled_by_restaurant', 'cancelled_by_admin'].includes(currentStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: currentStatus === 'delivered' ? 'Delivered orders cannot be cancelled' : 'Order is already cancelled',
+      });
+    }
+
+    order.orderStatus = 'cancelled_by_user';
+    order.statusHistory = Array.isArray(order.statusHistory) ? order.statusHistory : [];
+    order.statusHistory.push({
+      byRole: 'USER',
+      from: currentStatus || '',
+      to: 'cancelled_by_user',
+      note: String(req.body?.reason || 'Quick commerce order cancelled by user').trim(),
+    });
+
+    if (order.payment?.method === 'cash') {
+      order.payment.status = 'failed';
+    }
+
+    await order.save();
+
+    await SellerOrder.updateMany(
+      {
+        orderId: order.orderId,
+        status: { $nin: ['cancelled', 'delivered'] },
+      },
+      {
+        $set: {
+          status: 'cancelled',
+          workflowStatus: 'CANCELLED_BY_USER',
+        },
+      },
+    );
+
+    emitQuickOrderStatusUpdate(order, 'Quick order cancelled successfully.');
+
+    return res.json({
+      success: true,
+      result: {
+        id: order._id,
+        _id: order._id,
+        orderId: order.orderId,
+        orderNumber: order.orderId,
+        status: order.orderStatus,
+      },
+    });
+  } catch (error) {
+    logger.error(`Quick cancelOrder failed: ${error?.message || error}`);
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'Failed to cancel quick order',
+    });
+  }
+};
+

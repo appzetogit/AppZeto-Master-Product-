@@ -10,7 +10,7 @@ import {
   getProducts,
 } from '../controllers/catalog.controller.js';
 import { addToCart, clearCart, getCart, removeCartItem, updateCartItem } from '../controllers/cart.controller.js';
-import { getMyOrders, getOrderById, placeOrder } from '../controllers/order.controller.js';
+import { cancelOrder, getMyOrders, getOrderById, placeOrder } from '../controllers/order.controller.js';
 import { addToWishlist, getWishlist, removeFromWishlist, toggleWishlist } from '../controllers/wishlist.controller.js';
 import {
   approveAdminSellerRequest,
@@ -79,6 +79,7 @@ router.delete('/cart/clear', optionalAuth, clearCart);
 router.post('/orders', optionalAuth, placeOrder);
 router.get('/orders', optionalAuth, getMyOrders);
 router.get('/orders/:orderId', optionalAuth, getOrderById);
+router.post('/orders/:orderId/cancel', optionalAuth, cancelOrder);
 
 router.get('/wishlist', optionalAuth, getWishlist);
 router.post('/wishlist/add', optionalAuth, addToWishlist);

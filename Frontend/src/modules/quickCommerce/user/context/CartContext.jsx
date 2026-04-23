@@ -173,7 +173,13 @@ const useStandaloneQuickCart = () => {
         const response = await customerApi.getCart();
         const items = response.data?.result?.items || response.data?.items || [];
         const normalizedItems = normalizeBackendCart(items);
-        setCart((prev) => (normalizedItems.length > 0 ? normalizedItems : prev));
+        // `/quick` embedded mode writes the current quick cart snapshot to localStorage
+        // through the shared food-cart bridge. When standalone `/quick/cart` loads,
+        // backend quick-cart data can still be empty, so we fall back to that snapshot
+        // instead of showing an empty cart while the floating cart shows items.
+        setCart(
+          normalizedItems.length > 0 ? normalizedItems : readStoredQuickCart(),
+        );
       } catch (error) {
         console.error("Failed to fetch cart from backend", error);
       } finally {

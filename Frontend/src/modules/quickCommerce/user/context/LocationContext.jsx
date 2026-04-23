@@ -22,6 +22,18 @@ const normalizeAddressLabel = (label = "") => {
 };
 
 const mapSharedAddress = (addr = {}, idx = 0, profile = {}) => {
+  const geoCoords = Array.isArray(addr?.location?.coordinates)
+    ? addr.location.coordinates
+    : null;
+  const geoLat =
+    typeof geoCoords?.[1] === "number" && Number.isFinite(geoCoords[1])
+      ? geoCoords[1]
+      : null;
+  const geoLng =
+    typeof geoCoords?.[0] === "number" && Number.isFinite(geoCoords[0])
+      ? geoCoords[0]
+      : null;
+
   const location =
     addr?.location &&
     typeof addr.location.lat === "number" &&
@@ -29,11 +41,16 @@ const mapSharedAddress = (addr = {}, idx = 0, profile = {}) => {
     Number.isFinite(addr.location.lat) &&
     Number.isFinite(addr.location.lng)
       ? { lat: addr.location.lat, lng: addr.location.lng }
-      : null;
+      : geoLat !== null && geoLng !== null
+        ? { lat: geoLat, lng: geoLng }
+        : null;
 
   const addressText =
+    addr.formattedAddress ||
+    addr.address ||
     addr.fullAddress ||
     [
+      addr.label,
       addr.additionalDetails,
       addr.street,
       addr.landmark,
@@ -52,8 +69,9 @@ const mapSharedAddress = (addr = {}, idx = 0, profile = {}) => {
     location,
     placeId: typeof addr?.placeId === "string" ? addr.placeId : null,
     phone: profile?.phone ?? addr?.phone ?? "",
-    name: profile?.name ?? "",
+    name: profile?.name ?? addr?.name ?? addr?.fullName ?? "",
     isCurrent: addr.isDefault === true || idx === 0,
+    isDefault: addr.isDefault === true,
   };
 };
 

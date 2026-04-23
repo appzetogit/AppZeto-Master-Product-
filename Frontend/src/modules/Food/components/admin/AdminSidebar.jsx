@@ -748,7 +748,7 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
                 Admin Panel
               </h2>
               <div className="mt-2 rounded-xl border border-neutral-800 bg-neutral-900/80 p-1">
-                <div className="grid grid-cols-4 gap-1">
+                <div className="grid grid-cols-2 gap-1">
                   <button
                     type="button"
                     onClick={() => switchAdminModule("food")}
@@ -763,18 +763,6 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
                   </button>
                   <button
                     type="button"
-                    onClick={() => switchAdminModule("quick")}
-                    className={cn(
-                      "rounded-lg px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all",
-                      isQuickAdmin
-                        ? "bg-[#0c831f] text-white shadow-[0_6px_20px_rgba(12,131,31,0.35)]"
-                        : "text-neutral-400 hover:text-white"
-                    )}
-                  >
-                    Quick
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => switchAdminModule("taxi")}
                     className={cn(
                       "rounded-lg px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all",
@@ -784,18 +772,6 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
                     )}
                   >
                     Taxi
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => switchAdminModule("hotel")}
-                    className={cn(
-                      "rounded-lg px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all",
-                      isHotelAdmin
-                        ? "bg-sky-500 text-white shadow-[0_6px_20px_rgba(14,165,233,0.35)]"
-                        : "text-neutral-400 hover:text-white"
-                    )}
-                  >
-                    Hotel
                   </button>
                 </div>
               </div>

@@ -197,7 +197,7 @@ export function CartProvider({ children }) {
       const currentOrderType = getItemOrderType(safeCart[0])
       const nextOrderType = getItemOrderType(item)
 
-      if (currentOrderType === nextOrderType) {
+      if (currentOrderType === "food" && nextOrderType === "food") {
         const firstItemRestaurantId = safeCart[0]?.restaurantId
         const firstItemRestaurantName = safeCart[0]?.restaurant
         const newItemRestaurantId = item?.restaurantId
@@ -240,7 +240,7 @@ export function CartProvider({ children }) {
 
       // CRITICAL: Validate restaurant consistency
       // If cart already has items, ensure new item belongs to the same restaurant
-      if (safePrev.length > 0 && existingOrderType === incomingOrderType) {
+      if (safePrev.length > 0 && existingOrderType === "food" && incomingOrderType === "food") {
         const firstItemRestaurantId = safePrev[0]?.restaurantId;
         const firstItemRestaurantName = safePrev[0]?.restaurant;
         const newItemRestaurantId = item?.restaurantId;
@@ -477,6 +477,7 @@ export function CartProvider({ children }) {
     // Get unique restaurant IDs and names
     const uniqueOrderTypes = [...new Set(safeCart.map(getItemOrderType))]
     if (uniqueOrderTypes.length > 1) return;
+    if (uniqueOrderTypes[0] !== "food") return;
 
     const restaurantIds = safeCart.map(item => item.restaurantId).filter(Boolean);
     const restaurantNames = safeCart.map(item => item.restaurant).filter(Boolean);

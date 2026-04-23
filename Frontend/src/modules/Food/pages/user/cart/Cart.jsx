@@ -107,6 +107,35 @@ const mapOrderItem = (item) => ({
   preparationTime: item.preparationTime,
 })
 
+const normalizeOrderAddress = (address, { recipientName = "", recipientPhone = "" } = {}) => {
+  if (!address || typeof address !== "object") return null
+
+  const resolvedStreet =
+    String(address.street || "").trim() ||
+    String(address.address || "").trim() ||
+    String(address.formattedAddress || "").trim()
+
+  const resolvedCity =
+    String(address.city || "").trim() ||
+    String(address.area || "").trim()
+
+  const resolvedState =
+    String(address.state || "").trim() ||
+    resolvedCity
+
+  return {
+    ...address,
+    label: address.label || "Home",
+    street: resolvedStreet,
+    city: resolvedCity,
+    state: resolvedState,
+    zipCode: address.zipCode || address.postalCode || "",
+    phone: recipientPhone || address.phone || "",
+    name: recipientName || address.name || "",
+    fullName: recipientName || address.fullName || address.name || "",
+  }
+}
+
 export default function Cart() {
   const companyName = useCompanyName()
   const navigate = useNavigate()
@@ -1621,16 +1650,16 @@ export default function Cart() {
         return;
       }
 
+      const normalizedAddress = normalizeOrderAddress(defaultAddress, {
+        recipientName,
+        recipientPhone: recipientPhone || defaultAddress?.phone || "",
+      })
+
       const orderPayload = {
         items: orderItems,
-        address: {
-          ...defaultAddress,
-          phone: recipientPhone || defaultAddress?.phone || "",
-          name: recipientName,
-          fullName: recipientName,
-        },
+        address: normalizedAddress,
         customerName: recipientName,
-        customerPhone: recipientPhone || defaultAddress?.phone || "",
+        customerPhone: normalizedAddress?.phone || "",
         restaurantId: finalRestaurantId,
         restaurantName: finalRestaurantName || undefined,
         pricing: orderPricing,

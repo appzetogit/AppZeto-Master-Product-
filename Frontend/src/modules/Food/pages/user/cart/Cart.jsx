@@ -2182,7 +2182,7 @@ export default function Cart() {
                   />
                   <div className="mt-2 flex items-center justify-between gap-3">
                     <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                      Ye note order ke saath save hoga aur assigned delivery partner ko dikh sakta hai.
+                      This note will be saved with the order and will be visible to the delivery partner.
                     </p>
                     <span className="text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap">
                       {note.length}/240

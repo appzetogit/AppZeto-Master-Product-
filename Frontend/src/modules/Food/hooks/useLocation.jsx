@@ -119,7 +119,7 @@ const buildBigDataCloudAddress = (data, latitude, longitude) => {
   }
 }
 
-const reverseGeocodeDirect = async (latitude, longitude) => {
+const reverseGeocodeDirect = async (latitude, longitude, forceFresh = false) => {
   const now = Date.now()
   const movedMeters = geoDistanceMeters(
     globalReverseGeocodeLastCoords.latitude,
@@ -130,7 +130,9 @@ const reverseGeocodeDirect = async (latitude, longitude) => {
   const timeSinceLastStart = now - globalReverseGeocodeLastStartAt
 
   // If we recently geocoded a nearby point, reuse the last successful payload (no network).
+  // Skip cache when forceFresh is true (user explicitly requested current location)
   if (
+    !forceFresh &&
     globalReverseGeocodeLastSuccess &&
     movedMeters < GLOBAL_GEOCODE_REUSE_DISTANCE_METERS &&
     timeSinceLastStart < GLOBAL_GEOCODE_MIN_INTERVAL_MS
@@ -139,7 +141,8 @@ const reverseGeocodeDirect = async (latitude, longitude) => {
   }
 
   // If another caller is already fetching, wait for it when it's "close enough".
-  if (globalReverseGeocodeInFlight) {
+  // Skip dedup when forceFresh is true
+  if (!forceFresh && globalReverseGeocodeInFlight) {
     const inFlightMoved = geoDistanceMeters(
       globalReverseGeocodeLastCoords.latitude,
       globalReverseGeocodeLastCoords.longitude,
@@ -329,7 +332,7 @@ export function useLocation() {
 
   /* Removed Google Geocoding/Places (maps.googleapis.com). Uses BigDataCloud reverse-geocode only. */
   const reverseGeocodeWithGoogleMaps = async (latitude, longitude, _options = {}) =>
-    reverseGeocodeDirect(latitude, longitude)
+    reverseGeocodeDirect(latitude, longitude, _options?.forceFresh || false)
 
 
   /* ===================== OLA MAPS REVERSE GEOCODE (DEPRECATED - KEPT FOR FALLBACK) ===================== */
@@ -884,14 +887,15 @@ export function useLocation() {
                 debugLog("?? Calling reverse geocode with coordinates:", { latitude, longitude })
                 try {
                   addr = await reverseGeocodeWithGoogleMaps(latitude, longitude, {
-                    includePlaceDetails: Boolean(forceFresh && showLoading)
+                    includePlaceDetails: Boolean(forceFresh && showLoading),
+                    forceFresh: forceFresh
                   })
                   debugLog("? Reverse geocoding successful:", addr)
                 } catch (geocodeErr) {
                   debugWarn("?? Primary geocoding failed, trying fallback:", geocodeErr.message)
                   try {
                     // Fallback to direct reverse geocode (BigDataCloud)
-                    addr = await reverseGeocodeDirect(latitude, longitude)
+                    addr = await reverseGeocodeDirect(latitude, longitude, forceFresh)
                     debugLog("? Fallback geocoding successful:", addr)
 
                     // Validate fallback result - if it still has placeholder values, don't use it
@@ -1645,6 +1649,18 @@ export function useLocation() {
       // Clear cached location to force fresh fetch
       localStorage.removeItem("userLocation")
       debugLog("??? Cleared cached location from localStorage")
+
+      // Clear global reverse geocode cache so we get a truly fresh address
+      globalReverseGeocodeLastSuccess = null
+      globalReverseGeocodeLastStartAt = 0
+      globalReverseGeocodeLastCoords = { latitude: null, longitude: null }
+      globalReverseGeocodeInFlight = null
+      debugLog("??? Cleared global reverse geocode cache")
+
+      // Also clear instance-level geocode refs so fresh geocode happens
+      lastGeocodedCoordsRef.current = { latitude: null, longitude: null }
+      lastGeocodeAtRef.current = 0
+      lastResolvedAddressRef.current = null
 
       // Show loading, so pass showLoading = true
       // forceFresh = true, updateDB = true, showLoading = true

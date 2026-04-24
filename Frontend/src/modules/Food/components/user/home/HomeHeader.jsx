@@ -29,28 +29,28 @@ import foodPattern from "@food/assets/food_pattern_background.png";
 import useNotificationInbox from "@food/hooks/useNotificationInbox";
 
 const tabs = [
-  // {
-  //   id: "food",
-  //   name: "Food",
-  //   icon: "https://cdn-icons-png.flaticon.com/512/3075/3075977.png",
-  // },
-  // {
-  //   id: "quick",
-  //   name: "Instamart",
-  //   icon: "https://cdn-icons-png.flaticon.com/512/3724/3724720.png",
-  //   badge: "15 mins",
-  // },
-  // {
-  //   id: "taxi",
-  //   name: "Dineout",
-  //   icon: "https://cdn-icons-png.flaticon.com/512/2515/2515183.png",
-  // },
-  // {
-  //   id: "hotel",
-  //   name: "Explore",
-  //   icon: "https://cdn-icons-png.flaticon.com/512/854/854878.png",
-  //   route: "/user/auth/portal",
-  // },
+  {
+    id: "food",
+    name: "Food",
+    icon: "https://cdn-icons-png.flaticon.com/512/3075/3075977.png",
+  },
+  {
+    id: "quick",
+    name: "Instamart",
+    icon: "https://cdn-icons-png.flaticon.com/512/3724/3724720.png",
+    badge: "15 mins",
+  },
+  {
+    id: "taxi",
+    name: "Dineout",
+    icon: "https://cdn-icons-png.flaticon.com/512/2515/2515183.png",
+  },
+  {
+    id: "hotel",
+    name: "Explore",
+    icon: "https://cdn-icons-png.flaticon.com/512/854/854878.png",
+    route: "/user/auth/portal",
+  },
 ];
 
 const normalizeHex = (hex, fallback = "#8e24aa") => {

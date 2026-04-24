@@ -639,7 +639,7 @@ const AdminLayout = () => {
                     Modules
                   </span>
                 </div>
-                <AdminModuleSwitcher className="grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-white/5 p-1 shadow-none [&>button]:justify-center [&>button]:bg-transparent [&>button]:px-2 [&>button]:py-2.5 [&>button]:text-[10px] [&>button]:tracking-[0.18em] [&>button]:text-slate-300 [&>button>span]:inline [&>button[aria-current='page']]:bg-white [&>button[aria-current='page']]:text-slate-950 [&>button[aria-current='page']]:shadow-sm [&>button:not([aria-current='page'])]:hover:bg-white/10 [&>button:not([aria-current='page'])]:hover:text-white" />
+                <AdminModuleSwitcher className="grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-white/5 p-1 shadow-none [&>button]:justify-center [&>button]:bg-transparent [&>button]:px-2 [&>button]:py-2.5 [&>button]:text-[10px] [&>button]:tracking-[0.18em] [&>button]:text-slate-300 [&>button[aria-current='page']]:bg-white [&>button[aria-current='page']]:text-slate-950 [&>button[aria-current='page']]:shadow-sm [&>button:not([aria-current='page'])]:hover:bg-white/10 [&>button:not([aria-current='page'])]:hover:text-white" />
               </div>
             )}
             {sidebarSections.map((section) => (

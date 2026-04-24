@@ -16,17 +16,17 @@ const SERVICES = [
     badge: "Fast",
     badgeIcon: "⚡"
   },
-  // {
-  //   id: "grocery",
-  //   name: "Quick Commerce",
-  //   description: "20-Min Essentials",
-  //   image: "/super-app/grocery.png",
-  //   path: "/quick",
-  //   icon: ShoppingBasket,
-  //   color: "from-[#4CAF50] to-[#2DAB52]",
-  //   badge: "Instant",
-  //   badgeIcon: "⏱️"
-  // },
+  {
+    id: "grocery",
+    name: "Quick Commerce",
+    description: "20-Min Essentials",
+    image: "/super-app/grocery.png",
+    path: "/quick",
+    icon: ShoppingBasket,
+    color: "from-[#4CAF50] to-[#2DAB52]",
+    badge: "Instant",
+    badgeIcon: "⏱️"
+  },
   {
     id: "taxi",
     name: "Taxi",
@@ -38,17 +38,17 @@ const SERVICES = [
     badge: "Safe",
     badgeIcon: "🛡️"
   },
-  // {
-  //   id: "hotel",
-  //   name: "Hotel",
-  //   description: "Luxury book stays",
-  //   image: "/super-app/hotel.png",
-  //   path: "/hotel",
-  //   icon: Bed,
-  //   color: "from-[#64B5F6] to-[#4A90E2]",
-  //   badge: "Premium",
-  //   badgeIcon: "💎"
-  // }
+  {
+    id: "hotel",
+    name: "Hotel",
+    description: "Luxury book stays",
+    image: "/super-app/hotel.png",
+    path: "/hotel",
+    icon: Bed,
+    color: "from-[#64B5F6] to-[#4A90E2]",
+    badge: "Premium",
+    badgeIcon: "💎"
+  }
 ]
 
 export default function SuperAppPortal() {

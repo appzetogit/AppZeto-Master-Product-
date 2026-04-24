@@ -239,7 +239,7 @@ const SidebarContent = ({ items, title, onClose, openMenu, handleToggle, hovered
             <p className="px-3 text-[9px] font-black text-gray-600 uppercase tracking-[0.3em] mb-2">
               Module
             </p>
-            <AdminModuleSwitcher className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-white/5 p-1 shadow-none [&>button]:justify-center [&>button]:px-2 [&>button]:py-2 [&>button]:text-[10px] [&>button]:tracking-[0.18em] [&>button>span]:inline" />
+            <AdminModuleSwitcher className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-white/5 p-1 shadow-none [&>button]:justify-center [&>button]:px-2 [&>button]:py-2 [&>button]:text-[10px] [&>button]:tracking-[0.18em]" />
           </div>
         )}
         <p className="px-3 text-[9px] font-black text-gray-600 uppercase tracking-[0.3em] mb-3">

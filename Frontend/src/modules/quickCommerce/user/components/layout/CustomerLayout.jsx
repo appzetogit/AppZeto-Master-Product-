@@ -1,5 +1,4 @@
 import React from 'react';
-import Header from './Header';
 import Footer from './Footer';
 import BottomNav from './BottomNav';
 import MiniCart from '../shared/MiniCart';
@@ -16,22 +15,12 @@ const CustomerLayout = ({ children, showHeader: showHeaderProp, fullHeight = fal
     // Route-based visibility logic with module prefix stripping
     const path = location.pathname.replace(/^\/quick(?:-commerce(?:\/user)?)?/, '') || '/';
 
-    const hideHeaderRoutes = ['/categories', '/orders', '/transactions', '/profile', '/profile/edit', '/wishlist', '/addresses', '/wallet', '/support', '/privacy', '/about', '/terms', '/checkout', '/search', '/chat', '/product', '/cart'];
+    const hideHeaderRoutes = ['/categories', '/category', '/orders', '/transactions', '/profile', '/profile/edit', '/wishlist', '/addresses', '/wallet', '/support', '/privacy', '/about', '/terms', '/checkout', '/search', '/chat', '/product', '/cart'];
     const hideBottomNavRoutes = ['/cart', '/checkout', '/search', '/chat'];
     const hideCartRoutes = ['/cart', '/checkout', '/search', '/chat'];
     const matchesRoutePrefix = (routePrefix) =>
         path === routePrefix || path.startsWith(`${routePrefix}/`);
 
-    // If props are passed, use them. Otherwise, use route-based logic.
-    const showHeader = showHeaderProp !== undefined
-        ? showHeaderProp
-        : (
-            !hideHeaderRoutes.includes(path) &&
-            !matchesRoutePrefix('/category') &&
-            !matchesRoutePrefix('/orders') &&
-            !matchesRoutePrefix('/product') &&
-            !matchesRoutePrefix('/cart')
-        );
     const showBottomNav = showBottomNavProp !== undefined ? showBottomNavProp : !hideBottomNavRoutes.includes(path);
     const showCart = showCartProp !== undefined ? showCartProp : (!hideCartRoutes.includes(path) && !matchesRoutePrefix('/orders'));
 
@@ -39,29 +28,12 @@ const CustomerLayout = ({ children, showHeader: showHeaderProp, fullHeight = fal
     const hideFooterMessageRoutes = ['/profile', '/profile/edit'];
     const showFooterMessage = showBottomNav && !hideFooterMessageRoutes.includes(path) && !matchesRoutePrefix('/category');
 
-    // Hide elements on mobile only when product detail is open
-    // On desktop, we want to keep the header visible even if the modal is open
-    const finalShowHeaderMobile = showHeader && !isProductDetailOpen;
     const finalShowBottomNavMobile = showBottomNav && !isProductDetailOpen;
     const finalShowFooterMessageMobile = showFooterMessage && !isProductDetailOpen;
 
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-            {/* Header logic: Always show on desktop if showHeader is true. On mobile, hide if product detail is open. */}
-            {showHeader && (
-                <>
-                    <div className="hidden md:block">
-                        <Header />
-                    </div>
-                    {finalShowHeaderMobile && (
-                        <div className="block md:hidden">
-                            <Header />
-                        </div>
-                    )}
-                </>
-            )}
-
-            <main className={cn("flex-1 md:pb-0", !showHeader && "pt-0", !fullHeight && "pb-16")}>
+            <main className={cn("flex-1 md:pb-0", !fullHeight && "pb-16")}>
                 {children}
             </main>
 

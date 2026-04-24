@@ -55,6 +55,11 @@ const CategoryProductsPage = () => {
         }
     }, []);
 
+    const [experienceSections, setExperienceSections] = useState([]);
+    const [heroConfig, setHeroConfig] = useState(null);
+    const [categoryMap, setCategoryMap] = useState({});
+    const [subcategoryMap, setSubcategoryMap] = useState({});
+
     const fetchData = async () => {
         setIsLoading(true);
         try {
@@ -62,63 +67,81 @@ const CategoryProductsPage = () => {
                 Number.isFinite(currentLocation?.latitude) &&
                 Number.isFinite(currentLocation?.longitude);
 
-            if (hasValidLocation) {
-                // Fetch products for this category
-                const prodRes = await customerApi.getProducts({
-                    categoryId: catId,
-                    lat: currentLocation.latitude,
-                    lng: currentLocation.longitude,
-                });
-                if (prodRes.data.success) {
-                    const rawResult = prodRes.data.result;
-                    const dbProds = Array.isArray(prodRes.data.results)
-                        ? prodRes.data.results
-                        : Array.isArray(rawResult?.items)
-                        ? rawResult.items
-                        : Array.isArray(rawResult)
-                        ? rawResult
-                        : [];
+            const [prodRes, catRes, expRes, heroRes] = await Promise.all([
+                hasValidLocation
+                    ? customerApi.getProducts({
+                        categoryId: catId,
+                        lat: currentLocation.latitude,
+                        lng: currentLocation.longitude,
+                    })
+                    : Promise.resolve({ data: { success: true, result: { items: [] } } }),
+                customerApi.getCategories({ tree: true }),
+                customerApi.getExperienceSections({ pageType: 'header', headerId: catId }).catch(() => null),
+                customerApi.getHeroConfig({ pageType: 'header', headerId: catId }).catch(() => null)
+            ]);
 
-                    const formattedProds = dbProds.map(p => ({
-                        ...p,
-                        id: p._id,
-                        image: p.mainImage || p.image || "https://images.unsplash.com/photo-1550989460-0adf9ea622e2",
-                        price: p.salePrice || p.price,
-                        originalPrice: p.price,
-                        weight: p.weight || "1 unit",
-                        deliveryTime: "8-15 mins"
-                    }));
-                    setProducts(Array.isArray(formattedProds) ? formattedProds : []);
-                }
-            } else {
-                setProducts([]);
+            if (prodRes.data.success) {
+                const rawResult = prodRes.data.result;
+                const dbProds = Array.isArray(prodRes.data.results)
+                    ? prodRes.data.results
+                    : Array.isArray(rawResult?.items)
+                    ? rawResult.items
+                    : Array.isArray(rawResult)
+                    ? rawResult
+                    : [];
+
+                const formattedProds = dbProds.map(p => ({
+                    ...p,
+                    id: p._id,
+                    image: p.mainImage || p.image || "https://images.unsplash.com/photo-1550989460-0adf9ea622e2",
+                    price: p.salePrice || p.price,
+                    originalPrice: p.price,
+                    weight: p.weight || "1 unit",
+                    deliveryTime: "8-15 mins"
+                }));
+                setProducts(Array.isArray(formattedProds) ? formattedProds : []);
             }
 
-            // Fetch subcategories & header mapping
-            const catRes = await customerApi.getCategories({ tree: true });
             if (catRes.data.success) {
-                const tree = catRes.data.results || catRes.data.result || [];
-                // Find current category in tree
-                let currentCat = null;
-                let headerForCat = null;
-                for (const header of tree) {
-                    const found = (header.children || []).find(c => c._id === catId);
-                    if (found) {
-                        currentCat = found;
-                        headerForCat = header;
-                        break;
-                    }
-                }
+                const results = catRes.data.results || catRes.data.result || [];
+                const allCats = Array.isArray(results) ? results : [];
+                
+                // Build maps for SectionRenderer
+                const cMap = {};
+                const sMap = {};
+                const flatten = (items) => {
+                    items.forEach(item => {
+                        if (item.type === 'category') cMap[item._id] = item;
+                        else if (item.type === 'subcategory') sMap[item._id] = item;
+                        if (item.children) flatten(item.children);
+                    });
+                };
+                flatten(allCats);
+                setCategoryMap(cMap);
+                setSubcategoryMap(sMap);
 
+                let currentCat = allCats.find(c => c._id === catId);
+                
                 if (currentCat) {
                     setCategory(currentCat);
-                    const subs = (currentCat.children || []).map(s => ({
+                    let subs = currentCat.children && currentCat.children.length > 0
+                        ? currentCat.children
+                        : allCats.filter(c => c.parentId === currentCat._id);
+
+                    const formattedSubs = subs.map(s => ({
                         id: s._id,
                         name: s.name,
                         icon: s.image || 'https://cdn-icons-png.flaticon.com/128/2321/2321801.png'
                     }));
-                    setSubCategories([{ id: 'all', name: 'All', icon: 'https://cdn-icons-png.flaticon.com/128/2321/2321831.png' }, ...subs]);
+                    setSubCategories([{ id: 'all', name: 'All', icon: 'https://cdn-icons-png.flaticon.com/128/2321/2321831.png' }, ...formattedSubs]);
                 }
+            }
+
+            if (expRes?.data?.success) {
+                setExperienceSections(expRes.data.result || expRes.data.results || []);
+            }
+            if (heroRes?.data?.success) {
+                setHeroConfig(heroRes.data.result);
             }
         } catch (error) {
             console.error("Error fetching category data:", error);
@@ -147,8 +170,8 @@ const CategoryProductsPage = () => {
     }, [safeProducts]);
 
     return (
-        <div className="flex min-h-screen flex-col bg-white font-sans pt-[112px] md:pt-[136px]">
-            <div className="mx-auto flex w-full max-w-md flex-1 flex-col">
+        <div className="flex min-h-screen flex-col bg-white font-sans pt-0">
+            <div className="mx-auto flex w-full max-w-[1920px] flex-1 flex-col">
             {/* Category Subheader */}
             <header className={cn(
                 "sticky top-0 z-30 px-4 py-4 flex items-center justify-between border-b border-white/20 shadow-[0_10px_30px_rgba(15,23,42,0.12)] backdrop-blur-md",
@@ -178,7 +201,7 @@ const CategoryProductsPage = () => {
 
             <div className="flex flex-1 relative items-start">
                 {/* Sidebar */}
-                <aside className="w-[80px] border-r border-gray-50 flex flex-col bg-white overflow-y-auto hide-scrollbar sticky top-[112px] md:top-[136px] h-[calc(100vh-112px)] md:h-[calc(100vh-136px)] pb-32">
+                <aside className="w-20 md:w-28 border-r border-gray-50 flex flex-col bg-white overflow-y-auto hide-scrollbar sticky top-0 h-screen pb-32">
                     {subCategories.map((cat) => (
                         <button
                             key={cat.id}
@@ -208,7 +231,18 @@ const CategoryProductsPage = () => {
 
                 {/* Content */}
                 <main className="flex-1 p-3 pb-24 bg-white space-y-4">
-                    <div className="grid grid-cols-2 gap-x-2 gap-y-4">
+                    {selectedSubCategory === 'all' && experienceSections.length > 0 && (
+                        <div className="mb-6">
+                            <SectionRenderer
+                                sections={experienceSections}
+                                productsById={productsById}
+                                categoriesById={categoryMap}
+                                subcategoriesById={subcategoryMap}
+                            />
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-2 gap-y-4 md:gap-4 lg:gap-6">
                         {filteredProducts.map((product) => (
                             <ProductCard key={product.id} product={product} compact={true} />
                         ))}

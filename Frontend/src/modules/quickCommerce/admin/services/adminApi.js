@@ -246,8 +246,10 @@ export const adminApi = {
     };
   },
 
-  getCategoryTree: async () => {
-    const response = await axiosInstance.get('/quick-commerce/admin/categories', { params: { tree: true, limit: 100 } });
+  getCategoryTree: async (params = {}) => {
+    const response = await axiosInstance.get('/quick-commerce/admin/categories', {
+      params: { tree: true, limit: 100, ...params },
+    });
     return {
       ...response,
       data: {
@@ -364,14 +366,14 @@ export const adminApi = {
   updateFAQ: () => emptyResponse({}),
   deleteFAQ: () => emptyResponse({}),
   getPublicFAQs: () => emptyResponse({ items: [] }),
-  getExperienceSections: () => emptyResponse({ items: [], total: 0 }),
-  createExperienceSection: () => emptyResponse({}),
-  updateExperienceSection: () => emptyResponse({}),
-  deleteExperienceSection: () => emptyResponse({}),
-  reorderExperienceSections: () => emptyResponse({}),
+  getExperienceSections: (params) => axiosInstance.get('/quick-commerce/admin/experience/sections', { params }),
+  createExperienceSection: (payload) => axiosInstance.post('/quick-commerce/admin/experience/sections', payload),
+  updateExperienceSection: (id, payload) => axiosInstance.put(`/quick-commerce/admin/experience/sections/${id}`, payload),
+  deleteExperienceSection: (id) => axiosInstance.delete(`/quick-commerce/admin/experience/sections/${id}`),
+  reorderExperienceSections: (items) => axiosInstance.post('/quick-commerce/admin/experience/sections/reorder', items),
   uploadExperienceBanner: (formData) => adminApi.uploadSettingsImage(formData, 'experience'),
-  getHeroConfig: () => emptyResponse({ banners: [], categories: [] }),
-  setHeroConfig: () => emptyResponse({}),
+  getHeroConfig: (params) => axiosInstance.get('/quick-commerce/admin/experience/hero', { params }),
+  setHeroConfig: (payload) => axiosInstance.post('/quick-commerce/admin/experience/hero', payload),
   getOffers: () => emptyResponse([]),
   createOffer: () => emptyResponse({}),
   updateOffer: () => emptyResponse({}),

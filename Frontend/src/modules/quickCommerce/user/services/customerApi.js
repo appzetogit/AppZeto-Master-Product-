@@ -66,7 +66,7 @@ export const customerApi = {
 
   getProducts: (params) => quickGetWithDedupe("/quick-commerce/products", params),
   searchProducts: (params) => quickGetWithDedupe("/quick-commerce/products", params),
-  getCategories: () => quickGetWithDedupe("/quick-commerce/categories", {}),
+  getCategories: (params = {}) => quickGetWithDedupe("/quick-commerce/categories", params),
   getCategoryProducts: (categoryId, params) =>
     quickGetWithDedupe("/quick-commerce/products", { categoryId, ...params }),
   getProductDetails: (productId) => quickGetWithDedupe(`/quick-commerce/products/${productId}`, {}),

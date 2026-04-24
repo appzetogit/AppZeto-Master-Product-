@@ -13,7 +13,7 @@ const SectionRenderer = ({ sections = [], productsById = {}, categoriesById = {}
         const heading = section.title;
 
         if (section.displayType === "banners") {
-          const items = section.config?.banners?.items || [];
+          const items = section.config?.banners?.items || section.config?.items || [];
           if (!items.length) return null;
           return (
             <div key={section._id} className="-mt-8 md:-mt-8">
@@ -23,13 +23,25 @@ const SectionRenderer = ({ sections = [], productsById = {}, categoriesById = {}
         }
 
         if (section.displayType === "categories") {
-          const ids = section.config?.categories?.categoryIds || [];
-          const rows = section.config?.categories?.rows || 1;
+          const categoryConfig = section.config?.categories || section.config || {};
+          const hydratedItems = categoryConfig.items;
+          const ids = categoryConfig.categoryIds || [];
+          const rows = categoryConfig.rows || 1;
           const visibleCount = rows * 4;
-          const items = ids
-            .map((id) => categoriesById[id])
-            .filter(Boolean)
-            .slice(0, visibleCount);
+          
+          let items;
+          if (Array.isArray(hydratedItems) && hydratedItems.length > 0) {
+            items = hydratedItems.map(c => ({
+              ...c,
+              id: c.id || c._id,
+              image: c.image || c.mainImage
+            })).slice(0, visibleCount);
+          } else {
+            items = ids
+              .map((id) => ({ ...categoriesById[id], id }))
+              .filter(Boolean)
+              .slice(0, visibleCount);
+          }
 
           if (!items.length) return null;
 
@@ -49,86 +61,64 @@ const SectionRenderer = ({ sections = [], productsById = {}, categoriesById = {}
                   </span>
                 </div>
               )}
-              <div className="rounded-3xl bg-white shadow-[0_18px_45px_rgba(15,23,42,0.06)] border border-slate-100 px-3.5 py-3">
-                <div className="grid grid-cols-4 gap-3">
-                  {items.map((cat) => (
-                    <button
-                      key={cat._id}
-                      className="group flex flex-col items-center gap-1.5 focus:outline-none"
-                      onClick={() => {
-                        // Remember the header & section so back navigation can restore context
-                        window.sessionStorage.setItem(
-                          "experienceReturn",
-                          JSON.stringify({
-                            headerId: section.headerId || null,
-                            sectionId: section._id,
-                          })
-                        );
-                        navigate(`/category/${cat._id}`);
-                      }}
-                    >
-                      <div className="relative aspect-square w-full rounded-2xl bg-[#F8F9FA] border border-slate-100/80 flex items-center justify-center overflow-hidden p-1 transition-all duration-200 group-hover:border-[#0c831f]/40 group-hover:bg-white group-hover:shadow-[0_10px_25px_rgba(15,23,42,0.08)]">
-                        {cat.image ? (
-                          <img
-                            src={cat.image}
-                            alt={cat.name}
-                            className="w-full h-full object-contain object-center mix-blend-multiply transition-transform duration-200 group-hover:scale-105"
-                          />
-                        ) : (
-                          <div className="h-6 w-6 rounded-full bg-slate-100" />
-                        )}
-                      </div>
-                      <div className="text-[11px] font-semibold text-slate-700 text-center leading-snug line-clamp-2 group-hover:text-[#0c831f]">
-                        {cat.name}
-                      </div>
-                    </button>
-                  ))}
-                </div>
+              <div
+                className="grid grid-cols-4 gap-2 md:gap-4 overflow-hidden"
+                style={{
+                  gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
+                }}
+              >
+                {items.map((cat) => (
+                  <div
+                    key={cat.id}
+                    onClick={() => navigate(`/category/${cat.id}`)}
+                    className="flex flex-col items-center group cursor-pointer"
+                  >
+                    <div className="w-full aspect-square bg-slate-50 rounded-2xl p-2 mb-1 group-hover:bg-slate-100 transition-colors flex items-center justify-center overflow-hidden shadow-sm border border-slate-50">
+                      <img
+                        src={cat.image}
+                        alt={cat.name}
+                        className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-300"
+                      />
+                    </div>
+                    <span className="text-[10px] md:text-xs font-bold text-slate-700 text-center line-clamp-1 group-hover:text-slate-900">
+                      {cat.name}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           );
         }
 
         if (section.displayType === "subcategories") {
-          const ids = section.config?.subcategories?.subcategoryIds || [];
-          const rows = section.config?.subcategories?.rows || 1;
-          const visibleCount = rows * 4;
-          const items = ids
-            .map((id) => subcategoriesById[id])
-            .filter(Boolean)
-            .slice(0, visibleCount);
+          const subConfig = section.config?.subcategories || section.config || {};
+          const items = subConfig.items || [];
+
           if (!items.length) return null;
 
           return (
             <div
               key={section._id}
               id={`section-${section._id}`}
-              className="-mx-2 md:-mx-4 lg:-mx-6 px-2 md:px-4 lg:px-6"
+              className="-mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 mt-6"
             >
-              {heading && (
-                <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-3">
+                {heading && (
                   <h3 className="text-base font-black text-[#1A1A1A]">
                     {heading}
                   </h3>
-                  <span className="text-[11px] font-semibold text-slate-400">
-                    {items.length} picks
-                  </span>
-                </div>
-              )}
-              <div className="rounded-3xl bg-white shadow-[0_18px_45px_rgba(15,23,42,0.06)] border border-slate-100 px-3.5 py-3">
-                <div className="grid grid-cols-4 gap-3">
+                )}
+                <span className="text-[11px] font-semibold text-slate-400">
+                  {items.length} items
+                </span>
+              </div>
+              <div className="overflow-x-auto no-scrollbar -mx-4 px-4">
+                <div className="flex gap-4 pb-2">
                   {items.map((cat) => (
                     <button
-                      key={cat._id}
-                      className="group flex flex-col items-center gap-1.5 focus:outline-none"
+                      key={cat._id || cat.id}
+                      className="flex flex-col items-center gap-2 w-20 shrink-0 group"
                       onClick={() => {
-                        window.sessionStorage.setItem(
-                          "experienceReturn",
-                          JSON.stringify({
-                            headerId: section.headerId || null,
-                            sectionId: section._id,
-                          })
-                        );
                         const parentId =
                           cat.parentId?._id ||
                           cat.parentId ||
@@ -170,6 +160,7 @@ const SectionRenderer = ({ sections = [], productsById = {}, categoriesById = {}
 
         if (section.displayType === "products") {
           const productConfig = section.config?.products || {};
+          const hydratedItems = productConfig.items; // Backend hydrated
           const ids = productConfig.productIds || [];
           const rows = productConfig.rows || 1;
           const columns = productConfig.columns || 2;
@@ -177,7 +168,15 @@ const SectionRenderer = ({ sections = [], productsById = {}, categoriesById = {}
 
           let allProducts;
 
-          if (ids.length) {
+          if (Array.isArray(hydratedItems) && hydratedItems.length > 0) {
+            allProducts = hydratedItems.map(p => ({
+              ...p,
+              id: p._id || p.id,
+              image: p.mainImage || p.image || "https://images.unsplash.com/photo-1550989460-0adf9ea622e2",
+              price: p.salePrice || p.price,
+              originalPrice: p.mrp || p.price
+            }));
+          } else if (ids.length) {
             allProducts = ids.map((id) => productsById[id]).filter(Boolean);
           } else {
             const categoryFilter = productConfig.categoryIds || [];

@@ -33,6 +33,13 @@ import {
   updateAdminZone,
   deleteAdminZone,
   listPublicZones,
+  getAdminExperienceSections,
+  createAdminExperienceSection,
+  updateAdminExperienceSection,
+  deleteAdminExperienceSection,
+  reorderAdminExperienceSections,
+  getAdminHeroConfig,
+  setAdminHeroConfig,
 } from '../controllers/admin.controller.js';
 
 import { authMiddleware } from '../../../core/auth/auth.middleware.js';
@@ -112,5 +119,16 @@ router.get('/admin/zones/:zoneId', ...adminOnly, getAdminZoneById);
 router.post('/admin/zones', ...adminOnly, createAdminZone);
 router.patch('/admin/zones/:zoneId', ...adminOnly, updateAdminZone);
 router.delete('/admin/zones/:zoneId', ...adminOnly, deleteAdminZone);
+
+// Experience Sections Management
+router.get('/admin/experience/sections', ...adminOnly, getAdminExperienceSections);
+router.post('/admin/experience/sections', ...adminOnly, createAdminExperienceSection);
+router.put('/admin/experience/sections/:id', ...adminOnly, updateAdminExperienceSection);
+router.delete('/admin/experience/sections/:id', ...adminOnly, deleteAdminExperienceSection);
+router.post('/admin/experience/sections/reorder', ...adminOnly, reorderAdminExperienceSections);
+
+// Hero Configuration Management
+router.get('/admin/experience/hero', ...adminOnly, getAdminHeroConfig);
+router.post('/admin/experience/hero', ...adminOnly, setAdminHeroConfig);
 
 export default router;

@@ -8,6 +8,15 @@ import { QuickZone } from '../models/quick_zone.model.js';
 import { ensureQuickCommerceSeedData } from '../services/seed.service.js';
 import { uploadImageBuffer } from '../../../services/cloudinary.service.js';
 import { getIO, rooms } from '../../../config/socket.js';
+import {
+  getQuickExperienceSections,
+  createQuickExperienceSection,
+  updateQuickExperienceSection,
+  deleteQuickExperienceSection,
+  reorderQuickExperienceSections,
+  setQuickHeroConfig,
+  getQuickHeroConfig
+} from '../services/content.service.js';
 
 const toCategory = (category) => ({
   id: category._id,
@@ -253,17 +262,19 @@ export const getAdminCategories = async (_req, res) => {
   } = _req.query || {};
 
   const query = {};
-  if (type) query.type = String(type);
+  // If tree is requested, we fetch all (or by search) and filter roots by type in JS
+  // to ensure children (which might be of different type) are included.
+  if (type && String(tree) !== 'true') query.type = String(type);
   if (search) query.name = { $regex: String(search).trim(), $options: 'i' };
   if (approvalStatus && approvalStatus !== 'all') query.approvalStatus = String(approvalStatus);
 
   const currentPage = Math.max(1, parseInt(page, 10) || 1);
-  const perPage = Math.max(1, Math.min(parseInt(limit, 10) || 50, 100));
+  const perPage = String(tree) === 'true' ? 5000 : Math.max(1, Math.min(parseInt(limit, 10) || 50, 100));
 
   const [categories, total] = await Promise.all([
     QuickCategory.find(query)
       .sort({ sortOrder: 1, createdAt: -1 })
-      .skip((currentPage - 1) * perPage)
+      .skip(String(tree) === 'true' ? 0 : (currentPage - 1) * perPage)
       .limit(perPage)
       .lean(),
     QuickCategory.countDocuments(query),
@@ -271,7 +282,19 @@ export const getAdminCategories = async (_req, res) => {
 
   const mapped = categories.map(toCategory);
   if (String(tree) === 'true') {
-    return res.json({ success: true, results: buildCategoryTree(categories) });
+    let fullTree = buildCategoryTree(categories);
+    console.log(`[getAdminCategories] Built tree with ${fullTree.length} roots from ${categories.length} raw categories`);
+    if (type) {
+      const originalCount = fullTree.length;
+      // When filtering for headers in the tree, we allow any root category that is either explicitly marked as the type
+      // OR has no type (which defaults to 'header' in the mapper).
+      fullTree = fullTree.filter(root => 
+        !root.parentId && 
+        (String(root.type).toLowerCase() === String(type).toLowerCase() || !root.type || root.type === 'default')
+      );
+      console.log(`[getAdminCategories] Filtered roots by type ${type}: ${originalCount} -> ${fullTree.length}`);
+    }
+    return res.json({ success: true, results: fullTree });
   }
   if (String(flat) === 'true') {
     return res.json({ success: true, results: mapped });
@@ -909,4 +932,44 @@ export const deleteAdminZone = async (req, res) => {
   }
 
   return res.json({ success: true, data: { id: req.params.zoneId } });
+};
+
+export const getAdminExperienceSections = async (req, res) => {
+  const { pageType = 'home', headerId = null } = req.query || {};
+  const sections = await getQuickExperienceSections({ pageType, headerId });
+  return res.json({ success: true, results: sections });
+};
+
+export const createAdminExperienceSection = async (req, res) => {
+  const section = await createQuickExperienceSection(req.body);
+  return res.status(201).json({ success: true, result: section });
+};
+
+export const updateAdminExperienceSection = async (req, res) => {
+  const section = await updateQuickExperienceSection(req.params.id, req.body);
+  if (!section) {
+    return res.status(404).json({ success: false, message: 'Section not found' });
+  }
+  return res.json({ success: true, result: section });
+};
+
+export const deleteAdminExperienceSection = async (req, res) => {
+  await deleteQuickExperienceSection(req.params.id);
+  return res.json({ success: true, result: { deleted: true } });
+};
+
+export const reorderAdminExperienceSections = async (req, res) => {
+  await reorderQuickExperienceSections(req.body);
+  return res.json({ success: true, result: { reordered: true } });
+};
+
+export const getAdminHeroConfig = async (req, res) => {
+  const { pageType = 'home', headerId = null } = req.query || {};
+  const config = await getQuickHeroConfig({ pageType, headerId });
+  return res.json({ success: true, result: config || { banners: { items: [] }, categoryIds: [] } });
+};
+
+export const setAdminHeroConfig = async (req, res) => {
+  const config = await setQuickHeroConfig(req.body);
+  return res.json({ success: true, result: config });
 };

@@ -653,36 +653,8 @@ function App() {
               {/* Public Partner Pages — accessible without login */}
             </Route>
 
-            {/* Admin Auth Routes */}
-            <Route
-              path="admin/login"
-              element={<Navigate to="/admin/login" replace state={{ from: '/hotel/admin/dashboard' }} />}
-            />
-            <Route path="admin/signup" element={<AdminSignup />} />
-
-            {/* Admin App Routes */}
-            <Route element={<AdminProtectedRoute />}>
-              <Route path="admin" element={<AdminLayout />}>
-                <Route index element={<AdminDashboard />} />
-                <Route path="dashboard" element={<AdminDashboard />} />
-                <Route path="users" element={<AdminUsers />} />
-                <Route path="users/:id" element={<AdminUserDetail />} />
-                <Route path="bookings" element={<AdminBookings />} />
-                <Route path="bookings/:id" element={<AdminBookingDetail />} />
-                <Route path="partners" element={<AdminPartners />} />
-                <Route path="partners/:id" element={<AdminPartnerDetail />} />
-                <Route path="reviews" element={<AdminReviews />} />
-                <Route path="finance" element={<AdminFinance />} />
-                <Route path="legal" element={<AdminLegalPages />} />
-                <Route path="contact-messages" element={<AdminContactMessages />} />
-                <Route path="settings" element={<AdminSettings />} />
-                <Route path="properties" element={<AdminProperties />} />
-                <Route path="properties/:id" element={<AdminHotelDetail />} />
-                <Route path="offers" element={<AdminOffers />} />
-                <Route path="notifications" element={<AdminNotifications />} />
-                <Route path="faqs" element={<AdminFaqs />} />
-              </Route>
-            </Route>
+            {/* Admin Routes - Redirected to centralized AdminRouter */}
+            <Route path="admin/*" element={<Navigate to={`/admin/hotel${location.pathname.replace(/^\/hotel\/admin/, '')}${location.search}`} replace />} />
 
             {/* ──────────────────────────────────────
                 PUBLIC / SEMI-PROTECTED USER ROUTES

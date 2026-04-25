@@ -1,0 +1,193 @@
+export const taxiAdminSidebarMenu = [
+  {
+    type: "link",
+    label: "Dashboard",
+    path: "/taxi/admin/dashboard",
+    icon: "LayoutDashboard",
+  },
+  {
+    type: "section",
+    label: "OPERATIONS",
+    items: [
+      { icon: "MessageCircle", label: "Chat", path: "/taxi/admin/chat", type: "link" },
+      {
+        type: "expandable",
+        label: "Promotions",
+        icon: "Megaphone",
+        subItems: [
+          { label: "Promo Codes", path: "/taxi/admin/promotions/promo-codes" },
+          { label: "Send Notification", path: "/taxi/admin/promotions/send-notification" },
+          { label: "Banner Image", path: "/taxi/admin/promotions/banner-image" },
+        ],
+      },
+      {
+        type: "expandable",
+        label: "Price Management",
+        icon: "IndianRupee",
+        subItems: [
+          { label: "Service Location", path: "/taxi/admin/pricing/service-location" },
+          { label: "Zone Setup", path: "/taxi/admin/pricing/zone" },
+          { label: "Airport", path: "/taxi/admin/pricing/airport" },
+          { label: "App Modules", path: "/taxi/admin/pricing/app-modules" },
+          { label: "Vehicle Type", path: "/taxi/admin/pricing/vehicle-type" },
+          { label: "Rental Packages", path: "/taxi/admin/pricing/rental-packages" },
+          { label: "Set Price", path: "/taxi/admin/pricing/set-price" },
+          { label: "Goods Types", path: "/taxi/admin/pricing/goods-types" },
+        ],
+      },
+      {
+        type: "expandable",
+        label: "Geofencing",
+        icon: "MapPin",
+        subItems: [
+          { label: "Heat Map", path: "/taxi/admin/geo/heatmap" },
+          { label: "God's Eye", path: "/taxi/admin/geo/gods-eye" },
+          { label: "Peak Zone", path: "/taxi/admin/geo/peak-zone" },
+        ],
+      },
+      { icon: "Car", label: "Trip Requests", path: "/taxi/admin/trips", type: "link" },
+      { icon: "Package", label: "Delivery Requests", path: "/taxi/admin/deliveries", type: "link" },
+      { icon: "Clock", label: "Ongoing Requests", path: "/taxi/admin/ongoing", type: "link" },
+    ],
+  },
+  {
+    type: "section",
+    label: "USER MANAGEMENT",
+    items: [
+      {
+        type: "expandable",
+        label: "Customers",
+        icon: "Users",
+        subItems: [
+          { label: "User List", path: "/taxi/admin/users" },
+          { label: "Delete Requests", path: "/taxi/admin/users/delete-requests" },
+          { label: "Bulk Upload", path: "/taxi/admin/users/bulk-upload" },
+        ],
+      },
+      { icon: "Wallet", label: "Wallet Payment", path: "/taxi/admin/wallet/payment", type: "link" },
+      {
+        type: "expandable",
+        label: "Drivers",
+        icon: "Car",
+        subItems: [
+          { label: "Pending Drivers", path: "/taxi/admin/drivers/pending" },
+          { label: "Approved Drivers", path: "/taxi/admin/drivers" },
+          { label: "Subscription", path: "/taxi/admin/drivers/subscription" },
+          { label: "Ratings", path: "/taxi/admin/drivers/ratings" },
+          { label: "Withdrawal Requests", path: "/taxi/admin/drivers/wallet/withdrawals" },
+          { label: "Negative Balances", path: "/taxi/admin/drivers/wallet/negative" },
+          { label: "Needed Documents", path: "/taxi/admin/drivers/documents" },
+          { label: "Bulk Upload", path: "/taxi/admin/drivers/bulk-upload" },
+          { label: "Payment Methods", path: "/taxi/admin/drivers/payment-methods" },
+        ],
+      },
+      {
+        type: "expandable",
+        label: "Referrals",
+        icon: "Share2",
+        subItems: [
+          { label: "Dashboard", path: "/taxi/admin/referrals/dashboard" },
+          { label: "User Settings", path: "/taxi/admin/referrals/user-settings" },
+          { label: "Driver Settings", path: "/taxi/admin/referrals/driver-settings" },
+          { label: "Translation", path: "/taxi/admin/referrals/translation" },
+        ],
+      },
+      { type: "link", label: "Admins", path: "/taxi/admin/management/admins", icon: "UserCog" },
+      {
+        type: "expandable",
+        label: "Reports",
+        icon: "FileText",
+        subItems: [
+          { label: "User Report", path: "/taxi/admin/reports/user" },
+          { label: "Driver Report", path: "/taxi/admin/reports/driver" },
+          { label: "Driver Duty", path: "/taxi/admin/reports/driver-duty" },
+          { label: "Owner Report", path: "/taxi/admin/reports/owner" },
+          { label: "Finance Report", path: "/taxi/admin/reports/finance" },
+          { label: "Fleet Finance", path: "/taxi/admin/reports/fleet-finance" },
+        ],
+      },
+      {
+        type: "expandable",
+        label: "Support",
+        icon: "ShieldCheck",
+        subItems: [
+          { label: "Ticket Titles", path: "/taxi/admin/support/ticket-title" },
+          { label: "All Tickets", path: "/taxi/admin/support/tickets" },
+        ],
+      },
+    ],
+  },
+  {
+    type: "section",
+    label: "OWNER MANAGEMENT",
+    items: [
+      { type: "link", label: "Owner Dashboard", path: "/taxi/admin/owners/dashboard", icon: "LayoutDashboard" },
+      { type: "link", label: "Pending Owners", path: "/taxi/admin/owners/pending", icon: "Clock" },
+      { type: "link", label: "Manage Owners", path: "/taxi/admin/owners", icon: "Briefcase" },
+      {
+        type: "expandable",
+        label: "Owner Wallet",
+        icon: "Wallet",
+        subItems: [
+          { label: "Withdrawal Requests", path: "/taxi/admin/owners/wallet/withdrawals" },
+        ],
+      },
+      {
+        type: "expandable",
+        label: "Fleet Management",
+        icon: "Car",
+        subItems: [
+          { label: "Fleet Drivers", path: "/taxi/admin/fleet/drivers" },
+          { label: "Pending Fleet Drivers", path: "/taxi/admin/fleet/blocked" },
+          { label: "Fleet Needed Document", path: "/taxi/admin/fleet/documents" },
+          { label: "Manage Fleet", path: "/taxi/admin/fleet/manage" },
+        ],
+      },
+      { type: "link", label: "Owner Needed Document", path: "/taxi/admin/owners/documents", icon: "FileText" },
+      { type: "link", label: "Deleted Owners", path: "/taxi/admin/owners/deleted", icon: "AlertTriangle" },
+      { type: "link", label: "Bookings", path: "/taxi/admin/owners/bookings", icon: "Calendar" },
+    ],
+  },
+  {
+    type: "section",
+    label: "SYSTEM",
+    items: [
+      { type: "link", label: "Languages", path: "/taxi/admin/masters/languages", icon: "Globe" },
+      {
+        type: "expandable",
+        label: "Business Settings",
+        icon: "Settings",
+        subItems: [
+          { label: "General", path: "/taxi/admin/settings/business/general" },
+          { label: "Customization", path: "/taxi/admin/settings/business/customization" },
+          { label: "Transport Ride", path: "/taxi/admin/settings/business/transport-ride" },
+          { label: "Bid Ride", path: "/taxi/admin/settings/business/bid-ride" },
+        ],
+      },
+      {
+        type: "expandable",
+        label: "App Settings",
+        icon: "Smartphone",
+        subItems: [
+          { label: "Wallet", path: "/taxi/admin/settings/app/wallet" },
+          { label: "Tip Settings", path: "/taxi/admin/settings/app/tip" },
+          { label: "Onboarding Screens", path: "/taxi/admin/settings/app/onboard" },
+        ],
+      },
+      {
+        type: "expandable",
+        label: "CMS Landing",
+        icon: "Monitor",
+        subItems: [
+          { label: "Header-Footer", path: "/taxi/admin/settings/cms/header-footer" },
+          { label: "Home Page", path: "/taxi/admin/settings/cms/home" },
+          { label: "About Us", path: "/taxi/admin/settings/cms/about" },
+          { label: "Driver Page", path: "/taxi/admin/settings/cms/driver" },
+          { label: "User Page", path: "/taxi/admin/settings/cms/user" },
+          { label: "Contact", path: "/taxi/admin/settings/cms/contact" },
+          { label: "Legal Policies", path: "/taxi/admin/settings/cms/legal" },
+        ],
+      },
+    ],
+  },
+]

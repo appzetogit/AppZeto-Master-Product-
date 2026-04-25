@@ -77,7 +77,6 @@ const userSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'FoodUser',
       default: null,
-      index: true,
     },
     countryCode: {
       type: String,

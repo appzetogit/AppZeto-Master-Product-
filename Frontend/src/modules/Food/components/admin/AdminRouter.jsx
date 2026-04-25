@@ -131,6 +131,8 @@ const AdminLogin = lazy(() => import("@food/pages/admin/auth/AdminLogin"));
 const AdminSignup = lazy(() => import("@food/pages/admin/auth/AdminSignup"));
 const AdminForgotPassword = lazy(() => import("@food/pages/admin/auth/AdminForgotPassword"));
 const QuickCommerceAdminRoutes = lazy(() => import("@/modules/quickCommerce/admin/routes"));
+const TaxiAdminRoutes = lazy(() => import("@/modules/taxi/modules/admin/routes"));
+const HotelAdminRoutes = lazy(() => import("@/modules/hotel/app/admin/routes"));
 
 const HotelAdminRedirect = () => {
   const location = useLocation();
@@ -151,16 +153,6 @@ export default function AdminRouter() {
 
         {/* Protected Routes - With Layout */}
         <Route
-          path="quick-commerce/*"
-          element={
-            <ProtectedRoute>
-              <QuickCommerceAdminRoutes />
-            </ProtectedRoute>
-          }
-        />
-        <Route path="hotel/*" element={<HotelAdminRedirect />} />
-
-        <Route
           element={
             <ProtectedRoute>
               <AdminLayout />
@@ -169,6 +161,15 @@ export default function AdminRouter() {
         >
           {/* Default Admin Redirect */}
           <Route path="/" element={<Navigate to="food" replace />} />
+
+          {/* Quick Commerce Admin Routes */}
+          <Route path="quick-commerce/*" element={<QuickCommerceAdminRoutes />} />
+
+          {/* Hotel Admin Routes */}
+          <Route path="hotel/*" element={<HotelAdminRoutes />} />
+
+          {/* Taxi Admin Routes */}
+          <Route path="taxi/*" element={<TaxiAdminRoutes />} />
 
           {/* FOOD ADMIN - All food related routes nested here */}
           <Route path="food/*">

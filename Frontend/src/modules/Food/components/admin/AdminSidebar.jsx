@@ -1,6 +1,18 @@
 import { useState, useEffect, useMemo } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import {
+  adminSidebarMenu,
+} from "@food/utils/adminSidebarMenu"
+import {
+  quickAdminSidebarMenu,
+} from "@food/utils/quickAdminSidebarMenu"
+import {
+  hotelAdminSidebarMenu,
+} from "@food/utils/hotelAdminSidebarMenu"
+import {
+  taxiAdminSidebarMenu,
+} from "@food/utils/taxiAdminSidebarMenu"
+import {
   Search,
   FileText,
   Calendar,
@@ -47,11 +59,18 @@ import {
   PiggyBank,
   Lock,
   Hotel,
+  ClipboardCheck,
+  CircleHelp,
+  MessageCircle,
+  Share2,
+  Smartphone,
+  Monitor,
+  Briefcase,
+  Car,
+  ChevronDown as ChevronDownIcon,
 } from "lucide-react"
 import { cn } from "@food/utils/utils"
 import { Input } from "@food/components/ui/input"
-import { adminSidebarMenu } from "@food/utils/adminSidebarMenu"
-import { quickAdminSidebarMenu } from "@food/utils/quickAdminSidebarMenu"
 import { getCachedSettings, loadBusinessSettings } from "@food/utils/businessSettings"
 import { adminAPI } from "@food/api"
 import quickSpicyLogo from "@food/assets/quicky-spicy-logo.png"
@@ -103,6 +122,14 @@ const iconMap = {
   PiggyBank,
   Lock,
   Hotel,
+  ClipboardCheck,
+  CircleHelp,
+  MessageCircle,
+  Share2,
+  Smartphone,
+  Monitor,
+  Briefcase,
+  Car,
   X,
 }
 
@@ -282,9 +309,15 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
   }
 
   const isQuickAdmin = location.pathname.startsWith("/admin/quick-commerce")
-  const isTaxiAdmin = location.pathname.startsWith("/taxi/admin") || location.pathname.startsWith("/admin/taxi")
   const isHotelAdmin = location.pathname.startsWith("/hotel/admin") || location.pathname.startsWith("/admin/hotel")
-  const activeMenuData = isQuickAdmin ? quickAdminSidebarMenu : adminSidebarMenu
+  const isTaxiAdmin = location.pathname.startsWith("/taxi/admin") || location.pathname.startsWith("/admin/taxi")
+
+  const activeMenuData = useMemo(() => {
+    if (isQuickAdmin) return quickAdminSidebarMenu
+    if (isHotelAdmin) return hotelAdminSidebarMenu
+    if (isTaxiAdmin) return taxiAdminSidebarMenu
+    return adminSidebarMenu
+  }, [isQuickAdmin, isHotelAdmin, isTaxiAdmin])
 
   // Ensure expandable keys exist for whichever admin module is active (food/quick)
   useEffect(() => {
@@ -304,9 +337,9 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
     if (target === "quick") {
       navigate("/admin/quick-commerce")
     } else if (target === "taxi") {
-      navigate("/taxi/admin/dashboard")
+      navigate("/admin/taxi")
     } else if (target === "hotel") {
-      navigate("/hotel/admin")
+      navigate("/admin/hotel")
     } else {
       navigate("/admin/food")
     }

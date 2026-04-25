@@ -24,7 +24,7 @@ const ADMIN_MODULES = [
     key: "taxi",
     label: "Taxi",
     shortLabel: "Taxi",
-    path: "/taxi/admin/dashboard",
+    path: "/admin/taxi",
     icon: Car,
     active: (pathname) =>
       pathname.startsWith("/taxi/admin") || pathname.startsWith("/admin/taxi"),
@@ -33,7 +33,7 @@ const ADMIN_MODULES = [
     key: "hotel",
     label: "Hotel",
     shortLabel: "Hotel",
-    path: "/hotel/admin/dashboard",
+    path: "/admin/hotel",
     icon: Bed,
     active: (pathname) =>
       pathname.startsWith("/hotel/admin") || pathname.startsWith("/admin/hotel"),

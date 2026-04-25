@@ -87,19 +87,21 @@ const normalizeImageUrl = (image) => {
 }
 
 const getPrimaryRestaurantImage = (restaurant, fallback = "") => {
+  // Prioritize profile image as it's the most specific identity image
+  const profileImg = normalizeImageUrl(restaurant?.profileImage) || normalizeImageUrl(restaurant?.logo) || normalizeImageUrl(restaurant?.restaurantImage)
+  if (profileImg) return profileImg
+
   const coverImages = Array.isArray(restaurant?.coverImages) ? restaurant.coverImages : []
   const firstCoverImage = coverImages.map(normalizeImageUrl).find(Boolean)
   if (firstCoverImage) return firstCoverImage
+
   const menuImages = Array.isArray(restaurant?.menuImages) ? restaurant.menuImages : []
   const firstMenuImage = menuImages.map(normalizeImageUrl).find(Boolean)
   if (firstMenuImage) return firstMenuImage
-  return (
-    normalizeImageUrl(restaurant?.profileImage) ||
-    normalizeImageUrl(restaurant?.logo) ||
-    normalizeImageUrl(restaurant?.restaurantImage) ||
-    fallback
-  )
+
+  return fallback
 }
+
 
 
 export default function RestaurantsList() {
@@ -1098,7 +1100,7 @@ export default function RestaurantsList() {
     const source = getDetailsEditSource()
     setDetailsForm(buildDetailsFormFromRestaurant(source))
     setProfileImageFile(null)
-    setProfileImagePreview(getPrimaryRestaurantImage(source))
+    setProfileImagePreview(normalizeImageUrl(source?.profileImage) || getPrimaryRestaurantImage(source))
     setIsEditingLocation(true)
     setIsEditingDetails(true)
   }
@@ -1175,7 +1177,6 @@ export default function RestaurantsList() {
                 ownerPhone: updatedRestaurant.ownerPhone || updatedRestaurant.phone || item.ownerPhone,
                 zone: updatedRestaurant.location?.area || updatedRestaurant.location?.city || item.zone,
                 isActive: updatedRestaurant.isActive !== false,
-                approvalStatus: normalizeApprovalStatus(updatedRestaurant),
                 logo: getPrimaryRestaurantImage(updatedRestaurant, item.logo),
                 originalData: {
                   ...(item.originalData || {}),
@@ -1791,7 +1792,7 @@ export default function RestaurantsList() {
               {!loadingDetails && !isEditingDetails && (restaurantDetails || selectedRestaurant) && (() => {
                 const r = restaurantDetails || selectedRestaurant?.originalData || selectedRestaurant
                 const detailsApprovalStatus = normalizeApprovalStatus(r)
-                const profileImgUrl = getPrimaryRestaurantImage(r)
+                const profileImgUrl = normalizeImageUrl(r?.profileImage) || getPrimaryRestaurantImage(r)
                 const coverImages = Array.isArray(r?.coverImages) ? r.coverImages.map(normalizeImageUrl).filter(Boolean) : []
                 const hasFlatAddress = r?.addressLine1 || r?.area || r?.city || r?.state || r?.pincode
                 const flatAddress = [r?.addressLine1, r?.addressLine2, r?.area, r?.city, r?.state, r?.pincode, r?.landmark].filter(Boolean).join(", ")

@@ -14,6 +14,10 @@ const normalizeImageUrl = (image) => {
 }
 
 const getPrimaryRestaurantImage = (restaurant, fallback = "") => {
+    // Prioritize profile image as it's the most specific identity image
+    const profileImg = normalizeImageUrl(restaurant?.profileImage) || normalizeImageUrl(restaurant?.logo) || normalizeImageUrl(restaurant?.restaurantImage)
+    if (profileImg) return profileImg
+
     const coverImages = Array.isArray(restaurant?.coverImages) ? restaurant.coverImages : []
     const firstCoverImage = coverImages.map(normalizeImageUrl).find(Boolean)
     if (firstCoverImage) return firstCoverImage
@@ -22,11 +26,7 @@ const getPrimaryRestaurantImage = (restaurant, fallback = "") => {
     const firstMenuImage = menuImages.map(normalizeImageUrl).find(Boolean)
     if (firstMenuImage) return firstMenuImage
 
-    return (
-        normalizeImageUrl(restaurant?.profileImage) ||
-        normalizeImageUrl(restaurant?.logo) ||
-        fallback
-    )
+    return fallback
 }
 
 
@@ -551,4 +551,3 @@ export default function DiningList() {
         </div>
     )
 }
-

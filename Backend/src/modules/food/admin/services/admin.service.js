@@ -2322,7 +2322,7 @@ export async function updateRestaurantById(id, body = {}) {
     if (body.featuredPrice !== undefined) doc.featuredPrice = toFinite(body.featuredPrice);
 
     // Images
-    const getUrl = (v) => (v && typeof v === 'object' ? v.url : v);
+    const getUrl = (v) => (v && typeof v === 'object' ? (v.url || v.secure_url) : v);
     if (body.profileImage !== undefined) doc.profileImage = toStr(getUrl(body.profileImage)) || undefined;
     if (body.panImage !== undefined) doc.panImage = toStr(getUrl(body.panImage)) || undefined;
     if (body.gstImage !== undefined) doc.gstImage = toStr(getUrl(body.gstImage)) || undefined;

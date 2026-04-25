@@ -239,24 +239,25 @@ async function buildRestaurantZoneMatch(zoneIdRaw) {
 }
 
 function getRestaurantImage(restaurant) {
+    const profileValue = restaurant?.profileImage;
+    const profileUrl = profileValue && (typeof profileValue === 'string' ? profileValue : profileValue.url || profileValue.secure_url);
+    if (profileUrl) return profileUrl;
+
     const coverImage = Array.isArray(restaurant?.coverImages)
         ? restaurant.coverImages
-            .map((image) => (typeof image === 'string' ? image : image?.url || ''))
+            .map((image) => (typeof image === 'string' ? image : image?.url || image?.secure_url || ''))
             .find(Boolean)
         : '';
     if (coverImage) return coverImage;
 
     const menuImage = Array.isArray(restaurant?.menuImages)
         ? restaurant.menuImages
-            .map((image) => (typeof image === 'string' ? image : image?.url || ''))
+            .map((image) => (typeof image === 'string' ? image : image?.url || image?.secure_url || ''))
             .find(Boolean)
         : '';
     if (menuImage) return menuImage;
 
-    const value = restaurant?.profileImage;
-    if (!value) return '';
-    if (typeof value === 'string') return value;
-    return value?.url || '';
+    return '';
 }
 
 function mapDiningRestaurant(restaurant, diningDoc, categoriesById) {
@@ -675,7 +676,7 @@ export async function updateDiningRestaurant(restaurantId, body = {}) {
         await notifyRestaurantDiningRequestResolved(restaurant, 'rejected', pendingCategories);
     } else {
         if (body.categoryIds !== undefined) {
-        diningDoc.categoryIds = validCategoryIds;
+            diningDoc.categoryIds = validCategoryIds;
         }
         if (body.isEnabled !== undefined) {
             diningDoc.isEnabled = body.isEnabled === true;

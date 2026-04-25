@@ -158,7 +158,6 @@ export const taxiAdminSidebarMenu = [
         label: "Business Settings",
         icon: "Settings",
         subItems: [
-          { label: "General", path: "/taxi/admin/settings/business/general" },
           { label: "Customization", path: "/taxi/admin/settings/business/customization" },
           { label: "Transport Ride", path: "/taxi/admin/settings/business/transport-ride" },
           { label: "Bid Ride", path: "/taxi/admin/settings/business/bid-ride" },

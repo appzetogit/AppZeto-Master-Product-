@@ -90,7 +90,6 @@ const EmployeeRole = lazy(() => import("@food/pages/admin/employees/EmployeeRole
 const AddEmployee = lazy(() => import("@food/pages/admin/employees/AddEmployee"));
 const EmployeeList = lazy(() => import("@food/pages/admin/employees/EmployeeList"));
 // Business Settings
-const BusinessSetup = lazy(() => import("@food/pages/admin/settings/BusinessSetup"));
 const EmailTemplate = lazy(() => import("@food/pages/admin/settings/EmailTemplate"));
 const ThemeSettings = lazy(() => import("@food/pages/admin/settings/ThemeSettings"));
 const Gallery = lazy(() => import("@food/pages/admin/settings/Gallery"));
@@ -133,6 +132,7 @@ const AdminForgotPassword = lazy(() => import("@food/pages/admin/auth/AdminForgo
 const QuickCommerceAdminRoutes = lazy(() => import("@/modules/quickCommerce/admin/routes"));
 const TaxiAdminRoutes = lazy(() => import("@/modules/taxi/modules/admin/routes"));
 const HotelAdminRoutes = lazy(() => import("@/modules/hotel/app/admin/routes"));
+const GlobalApplicationSettings = lazy(() => import("@food/pages/admin/settings/GlobalApplicationSettings"));
 
 const HotelAdminRedirect = () => {
   const location = useLocation();
@@ -170,6 +170,13 @@ export default function AdminRouter() {
 
           {/* Taxi Admin Routes */}
           <Route path="taxi/*" element={<TaxiAdminRoutes />} />
+
+          {/* Global Application Settings (Common Module) */}
+          <Route path="global-settings">
+            <Route index element={<Navigate to="app" replace />} />
+            <Route path="app" element={<GlobalApplicationSettings />} />
+            <Route path="admin" element={<AdminProfile />} />
+          </Route>
 
           {/* FOOD ADMIN - All food related routes nested here */}
           <Route path="food/*">
@@ -280,7 +287,6 @@ export default function AdminRouter() {
             <Route path="employees/add" element={<AddEmployee />} />
 
             {/* SYSTEM & BUSINESS SETTINGS */}
-            <Route path="business-setup" element={<BusinessSetup />} />
             <Route path="email-template" element={<EmailTemplate />} />
             <Route path="theme-settings" element={<ThemeSettings />} />
             <Route path="gallery" element={<Gallery />} />

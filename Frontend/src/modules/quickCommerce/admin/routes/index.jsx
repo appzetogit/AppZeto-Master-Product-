@@ -37,8 +37,6 @@ const HeroCategoriesPerPage = React.lazy(() => import("../pages/HeroCategoriesPe
 const NotificationComposer = React.lazy(() => import("../pages/NotificationComposer"))
 const OfferSectionsManagement = React.lazy(() => import("../pages/OfferSectionsManagement"))
 const ShopByStoreManagement = React.lazy(() => import("../pages/ShopByStoreManagement"))
-const AdminSettings = React.lazy(() => import("../pages/AdminSettings"))
-const EnvSettings = React.lazy(() => import("../pages/EnvSettings"))
 const AdminProfile = React.lazy(() => import("../pages/AdminProfile"))
 const BillingCharges = React.lazy(() => import("../pages/BillingCharges"))
 const QuickZoneSetup = React.lazy(() => import("../pages/ZoneSetup"))
@@ -90,8 +88,6 @@ function QuickCommerceAdminRoutesInner() {
       <Route path="/orders/:status" element={<OrdersList />} />
       <Route path="/orders/view/:orderId" element={<OrderDetail />} />
       <Route path="/billing" element={<BillingCharges />} />
-      <Route path="/settings" element={<AdminSettings />} />
-      <Route path="/env" element={<EnvSettings />} />
       <Route path="*" element={<Navigate to="/admin/quick-commerce" replace />} />
     </Routes>
   )

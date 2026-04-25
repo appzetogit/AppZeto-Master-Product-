@@ -19,7 +19,8 @@ const businessSettingsSchema = new mongoose.Schema(
         favicon: {
             url: { type: String, default: '' },
             publicId: { type: String, default: '' }
-        }
+        },
+        themeColor: { type: String, default: '#0a0a0a' }
     },
     { timestamps: true }
 );

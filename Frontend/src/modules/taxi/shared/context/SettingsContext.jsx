@@ -19,15 +19,23 @@ export const SettingsProvider = ({ children }) => {
 
   const fetchSettings = async () => {
     try {
-      const [genRes, cusRes] = await Promise.allSettled([
-        api.get('/admin/general-settings/general'),
-        api.get('/admin/general-settings/customize')
-      ]);
+      // Use the global business settings endpoint which serves all modules
+      const res = await api.get('/admin/business-settings/public');
+      const data = res?.data || res;
 
-      setSettings({
-        general: genRes.status === 'fulfilled' ? (genRes.value.data?.settings || {}) : {},
-        customization: cusRes.status === 'fulfilled' ? (cusRes.value.data?.settings || {}) : {}
-      });
+      if (data) {
+        setSettings({
+          general: {
+            app_name: data.companyName || '',
+            logo: data.logo?.url || '',
+            favicon: data.favicon?.url || '',
+          },
+          customization: {
+            admin_theme_color: data.themeColor || '',
+            currency_symbol: data.currencySymbol || '₹',
+          }
+        });
+      }
     } catch (err) {
       console.error('Failed to fetch settings:', err);
     } finally {

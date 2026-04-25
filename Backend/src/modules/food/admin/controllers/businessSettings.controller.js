@@ -21,7 +21,7 @@ export async function getBusinessSettings(req, res, next) {
 export async function updateBusinessSettings(req, res, next) {
     try {
         const data = req.body.data ? JSON.parse(req.body.data) : {};
-        const { companyName, email, phoneCountryCode, phoneNumber, address, state, pincode, region, logoUrl, faviconUrl } = data;
+        const { companyName, email, phoneCountryCode, phoneNumber, address, state, pincode, region, logoUrl, faviconUrl, themeColor } = data;
 
         // Validation
         if (!companyName || companyName.trim().length < 2 || companyName.trim().length > 50) {
@@ -71,6 +71,9 @@ export async function updateBusinessSettings(req, res, next) {
                 url: String(faviconUrl || '').trim(),
                 publicId: settings.favicon?.publicId || ''
             };
+        }
+        if (themeColor !== undefined) {
+            settings.themeColor = themeColor;
         }
 
         // Handle file uploads

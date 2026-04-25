@@ -34,12 +34,6 @@ const AdminSettings = () => {
     const admin = useAdminStore(state => state.admin);
     const checkAuth = useAdminStore(state => state.checkAuth);
 
-    const [profile, setProfile] = useState({
-        name: '',
-        email: '',
-        phone: ''
-    });
-
     const [platformOpen, setPlatformOpen] = useState(true);
     const [maintenance, setMaintenance] = useState(false);
     const [bookingMessage, setBookingMessage] = useState('');
@@ -52,25 +46,6 @@ const AdminSettings = () => {
     const [savingProfile, setSavingProfile] = useState(false);
     const [savingSettings, setSavingSettings] = useState(false);
 
-    const [autoPayout, setAutoPayout] = useState(false);
-
-    // Password Update States
-    const [passwordData, setPasswordData] = useState({
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: ''
-    });
-    const [savingPassword, setSavingPassword] = useState(false);
-
-    useEffect(() => {
-        if (admin) {
-            setProfile({
-                name: admin.name || '',
-                email: admin.email || '',
-                phone: admin.phone || ''
-            });
-        }
-    }, [admin]);
 
     useEffect(() => {
         const loadSettings = async () => {
@@ -94,60 +69,6 @@ const AdminSettings = () => {
         };
         loadSettings();
     }, []);
-
-    const handleProfileChange = (field, value) => {
-        setProfile(prev => ({
-            ...prev,
-            [field]: value
-        }));
-    };
-
-    const handleSaveProfile = async () => {
-        try {
-            setSavingProfile(true);
-            await adminService.updateAdminProfile(profile);
-            toast.success('Admin profile updated');
-            if (checkAuth) {
-                await checkAuth();
-            }
-        } catch (error) {
-            const message = error.response?.data?.message || error.message || 'Failed to update profile';
-            toast.error(message);
-        } finally {
-            setSavingProfile(false);
-        }
-    };
-
-    const handleUpdatePassword = async () => {
-        if (!passwordData.currentPassword || !passwordData.newPassword) {
-            return toast.error('Current and new passwords are required');
-        }
-        if (passwordData.newPassword !== passwordData.confirmPassword) {
-            return toast.error('Passwords do not match');
-        }
-        if (passwordData.newPassword.length < 6) {
-            return toast.error('Password must be at least 6 characters');
-        }
-
-        try {
-            setSavingPassword(true);
-            await adminService.updateAdminPassword({
-                currentPassword: passwordData.currentPassword,
-                newPassword: passwordData.newPassword
-            });
-            toast.success('Password updated successfully');
-            setPasswordData({
-                currentPassword: '',
-                newPassword: '',
-                confirmPassword: ''
-            });
-        } catch (error) {
-            const message = error.response?.data?.message || 'Failed to update password';
-            toast.error(message);
-        } finally {
-            setSavingPassword(false);
-        }
-    };
 
     const handleSavePlatformSettings = async () => {
         try {
@@ -176,98 +97,6 @@ const AdminSettings = () => {
                 <h2 className="text-2xl font-bold text-gray-900">Platform Settings</h2>
                 <p className="text-gray-500 text-sm">Configure global rules, commission rates, and system preferences.</p>
             </div>
-
-            <Section title="Admin Profile" icon={Settings}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Full Name</label>
-                        <input
-                            type="text"
-                            value={profile.name}
-                            onChange={(e) => handleProfileChange('name', e.target.value)}
-                            className="w-full p-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-black text-sm"
-                            placeholder="Admin Name"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
-                        <input
-                            type="email"
-                            value={profile.email}
-                            onChange={(e) => handleProfileChange('email', e.target.value)}
-                            className="w-full p-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-black text-sm"
-                            placeholder="admin@example.com"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
-                        <input
-                            type="tel"
-                            value={profile.phone}
-                            onChange={(e) => handleProfileChange('phone', e.target.value)}
-                            className="w-full p-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-black text-sm"
-                            placeholder="10 digit number"
-                        />
-                    </div>
-                </div>
-                <div className="flex justify-end pt-2">
-                    <button
-                        type="button"
-                        onClick={handleSaveProfile}
-                        disabled={savingProfile}
-                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-black text-white text-sm font-bold rounded-xl shadow-md hover:bg-gray-900 active:scale-95 disabled:opacity-60"
-                    >
-                        <Save size={16} />
-                        {savingProfile ? 'Saving...' : 'Save Profile'}
-                    </button>
-                </div>
-            </Section>
-
-            <Section title="Security & Password" icon={Lock}>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Current Password</label>
-                        <input
-                            type="password"
-                            value={passwordData.currentPassword}
-                            onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                            className="w-full p-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-black text-sm"
-                            placeholder="••••••••"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">New Password</label>
-                        <input
-                            type="password"
-                            value={passwordData.newPassword}
-                            onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                            className="w-full p-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-black text-sm"
-                            placeholder="••••••••"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Confirm New Password</label>
-                        <input
-                            type="password"
-                            value={passwordData.confirmPassword}
-                            onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                            className="w-full p-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-black text-sm"
-                            placeholder="••••••••"
-                        />
-                    </div>
-                </div>
-                <div className="flex justify-end pt-2">
-                    <button
-                        type="button"
-                        onClick={handleUpdatePassword}
-                        disabled={savingPassword}
-                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-black text-white text-sm font-bold rounded-xl shadow-md hover:bg-gray-900 active:scale-95 disabled:opacity-60"
-                    >
-                        <Shield size={16} />
-                        {savingPassword ? 'Updating...' : 'Update Password'}
-                    </button>
-                </div>
-            </Section>
 
             <Section title="General Configuration" icon={Globe}>
                 <div className="flex items-center justify-between">

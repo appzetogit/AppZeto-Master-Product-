@@ -87,7 +87,6 @@ const AdminFareConfig = lazy(() => import('../pages/finance/FareConfiguration'))
 const AdminSafetyCenter = lazy(() => import('../pages/safety/SafetyCenter'));
 const AdminCMSBuilder = lazy(() => import('../pages/cms/CMSBuilder'));
 const AdminHeaderFooter = lazy(() => import('../pages/cms/HeaderFooter'));
-const AdminGeneralSettings = lazy(() => import('../pages/settings/GeneralSettings'));
 const AdminCustomizationSettings = lazy(() => import('../pages/settings/CustomizationSettings'));
 const AdminTransportRideSettings = lazy(() => import('../pages/settings/TransportRideSettings'));
 const AdminBidRideSettings = lazy(() => import('../pages/settings/BidRideSettings'));
@@ -122,9 +121,12 @@ const AdminPreferences = lazy(() => import('../pages/masters/Preferences'));
 const AdminAdmins = lazy(() => import('../pages/management/Admins'));
 const AdminAdminCreate = lazy(() => import('../pages/management/AdminCreate'));
 
+import { SettingsProvider } from '../../../shared/context/SettingsContext';
+
 const TaxiAdminRoutes = () => {
   return (
-    <Suspense fallback={<TaxiPageLoader />}>
+    <SettingsProvider>
+      <Suspense fallback={<TaxiPageLoader />}>
       <Routes>
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<AdminDashboard />} />
@@ -248,7 +250,6 @@ const TaxiAdminRoutes = () => {
         <Route path="masters/countries" element={<AdminCountryManagement />} />
         <Route path="masters/preferences" element={<AdminPreferences />} />
 
-        <Route path="settings/business/general" element={<AdminGeneralSettings />} />
         <Route path="settings/business/customization" element={<AdminCustomizationSettings />} />
         <Route path="settings/business/transport-ride" element={<AdminTransportRideSettings />} />
         <Route path="settings/business/bid-ride" element={<AdminBidRideSettings />} />
@@ -265,7 +266,8 @@ const TaxiAdminRoutes = () => {
         <Route path="settings/third-party/notification-channel" element={<AdminNotificationChannels />} />
         <Route path="settings/addons/dispatcher" element={<AdminDispatcherAddons />} />
       </Routes>
-    </Suspense>
+      </Suspense>
+    </SettingsProvider>
   );
 };
 

@@ -13,6 +13,9 @@ import {
   taxiAdminSidebarMenu,
 } from "@food/utils/taxiAdminSidebarMenu"
 import {
+  commonAdminSidebarMenu,
+} from "@food/utils/commonAdminSidebarMenu"
+import {
   Search,
   FileText,
   Calendar,
@@ -311,13 +314,15 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
   const isQuickAdmin = location.pathname.startsWith("/admin/quick-commerce")
   const isHotelAdmin = location.pathname.startsWith("/hotel/admin") || location.pathname.startsWith("/admin/hotel")
   const isTaxiAdmin = location.pathname.startsWith("/taxi/admin") || location.pathname.startsWith("/admin/taxi")
+  const isCommonAdmin = location.pathname.startsWith("/admin/global-settings")
 
   const activeMenuData = useMemo(() => {
     if (isQuickAdmin) return quickAdminSidebarMenu
     if (isHotelAdmin) return hotelAdminSidebarMenu
     if (isTaxiAdmin) return taxiAdminSidebarMenu
+    if (isCommonAdmin) return commonAdminSidebarMenu
     return adminSidebarMenu
-  }, [isQuickAdmin, isHotelAdmin, isTaxiAdmin])
+  }, [isQuickAdmin, isHotelAdmin, isTaxiAdmin, isCommonAdmin])
 
   // Ensure expandable keys exist for whichever admin module is active (food/quick)
   useEffect(() => {
@@ -340,6 +345,8 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
       navigate("/admin/taxi")
     } else if (target === "hotel") {
       navigate("/admin/hotel")
+    } else if (target === "common") {
+      navigate("/admin/global-settings")
     } else {
       navigate("/admin/food")
     }
@@ -703,9 +710,13 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
           isOpen ? "translate-x-0" : "-translate-x-full",
           isCollapsed ? "w-20" : "w-80"
         )}
+        style={{ backgroundColor: 'var(--sidebar-theme, #0a0a0a)' }}
       >
         {/* Header with Logo and Brand */}
-        <div className="shrink-0 px-3 py-3 border-b border-neutral-800/60 bg-neutral-900 animate-[fadeIn_0.4s_ease-out]">
+        <div 
+          className="shrink-0 px-3 py-3 border-b border-neutral-800/60 bg-neutral-900 animate-[fadeIn_0.4s_ease-out]"
+          style={{ backgroundColor: 'rgba(0,0,0,0.1)' }}
+        >
           <div className="flex items-center justify-between mb-3">
             {!isCollapsed && (
               <div className="flex items-center gap-2 animate-[slideIn_0.3s_ease-out]">
@@ -829,6 +840,18 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
                     )}
                   >
                     Hotel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => switchAdminModule("common")}
+                    className={cn(
+                      "rounded-lg px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all",
+                      isCommonAdmin
+                        ? "bg-violet-600 text-white shadow-[0_6px_20px_rgba(124,58,237,0.35)]"
+                        : "text-neutral-400 hover:text-white"
+                    )}
+                  >
+                    Common
                   </button>
                 </div>
               </div>

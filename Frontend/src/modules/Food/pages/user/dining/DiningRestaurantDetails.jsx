@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom"
 import { restaurantAPI } from "@food/api"
 import { useProfile } from "@food/context/ProfileContext"
 import { getMenuFromResponse } from "@food/utils/menuItems"
+import { normalizeSelectedDiningGuests } from "@food/utils/diningGuests"
 import useAppBackNavigation from "@food/hooks/useAppBackNavigation"
 import {
     ArrowLeft,
@@ -16,7 +17,6 @@ import {
   Share2,
   Tag,
   Ticket,
-  X,
 } from "lucide-react"
 import { Button } from "@food/components/ui/button"
 
@@ -101,7 +101,6 @@ export default function DiningRestaurantDetails() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [selectedGuests, setSelectedGuests] = useState(2)
-  const [isBookingSheetOpen, setIsBookingSheetOpen] = useState(false)
   const [activeTab, setActiveTab] = useState("prebook")
 
   useEffect(() => {
@@ -151,6 +150,10 @@ export default function DiningRestaurantDetails() {
 
     fetchRestaurantData()
   }, [location.state?.restaurant, slug])
+
+  useEffect(() => {
+    setSelectedGuests((currentGuests) => normalizeSelectedDiningGuests(currentGuests, restaurant))
+  }, [restaurant])
 
   if (loading) {
     return (
@@ -246,7 +249,6 @@ export default function DiningRestaurantDetails() {
 
   const handleContinueBooking = () => {
     if (!isDiningEnabled) return
-    setIsBookingSheetOpen(false)
     navigate(`/food/user/dining/book/${slug}`, {
       state: {
         guestCount: selectedGuests,
@@ -522,7 +524,7 @@ export default function DiningRestaurantDetails() {
       <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-[#ebe5da] bg-white/95 p-4 backdrop-blur-xl">
         <div className="mx-auto max-w-md">
           <Button
-            onClick={() => isDiningEnabled && setIsBookingSheetOpen(true)}
+            onClick={handleContinueBooking}
             disabled={!isDiningEnabled}
             className={`h-12 w-full rounded-2xl border text-[17px] font-medium transition-colors ${
               isDiningEnabled
@@ -534,56 +536,6 @@ export default function DiningRestaurantDetails() {
           </Button>
         </div>
       </div>
-
-      {isBookingSheetOpen && (
-        <div className="fixed inset-0 z-40">
-          <button
-            aria-label="Close booking sheet"
-            className="absolute inset-0 bg-black/35"
-            onClick={() => setIsBookingSheetOpen(false)}
-          />
-
-          <div className="absolute bottom-0 left-0 right-0 rounded-t-[28px] bg-white px-4 pb-6 pt-4 shadow-[0_-20px_60px_rgba(15,23,42,0.18)]">
-            <div className="mx-auto mb-4 h-1.5 w-14 rounded-full bg-[#e7e5e4]" />
-
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h3 className="text-xl font-black text-[#23180f]">Select number of guests</h3>
-                <p className="mt-1 text-sm text-[#7b6651]">Choose how many people will be joining.</p>
-              </div>
-              <button
-                onClick={() => setIsBookingSheetOpen(false)}
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f5f5f5] text-[#5b5b5b]"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-4 gap-3">
-              {Array.from({ length: Math.min(restaurant?.diningSettings?.maxGuests || 6, 8) }, (_, index) => index + 1).map((count) => (
-                <button
-                  key={`sheet-${count}`}
-                  onClick={() => setSelectedGuests(count)}
-                  className={`rounded-2xl border px-3 py-4 text-sm font-bold transition-colors ${
-                    selectedGuests === count
-                      ? "border-[#ef8f6a] bg-[#fff4f0] text-[#d5541b]"
-                      : "border-[#ece7de] bg-white text-[#23180f]"
-                  }`}
-                >
-                  {count}
-                </button>
-              ))}
-            </div>
-
-            <Button
-              onClick={handleContinueBooking}
-              className="mt-6 h-12 w-full rounded-2xl bg-[#f04f61] text-base font-bold text-white hover:bg-[#e13e52]"
-            >
-              Continue
-            </Button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

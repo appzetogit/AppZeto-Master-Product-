@@ -517,10 +517,7 @@ export default function Dining() {
       </div>
 
       {/* Banner Section */}
-      <div
-        className="relative w-full px-3 sm:px-4 md:px-6 lg:px-8 pb-4 sm:pb-6 cursor-pointer"
-        onClick={() => navigate('/user/dining/restaurants')}
-      >
+      <div className="relative w-full px-3 sm:px-4 md:px-6 lg:px-8 pb-4 sm:pb-6">
         <motion.div
           initial={{ opacity: 0, y: 24, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}

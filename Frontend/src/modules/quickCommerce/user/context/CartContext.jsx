@@ -8,19 +8,43 @@ const QUICK_CART_STORAGE_KEY = "quick_commerce_cart";
 
 export const useCart = () => useContext(CartContext);
 
+const isQuickCartItem = (item) => {
+  if (!item || typeof item !== "object") return false;
+  if (item.orderType === "quick" || item.type === "quick") return true;
+
+  return Boolean(
+    item.quickStoreId ||
+      item.storeId ||
+      item.store?.id ||
+      item.store?._id ||
+      item.sellerId ||
+      item.seller?.id ||
+      item.seller?._id,
+  );
+};
+
 const readStoredQuickCart = () => {
   try {
     const quickCart = localStorage.getItem(QUICK_CART_STORAGE_KEY);
-    if (quickCart) return JSON.parse(quickCart);
+    if (quickCart) {
+      const parsedQuickCart = JSON.parse(quickCart);
+      return Array.isArray(parsedQuickCart)
+        ? parsedQuickCart.filter(isQuickCartItem)
+        : [];
+    }
 
     const legacyCart = localStorage.getItem("cart");
     if (!legacyCart) return [];
 
     const parsedLegacyCart = JSON.parse(legacyCart);
-    if (Array.isArray(parsedLegacyCart)) {
-      localStorage.setItem(QUICK_CART_STORAGE_KEY, JSON.stringify(parsedLegacyCart));
+    const quickItems = Array.isArray(parsedLegacyCart)
+      ? parsedLegacyCart.filter(isQuickCartItem)
+      : [];
+
+    if (quickItems.length > 0) {
+      localStorage.setItem(QUICK_CART_STORAGE_KEY, JSON.stringify(quickItems));
     }
-    return Array.isArray(parsedLegacyCart) ? parsedLegacyCart : [];
+    return quickItems;
   } catch (error) {
     console.error("Failed to load quick cart from localStorage", error);
     return [];
@@ -65,6 +89,12 @@ const normalizeQuickProductForSharedCart = (product) => {
   const id = getProductId(product);
   const quickStoreId = getQuickStoreId(product);
   const quickStoreName = getQuickStoreName(product);
+  const salePrice = Number(product?.salePrice || 0);
+  const basePrice = Number(product?.price || 0);
+  const originalPrice = Number(
+    product?.originalPrice ?? product?.mrp ?? product?.price ?? salePrice ?? 0,
+  );
+
   return {
     ...product,
     id,
@@ -73,11 +103,10 @@ const normalizeQuickProductForSharedCart = (product) => {
     type: "quick",
     image: product?.image || product?.mainImage,
     mainImage: product?.mainImage || product?.image,
-    price:
-      typeof product?.price === "number"
-        ? product.price
-        : product?.salePrice ?? 0,
-    originalPrice: product?.originalPrice ?? product?.price ?? product?.salePrice ?? 0,
+    price: salePrice > 0 ? salePrice : basePrice,
+    salePrice,
+    mrp: originalPrice,
+    originalPrice,
     quickStoreName,
     quickStoreId,
     sourceId: quickStoreId,
@@ -87,12 +116,21 @@ const normalizeQuickProductForSharedCart = (product) => {
   };
 };
 
+const persistQuickCartSnapshot = (items) => {
+  try {
+    if (Array.isArray(items) && items.length > 0) {
+      localStorage.setItem(QUICK_CART_STORAGE_KEY, JSON.stringify(items));
+    } else {
+      localStorage.removeItem(QUICK_CART_STORAGE_KEY);
+    }
+  } catch (error) {
+    console.error("Failed to persist quick cart snapshot", error);
+  }
+};
+
 const useStandaloneQuickCart = () => {
   const { isAuthenticated } = useAuth();
-  const [cart, setCart] = useState(() => {
-    if (isAuthenticated) return [];
-    return readStoredQuickCart();
-  });
+  const [cart, setCart] = useState(() => readStoredQuickCart());
 
   const [loading, setLoading] = useState(Boolean(isAuthenticated));
   const pendingRequestsRef = useRef(0);
@@ -134,7 +172,14 @@ const useStandaloneQuickCart = () => {
       try {
         const response = await customerApi.getCart();
         const items = response.data?.result?.items || response.data?.items || [];
-        setCart(normalizeBackendCart(items));
+        const normalizedItems = normalizeBackendCart(items);
+        // `/quick` embedded mode writes the current quick cart snapshot to localStorage
+        // through the shared food-cart bridge. When standalone `/quick/cart` loads,
+        // backend quick-cart data can still be empty, so we fall back to that snapshot
+        // instead of showing an empty cart while the floating cart shows items.
+        setCart(
+          normalizedItems.length > 0 ? normalizedItems : readStoredQuickCart(),
+        );
       } catch (error) {
         console.error("Failed to fetch cart from backend", error);
       } finally {
@@ -145,7 +190,6 @@ const useStandaloneQuickCart = () => {
 
   useEffect(() => {
     if (isAuthenticated) {
-      setCart([]);
       fetchCart();
     } else {
       try {
@@ -158,10 +202,8 @@ const useStandaloneQuickCart = () => {
   }, [isAuthenticated]);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      localStorage.setItem(QUICK_CART_STORAGE_KEY, JSON.stringify(cart));
-    }
-  }, [cart, isAuthenticated]);
+    persistQuickCartSnapshot(cart);
+  }, [cart]);
 
   const addToCart = async (product) => {
     const id = getProductId(product);
@@ -291,20 +333,48 @@ const useStandaloneQuickCart = () => {
 export const CartProvider = ({ children }) => {
   const foodCart = useFoodCart();
   const standaloneCart = useStandaloneQuickCart();
+  const isUsingFoodCart = foodCart?._isProvider === true;
+
+  const quickItemsFromFoodCart = useMemo(
+    () => (Array.isArray(foodCart?.cart) ? foodCart.cart.filter(isQuickCartItem) : []),
+    [foodCart],
+  );
+
+  useEffect(() => {
+    if (!isUsingFoodCart) return;
+
+    persistQuickCartSnapshot(quickItemsFromFoodCart);
+  }, [isUsingFoodCart, quickItemsFromFoodCart]);
 
   const bridgedValue = useMemo(() => {
-    const isUsingFoodCart = foodCart?._isProvider === true;
     if (!isUsingFoodCart) {
       return standaloneCart;
     }
 
     const addToCart = async (product) => {
-      foodCart.addToCart(normalizeQuickProductForSharedCart(product));
+      const normalizedProduct = normalizeQuickProductForSharedCart(product);
+      const existingItem = quickItemsFromFoodCart.find(
+        (item) => getProductId(item) === normalizedProduct.id,
+      );
+      const nextQuickItems = existingItem
+        ? quickItemsFromFoodCart.map((item) =>
+            getProductId(item) === normalizedProduct.id
+              ? { ...item, quantity: Number(item.quantity || 0) + 1 }
+              : item,
+          )
+        : [...quickItemsFromFoodCart, { ...normalizedProduct, quantity: 1 }];
+
+      persistQuickCartSnapshot(nextQuickItems);
+      foodCart.addToCart(normalizedProduct);
     };
 
     const removeFromCart = async (productId) => {
       const resolvedProductId = normalizeProductId(productId);
       if (!resolvedProductId) return;
+      const nextQuickItems = quickItemsFromFoodCart.filter(
+        (item) => getProductId(item) !== resolvedProductId,
+      );
+      persistQuickCartSnapshot(nextQuickItems);
       foodCart.removeFromCart(resolvedProductId);
     };
 
@@ -314,24 +384,42 @@ export const CartProvider = ({ children }) => {
       const currentItem = foodCart.getCartItem(resolvedProductId);
       if (!currentItem) return;
       const nextQuantity = Math.max(0, (currentItem.quantity || 0) + delta);
+      const nextQuickItems =
+        nextQuantity === 0
+          ? quickItemsFromFoodCart.filter(
+              (item) => getProductId(item) !== resolvedProductId,
+            )
+          : quickItemsFromFoodCart.map((item) =>
+              getProductId(item) === resolvedProductId
+                ? { ...item, quantity: nextQuantity }
+                : item,
+            );
+      persistQuickCartSnapshot(nextQuickItems);
       foodCart.updateQuantity(resolvedProductId, nextQuantity);
     };
 
     const clearCart = async () => {
+      persistQuickCartSnapshot([]);
       foodCart.clearCart();
     };
 
     return {
-      cart: foodCart.cart || [],
+      cart: quickItemsFromFoodCart,
       addToCart,
       removeFromCart,
       updateQuantity,
       clearCart,
-      cartTotal: foodCart.total || 0,
-      cartCount: foodCart.itemCount || 0,
+      cartTotal: quickItemsFromFoodCart.reduce(
+        (total, item) => total + Number(item.price || 0) * Number(item.quantity || 0),
+        0,
+      ),
+      cartCount: quickItemsFromFoodCart.reduce(
+        (total, item) => total + Number(item.quantity || 0),
+        0,
+      ),
       loading: false,
     };
-  }, [foodCart, standaloneCart]);
+  }, [foodCart, isUsingFoodCart, quickItemsFromFoodCart, standaloneCart]);
 
   return <CartContext.Provider value={bridgedValue}>{children}</CartContext.Provider>;
 };

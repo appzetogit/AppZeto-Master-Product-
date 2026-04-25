@@ -2,24 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { MapPin, Search, Wallet } from 'lucide-react';
-
-const STORAGE_KEY = 'appzeto:lastLocation';
-const LOCATION_UPDATED_EVENT = 'appzeto:location-updated';
-
-const DEFAULT_LOCATION_LABEL = 'Choose your location';
-
-const getSavedLocationLabel = () => {
-  if (typeof window === 'undefined') {
-    return DEFAULT_LOCATION_LABEL;
-  }
-
-  try {
-    const saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || '{}');
-    return String(saved?.address || '').trim() || DEFAULT_LOCATION_LABEL;
-  } catch {
-    return DEFAULT_LOCATION_LABEL;
-  }
-};
+import {
+  TAXI_LOCATION_UPDATED_EVENT,
+  getSavedTaxiLocationLabel,
+} from '../services/savedLocation';
 
 const fallingCoins = [
   { id: 1, left: '24%', delay: 0 },
@@ -34,20 +20,20 @@ const HeaderGreeting = () => {
   const { settings } = useSettings();
   const appLogo = settings.general?.logo || settings.customization?.logo;
   const appName = settings.general?.app_name || 'App';
-  const [locationLabel, setLocationLabel] = useState(getSavedLocationLabel);
+  const [locationLabel, setLocationLabel] = useState(getSavedTaxiLocationLabel);
 
   useEffect(() => {
     const syncLocationLabel = () => {
-      setLocationLabel(getSavedLocationLabel());
+      setLocationLabel(getSavedTaxiLocationLabel());
     };
 
     syncLocationLabel();
     window.addEventListener('storage', syncLocationLabel);
-    window.addEventListener(LOCATION_UPDATED_EVENT, syncLocationLabel);
+    window.addEventListener(TAXI_LOCATION_UPDATED_EVENT, syncLocationLabel);
 
     return () => {
       window.removeEventListener('storage', syncLocationLabel);
-      window.removeEventListener(LOCATION_UPDATED_EVENT, syncLocationLabel);
+      window.removeEventListener(TAXI_LOCATION_UPDATED_EVENT, syncLocationLabel);
     };
   }, []);
 

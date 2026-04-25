@@ -4,6 +4,11 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, MapPin, Navigation, ChevronRight, Map as MapIcon, LoaderCircle, AlertTriangle, X, Check } from 'lucide-react';
 import { GoogleMap } from '@react-google-maps/api';
 import { HAS_VALID_GOOGLE_MAPS_KEY, INDIA_CENTER, useAppGoogleMapsLoader } from '../../../admin/utils/googleMaps';
+import {
+  getSavedTaxiLocation,
+  getSavedTaxiPickupCoords,
+  saveTaxiLocation,
+} from '../../services/savedLocation';
 
 const CITY_CENTERS = {
   Indore: { lat: 22.7196, lng: 75.8577 },
@@ -28,10 +33,12 @@ const IntercityDetails = () => {
   const location = useLocation();
   const state = location.state || {};
   const { fromCity, toCity, vehicle } = state;
+  const savedTaxiLocation = getSavedTaxiLocation();
+  const savedPickupCoords = getSavedTaxiPickupCoords();
 
-  const [pickup, setPickup] = useState('');
+  const [pickup, setPickup] = useState(() => String(savedTaxiLocation?.address || '').trim());
   const [drop, setDrop] = useState('');
-  const [pickupCoords, setPickupCoords] = useState(null);
+  const [pickupCoords, setPickupCoords] = useState(() => savedPickupCoords);
   const [dropCoords, setDropCoords] = useState(null);
   const [showMapPicker, setShowMapPicker] = useState(false);
   const [activeMapField, setActiveMapField] = useState('pickup');
@@ -135,6 +142,11 @@ const IntercityDetails = () => {
     if (activeMapField === 'pickup') {
       setPickup(pickedAddress);
       setPickupCoords(selectedCoords);
+      saveTaxiLocation({
+        lat: selectedCoords[1],
+        lng: selectedCoords[0],
+        address: pickedAddress,
+      });
     } else {
       setDrop(pickedAddress);
       setDropCoords(selectedCoords);
@@ -301,6 +313,11 @@ const IntercityDetails = () => {
                       onChange={e => {
                         setPickup(e.target.value);
                         setPickupCoords(null);
+                      }}
+                      onBlur={() => {
+                        if (pickup.trim()) {
+                          saveTaxiLocation({ address: pickup });
+                        }
                       }}
                       className="flex-1 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3.5 text-[14px] font-bold text-gray-900 focus:outline-none focus:border-yellow-400 transition-colors"
                    />

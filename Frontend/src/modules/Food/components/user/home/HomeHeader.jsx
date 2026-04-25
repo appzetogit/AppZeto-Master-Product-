@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation as useRouterLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Navigation,
@@ -47,8 +47,9 @@ const tabs = [
   },
   {
     id: "hotel",
-    name: "Scenes",
-    icon: "https://cdn-icons-png.flaticon.com/512/3163/3163478.png",
+    name: "Explore",
+    icon: "https://cdn-icons-png.flaticon.com/512/854/854878.png",
+    route: "/user/auth/portal",
   },
 ];
 
@@ -88,6 +89,53 @@ const foodTheme = {
   inactiveBorder: "rgba(255,255,255,0.12)",
 };
 
+const isMeaningfulLocationValue = (value) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  return Boolean(
+    normalized &&
+      normalized !== "select location" &&
+      normalized !== "current location"
+  );
+};
+
+const buildLocationDisplay = (savedAddressText, location) => {
+  if (isMeaningfulLocationValue(savedAddressText)) {
+    const parts = String(savedAddressText)
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+    if (parts.length >= 3) {
+      return {
+        title: parts.slice(0, 2).join(", "),
+        subtitle: parts.slice(2).join(", "),
+      };
+    }
+
+    if (parts.length === 2) {
+      return {
+        title: parts.join(", "),
+        subtitle: "Tap to choose delivery location",
+      };
+    }
+
+    return {
+      title: String(savedAddressText).trim(),
+      subtitle: "Tap to choose delivery location",
+    };
+  }
+
+  const fallbackTitle =
+    location?.area || location?.city || "Select Location";
+  const fallbackSubtitle =
+    location?.address || location?.city || "Tap to choose delivery location";
+
+  return {
+    title: fallbackTitle,
+    subtitle: fallbackSubtitle,
+  };
+};
+
 export default function HomeHeader({
   activeTab,
   setActiveTab,
@@ -103,6 +151,8 @@ export default function HomeHeader({
   quickThemeColor,
   onQuickTabIntent,
 }) {
+  const navigate = useNavigate();
+  const routerLocation = useRouterLocation();
   const videoRef = useRef(null);
   const [notifications, setNotifications] = useState(() => {
     if (typeof window === "undefined") return [];
@@ -127,10 +177,10 @@ export default function HomeHeader({
   const theme = activeTab === "quick" ? quickTheme(quickThemeColor) : foodTheme;
   const isFood = activeTab === "food";
   const walletPath = isFood ? "/food/user/wallet" : "/quick/wallet";
-  const locationTitle =
-    savedAddressText || location?.area || location?.city || "Select Location";
-  const locationSubtitle =
-    location?.address || location?.city || "Tap to choose delivery location";
+  const { title: locationTitle, subtitle: locationSubtitle } = useMemo(
+    () => buildLocationDisplay(savedAddressText, location),
+    [savedAddressText, location],
+  );
 
   useEffect(() => {
     const video = videoRef.current;
@@ -190,8 +240,10 @@ export default function HomeHeader({
 
   return (
     <motion.div
-      className={`relative overflow-hidden transition-all duration-400 ${
-        isFood ? "min-h-[450px]" : "min-h-[90px]"
+      className={`relative transition-all duration-400 ${
+        isFood
+          ? "min-h-[450px] overflow-hidden"
+          : "min-h-[188px] overflow-visible"
       }`}
       style={{ background: isFood ? "transparent" : theme.topBg, color: theme.text }}
     >
@@ -362,10 +414,19 @@ export default function HomeHeader({
               onQuickTabIntent?.();
             }
           };
+          const handleTabClick = () => {
+            if (tab.route) {
+              const redirectTo =
+                `${routerLocation.pathname || "/food/user"}${routerLocation.search || ""}${routerLocation.hash || ""}`;
+              navigate(tab.route, { state: { redirectTo } });
+              return;
+            }
+            setActiveTab(tab.id);
+          };
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={handleTabClick}
               onMouseEnter={handleTabIntent}
               onTouchStart={handleTabIntent}
               onFocus={handleTabIntent}

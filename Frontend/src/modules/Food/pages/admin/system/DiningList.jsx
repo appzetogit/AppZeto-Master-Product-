@@ -1,9 +1,7 @@
 import { useState, useMemo, useEffect } from "react"
-import { useNavigate } from "react-router-dom"
-import { Search, Download, ChevronDown, Eye, Settings, ArrowUpDown, Loader2, Star, Building2, User, FileText, Phone, Mail, MapPin, ShieldX, Trash2, ArrowRight } from "lucide-react"
+import { Search, Settings, Loader2, Star, Building2, X } from "lucide-react"
 import { adminAPI } from "@food/api"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@food/components/ui/dropdown-menu"
-import { exportRestaurantsToPDF } from "@food/components/admin/restaurants/restaurantsExportUtils"
+import { toast } from "sonner"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -33,23 +31,22 @@ const getPrimaryRestaurantImage = (restaurant, fallback = "") => {
 
 
 export default function DiningList() {
-    const navigate = useNavigate()
     const [searchQuery, setSearchQuery] = useState("")
     const [restaurants, setRestaurants] = useState([])
     const [categories, setCategories] = useState([])
     const [selectedCategory, setSelectedCategory] = useState("All")
     const [loading, setLoading] = useState(true)
-    const [categoryLoading, setCategoryLoading] = useState(true)
-    const [error, setError] = useState(null)
+    const [pageError, setPageError] = useState("")
     const [isEditModalOpen, setIsEditModalOpen] = useState(false)
     const [editingRestaurant, setEditingRestaurant] = useState(null)
+    const [actionLoadingId, setActionLoadingId] = useState("")
 
     // Fetch restaurants from backend API
     useEffect(() => {
         const fetchRestaurants = async () => {
             try {
                 setLoading(true)
-                setError(null)
+                setPageError("")
 
                 const response = await adminAPI.getDiningRestaurants()
 
@@ -70,6 +67,7 @@ export default function DiningList() {
                         categoryIds: Array.isArray(restaurant.categoryIds) ? restaurant.categoryIds : [],
                         primaryCategoryId: restaurant.primaryCategoryId || null,
                         diningSettings: restaurant.diningSettings || { isEnabled: false, maxGuests: 6, diningType: "" },
+                        pendingDiningRequest: restaurant.pendingDiningRequest || null,
                         originalData: restaurant,
                     }))
 
@@ -79,7 +77,7 @@ export default function DiningList() {
                 }
             } catch (err) {
                 debugError("Error fetching restaurants:", err)
-                setError(err.message || "Failed to fetch restaurants")
+                setPageError(err?.response?.data?.message || err?.message || "Failed to fetch restaurants")
                 setRestaurants([])
             } finally {
                 setLoading(false)
@@ -93,7 +91,6 @@ export default function DiningList() {
     useEffect(() => {
         const fetchCategories = async () => {
             try {
-                setCategoryLoading(true)
                 const response = await adminAPI.getDiningCategories()
                 if (response.data && response.data.success) {
                     const cats = (response.data.data.categories || []).map(cat => ({
@@ -104,8 +101,6 @@ export default function DiningList() {
                 }
             } catch (err) {
                 debugError("Error fetching categories:", err)
-            } finally {
-                setCategoryLoading(false)
             }
         }
         fetchCategories()
@@ -155,58 +150,49 @@ export default function DiningList() {
         )
     }
 
-    const handleDiningToggle = async (restaurant) => {
-        const newStatus = !restaurant.diningSettings?.isEnabled
+    const refreshRestaurants = async () => {
         try {
-            // Optimistic update
-            setRestaurants(prev => prev.map(r =>
-                r.id === restaurant.id
-                    ? { ...r, diningSettings: { ...r.diningSettings, isEnabled: newStatus } }
-                    : r
-            ))
-
-            await adminAPI.updateRestaurantDiningSettings(restaurant._id, {
-                isEnabled: newStatus,
-                maxGuests: restaurant.diningSettings?.maxGuests || 6,
-                categoryIds: restaurant.categoryIds || [],
-                primaryCategoryId: restaurant.primaryCategoryId || restaurant.categoryIds?.[0] || null,
-            })
-            // Could show success toast here
-        } catch (error) {
-            debugError("Failed to update dining settings", error)
-            // Revert on error
-            setRestaurants(prev => prev.map(r =>
-                r.id === restaurant.id
-                    ? { ...r, diningSettings: { ...r.diningSettings, isEnabled: !newStatus } }
-                    : r
-            ))
+            const response = await adminAPI.getDiningRestaurants()
+            const restaurantsData = response?.data?.data?.restaurants || []
+            setRestaurants(restaurantsData.map((restaurant, index) => ({
+                id: restaurant._id || restaurant.id || index + 1,
+                _id: restaurant._id,
+                name: restaurant.name || restaurant.restaurantName || "N/A",
+                ownerName: restaurant.ownerName || "N/A",
+                ownerPhone: restaurant.ownerPhone || "N/A",
+                zone: restaurant.zone || "N/A",
+                status: restaurant.status === "approved" || restaurant.isActive === true,
+                rating: restaurant.rating || 0,
+                logo: getPrimaryRestaurantImage(restaurant, "https://via.placeholder.com/40"),
+                categories: Array.isArray(restaurant.categories) ? restaurant.categories : [],
+                categoryIds: Array.isArray(restaurant.categoryIds) ? restaurant.categoryIds : [],
+                primaryCategoryId: restaurant.primaryCategoryId || null,
+                diningSettings: restaurant.diningSettings || { isEnabled: false, maxGuests: 6, diningType: "" },
+                pendingDiningRequest: restaurant.pendingDiningRequest || null,
+                originalData: restaurant,
+            })))
+        } catch (err) {
+            debugError("Error refreshing dining restaurants:", err)
         }
     }
 
-    const handleMaxGuestsUpdate = async (restaurant, newValue) => {
-        const guests = parseInt(newValue)
-        if (isNaN(guests) || guests < 1) return
-
-        // Prevent unnecessary API calls
-        if (guests === restaurant.diningSettings?.maxGuests) return
-
+    const handlePendingRequestAction = async (restaurant, approvalAction) => {
+        if (!restaurant?._id) return
         try {
-            // Optimistic update
-            setRestaurants(prev => prev.map(r =>
-                r.id === restaurant.id
-                    ? { ...r, diningSettings: { ...r.diningSettings, maxGuests: guests } }
-                    : r
-            ))
-
+            setActionLoadingId(`${restaurant._id}:${approvalAction}`)
+            setPageError("")
             await adminAPI.updateRestaurantDiningSettings(restaurant._id, {
-                isEnabled: restaurant.diningSettings?.isEnabled === true,
-                maxGuests: guests,
-                categoryIds: restaurant.categoryIds || [],
-                primaryCategoryId: restaurant.primaryCategoryId || restaurant.categoryIds?.[0] || null,
+                approvalAction,
             })
+            await refreshRestaurants()
+            toast.success(`Dining request ${approvalAction === "approve" ? "approved" : "rejected"} successfully`)
         } catch (error) {
-            debugError("Failed to update max guests", error)
-            // Revert would require tracking previous value better
+            debugError(`Failed to ${approvalAction} dining request`, error)
+            const message = error?.response?.data?.message || `Failed to ${approvalAction} dining request`
+            setPageError(message)
+            toast.error(message)
+        } finally {
+            setActionLoadingId("")
         }
     }
 
@@ -223,6 +209,12 @@ export default function DiningList() {
                 </div>
 
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                    {pageError ? (
+                        <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+                            {pageError}
+                        </div>
+                    ) : null}
+
                     {loading ? (
                         <div className="flex items-center justify-center py-20">
                             <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
@@ -292,8 +284,8 @@ export default function DiningList() {
                                             <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Restaurant</th>
                                             <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Owner</th>
                                             <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Zone</th>
-                                            <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Dining</th>
-                                            <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Guests</th>
+                                            <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Approved</th>
+                                            <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Requested</th>
                                             <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Rating</th>
                                             <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Status</th>
                                             <th className="px-6 py-4 text-right text-[10px] font-bold text-slate-700 uppercase tracking-wider">Actions</th>
@@ -343,29 +335,34 @@ export default function DiningList() {
                                                         <span className="text-sm text-slate-700">{restaurant.zone}</span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
-                                                        <button
-                                                            onClick={() => handleDiningToggle(restaurant)}
-                                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${restaurant.diningSettings?.isEnabled ? 'bg-blue-600' : 'bg-slate-200'}`}
-                                                        >
-                                                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out ${restaurant.diningSettings?.isEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
-                                                        </button>
+                                                        <div className="space-y-1">
+                                                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${restaurant.diningSettings?.isEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                                                                {restaurant.diningSettings?.isEnabled ? 'Dining On' : 'Dining Off'}
+                                                            </span>
+                                                            <p className="text-xs text-slate-500">
+                                                                Guests: {Number(restaurant.diningSettings?.maxGuests ?? 0)}
+                                                            </p>
+                                                            <p className="text-xs text-slate-500">
+                                                                {(restaurant.categories || []).map((category) => category?.name).filter(Boolean).join(", ") || "No category"}
+                                                            </p>
+                                                        </div>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
-                                                        <div className="flex items-center gap-2">
-                                                            <input
-                                                                type="number"
-                                                                min="1"
-                                                                max="100"
-                                                                defaultValue={restaurant.diningSettings?.maxGuests || 6}
-                                                                onBlur={(e) => handleMaxGuestsUpdate(restaurant, e.target.value)}
-                                                                onKeyDown={(e) => {
-                                                                    if (e.key === 'Enter') {
-                                                                        e.currentTarget.blur()
-                                                                    }
-                                                                }}
-                                                                className="w-16 px-2 py-1 text-sm border border-slate-300 rounded focus:outline-none focus:border-blue-500 text-center"
-                                                            />
-                                                        </div>
+                                                        {restaurant.pendingDiningRequest ? (
+                                                            <div className="space-y-1">
+                                                                <span className="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                                                                    Pending approval
+                                                                </span>
+                                                                <p className="text-xs text-slate-600">
+                                                                    {restaurant.pendingDiningRequest?.isEnabled ? "Dining On" : "Dining Off"} • Guests {Number(restaurant.pendingDiningRequest?.maxGuests ?? 0)}
+                                                                </p>
+                                                                <p className="text-xs text-slate-500 max-w-[220px] whitespace-normal">
+                                                                    {(restaurant.pendingDiningRequest?.categories || []).map((category) => category?.name).filter(Boolean).join(", ") || "No category"}
+                                                                </p>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-sm text-slate-400">No pending request</span>
+                                                        )}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <span className="text-sm text-yellow-500 font-medium">{renderStars(restaurant.rating)}</span>
@@ -376,15 +373,35 @@ export default function DiningList() {
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 text-right">
-                                                        <button
-                                                            onClick={() => {
-                                                                setEditingRestaurant({ ...restaurant })
-                                                                setIsEditModalOpen(true)
-                                                            }}
-                                                            className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
-                                                        >
-                                                            <Settings className="w-4 h-4" />
-                                                        </button>
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            {restaurant.pendingDiningRequest ? (
+                                                                <>
+                                                                    <button
+                                                                        onClick={() => handlePendingRequestAction(restaurant, "approve")}
+                                                                        disabled={actionLoadingId === `${restaurant._id}:approve`}
+                                                                        className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"
+                                                                    >
+                                                                        {actionLoadingId === `${restaurant._id}:approve` ? "Approving..." : "Approve"}
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handlePendingRequestAction(restaurant, "reject")}
+                                                                        disabled={actionLoadingId === `${restaurant._id}:reject`}
+                                                                        className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 disabled:opacity-60"
+                                                                    >
+                                                                        {actionLoadingId === `${restaurant._id}:reject` ? "Rejecting..." : "Reject"}
+                                                                    </button>
+                                                                </>
+                                                            ) : null}
+                                                            <button
+                                                                onClick={() => {
+                                                                    setEditingRestaurant({ ...restaurant })
+                                                                    setIsEditModalOpen(true)
+                                                                }}
+                                                                className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
+                                                            >
+                                                                <Settings className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             ))
@@ -402,9 +419,9 @@ export default function DiningList() {
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
                         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
-                            <h3 className="text-lg font-bold text-slate-900">Edit Dining Settings</h3>
+                                <h3 className="text-lg font-bold text-slate-900">Edit Dining Settings</h3>
                             <button onClick={() => setIsEditModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
-                                <Plus className="w-5 h-5 rotate-45 text-slate-500" />
+                                <X className="w-5 h-5 text-slate-500" />
                             </button>
                         </div>
 
@@ -418,7 +435,16 @@ export default function DiningList() {
                                 <button
                                     onClick={() => setEditingRestaurant(prev => ({
                                         ...prev,
-                                        diningSettings: { ...prev.diningSettings, isEnabled: !prev.diningSettings.isEnabled }
+                                        diningSettings: {
+                                            ...prev.diningSettings,
+                                            isEnabled: !prev.diningSettings.isEnabled,
+                                            maxGuests: !prev.diningSettings.isEnabled
+                                                ? Math.max(1, parseInt(prev.diningSettings?.maxGuests, 10) || 6)
+                                                : 0
+                                        },
+                                        categoryIds: !prev.diningSettings.isEnabled ? (prev.categoryIds || []) : [],
+                                        primaryCategoryId: !prev.diningSettings.isEnabled ? (prev.primaryCategoryId || prev.categoryIds?.[0] || null) : null,
+                                        categories: !prev.diningSettings.isEnabled ? (prev.categories || []) : [],
                                     }))}
                                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${editingRestaurant.diningSettings?.isEnabled ? 'bg-blue-600' : 'bg-slate-200'}`}
                                 >
@@ -431,41 +457,58 @@ export default function DiningList() {
                                 <label className="text-sm font-semibold text-slate-900">Maximum Guests</label>
                                 <input
                                     type="number"
-                                    min="1"
+                                    min={editingRestaurant.diningSettings?.isEnabled ? "1" : "0"}
                                     max="100"
                                     value={editingRestaurant.diningSettings?.maxGuests}
                                     onChange={(e) => setEditingRestaurant(prev => ({
                                         ...prev,
-                                        diningSettings: { ...prev.diningSettings, maxGuests: parseInt(e.target.value) || 1 }
+                                        diningSettings: {
+                                            ...prev.diningSettings,
+                                            maxGuests: prev.diningSettings?.isEnabled
+                                                ? Math.max(1, parseInt(e.target.value, 10) || 1)
+                                                : 0
+                                        }
                                     }))}
+                                    disabled={!editingRestaurant.diningSettings?.isEnabled}
                                     className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                 />
                             </div>
 
                             {/* Category */}
                             <div className="space-y-2">
-                                <label className="text-sm font-semibold text-slate-900">Dining Category</label>
-                                <select
-                                    value={editingRestaurant.primaryCategoryId || editingRestaurant.categoryIds?.[0] || ""}
-                                    onChange={(e) => setEditingRestaurant(prev => ({
-                                        ...prev,
-                                        primaryCategoryId: e.target.value || null,
-                                        categoryIds: e.target.value ? [e.target.value] : [],
-                                        categories: e.target.value
-                                            ? categories.filter(cat => cat._id === e.target.value)
-                                            : [],
-                                        diningSettings: {
-                                            ...prev.diningSettings,
-                                            diningType: categories.find(cat => cat._id === e.target.value)?.slug || "",
-                                        }
-                                    }))}
-                                    className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                                >
-                                    <option value="">Select a category</option>
-                                    {categories.map(cat => (
-                                        <option key={cat._id} value={cat._id}>{cat.name}</option>
-                                    ))}
-                                </select>
+                                <label className="text-sm font-semibold text-slate-900">Dining Categories</label>
+                                <div className="flex flex-wrap gap-2">
+                                    {categories.map(cat => {
+                                        const isSelected = (editingRestaurant.categoryIds || []).includes(cat._id)
+                                        return (
+                                            <button
+                                                key={cat._id}
+                                                type="button"
+                                                onClick={() => setEditingRestaurant(prev => {
+                                                    if (!prev.diningSettings?.isEnabled) return prev
+                                                    const nextIds = isSelected
+                                                        ? (prev.categoryIds || []).filter(id => id !== cat._id)
+                                                        : [...(prev.categoryIds || []), cat._id]
+                                                    const nextCategories = categories.filter(item => nextIds.includes(item._id))
+                                                    return {
+                                                        ...prev,
+                                                        categoryIds: nextIds,
+                                                        primaryCategoryId: nextIds[0] || null,
+                                                        categories: nextCategories,
+                                                        diningSettings: {
+                                                            ...prev.diningSettings,
+                                                            diningType: nextCategories[0]?.slug || "",
+                                                        }
+                                                    }
+                                                })}
+                                                disabled={!editingRestaurant.diningSettings?.isEnabled}
+                                                className={`rounded-full border px-3 py-2 text-sm font-medium ${isSelected ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700"}`}
+                                            >
+                                                {cat.name}
+                                            </button>
+                                        )
+                                    })}
+                                </div>
                             </div>
                         </div>
 
@@ -480,18 +523,15 @@ export default function DiningList() {
                                 onClick={async () => {
                                     try {
                                         setLoading(true)
+                                        const isDiningEnabled = editingRestaurant.diningSettings?.isEnabled === true
                                         await adminAPI.updateRestaurantDiningSettings(editingRestaurant._id, {
-                                            isEnabled: editingRestaurant.diningSettings?.isEnabled === true,
-                                            maxGuests: editingRestaurant.diningSettings?.maxGuests || 6,
-                                            categoryIds: editingRestaurant.categoryIds || [],
-                                            primaryCategoryId: editingRestaurant.primaryCategoryId || editingRestaurant.categoryIds?.[0] || null,
+                                            isEnabled: isDiningEnabled,
+                                            maxGuests: isDiningEnabled ? (editingRestaurant.diningSettings?.maxGuests || 6) : 0,
+                                            categoryIds: isDiningEnabled ? (editingRestaurant.categoryIds || []) : [],
+                                            primaryCategoryId: isDiningEnabled ? (editingRestaurant.primaryCategoryId || editingRestaurant.categoryIds?.[0] || null) : null,
                                         })
 
-                                        // Update local state
-                                        setRestaurants(prev => prev.map(r =>
-                                            r._id === editingRestaurant._id ? editingRestaurant : r
-                                        ))
-
+                                        await refreshRestaurants()
                                         setIsEditModalOpen(false)
                                         // toast.success("Settings updated")
                                     } catch (err) {

@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
 import { useEffect, useMemo, useState } from "react"
 import { ArrowLeft, Copy, MapPin, TicketPercent } from "lucide-react"
 import AnimatedPage from "@food/components/user/AnimatedPage"
@@ -7,6 +7,11 @@ import { restaurantAPI } from "@food/api"
 import { toast } from "sonner"
 
 export default function Coupons() {
+  const location = useLocation()
+  const isSharedProfile = location.pathname.startsWith("/profile")
+  const profileSource = new URLSearchParams(location.search).get("from")
+  const sharedSourceQuery = profileSource ? `?from=${profileSource}` : ""
+  const profileHomePath = isSharedProfile ? `/profile${sharedSourceQuery}` : "/user/profile"
   const [loading, setLoading] = useState(true)
   const [offers, setOffers] = useState([])
 
@@ -55,7 +60,7 @@ export default function Coupons() {
       <div className="max-w-md mx-auto px-4 py-4">
         {/* Header */}
         <div className="flex items-center gap-3 mb-8">
-          <Link to="/user/profile">
+          <Link to={profileHomePath}>
             <Button variant="ghost" size="icon" className="h-8 w-8 p-0">
               <ArrowLeft className="h-5 w-5 text-black dark:text-white" />
             </Button>

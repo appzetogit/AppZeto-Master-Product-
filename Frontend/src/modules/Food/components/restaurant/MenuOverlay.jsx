@@ -2,23 +2,22 @@ import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useNavigate } from "react-router-dom"
 import { 
-  User,
-  Utensils,
-  Megaphone,
+  Home,
+  ShoppingBag,
+  Package,
+  Compass,
+  Info,
+  Clock,
+  Calendar,
   Settings,
-  Monitor,
-  Plus,
-  Grid3x3,
-  Tag,
-  FileText,
-  MessageSquare,
-  Shield,
-  Globe,
-  MessageCircle,
+  Truck,
+  IndianRupee,
+  LifeBuoy,
+  BadgeCheck,
+  Store,
   CheckSquare,
   LogOut,
   LogIn,
-  UserPlus
 } from "lucide-react"
 
 export default function MenuOverlay({ showMenu, setShowMenu }) {
@@ -51,18 +50,20 @@ export default function MenuOverlay({ showMenu, setShowMenu }) {
   // Get menu options based on authentication state
   const getMenuOptions = () => {
     const baseOptions = [
-      { id: 4, name: "All Food", icon: Utensils, route: "/restaurant/food/all" },
-      { id: 6, name: "Restaurant Config", icon: Settings, route: "/restaurant/config" },
-      { id: 7, name: "Advertisements", icon: Monitor, route: "/restaurant/advertisements" },
-      { id: 9, name: "Categories", icon: Grid3x3, route: "/restaurant/categories" },
-      { id: 10, name: "Coupon", icon: Tag, route: "/restaurant/coupon" },
-      { id: 11, name: "My Business Plan", icon: FileText, route: "/restaurant/business-plan" },
-      { id: 12, name: "Reviews", icon: MessageSquare, route: "/restaurant/reviews" },
-      { id: 14, name: "Wallet Method", icon: Settings, route: "/restaurant/wallet" },
-      { id: 16, name: "Settings", icon: Settings, route: "/restaurant/settings" },
-      { id: 17, name: "Conversation", icon: MessageCircle, route: "/restaurant/conversation" },
-      { id: 18, name: "Privacy Policy", icon: Shield, route: "/restaurant/privacy" },
-      { id: 19, name: "Terms & Condition", icon: CheckSquare, route: "/restaurant/terms" },
+      { id: 2, name: "Dashboard", icon: Home, route: "/restaurant" },
+      { id: 3, name: "Order History", icon: ShoppingBag, route: "/restaurant/orders/all" },
+      { id: 4, name: "Inventory", icon: Package, route: "/restaurant/inventory" },
+      { id: 5, name: "Explore", icon: Compass, route: "/restaurant/explore" },
+      { id: 6, name: "Outlet Info", icon: Info, route: "/restaurant/outlet-info" },
+      { id: 7, name: "Outlet Timings", icon: Clock, route: "/restaurant/outlet-timings" },
+      { id: 8, name: "Reservations", icon: Calendar, route: "/restaurant/reservations" },
+      { id: 9, name: "Menu Categories", icon: Settings, route: "/restaurant/menu-categories" },
+      { id: 10, name: "Delivery Settings", icon: Truck, route: "/restaurant/delivery-settings" },
+      { id: 11, name: "Finance", icon: IndianRupee, route: "/restaurant/hub-finance" },
+      { id: 12, name: "Support", icon: LifeBuoy, route: "/restaurant/help-centre/support" },
+      { id: 13, name: "FSSAI", icon: BadgeCheck, route: "/restaurant/fssai" },
+      { id: 14, name: "Hyperpure", icon: Store, route: "/restaurant/hyperpure" },
+      { id: 15, name: "Terms & Condition", icon: CheckSquare, route: "/restaurant/terms" },
     ]
 
     if (isAuthenticated) {

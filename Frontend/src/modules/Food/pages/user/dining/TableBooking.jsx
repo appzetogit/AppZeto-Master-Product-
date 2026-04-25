@@ -5,6 +5,7 @@ import { Button } from "@food/components/ui/button"
 import AnimatedPage from "@food/components/user/AnimatedPage"
 import { diningAPI, restaurantAPI } from "@food/api"
 import useAppBackNavigation from "@food/hooks/useAppBackNavigation"
+import { buildDiningGuestOptions, normalizeSelectedDiningGuests } from "@food/utils/diningGuests"
 import Loader from "@food/components/Loader"
 import { toast } from "sonner"
 
@@ -174,6 +175,7 @@ export default function TableBooking() {
     () => allSlots.filter((slot) => getMealPeriod(slot) === selectedMealPeriod),
     [allSlots, selectedMealPeriod]
   )
+  const guestOptions = useMemo(() => buildDiningGuestOptions(restaurant, 10), [restaurant])
 
   useEffect(() => {
     if (!selectedSlot && filteredSlots.length > 0) {
@@ -203,6 +205,10 @@ export default function TableBooking() {
       setSelectedMealPeriod("lunch")
     }
   }, [allSlots, selectedMealPeriod])
+
+  useEffect(() => {
+    setSelectedGuests((currentGuests) => normalizeSelectedDiningGuests(currentGuests, restaurant, 10))
+  }, [restaurant])
 
   if (loading) return <Loader />
   if (!restaurant) return <div className="p-6 text-center">Restaurant not found</div>
@@ -282,7 +288,7 @@ export default function TableBooking() {
                 onChange={(event) => setSelectedGuests(parseInt(event.target.value, 10))}
                 className="appearance-none rounded-full bg-[#f7f7fb] py-2 pl-4 pr-9 text-sm font-semibold text-[#404040] outline-none"
               >
-                {Array.from({ length: restaurant.diningSettings?.maxGuests || 10 }, (_, index) => index + 1).map((count) => (
+                {guestOptions.map((count) => (
                   <option key={count} value={count}>
                     {count}
                   </option>

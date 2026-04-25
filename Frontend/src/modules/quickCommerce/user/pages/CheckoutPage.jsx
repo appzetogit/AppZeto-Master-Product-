@@ -3,6 +3,7 @@ import { Link, useLocation as useRouterLocation, useNavigate } from "react-route
 import Lottie from "lottie-react";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "@core/context/AuthContext";
+import { useProfile } from "@food/context/ProfileContext";
 import { useWishlist } from "../context/WishlistContext";
 import { customerApi } from "../services/customerApi";
 import { useLocation as useAppLocation } from "../context/LocationContext";
@@ -65,11 +66,11 @@ const RECIPIENT_STORAGE_KEY = "appzeto_checkout_recipient_v1";
 
 const DEFAULT_CURRENT_ADDRESS = {
   type: "Home",
-  name: "Harshvardhan Panchal",
-  address: "81 Pipliyahana Road, Near 214",
+  name: "",
+  address: "",
   landmark: "",
-  city: "Indore - 452018",
-  phone: "6268423925",
+  city: "",
+  phone: "",
 };
 
 const DEFAULT_RECIPIENT_DATA = {
@@ -80,13 +81,93 @@ const DEFAULT_RECIPIENT_DATA = {
   phone: "",
 };
 
+const isLegacyStaticCheckoutValue = (value = "") => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) return false;
+
+  return [
+    "harshvardhan panchal",
+    "6268423925",
+    "pipliyahana",
+    "rajshri palace",
+    "indore - 452018",
+    "214, rajshri palace colony",
+  ].some((token) => normalized.includes(token));
+};
+
+const sanitizeCheckoutAddress = (address = {}) => {
+  if (!address || typeof address !== "object") {
+    return { ...DEFAULT_CURRENT_ADDRESS };
+  }
+
+  const next = { ...DEFAULT_CURRENT_ADDRESS, ...address };
+
+  if (isLegacyStaticCheckoutValue(next.name)) next.name = "";
+  if (isLegacyStaticCheckoutValue(next.phone)) next.phone = "";
+  if (isLegacyStaticCheckoutValue(next.address)) next.address = "";
+  if (isLegacyStaticCheckoutValue(next.city)) next.city = "";
+
+  return next;
+};
+
+const parseAddressLineParts = (value = "") =>
+  String(value || "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+const buildNormalizedQuickOrderAddress = ({
+  label = "Other",
+  name = "",
+  phone = "",
+  street = "",
+  additionalDetails = "",
+  city = "",
+  state = "",
+  zipCode = "",
+  completeAddress = "",
+  location,
+  placeId,
+}) => {
+  const normalizedLabel = ["Home", "Office", "Other"].includes(label)
+    ? label
+    : "Other";
+  const resolvedStreet =
+    String(street || "").trim() || String(completeAddress || "").trim();
+  const resolvedCity = String(city || "").trim() || "NA";
+  const resolvedState = String(state || "").trim() || resolvedCity || "NA";
+  const resolvedZipCode = String(zipCode || "").trim();
+  const resolvedAdditionalDetails = String(additionalDetails || "").trim();
+
+  return {
+    type: normalizedLabel,
+    label: normalizedLabel,
+    name: String(name || "").trim(),
+    phone: String(phone || "").trim(),
+    street: resolvedStreet,
+    address: resolvedStreet,
+    additionalDetails: resolvedAdditionalDetails,
+    landmark: resolvedAdditionalDetails,
+    city: resolvedCity,
+    state: resolvedState,
+    zipCode: resolvedZipCode,
+    ...(placeId ? { placeId } : {}),
+    ...(location ? { location } : {}),
+  };
+};
+
 const readStoredCheckoutState = () => {
   try {
     if (typeof window === "undefined") return {};
     const raw = window.localStorage.getItem(CHECKOUT_STORAGE_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : {};
+    if (!parsed || typeof parsed !== "object") return {};
+
+    return {
+      ...parsed,
+      currentAddress: sanitizeCheckoutAddress(parsed.currentAddress),
+    };
   } catch {
     return {};
   }
@@ -107,6 +188,7 @@ const CheckoutPage = () => {
     useWishlist();
   const { showToast } = useToast();
   const { user, isAuthenticated } = useAuth();
+  const { userProfile } = useProfile();
   const { settings } = useSettings();
   const routerLocation = useRouterLocation();
 
@@ -171,6 +253,12 @@ const CheckoutPage = () => {
   const [savedRecipient, setSavedRecipient] = useState(
     storedCheckoutState.savedRecipient || null,
   );
+  const sharedProfileName = String(
+    userProfile?.name || user?.name || "",
+  ).trim();
+  const sharedProfilePhone = String(
+    userProfile?.phone || user?.phone || "",
+  ).trim();
 
   // Mock data for recommendations
   const recommendedProducts = [
@@ -201,13 +289,6 @@ const CheckoutPage = () => {
   const [manualCode, setManualCode] = useState(
     storedCheckoutState.manualCode || "",
   );
-
-  const deliveryAddress = {
-    type: "Home",
-    name: "John Doe",
-    address: "Flat 402, Sunshine Apartments, Sector 12, Dwarka",
-    city: "New Delhi - 110075",
-  };
 
   const timeSlots = [
     { id: "now", label: "Now", sublabel: "10-15 min" },
@@ -252,6 +333,16 @@ const CheckoutPage = () => {
   const discountAmount = selectedCoupon
     ? selectedCoupon.discountAmount || selectedCoupon.discount || 0
     : 0;
+  const discountedItemsTotal = cart.reduce((sum, item) => {
+    const unitPrice = Number(item.salePrice || item.price || 0);
+    return sum + unitPrice * Number(item.quantity || 0);
+  }, 0);
+  const originalItemsTotal = cart.reduce((sum, item) => {
+    const originalUnitPrice = Number(
+      item.originalPrice || item.mrp || item.price || item.salePrice || 0,
+    );
+    return sum + originalUnitPrice * Number(item.quantity || 0);
+  }, 0);
   const totalAmount = pricingPreview?.grandTotal || 0;
 
   const displayCartItems = showAllCartItems ? cart : cart;
@@ -287,12 +378,18 @@ const CheckoutPage = () => {
     ).trim();
 
   // Derived display values for primary delivery card
-  const displayName = savedRecipient?.name || currentAddress.name;
+  const displayName =
+    savedRecipient?.name ||
+    sharedProfileName ||
+    currentAddress.name ||
+    "Customer";
   const displayPhone =
-    savedRecipient?.phone || currentAddress.phone || "6268423925";
+    savedRecipient?.phone || currentAddress.phone || sharedProfilePhone || "";
   const displayAddress = savedRecipient
     ? `${savedRecipient.completeAddress}${savedRecipient.landmark ? `, ${savedRecipient.landmark}` : ""}${savedRecipient.pincode ? ` - ${savedRecipient.pincode}` : ""}`
-    : `${currentAddress.address}${currentAddress.landmark ? `, ${currentAddress.landmark}` : ""}, ${currentAddress.city}`;
+    : [currentAddress.address, currentAddress.landmark, currentAddress.city]
+        .filter(Boolean)
+        .join(", ");
 
   useEffect(() => {
     if (!paymentMethods.length) return;
@@ -302,20 +399,100 @@ const CheckoutPage = () => {
     }
   }, [paymentMethods, selectedPayment]);
 
+  useEffect(() => {
+    if (!sharedProfileName && !sharedProfilePhone) return;
+
+    setCurrentAddress((prev) => {
+      const nextName = prev.name || sharedProfileName;
+      const nextPhone = prev.phone || sharedProfilePhone;
+      if (nextName === prev.name && nextPhone === prev.phone) return prev;
+      return {
+        ...prev,
+        name: nextName,
+        phone: nextPhone,
+      };
+    });
+
+    setEditAddressForm((prev) => {
+      const nextName = prev.name || sharedProfileName;
+      const nextPhone = prev.phone || sharedProfilePhone;
+      if (nextName === prev.name && nextPhone === prev.phone) return prev;
+      return {
+        ...prev,
+        name: nextName,
+        phone: nextPhone,
+      };
+    });
+
+    setRecipientData((prev) => {
+      const nextName = prev.name || sharedProfileName;
+      const nextPhone = prev.phone || sharedProfilePhone;
+      if (nextName === prev.name && nextPhone === prev.phone) return prev;
+      return {
+        ...prev,
+        name: nextName,
+        phone: nextPhone,
+      };
+    });
+  }, [sharedProfileName, sharedProfilePhone]);
+
+  useEffect(() => {
+    const hasUsableAddress = [currentAddress.address, currentAddress.city, currentAddress.landmark]
+      .some((value) => String(value || "").trim());
+
+    if (hasUsableAddress || !locationSavedAddresses.length) {
+      return;
+    }
+
+    const primaryAddress =
+      locationSavedAddresses.find((addr) => addr?.isDefault || addr?.isCurrent) ||
+      locationSavedAddresses[0];
+    if (!primaryAddress?.address) {
+      return;
+    }
+
+    setCurrentAddress((prev) => ({
+      ...prev,
+      type: primaryAddress.label || prev.type || "Home",
+      name: primaryAddress.name || sharedProfileName || "",
+      address: primaryAddress.address || "",
+      city: primaryAddress.city || "",
+      phone: primaryAddress.phone || sharedProfilePhone || "",
+      landmark: "",
+      ...(primaryAddress.placeId ? { placeId: primaryAddress.placeId } : {}),
+      ...(primaryAddress.location ? { location: primaryAddress.location } : {}),
+      ...(primaryAddress.id ? { id: primaryAddress.id } : {}),
+    }));
+  }, [
+    currentAddress.address,
+    currentAddress.city,
+    currentAddress.landmark,
+    locationSavedAddresses,
+    sharedProfileName,
+    sharedProfilePhone,
+  ]);
+
   const buildAddressForOrder = () => {
     if (savedRecipient) {
-      return {
-        type: "Other",
+      const recipientAddressParts = parseAddressLineParts(
+        savedRecipient.completeAddress,
+      );
+      return buildNormalizedQuickOrderAddress({
+        label: "Other",
         name: savedRecipient.name,
-        address: savedRecipient.completeAddress,
-        landmark: savedRecipient.landmark || "",
-        city: savedRecipient.pincode ? `${savedRecipient.pincode}` : "",
         phone: savedRecipient.phone,
+        street: recipientAddressParts[0] || savedRecipient.completeAddress,
+        additionalDetails:
+          savedRecipient.landmark || recipientAddressParts.slice(1, -1).join(", "),
+        city: currentAddress.city || recipientAddressParts.at(-1) || "NA",
+        state: currentAddress.state || currentLocation?.state || "NA",
+        zipCode: savedRecipient.pincode || currentAddress.pincode || "",
+        completeAddress: savedRecipient.completeAddress,
         location:
           currentLocation?.latitude && currentLocation?.longitude
             ? { lat: currentLocation.latitude, lng: currentLocation.longitude }
             : undefined,
-      };
+      });
     }
 
     const addrLoc = currentAddress?.location;
@@ -325,14 +502,33 @@ const CheckoutPage = () => {
       typeof addrLoc.lng === "number" &&
       Number.isFinite(addrLoc.lat) &&
       Number.isFinite(addrLoc.lng);
+    const currentAddressParts = parseAddressLineParts(currentAddress.address);
 
-    return {
-      ...currentAddress,
+    return buildNormalizedQuickOrderAddress({
+      label: currentAddress.type || "Home",
+      name: currentAddress.name || user?.name || "",
+      phone: currentAddress.phone || "",
+      street: currentAddressParts[0] || currentAddress.address,
+      additionalDetails:
+        currentAddress.landmark || currentAddressParts.slice(1, -1).join(", "),
+      city:
+        currentAddress.city ||
+        currentAddressParts.at(-1) ||
+        currentLocation?.city ||
+        "NA",
+      state: currentAddress.state || currentLocation?.state || "NA",
+      zipCode:
+        currentAddress.zipCode ||
+        currentAddress.pincode ||
+        currentLocation?.pincode ||
+        "",
+      completeAddress: currentAddress.address,
+      placeId: currentAddress.placeId,
       location:
         // Important: delivery fee must be based on the selected delivery address,
         // not the device's last detected location (which can be stale).
         hasAddrLoc ? { lat: addrLoc.lat, lng: addrLoc.lng } : undefined,
-    };
+    });
   };
 
   const handleSaveRecipient = () => {
@@ -366,7 +562,11 @@ const CheckoutPage = () => {
   };
 
   const handleOpenEditAddress = () => {
-    setEditAddressForm(currentAddress);
+    setEditAddressForm({
+      ...currentAddress,
+      name: currentAddress.name || sharedProfileName || "",
+      phone: currentAddress.phone || sharedProfilePhone || "",
+    });
     setIsEditAddressOpen(true);
   };
 
@@ -459,10 +659,11 @@ const CheckoutPage = () => {
       }
 
       setCurrentAddress({
+        id: addr.id,
         type: addr.label,
-        name: user?.name || currentAddress.name,
+        name: addr.name || user?.name || "",
         address: rawText,
-        city: "", // already part of addr.address string
+        city: addr.city || "",
         phone: addr.phone || currentAddress.phone,
         landmark: "", // already baked into addr.address if present
         ...(pid ? { placeId: pid } : {}),
@@ -492,11 +693,10 @@ const CheckoutPage = () => {
 
   const handleSaveEditedAddress = async () => {
     if (
-      !editAddressForm.name.trim() ||
       !editAddressForm.address.trim() ||
       !editAddressForm.city.trim()
     ) {
-      showToast("Please fill name, address and city", "error");
+      showToast("Please fill address and city", "error");
       return;
     }
 
@@ -548,6 +748,7 @@ const CheckoutPage = () => {
 
     setCurrentAddress({
       ...editAddressForm,
+      name: editAddressForm.name || currentAddress.name || user?.name || "",
       ...(location ? { location } : {}),
       ...(placeId ? { placeId } : {}),
       ...(formattedAddress ? { formattedAddress } : {}),
@@ -720,7 +921,10 @@ const CheckoutPage = () => {
 
     setIsPreviewLoading(true);
     const subtotal = cart.reduce(
-      (sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0),
+      (sum, item) =>
+        sum +
+        Number(item.salePrice || item.price || 0) *
+          Number(item.quantity || 0),
       0,
     );
     const deliveryFeeCharged = 25;
@@ -1228,9 +1432,11 @@ const CheckoutPage = () => {
                         </button>
                       </div>
                     </div>
-                    <p className="text-xs text-slate-500 font-medium mt-0.5">
-                      {displayPhone}
-                    </p>
+                    {displayPhone ? (
+                      <p className="text-xs text-slate-500 font-medium mt-0.5">
+                        {displayPhone}
+                      </p>
+                    ) : null}
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                       {displayAddress}
                     </p>
@@ -1499,9 +1705,16 @@ const CheckoutPage = () => {
                   <span className="text-slate-500 font-bold text-[13px] uppercase tracking-wider">
                     Item Total
                   </span>
-                  <span className="font-black text-slate-800">
-                    ₹{pricingPreview?.productSubtotal ?? cartTotal}
+                  <div className="flex items-baseline gap-2">
+                    {originalItemsTotal > discountedItemsTotal ? (
+                      <span className="text-sm font-bold text-slate-400 line-through">
+                        ₹{originalItemsTotal}
+                      </span>
+                    ) : null}
+                    <span className="font-black text-slate-800">
+                    ₹{discountedItemsTotal}
                   </span>
+                  </div>
                 </div>
                 <div className="flex justify-between items-center px-2">
                   <span className="text-slate-500 font-bold text-[13px] uppercase tracking-wider">
@@ -1643,7 +1856,7 @@ const CheckoutPage = () => {
                   </span>
                 </div>
                 <p className="text-sm font-bold text-slate-800">
-                  {user?.name || currentAddress.name}
+                  {addr.name || user?.name || currentAddress.name || "Customer"}
                 </p>
                 <p className="text-xs text-slate-500 leading-relaxed mb-1">
                   {addr.address}
@@ -1660,7 +1873,7 @@ const CheckoutPage = () => {
             <Button
               variant="outline"
               className="w-full border-green-600 text-green-600 hover:bg-green-50"
-              onClick={() => navigate("/addresses")}>
+              onClick={() => navigate("/cart/address-selector")}>
               <Plus size={16} className="mr-2" /> Add New Address
             </Button>
           </DialogFooter>

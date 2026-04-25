@@ -31,6 +31,7 @@ function maskToken(token) {
 }
 
 const roomNames = {
+    admin: (id) => `admin:${String(id)}`,
     restaurant: (id) => `restaurant:${String(id)}`,
     user: (id) => `user:${String(id)}`,
     seller: (id) => `seller:${String(id)}`,
@@ -144,6 +145,7 @@ export const initSocket = async (server) => {
 
         // Auto-join role rooms (lets us emit without a custom join).
         if (userId && role) {
+            if (role === 'ADMIN') socket.join(roomNames.admin(userId));
             if (role === 'RESTAURANT') socket.join(roomNames.restaurant(userId));
             if (role === 'USER') socket.join(roomNames.user(userId));
             if (role === 'SELLER') socket.join(roomNames.seller(userId));

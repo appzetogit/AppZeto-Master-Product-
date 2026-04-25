@@ -74,7 +74,7 @@ const ContentManager = () => {
     const loadHeaderCategories = async () => {
         try {
             // Use category tree so that header -> category -> subcategory hierarchy is available
-            const res = await adminApi.getCategoryTree();
+            const res = await adminApi.getCategoryTree({ type: 'header' });
             if (res.data.success) {
                 const tree = res.data.results || res.data.result || [];
                 const headers = Array.isArray(tree) ? tree : [];

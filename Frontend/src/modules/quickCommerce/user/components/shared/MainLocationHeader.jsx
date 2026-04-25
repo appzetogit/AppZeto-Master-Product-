@@ -5,6 +5,7 @@ import Lottie from "lottie-react";
 import LocationDrawer from "./LocationDrawer";
 import { useLocation } from "../../context/LocationContext";
 import { useProductDetail } from "../../context/ProductDetailContext";
+import { useCart } from "../../context/CartContext";
 import { useSettings } from "@core/context/SettingsContext";
 import { cn } from "@/lib/utils";
 import {
@@ -175,6 +176,7 @@ const MainLocationHeader = ({
   const { currentLocation, refreshLocation, isFetchingLocation } =
     useLocation();
   const { isOpen: isProductDetailOpen } = useProductDetail();
+  const { cartCount } = useCart();
   const { settings } = useSettings();
   const appName = settings?.appName || "App";
   const logoUrl = settings?.logoUrl || LogoImage;
@@ -490,9 +492,11 @@ const MainLocationHeader = ({
                 onClick={() => navigate(cartPath)}
                 className="text-slate-900 hover:text-slate-700 transition-all relative group">
                 <ShoppingCartOutlinedIcon sx={{ fontSize: 24 }} />
-                <span className="absolute -top-1.5 -right-1.5 bg-yellow-400 text-emerald-900 text-[9px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center border-2 border-green-800 shadow-sm transition-transform group-hover:-translate-y-0.5">
-                  0
-                </span>
+                {cartCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 bg-yellow-400 text-emerald-900 text-[9px] font-black rounded-full flex items-center justify-center border-2 border-green-800 shadow-sm transition-transform group-hover:-translate-y-0.5">
+                    {cartCount > 99 ? "99+" : cartCount}
+                  </span>
+                )}
               </motion.button>
 
             </div>

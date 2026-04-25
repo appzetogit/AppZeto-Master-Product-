@@ -1,5 +1,6 @@
 import { Skeleton } from "@food/components/ui/skeleton"
 import { cn } from "@food/utils/utils"
+import { Leaf, AlertCircle, Timer, Star, Clock, Bookmark, BadgePercent } from "lucide-react"
 
 const DEFAULT_CARD_COUNT = 4
 
@@ -38,21 +39,21 @@ function HeroBannerSkeleton({ className, compact = false }) {
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-[28px] border border-white/50 bg-[linear-gradient(135deg,#fff8ef_0%,#fff0de_48%,#ffe3c5_100%)] shadow-[0_18px_60px_rgba(235,89,14,0.14)]",
-        compact ? "h-40 sm:h-48" : "h-56 sm:h-64 md:h-72 lg:h-80",
+        "relative overflow-hidden rounded-[22px] border border-slate-100 bg-white shadow-[0_18px_40px_-24px_rgba(15,23,42,0.3)]",
+        "aspect-[16/8.8] w-full sm:aspect-[16/7.2]",
         className
       )}
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(235,89,14,0.22),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(251,191,36,0.2),transparent_28%)]" />
+      <div className="absolute inset-0 bg-slate-50/50" />
       <div className="relative flex h-full flex-col justify-between p-5 sm:p-6 md:p-8">
         <div className="flex items-center justify-between gap-4">
-          <Skeleton className="h-10 w-10 rounded-full bg-white/60" />
-          <Skeleton className="h-10 w-24 rounded-full bg-white/65" />
+          <Skeleton className="h-10 w-10 rounded-full bg-slate-100" />
+          <Skeleton className="h-10 w-24 rounded-full bg-slate-100" />
         </div>
         <div className="max-w-[70%] space-y-3">
-          <Skeleton className="h-4 w-24 rounded-full bg-white/55" />
-          <Skeleton className="h-9 w-3/4 rounded-2xl bg-white/70" />
-          <Skeleton className="h-4 w-2/3 rounded-full bg-white/55" />
+          <Skeleton className="h-4 w-24 rounded-full bg-slate-200" />
+          <Skeleton className="h-9 w-3/4 rounded-2xl bg-slate-200" />
+          <Skeleton className="h-4 w-2/3 rounded-full bg-slate-200" />
         </div>
       </div>
     </div>
@@ -61,15 +62,14 @@ function HeroBannerSkeleton({ className, compact = false }) {
 
 function CategoryChipRowSkeleton({ count = 8, className }) {
   return (
-    <div className={cn("flex gap-3 overflow-hidden", className)}>
+    <div className={cn("flex gap-4 items-center overflow-x-auto scrollbar-hide py-2", className)}>
       {Array.from({ length: count }, (_, index) => (
-        <Skeleton
-          key={`chip-${index}`}
-          className={cn(
-            "h-9 flex-none rounded-full",
-            index % 3 === 0 ? "w-28" : index % 2 === 0 ? "w-24" : "w-20"
-          )}
-        />
+        <div key={`category-${index}`} className="flex flex-col items-center gap-2 flex-shrink-0">
+          <Skeleton
+            className="w-16 h-16 sm:w-20 sm:h-20 rounded-full"
+          />
+          <Skeleton className="h-3 w-12 rounded-full" />
+        </div>
       ))}
     </div>
   )
@@ -79,16 +79,13 @@ function ExploreTileSkeleton({ index }) {
   return (
     <div
       className={cn(
-        "rounded-2xl border border-[#f1e3d6] bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.04)]",
-        index % 4 === 0 ? "bg-[#fffaf4]" : ""
+        "rounded-3xl border border-gray-100 bg-white p-4 shadow-[0_4px_15px_-3px_rgba(0,0,0,0.08)]",
+        index % 4 === 0 ? "bg-white" : ""
       )}
     >
-      <div className="flex items-center gap-4">
-        <Skeleton className="h-14 w-14 rounded-2xl" />
-        <div className="flex-1 space-y-2">
-          <Skeleton className="h-4 w-3/4 rounded-full" />
-          <Skeleton className="h-3 w-1/2 rounded-full" />
-        </div>
+      <div className="flex flex-col items-center gap-3">
+        <Skeleton className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl" />
+        <Skeleton className="h-4 w-4/5 rounded-full" />
       </div>
     </div>
   )
@@ -107,33 +104,36 @@ function ExploreGridSkeleton({ count = 4, className }) {
 function RestaurantCardSkeleton({ className, compact = false }) {
   return (
     <div className={cn("h-full", className)}>
-      <div className="h-full overflow-hidden rounded-[24px] border border-[#efe2d4] bg-white shadow-[0_18px_40px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-[#141414]">
-        <div className={cn("relative overflow-hidden", compact ? "h-40 sm:h-44" : "h-44 sm:h-48 lg:h-52")}>
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(235,89,14,0.2),transparent_25%),linear-gradient(135deg,#fff7ee_0%,#ffe7cf_100%)] dark:bg-[radial-gradient(circle_at_top_left,rgba(255,153,102,0.14),transparent_25%),linear-gradient(135deg,#262626_0%,#181818_100%)]" />
-          <Skeleton className="absolute left-4 top-4 h-8 w-20 rounded-full bg-white/60 dark:bg-white/10" />
-          <Skeleton className="absolute right-4 top-4 h-9 w-9 rounded-full bg-white/60 dark:bg-white/10" />
-          <div className="absolute inset-x-0 bottom-0 space-y-3 px-4 pb-4">
-            <Skeleton className="h-5 w-2/3 rounded-full bg-white/70 dark:bg-white/12" />
-            <div className="flex gap-2">
-              <Skeleton className="h-4 w-16 rounded-full bg-white/55 dark:bg-white/10" />
-              <Skeleton className="h-4 w-20 rounded-full bg-white/45 dark:bg-white/10" />
-            </div>
-          </div>
+      <div className="h-full overflow-hidden rounded-[28px] border-0 bg-white shadow-sm dark:bg-[#1a1a1a]">
+        {/* Image Placeholder */}
+        <div className={cn("relative overflow-hidden bg-gray-100 dark:bg-gray-800", compact ? "h-40 sm:h-44" : "h-44 sm:h-52 md:h-64")}>
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900" />
+          {/* Header Badges */}
+          <Skeleton className="absolute left-4 top-4 h-8 w-24 rounded-full bg-white/40 dark:bg-white/5" />
+          <Skeleton className="absolute right-4 top-4 h-11 w-11 rounded-[20px] bg-white/40 dark:bg-white/5" />
         </div>
-        <div className="space-y-4 p-4 sm:p-5">
+        
+        {/* Content Placeholder */}
+        <div className="p-3 sm:p-4 lg:p-5 space-y-4">
           <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1 space-y-2">
-              <Skeleton className="h-5 w-4/5 rounded-full" />
-              <Skeleton className="h-4 w-2/3 rounded-full" />
+            <div className="min-w-0 flex-1 space-y-3">
+              <Skeleton className="h-7 w-4/5 rounded-full" />
+              <div className="flex gap-2">
+                <Skeleton className="h-5 w-16 rounded-full" />
+                <Skeleton className="h-5 w-24 rounded-full" />
+              </div>
             </div>
-            <Skeleton className="h-8 w-12 rounded-xl" />
+            <Skeleton className="h-9 w-12 rounded-2xl flex-shrink-0" />
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Skeleton className="h-4 w-16 rounded-full" />
-            <Skeleton className="h-4 w-24 rounded-full" />
-            <Skeleton className="h-4 w-20 rounded-full" />
+          
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-5 w-5 rounded-full" />
+            <Skeleton className="h-5 w-32 rounded-full" />
           </div>
-          <SkeletonLines lines={2} />
+
+          <div className="mt-auto pt-2 border-t border-gray-50 dark:border-gray-800/50">
+            <Skeleton className="h-5 w-3/4 rounded-full" />
+          </div>
         </div>
       </div>
     </div>
@@ -328,6 +328,111 @@ function RestaurantDetailSkeleton({ className }) {
   )
 }
 
+function AuthPortalSkeleton({ className }) {
+  return (
+    <LoadingSkeletonRegion
+      label="Loading authentication portal"
+      className={cn(
+        "min-h-screen bg-[linear-gradient(180deg,#fffdf8_0%,#fff6ec_45%,#fff1e5_100%)]",
+        className
+      )}
+    >
+      <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-5 py-8">
+        <div className="overflow-hidden rounded-[32px] border border-[#f3dfcf] bg-white/95 p-5 shadow-[0_24px_70px_rgba(235,89,14,0.12)]">
+          <div className="mb-6 flex items-center justify-between">
+            <Skeleton className="h-9 w-28 rounded-full bg-[#fff0e1]" />
+            <Skeleton className="h-10 w-10 rounded-full bg-[#fff0e1]" />
+          </div>
+          <div className="space-y-4">
+            <Skeleton className="h-3 w-20 rounded-full bg-[#ffe4ce]" />
+            <Skeleton className="h-10 w-3/4 rounded-2xl bg-[#fff1e3]" />
+            <SkeletonLines lines={2} lineClassName="bg-[#ffe6d3]" />
+          </div>
+          <div className="mt-8 space-y-3">
+            <Skeleton className="h-12 w-full rounded-2xl bg-[#fff5ed]" />
+            <Skeleton className="h-12 w-full rounded-2xl bg-[#fff5ed]" />
+            <Skeleton className="h-12 w-full rounded-2xl bg-[#fff5ed]" />
+          </div>
+          <div className="mt-8 grid grid-cols-2 gap-3">
+            <Skeleton className="h-11 rounded-2xl bg-[#fff0e1]" />
+            <Skeleton className="h-11 rounded-2xl bg-[#fff0e1]" />
+          </div>
+        </div>
+      </div>
+    </LoadingSkeletonRegion>
+  )
+}
+
+function HotelShellSkeleton({ className }) {
+  return (
+    <LoadingSkeletonRegion
+      label="Loading hotel page"
+      className={cn(
+        "min-h-screen bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_38%,#edf8f6_100%)]",
+        className
+      )}
+    >
+      <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-5 px-4 pb-10 pt-4 md:px-6 md:pt-6">
+        <div className="flex items-center justify-between gap-4">
+          <Skeleton className="h-11 w-32 rounded-full bg-white" />
+          <div className="flex gap-3">
+            <Skeleton className="h-11 w-24 rounded-full bg-white" />
+            <Skeleton className="h-11 w-11 rounded-full bg-white" />
+          </div>
+        </div>
+
+        <div className="overflow-hidden rounded-[28px] border border-[#d8efea] bg-[linear-gradient(135deg,#f2fbf8_0%,#ebf8f5_52%,#e1f2ef_100%)] p-4 shadow-[0_20px_60px_rgba(13,148,136,0.10)]">
+          <div className="space-y-4">
+            <Skeleton className="h-6 w-28 rounded-full bg-white/85" />
+            <Skeleton className="h-12 w-3/4 rounded-2xl bg-white/90" />
+            <Skeleton className="h-12 w-full rounded-2xl bg-white/80" />
+            <div className="grid grid-cols-3 gap-3">
+              <Skeleton className="h-16 rounded-2xl bg-white/80" />
+              <Skeleton className="h-16 rounded-2xl bg-white/80" />
+              <Skeleton className="h-16 rounded-2xl bg-white/80" />
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <Skeleton className="h-6 w-44 rounded-full" />
+          <div className="flex gap-3 overflow-hidden">
+            <Skeleton className="h-10 w-24 rounded-full" />
+            <Skeleton className="h-10 w-28 rounded-full" />
+            <Skeleton className="h-10 w-20 rounded-full" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }, (_, index) => (
+            <div
+              key={`hotel-card-${index}`}
+              className="overflow-hidden rounded-[26px] border border-[#deece9] bg-white shadow-[0_18px_40px_rgba(15,23,42,0.05)]"
+            >
+              <Skeleton className="h-44 w-full rounded-none bg-[linear-gradient(135deg,#e7f6f2_0%,#d8efea_100%)]" />
+              <div className="space-y-3 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <Skeleton className="h-5 w-4/5 rounded-full" />
+                    <Skeleton className="h-4 w-2/3 rounded-full" />
+                  </div>
+                  <Skeleton className="h-8 w-14 rounded-xl" />
+                </div>
+                <div className="flex gap-2">
+                  <Skeleton className="h-4 w-16 rounded-full" />
+                  <Skeleton className="h-4 w-20 rounded-full" />
+                  <Skeleton className="h-4 w-12 rounded-full" />
+                </div>
+                <Skeleton className="h-9 w-32 rounded-2xl bg-[#edf8f6]" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </LoadingSkeletonRegion>
+  )
+}
+
 function AppShellSkeleton({ className }) {
   return (
     <LoadingSkeletonRegion label="Loading application" className={cn("min-h-screen bg-[radial-gradient(circle_at_top_left,#fff8ef,transparent_34%),linear-gradient(180deg,#fffdf9_0%,#fff8f1_100%)] dark:bg-[linear-gradient(180deg,#0b0b0b_0%,#151515_100%)]", className)}>
@@ -356,10 +461,12 @@ function AppShellSkeleton({ className }) {
 
 export {
   AppShellSkeleton,
+  AuthPortalSkeleton,
   CategoryChipRowSkeleton,
   ContentPageSkeleton,
   ExploreGridSkeleton,
   HeroBannerSkeleton,
+  HotelShellSkeleton,
   LoadingSkeletonRegion,
   OrdersDashboardSkeleton,
   RestaurantCardSkeleton,

@@ -22,6 +22,7 @@ import {
   MapPin,
   MessageCircle,
   Monitor,
+  Menu,
   Package,
   PlusCircle,
   Search,
@@ -271,7 +272,7 @@ const AdminLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { settings } = useSettings();
-  const [isSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setCollapsed] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef(null);
@@ -530,6 +531,10 @@ const AdminLayout = () => {
   }, []);
 
   useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
     const token = getSharedAdminToken();
 
     if (!token && !window.location.pathname.includes('/admin/login')) {
@@ -574,9 +579,17 @@ const AdminLayout = () => {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#F8F9FA] font-sans text-gray-900">
+    <div className="flex h-screen overflow-x-hidden overflow-y-hidden bg-[#F8F9FA] font-sans text-gray-900">
+      {isSidebarOpen && (
+        <button
+          type="button"
+          aria-label="Close sidebar overlay"
+          onClick={() => setIsSidebarOpen(false)}
+          className="fixed inset-0 z-40 bg-slate-950/50 backdrop-blur-[1px] lg:hidden"
+        />
+      )}
       <aside
-        className={`relative z-50 flex h-screen flex-col overflow-hidden bg-[#0F172A] transition-all duration-500 ${
+        className={`fixed inset-y-0 left-0 z-50 flex h-screen flex-col overflow-hidden bg-[#0F172A] shadow-[20px_0_60px_rgba(0,0,0,0.4)] transition-all duration-500 lg:relative lg:shadow-none ${
           isCollapsed ? 'w-20' : 'w-72'
         } ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
       >
@@ -618,6 +631,17 @@ const AdminLayout = () => {
           </div>
 
           <nav className="no-scrollbar mt-0 flex-1 space-y-8 overflow-y-auto px-4 pb-12 scroll-smooth">
+            {!isCollapsed && (
+              <div className="space-y-3 px-2">
+                <div className="flex items-center gap-2 px-2">
+                  <div className="h-3 w-1 rounded-full bg-white" />
+                  <span className="text-[12px] font-black uppercase tracking-widest text-white/90">
+                    Modules
+                  </span>
+                </div>
+                <AdminModuleSwitcher className="grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-white/5 p-1 shadow-none [&>button]:justify-center [&>button]:bg-transparent [&>button]:px-2 [&>button]:py-2.5 [&>button]:text-[10px] [&>button]:tracking-[0.18em] [&>button]:text-slate-300 [&>button[aria-current='page']]:bg-white [&>button[aria-current='page']]:text-slate-950 [&>button[aria-current='page']]:shadow-sm [&>button:not([aria-current='page'])]:hover:bg-white/10 [&>button:not([aria-current='page'])]:hover:text-white" />
+              </div>
+            )}
             {sidebarSections.map((section) => (
               <div key={section.title} className="space-y-1">
                 {!isCollapsed && (
@@ -647,18 +671,26 @@ const AdminLayout = () => {
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[#f0f4f8]">
-        <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-gray-100 bg-white px-6 shadow-sm">
-          <div className="flex items-center gap-3">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[#f0f4f8] lg:pl-0">
+        <header className="sticky top-0 z-30 flex h-16 min-w-0 items-center justify-between border-b border-gray-100 bg-white px-4 shadow-sm lg:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setIsSidebarOpen(true)}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition-all hover:border-indigo-300 hover:text-indigo-600 lg:hidden"
+            >
+              <Menu size={18} />
+            </button>
             <div className="h-6 w-1 rounded-full bg-indigo-600" />
-            <h2 className="text-[15px] font-bold tracking-tight text-slate-800">{pageTitle}</h2>
+            <h2 className="truncate text-[14px] font-bold tracking-tight text-slate-800 lg:text-[15px]">{pageTitle}</h2>
           </div>
 
-          <div className="flex items-center gap-3">
-            <AdminModuleSwitcher className="hidden md:flex" />
-            <ModeSwitcher mode={mode} setMode={setMode} />
+          <div className="flex shrink-0 items-center gap-2 lg:gap-3">
+            <div className="hidden sm:block">
+              <ModeSwitcher mode={mode} setMode={setMode} />
+            </div>
 
-            <div className="mr-1 flex items-center gap-1 border-r border-gray-100 pr-4 leading-none">
+            <div className="hidden items-center gap-1 border-r border-gray-100 pr-4 leading-none md:flex">
               <button className="rounded-lg p-2 text-gray-400 transition-all hover:bg-indigo-50 hover:text-indigo-600">
                 <Search size={18} />
               </button>
@@ -673,13 +705,13 @@ const AdminLayout = () => {
             <div ref={userMenuRef} className="relative">
               <button
                 type="button"
-                className="group flex cursor-pointer items-center gap-3 rounded-full border border-gray-100 bg-gray-50 px-3 py-1.5 transition-all hover:bg-gray-100"
+                className="group flex cursor-pointer items-center gap-2 rounded-full border border-gray-100 bg-gray-50 px-2.5 py-1.5 transition-all hover:bg-gray-100 lg:gap-3 lg:px-3"
                 onClick={() => setIsUserMenuOpen((current) => !current)}
               >
                 <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-slate-500 transition-all group-hover:bg-primary group-hover:text-white">
                   <Users size={14} />
                 </div>
-                <span className="text-[11px] font-black text-gray-950">Admin</span>
+                <span className="hidden text-[11px] font-black text-gray-950 sm:inline">Admin</span>
                 <ChevronDown size={14} className="text-gray-300" />
               </button>
 
@@ -704,7 +736,7 @@ const AdminLayout = () => {
           </div>
         </header>
 
-        <main className="no-scrollbar flex-1 overflow-y-auto p-4 scroll-smooth lg:p-8">
+        <main className="no-scrollbar flex-1 overflow-x-hidden overflow-y-auto p-4 scroll-smooth lg:p-8">
           <Outlet />
         </main>
       </div>

@@ -2,8 +2,13 @@ import React, { useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, MapPin, X, Plus, Minus, Check, Map as MapIcon, LoaderCircle, Navigation, AlertTriangle, ChevronRight } from 'lucide-react';
-import { GoogleMap, MarkerF } from '@react-google-maps/api';
+import { GoogleMap } from '@react-google-maps/api';
 import { useAppGoogleMapsLoader, INDIA_CENTER, HAS_VALID_GOOGLE_MAPS_KEY } from '../../../admin/utils/googleMaps';
+import {
+  getSavedTaxiLocation,
+  getSavedTaxiPickupCoords,
+  saveTaxiLocation,
+} from '../../services/savedLocation';
 
 const LOCATION_COORDS = {
   'Pipaliyahana, Indore': [75.9048, 22.7039],
@@ -26,12 +31,42 @@ const LOCATION_COORDS = {
 
 const getCoords = (title, fallback = [75.8577, 22.7196]) => LOCATION_COORDS[title] || fallback;
 
+const getInitialPickupState = (routeState = {}) => {
+  const savedLocation = getSavedTaxiLocation();
+  const savedPickup = savedLocation?.address || '';
+  const savedPickupCoords = getSavedTaxiPickupCoords();
+  const routePickup = String(routeState.pickup || '').trim();
+
+  if (routePickup) {
+    return {
+      pickup: routePickup,
+      pickupCoords:
+        routeState.pickupCoords ||
+        savedPickupCoords ||
+        getCoords(routePickup),
+    };
+  }
+
+  if (savedPickup) {
+    return {
+      pickup: savedPickup,
+      pickupCoords: savedPickupCoords || getCoords(savedPickup),
+    };
+  }
+
+  return {
+    pickup: 'Pipaliyahana, Indore',
+    pickupCoords: getCoords('Pipaliyahana, Indore'),
+  };
+};
+
 const SelectLocation = () => {
   const location = useLocation();
   const routeState = location.state || {};
-  const [pickup, setPickup] = useState(() => routeState.pickup || 'Pipaliyahana, Indore');
+  const initialPickupState = getInitialPickupState(routeState);
+  const [pickup, setPickup] = useState(() => initialPickupState.pickup);
   const [drop, setDrop] = useState(() => routeState.drop || '');
-  const [pickupCoords, setPickupCoords] = useState(() => routeState.pickupCoords || getCoords(routeState.pickup || 'Pipaliyahana, Indore'));
+  const [pickupCoords, setPickupCoords] = useState(() => initialPickupState.pickupCoords);
   const [dropCoords, setDropCoords] = useState(() => routeState.dropCoords || null);
   const [stops, setStops] = useState(() => routeState.stops || []);          // array of stop strings
   const [activeInput, setActiveInput] = useState('drop'); // 'pickup' | 'drop' | stopIdx
@@ -172,12 +207,17 @@ const SelectLocation = () => {
 
   const handleConfirmNavigate = async (optionalDrop, optionalDropCoords = null) => {
     const finalDrop = optionalDrop || drop;
-    const finalPickup = pickup || 'Pipaliyahana, Indore';
+    const finalPickup = pickup || initialPickupState.pickup;
     
     if (!finalDrop || finalDrop.trim().length === 0) return;
 
     const resolvedPickupCoords = pickupCoords || await resolveCoords(finalPickup);
     const resolvedDropCoords = optionalDropCoords || dropCoords || await resolveCoords(finalDrop);
+    saveTaxiLocation({
+      lat: resolvedPickupCoords?.[1],
+      lng: resolvedPickupCoords?.[0],
+      address: finalPickup,
+    });
 
     navigate(`${routePrefix}/ride/select-vehicle`, {
       state: {
@@ -196,6 +236,11 @@ const SelectLocation = () => {
     if (activeInput === 'pickup') {
       setPickup(finalAddress);
       setPickupCoords(selectedCoords);
+      saveTaxiLocation({
+        lat: selectedCoords[1],
+        lng: selectedCoords[0],
+        address: finalAddress,
+      });
       setActiveInput('drop');
     } else if (activeInput === 'drop') {
       setDrop(finalAddress);
@@ -282,6 +327,11 @@ const SelectLocation = () => {
     if (activeInput === 'pickup') {
       setPickup(title);
       setPickupCoords(resolvedCoords);
+      saveTaxiLocation({
+        lat: resolvedCoords?.[1],
+        lng: resolvedCoords?.[0],
+        address: title,
+      });
       setActiveInput('drop');
     } else if (activeInput === 'drop') {
       setDrop(title);
@@ -475,6 +525,15 @@ const SelectLocation = () => {
                   type="text"
                   value={pickup}
                   onChange={(e) => setPickup(e.target.value)}
+                  onBlur={() => {
+                    if (pickup.trim()) {
+                      saveTaxiLocation({
+                        lat: pickupCoords?.[1],
+                        lng: pickupCoords?.[0],
+                        address: pickup,
+                      });
+                    }
+                  }}
                   onFocus={() => setActiveInput('pickup')}
                   placeholder="Your pickup location"
                   className="w-full bg-transparent border-none text-[15px] font-medium text-slate-900 focus:outline-none placeholder:text-slate-300"

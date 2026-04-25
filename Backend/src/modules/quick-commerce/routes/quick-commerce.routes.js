@@ -10,7 +10,7 @@ import {
   getProducts,
 } from '../controllers/catalog.controller.js';
 import { addToCart, clearCart, getCart, removeCartItem, updateCartItem } from '../controllers/cart.controller.js';
-import { getMyOrders, getOrderById, placeOrder } from '../controllers/order.controller.js';
+import { cancelOrder, getMyOrders, getOrderById, placeOrder } from '../controllers/order.controller.js';
 import { addToWishlist, getWishlist, removeFromWishlist, toggleWishlist } from '../controllers/wishlist.controller.js';
 import {
   approveAdminSellerRequest,
@@ -33,6 +33,13 @@ import {
   updateAdminZone,
   deleteAdminZone,
   listPublicZones,
+  getAdminExperienceSections,
+  createAdminExperienceSection,
+  updateAdminExperienceSection,
+  deleteAdminExperienceSection,
+  reorderAdminExperienceSections,
+  getAdminHeroConfig,
+  setAdminHeroConfig,
 } from '../controllers/admin.controller.js';
 
 import { authMiddleware } from '../../../core/auth/auth.middleware.js';
@@ -79,6 +86,7 @@ router.delete('/cart/clear', optionalAuth, clearCart);
 router.post('/orders', optionalAuth, placeOrder);
 router.get('/orders', optionalAuth, getMyOrders);
 router.get('/orders/:orderId', optionalAuth, getOrderById);
+router.post('/orders/:orderId/cancel', optionalAuth, cancelOrder);
 
 router.get('/wishlist', optionalAuth, getWishlist);
 router.post('/wishlist/add', optionalAuth, addToWishlist);
@@ -111,5 +119,16 @@ router.get('/admin/zones/:zoneId', ...adminOnly, getAdminZoneById);
 router.post('/admin/zones', ...adminOnly, createAdminZone);
 router.patch('/admin/zones/:zoneId', ...adminOnly, updateAdminZone);
 router.delete('/admin/zones/:zoneId', ...adminOnly, deleteAdminZone);
+
+// Experience Sections Management
+router.get('/admin/experience/sections', ...adminOnly, getAdminExperienceSections);
+router.post('/admin/experience/sections', ...adminOnly, createAdminExperienceSection);
+router.put('/admin/experience/sections/:id', ...adminOnly, updateAdminExperienceSection);
+router.delete('/admin/experience/sections/:id', ...adminOnly, deleteAdminExperienceSection);
+router.post('/admin/experience/sections/reorder', ...adminOnly, reorderAdminExperienceSections);
+
+// Hero Configuration Management
+router.get('/admin/experience/hero', ...adminOnly, getAdminHeroConfig);
+router.post('/admin/experience/hero', ...adminOnly, setAdminHeroConfig);
 
 export default router;

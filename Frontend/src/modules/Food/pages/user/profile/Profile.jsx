@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation as useRouterLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -60,7 +60,38 @@ export default function Profile() {
     useProfile();
   const { openLocationSelector } = useLocationSelector();
   const navigate = useNavigate();
+  const routerLocation = useRouterLocation();
+  const routeSearchParams = new URLSearchParams(routerLocation.search);
   const companyName = useCompanyName();
+  const isSharedProfile = routerLocation.pathname.startsWith("/profile");
+  const profileSource = routeSearchParams.get("from");
+  const isQuickProfile =
+    routerLocation.pathname.startsWith("/quick") ||
+    (isSharedProfile && profileSource === "quick");
+  const sharedSourceQuery = profileSource ? `?from=${profileSource}` : "";
+  const backPath = isQuickProfile ? "/quick" : "/food/user";
+  const walletPath = isQuickProfile ? "/quick/wallet" : "/food/user/wallet";
+  const couponPath = isSharedProfile
+    ? `/profile/coupons${sharedSourceQuery}`
+    : isQuickProfile
+      ? "/quick/offers"
+      : "/user/profile/coupons";
+  const cartPath = isQuickProfile ? "/quick/cart" : "/cart";
+  const profileEditPath = isSharedProfile
+    ? `/profile/edit${sharedSourceQuery}`
+    : isQuickProfile
+      ? "/quick/profile/edit"
+      : "/user/profile/edit";
+  const supportPath = isSharedProfile
+    ? `/profile/support${sharedSourceQuery}`
+    : isQuickProfile
+      ? "/quick/support"
+      : "/user/profile/support";
+  const aboutPath = isSharedProfile
+    ? `/profile/about${sharedSourceQuery}`
+    : isQuickProfile
+      ? "/quick/about"
+      : "/user/profile/about";
   const defaultAddress = getDefaultAddress?.();
   const savedAddressSummary = defaultAddress
     ? [
@@ -108,6 +139,7 @@ export default function Profile() {
     }
     // Save to localStorage
     localStorage.setItem("appTheme", appearance);
+    window.dispatchEvent(new CustomEvent("app-theme-changed", { detail: { theme: appearance } }));
   }, [appearance]);
 
   // Get first letter of name for avatar
@@ -407,12 +439,20 @@ export default function Profile() {
     setLogoutConfirmOpen(true);
   };
 
+  const handleAddressesClick = () => {
+    if (isQuickProfile) {
+      navigate("/quick/addresses");
+      return;
+    }
+    openLocationSelector();
+  };
+
   return (
     <AnimatedPage className="min-h-screen bg-[#f5f5f5] dark:bg-[#0a0a0a]">
       <div className="max-w-md md:max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 py-4 sm:py-6 md:py-8 lg:py-10 pb-20 sm:pb-24">
         {/* Header: Back Arrow */}
         <div className="flex items-center mb-4">
-          <Link to="/user">
+          <Link to={backPath}>
             <Button variant="ghost" size="icon" className="h-8 w-8 p-0">
               <ArrowLeft className="h-5 w-5 text-black dark:text-white" />
             </Button>
@@ -474,7 +514,7 @@ export default function Profile() {
 
         {/* Account Options */}
         <div className="space-y-2 mb-3 mt-3">
-          <Link to="/user/wallet" className="block">
+          <Link to={walletPath} className="block">
             <motion.div
               whileHover={{ x: 4, scale: 1.01 }}
               transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
@@ -506,7 +546,7 @@ export default function Profile() {
             </motion.div>
           </Link>
 
-          <Link to="/user/profile/coupons" className="block">
+          <Link to={couponPath} className="block">
             <motion.div
               whileHover={{ x: 4, scale: 1.01 }}
               transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
@@ -520,7 +560,7 @@ export default function Profile() {
                       <Tag className="h-5 w-5 text-gray-700 dark:text-gray-300" />
                     </motion.div>
                     <span className="text-base font-medium text-gray-900 dark:text-white">
-                      Your coupons
+                      {isQuickProfile ? "Offers & coupons" : "Your coupons"}
                     </span>
                   </div>
                   <motion.div
@@ -533,7 +573,7 @@ export default function Profile() {
             </motion.div>
           </Link>
 
-          <Link to="/user/cart" className="block">
+          <Link to={cartPath} className="block">
             <motion.div
               whileHover={{ x: 4, scale: 1.01 }}
               transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
@@ -612,7 +652,7 @@ export default function Profile() {
             transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
             <Card
               className="bg-white dark:bg-[#1a1a1a] py-0 rounded-xl shadow-sm border-0 dark:border-gray-800 cursor-pointer"
-              onClick={openLocationSelector}>
+              onClick={handleAddressesClick}>
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-3 min-w-0">
                   <motion.div
@@ -644,7 +684,7 @@ export default function Profile() {
             </Card>
           </motion.div>
 
-          <Link to="/user/profile/edit" className="block">
+          <Link to={profileEditPath} className="block">
             <motion.div
               whileHover={{ x: 4, scale: 1.01 }}
               transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
@@ -827,6 +867,92 @@ export default function Profile() {
           </div>
         </div>
 
+        {/* Quick Commerce Section */}
+        <div className="mb-3">
+          <div className="flex items-center gap-2 mb-2 px-1">
+            <div className="w-1 h-4 bg-[#0c831f] rounded"></div>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+              Quick Commerce
+            </h3>
+          </div>
+          <div className="space-y-2">
+            <Link to="/quick/orders" className="block">
+              <motion.div
+                whileHover={{ x: 4, scale: 1.01 }}
+                transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
+                <Card className="bg-white dark:bg-[#1a1a1a] py-0 rounded-xl shadow-sm border-0 dark:border-gray-800 cursor-pointer">
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <motion.div
+                        className="bg-gray-100 dark:bg-gray-800 rounded-full p-2"
+                        whileHover={{ rotate: 15, scale: 1.1 }}
+                        transition={{ duration: 0.3 }}>
+                        <Building2 className="h-5 w-5 text-gray-700 dark:text-gray-300" />
+                      </motion.div>
+                      <span className="text-base font-medium text-gray-900 dark:text-white">
+                        Quick orders
+                      </span>
+                    </div>
+                    <motion.div whileHover={{ x: 4 }} transition={{ duration: 0.2 }}>
+                      <ChevronRight className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+                    </motion.div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </Link>
+
+            <Link to="/quick/transactions" className="block">
+              <motion.div
+                whileHover={{ x: 4, scale: 1.01 }}
+                transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
+                <Card className="bg-white dark:bg-[#1a1a1a] py-0 rounded-xl shadow-sm border-0 dark:border-gray-800 cursor-pointer">
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <motion.div
+                        className="bg-gray-100 dark:bg-gray-800 rounded-full p-2"
+                        whileHover={{ rotate: 15, scale: 1.1 }}
+                        transition={{ duration: 0.3 }}>
+                        <Percent className="h-5 w-5 text-gray-700 dark:text-gray-300" />
+                      </motion.div>
+                      <span className="text-base font-medium text-gray-900 dark:text-white">
+                        Order transactions
+                      </span>
+                    </div>
+                    <motion.div whileHover={{ x: 4 }} transition={{ duration: 0.2 }}>
+                      <ChevronRight className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+                    </motion.div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </Link>
+
+            <Link to="/quick/wishlist" className="block">
+              <motion.div
+                whileHover={{ x: 4, scale: 1.01 }}
+                transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
+                <Card className="bg-white dark:bg-[#1a1a1a] py-0 rounded-xl shadow-sm border-0 dark:border-gray-800 cursor-pointer">
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <motion.div
+                        className="bg-gray-100 dark:bg-gray-800 rounded-full p-2"
+                        whileHover={{ rotate: 15, scale: 1.1 }}
+                        transition={{ duration: 0.3 }}>
+                        <Bookmark className="h-5 w-5 text-gray-700 dark:text-gray-300" />
+                      </motion.div>
+                      <span className="text-base font-medium text-gray-900 dark:text-white">
+                        Quick wishlist
+                      </span>
+                    </div>
+                    <motion.div whileHover={{ x: 4 }} transition={{ duration: 0.2 }}>
+                      <ChevronRight className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+                    </motion.div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </Link>
+          </div>
+        </div>
+
         {/* More Section */}
         <div className="mb-8 pb-8">
           <div className="flex items-center gap-2 mb-2 px-1">
@@ -836,7 +962,7 @@ export default function Profile() {
             </h3>
           </div>
           <div className="space-y-2">
-            <Link to="/user/profile/support" className="block">
+            <Link to={supportPath} className="block">
               <motion.div
                 whileHover={{ x: 4, scale: 1.01 }}
                 transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
@@ -863,7 +989,7 @@ export default function Profile() {
               </motion.div>
             </Link>
 
-            <Link to="/user/profile/about" className="block">
+            <Link to={aboutPath} className="block">
               <motion.div
                 whileHover={{ x: 4, scale: 1.01 }}
                 transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>

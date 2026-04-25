@@ -419,7 +419,9 @@ const ProductManagement = () => {
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-2">
                                             <div className="h-2 w-2 rounded-full bg-blue-500" />
-                                            <span className="text-xs font-bold text-slate-700">{p.sellerId?.shopName || 'Admin'}</span>
+                                            <span className="text-xs font-bold text-slate-700">
+                                                {p.seller?.shopName || p.storeName || p.restaurantName || 'Admin'}
+                                            </span>
                                         </div>
                                     </td>
 

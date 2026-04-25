@@ -52,16 +52,24 @@ const mapCart = async (idQuery) => {
     .map((item) => {
       const product = productMap[String(item.productId)];
       if (!product) return null;
+      const unitPrice =
+        Number(product.salePrice || 0) > 0
+          ? Number(product.salePrice)
+          : Number(product.price || 0);
+      const mrp = Number(product.mrp || product.price || unitPrice || 0);
+
       return {
         id: String(product._id),
         productId: String(product._id),
         name: product.name,
         image: product.image,
-        price: product.price,
-        mrp: product.mrp,
+        price: unitPrice,
+        salePrice: Number(product.salePrice || 0),
+        mrp,
+        originalPrice: mrp,
         unit: product.unit,
         quantity: item.quantity,
-        lineTotal: item.quantity * product.price,
+        lineTotal: item.quantity * unitPrice,
       };
     })
     .filter(Boolean);

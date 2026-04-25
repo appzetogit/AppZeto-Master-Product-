@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-
 import { MapPin, FileText } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 import { socketService } from './shared/api/socket';
+import TaxiPageLoader from './shared/components/TaxiPageLoader';
 import { SettingsProvider } from './shared/context/SettingsContext';
 import { clearLocalUserSession, hasLocalUserToken } from './modules/user/services/authService';
 import './index.css';
@@ -395,14 +396,7 @@ function App() {
     <SettingsProvider>
       <UserAccountInvalidationListener />
       <MainLayout>
-        <Suspense fallback={
-          <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-white text-slate-700">
-            <span className="h-10 w-10 rounded-full border-4 border-slate-200 border-t-orange-500 animate-spin"></span>
-            <p className="text-[12px] font-black uppercase tracking-[0.18em] text-slate-500">
-              Loading taxi app
-            </p>
-          </div>
-        }>
+        <Suspense fallback={<TaxiPageLoader />}>
           <Toaster position="top-right" />
           <Routes>
             <Route path="" element={<Navigate to="/taxi/user" replace />} />

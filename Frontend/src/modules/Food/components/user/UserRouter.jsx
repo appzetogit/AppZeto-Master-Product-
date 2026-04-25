@@ -9,7 +9,6 @@ import ProtectedRoute from "@food/components/ProtectedRoute"
 // Home & Discovery
 const Home = lazy(() => import("../../pages/user/Home"))
 const Dining = lazy(() => import("@food/pages/user/Dining"))
-const DiningRestaurants = lazy(() => import("@food/pages/user/DiningRestaurants"))
 const DiningCategory = lazy(() => import("@food/pages/user/DiningCategory"))
 const DiningExplore50 = lazy(() => import("@food/pages/user/DiningExplore50"))
 const DiningExploreNear = lazy(() => import("@food/pages/user/DiningExploreNear"))
@@ -94,7 +93,7 @@ export default function UserRouter() {
           <Route path="" element={<Home />} />
           <Route path="quick" element={<Navigate to="/quick" replace />} />
           <Route path="dining" element={<Dining />} />
-          <Route path="dining/restaurants" element={<DiningRestaurants />} />
+          <Route path="dining/restaurants" element={<Navigate to="/food/user/dining" replace />} />
           <Route path="dining/:category" element={<DiningCategory />} />
           <Route path="dining/explore/upto50" element={<DiningExplore50 />} />
           <Route path="dining/explore/near-rated" element={<DiningExploreNear />} />
@@ -176,19 +175,11 @@ export default function UserRouter() {
           {/* Profile - Protected (require user auth) */}
           <Route
             path="profile"
-            element={
-              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
-                <Profile />
-              </ProtectedRoute>
-            }
+            element={<Navigate to="/profile?from=food" replace />}
           />
           <Route
             path="profile/edit"
-            element={
-              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
-                <EditProfile />
-              </ProtectedRoute>
-            }
+            element={<Navigate to="/profile/edit?from=food" replace />}
           />
           <Route
             path="profile/payments"
@@ -224,27 +215,15 @@ export default function UserRouter() {
           />
           <Route
             path="profile/support"
-            element={
-              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
-                <Support />
-              </ProtectedRoute>
-            }
+            element={<Navigate to="/profile/support?from=food" replace />}
           />
           <Route
             path="profile/coupons"
-            element={
-              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
-                <Coupons />
-              </ProtectedRoute>
-            }
+            element={<Navigate to="/profile/coupons?from=food" replace />}
           />
           <Route
             path="profile/about"
-            element={
-              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
-                <About />
-              </ProtectedRoute>
-            }
+            element={<Navigate to="/profile/about?from=food" replace />}
           />
 
           <Route

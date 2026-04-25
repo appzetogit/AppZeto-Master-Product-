@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Phone, MessageCircle, AlertTriangle, Shield, Star, ChevronLeft, Share2 } from 'lucide-react';
@@ -68,6 +68,8 @@ const RideTracking = () => {
   const [routePath, setRoutePath] = useState([]);
   const [routeError, setRouteError] = useState('');
   const [map, setMap] = useState(null);
+  const lastFittedRouteSignatureRef = useRef('');
+  const initialMapCenterRef = useRef(null);
   const [vehicleImageBroken, setVehicleImageBroken] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -76,6 +78,7 @@ const RideTracking = () => {
   const { isLoaded, loadError } = useAppGoogleMapsLoader();
   const routeHome = location.pathname.startsWith('/taxi/user') ? '/taxi/user' : '/';
   const routeComplete = location.pathname.startsWith('/taxi/user') ? '/taxi/user/ride/complete' : '/ride/complete';
+  const latestDriverRef = useRef(null);
 
   const rideId = state.rideId || '';
   const otp = state.otp || '1234';
@@ -99,6 +102,9 @@ const RideTracking = () => {
     () => toLatLng(rideRealtime?.driverLocation?.coordinates, pickupPosition),
     [pickupPosition, rideRealtime?.driverLocation?.coordinates],
   );
+  if (!initialMapCenterRef.current) {
+    initialMapCenterRef.current = driverPosition;
+  }
   const tripStatus = String(rideRealtime?.status || state.liveStatus || state.status || 'accepted').toLowerCase();
   const serviceType = String(state.serviceType || state.type || 'ride').toLowerCase();
   const activeDestination = useMemo(
@@ -119,6 +125,10 @@ const RideTracking = () => {
   const vehicleDetails = [driver.vehicleColor, driver.vehicleMake, driver.vehicleModel].filter(Boolean).join(' ');
   const activeRideEndpoint = serviceType === 'parcel' ? '/deliveries/active/me' : '/rides/active/me';
 
+  useEffect(() => {
+    latestDriverRef.current = driver;
+  }, [driver]);
+
   const handleCancelRide = async () => {
     try {
       if (rideId) {
@@ -136,16 +146,16 @@ const RideTracking = () => {
     setVehicleImageBroken(false);
   }, [vehicleImage]);
 
-  const exitTracking = useMemo(
-    () => () => {
+  const exitTracking = useCallback(
+    () => {
       clearCurrentRide();
       navigate(routeHome, { replace: true });
     },
     [navigate, routeHome],
   );
 
-  const completeTracking = useMemo(
-    () => (statusValue = 'completed') => {
+  const completeTracking = useCallback(
+    (statusValue = 'completed') => {
       clearCurrentRide();
       navigate(routeComplete, {
         replace: true,
@@ -166,6 +176,11 @@ const RideTracking = () => {
     },
     [driver, dropLabel, fare, navigate, paymentMethod, pickupLabel, rideId, rideRealtime?.completedAt, rideRealtime?.feedback, routeComplete, state],
   );
+  const completeTrackingRef = useRef(completeTracking);
+
+  useEffect(() => {
+    completeTrackingRef.current = completeTracking;
+  }, [completeTracking]);
 
   useEffect(() => {
     let active = true;
@@ -361,7 +376,7 @@ const RideTracking = () => {
           status: normalizedStatus,
           completedAt: payload.completedAt || prev?.completedAt || null,
         }));
-        completeTracking(normalizedStatus);
+        completeTrackingRef.current(normalizedStatus);
         return;
       }
 
@@ -371,7 +386,7 @@ const RideTracking = () => {
         saveCurrentRide({
           ...state,
           rideId,
-          driver,
+          driver: latestDriverRef.current || fallbackDriver,
           status: nextStatus,
         });
       }
@@ -393,7 +408,7 @@ const RideTracking = () => {
       socketService.off('ride:driver-location:updated', onLocationUpdated);
       socketService.off('ride:status:updated', onStatusUpdated);
     };
-  }, [completeTracking, fallbackDriver, rideId, state, state.drop, state.pickup]);
+  }, [fallbackDriver, rideId, state, state.drop, state.pickup]);
 
   useEffect(() => {
     if (!isLoaded || !window.google?.maps?.DirectionsService) {
@@ -450,6 +465,19 @@ const RideTracking = () => {
     }
 
     if (routePath.length > 1) {
+      const routeSignature = [
+        routePath[routePath.length - 1]?.lat,
+        routePath[routePath.length - 1]?.lng,
+        activeDestination?.lat,
+        activeDestination?.lng,
+        tripStatus,
+      ].join(':');
+
+      if (lastFittedRouteSignatureRef.current === routeSignature) {
+        return;
+      }
+
+      lastFittedRouteSignatureRef.current = routeSignature;
       const bounds = new window.google.maps.LatLngBounds();
       routePath.forEach((point) => bounds.extend(point));
       bounds.extend(driverPosition);
@@ -518,7 +546,7 @@ const RideTracking = () => {
         ) : isLoaded ? (
           <GoogleMap
             mapContainerStyle={MAP_CONTAINER_STYLE}
-            center={driverPosition}
+            center={initialMapCenterRef.current}
             zoom={14}
             onLoad={setMap}
             onUnmount={() => setMap(null)}

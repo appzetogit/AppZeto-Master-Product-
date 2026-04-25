@@ -8,6 +8,8 @@ import {
     verifyRestaurantOtpController,
     requestDeliveryOtpController,
     verifyDeliveryOtpController,
+    requestHotelPartnerOtpController,
+    verifyHotelPartnerOtpController,
     logoutController,
     getMeController,
     updateAdminProfileController,
@@ -33,6 +35,14 @@ router.post('/restaurant/verify-otp', authRateLimiter, verifyRestaurantOtpContro
 // Delivery partner OTP login
 router.post('/delivery/request-otp', authRateLimiter, requestDeliveryOtpController);
 router.post('/delivery/verify-otp', authRateLimiter, verifyDeliveryOtpController);
+
+// Hotel partner OTP login
+router.post('/hotel-partner/request-otp', authRateLimiter, requestHotelPartnerOtpController);
+router.post('/hotel-partner/verify-otp', authRateLimiter, verifyHotelPartnerOtpController);
+
+// Backward-compatible alias for any old hotel build already open in the browser
+router.post('/partner/request-otp', authRateLimiter, requestHotelPartnerOtpController);
+router.post('/partner/verify-otp', authRateLimiter, verifyHotelPartnerOtpController);
 
 // Admin login
 router.post('/admin/login', authRateLimiter, adminLoginController);

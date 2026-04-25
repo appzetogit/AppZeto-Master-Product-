@@ -11,6 +11,7 @@ const debugError = (...args) => {}
 import SearchOverlay from "./SearchOverlay"
 import BottomNavigation from "./BottomNavigation"
 import DesktopNavbar from "./DesktopNavbar"
+import QuickBottomNav from "@/modules/quickCommerce/user/components/layout/BottomNav"
 import { useUserNotifications } from "../../hooks/useUserNotifications"
 
 // Create SearchOverlay context with default value
@@ -71,9 +72,7 @@ const LocationSelectorContext = createContext({
 
 export function useLocationSelector() {
   const context = useContext(LocationSelectorContext)
-  if (!context) {
-    throw new Error("useLocationSelector must be used within LocationSelectorProvider")
-  }
+  // Use the default value when this hook is called outside the food user layout.
   return context
 }
 
@@ -125,17 +124,21 @@ export default function UserLayout() {
     : location.pathname
   const normalizedPath =
     path.length > 1 ? path.replace(/\/+$/, "") : path
+  const profileSource = new URLSearchParams(location.search).get("from")
+  const isSharedQuickProfile =
+    normalizedPath === "/profile" &&
+    profileSource === "quick"
+
+  const isSharedFoodProfile =
+    normalizedPath === "/profile" &&
+    profileSource !== "quick"
 
   const isProfileRoot =
-    normalizedPath === "/profile" ||
-    normalizedPath === "/user/profile"
-
-  const isQuickRoute =
-    normalizedPath === "/quick" || normalizedPath.startsWith("/quick/")
+    normalizedPath === "/user/profile" ||
+    isSharedFoodProfile
 
   const showBottomNav = normalizedPath === "/" ||
     normalizedPath === "/user" ||
-    isQuickRoute ||
     normalizedPath === "/dining" ||
     normalizedPath === "/user/dining" ||
     normalizedPath === "/under-250" ||
@@ -144,6 +147,7 @@ export default function UserLayout() {
     normalizedPath === "" // Handle empty string case for root relative to /food
 
   const isUnder250 = normalizedPath === "/under-250" || normalizedPath === "/user/under-250"
+  const showFoodBottomNav = showBottomNav && !isSharedQuickProfile
 
   return (
     <div className="min-h-screen bg-[#f5f5f5] dark:bg-[#0a0a0a] transition-colors duration-200">
@@ -155,13 +159,14 @@ export default function UserLayout() {
                   {/* <Navbar /> */}
                   {/* Desktop Navbar - Hidden on mobile, visible on medium+ screens */}
                   <div className="hidden md:block">
-                    {showBottomNav && <DesktopNavbar showLogo={!isUnder250} />}
+                    {showFoodBottomNav && <DesktopNavbar showLogo={!isUnder250} />}
                   </div>
                   <LocationPrompt />
-                  <main className={showBottomNav ? "md:pt-40" : ""}>
+                  <main className={showFoodBottomNav ? "md:pt-40" : ""}>
                     <Outlet />
                   </main>
-                  {showBottomNav && <BottomNavigation />}
+                  {showFoodBottomNav && <BottomNavigation />}
+                  {isSharedQuickProfile && <QuickBottomNav />}
                 </LocationSelectorProvider>
               </SearchOverlayProvider>
           </OrdersProvider>

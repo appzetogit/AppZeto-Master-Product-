@@ -1,6 +1,6 @@
 import React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Car, ShoppingBasket, UtensilsCrossed } from "lucide-react";
+import { Bed, Car, ShoppingBasket, UtensilsCrossed } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const ADMIN_MODULES = [
@@ -26,7 +26,17 @@ const ADMIN_MODULES = [
     shortLabel: "Taxi",
     path: "/taxi/admin/dashboard",
     icon: Car,
-    active: (pathname) => pathname.startsWith("/taxi/admin"),
+    active: (pathname) =>
+      pathname.startsWith("/taxi/admin") || pathname.startsWith("/admin/taxi"),
+  },
+  {
+    key: "hotel",
+    label: "Hotel",
+    shortLabel: "Hotel",
+    path: "/hotel/admin/dashboard",
+    icon: Bed,
+    active: (pathname) =>
+      pathname.startsWith("/hotel/admin") || pathname.startsWith("/admin/hotel"),
   },
 ];
 

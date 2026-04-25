@@ -21,6 +21,7 @@ import webhookRoutes from '../core/payments/routes/webhook.routes.js';
 import sellerRoutes from '../modules/quick-commerce/seller/routes/seller.routes.js';
 import searchRoutes from '../modules/food/search/routes/search.routes.js';
 import { taxiRouter } from '../modules/taxi/routes/index.js';
+import hotelRoutes from '../modules/hotel/routes/index.js';
 
 const router = express.Router();
 
@@ -61,6 +62,7 @@ router.use('/v1/fcm-tokens', fcmRoutes);
 router.use('/fcm-tokens', fcmRoutes);
 router.use('/v1/quick-commerce', quickCommerceRoutes);
 router.use('/v1/seller', sellerRoutes);
+router.use('/v1/hotel', hotelRoutes);
 
 // router.get('/v1/env/public', getPublicEnvController);
 // router.get('/env/public', getPublicEnvController);

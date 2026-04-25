@@ -25,7 +25,38 @@ const diningRestaurantSchema = new mongoose.Schema(
         maxGuests: {
             type: Number,
             default: 6,
-            min: 1
+            min: 0
+        },
+        pendingRequest: {
+            isEnabled: {
+                type: Boolean,
+                default: undefined
+            },
+            maxGuests: {
+                type: Number,
+                min: 0,
+                default: undefined
+            },
+            categoryIds: [
+                {
+                    type: mongoose.Schema.Types.ObjectId,
+                    ref: 'FoodDiningCategory'
+                }
+            ],
+            primaryCategoryId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'FoodDiningCategory',
+                default: null
+            },
+            requestedAt: {
+                type: Date,
+                default: null
+            },
+            note: {
+                type: String,
+                trim: true,
+                default: ''
+            }
         },
         pureVegRestaurant: {
             type: Boolean,

@@ -290,6 +290,7 @@ export function setAuthData(module, token, user, refreshToken = null) {
     if (module === "user") {
       localStorage.setItem("auth_customer", token);
       localStorage.setItem("accessToken", token);
+      localStorage.setItem("token", token);
     }
     if (refreshToken && typeof refreshToken === "string") {
       localStorage.setItem(refreshTokenKey, refreshToken);
@@ -299,6 +300,9 @@ export function setAuthData(module, token, user, refreshToken = null) {
     if (user) {
       try {
         localStorage.setItem(userKey, JSON.stringify(user));
+        if (module === "user") {
+          localStorage.setItem("user", JSON.stringify(user));
+        }
       } catch (userError) {
         console.warn('Failed to store user data, but token was stored:', userError);
         // Don't throw - token storage is more important
@@ -349,6 +353,7 @@ export function setAuthData(module, token, user, refreshToken = null) {
         if (module === "user") {
           localStorage.setItem("auth_customer", token);
           localStorage.setItem("accessToken", token);
+          localStorage.setItem("token", token);
         }
         if (refreshToken && typeof refreshToken === "string") {
           localStorage.setItem(`${module}_refreshToken`, refreshToken);
@@ -356,6 +361,9 @@ export function setAuthData(module, token, user, refreshToken = null) {
         localStorage.setItem(`${module}_authenticated`, 'true');
         if (user) {
           localStorage.setItem(`${module}_user`, JSON.stringify(user));
+          if (module === "user") {
+            localStorage.setItem("user", JSON.stringify(user));
+          }
         }
         
         // Verify again after retry

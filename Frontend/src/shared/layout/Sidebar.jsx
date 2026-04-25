@@ -1,11 +1,12 @@
 import React, { useState } from "react";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/core/context/AuthContext";
 import { useSettings } from "@/core/context/SettingsContext";
 import { cn } from "@/lib/utils";
 import { HiChevronDown } from "react-icons/hi2";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
+import AdminModuleSwitcher from "@/shared/components/AdminModuleSwitcher";
 
 const colorMap = {
   indigo:
@@ -199,14 +200,7 @@ const SidebarContent = ({ items, title, onClose, openMenu, handleToggle, hovered
   const { settings } = useSettings();
   const appName = settings?.appName || 'App';
   const location = useLocation();
-  const navigate = useNavigate();
   const isAdminPanel = location.pathname.startsWith("/admin");
-  const isQuickAdmin = location.pathname.startsWith("/admin/quick-commerce");
-
-  const switchAdminModule = (target) => {
-    navigate(target === "quick" ? "/admin/quick-commerce" : "/admin/food");
-    onClose?.();
-  };
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -245,34 +239,7 @@ const SidebarContent = ({ items, title, onClose, openMenu, handleToggle, hovered
             <p className="px-3 text-[9px] font-black text-gray-600 uppercase tracking-[0.3em] mb-2">
               Module
             </p>
-            <div className="rounded-xl border border-white/10 bg-white/5 p-1">
-              <div className="grid grid-cols-2 gap-1">
-                <button
-                  type="button"
-                  onClick={() => switchAdminModule("food")}
-                  className={cn(
-                    "rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] transition-all",
-                    !isQuickAdmin
-                      ? "bg-white text-[#0a0c10] shadow-sm"
-                      : "text-gray-400 hover:text-white"
-                  )}
-                >
-                  Food
-                </button>
-                <button
-                  type="button"
-                  onClick={() => switchAdminModule("quick")}
-                  className={cn(
-                    "rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] transition-all",
-                    isQuickAdmin
-                      ? "bg-[#0c831f] text-white shadow-[0_8px_20px_rgba(12,131,31,0.32)]"
-                      : "text-gray-400 hover:text-white"
-                  )}
-                >
-                  Quick
-                </button>
-              </div>
-            </div>
+            <AdminModuleSwitcher className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-white/5 p-1 shadow-none [&>button]:justify-center [&>button]:px-2 [&>button]:py-2 [&>button]:text-[10px] [&>button]:tracking-[0.18em]" />
           </div>
         )}
         <p className="px-3 text-[9px] font-black text-gray-600 uppercase tracking-[0.3em] mb-3">

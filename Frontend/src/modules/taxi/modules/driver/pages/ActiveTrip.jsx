@@ -14,7 +14,6 @@ import {
     CheckCircle2,
     Package,
     User,
-    ArrowUpRight,
     ArrowLeft,
     Clock3,
     MapPinned,
@@ -104,6 +103,32 @@ const getDistanceMeters = (first, second) => {
 
     return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
+
+const getPathDistanceMeters = (path = []) => path.slice(1).reduce(
+    (total, point, index) => total + getDistanceMeters(path[index], point),
+    0,
+);
+
+const formatEta = (distanceMeters, phase) => {
+    if (phase === 'otp_verification' || phase === 'payment_confirm' || phase === 'review') {
+        return '--';
+    }
+
+    if (!Number.isFinite(distanceMeters) || distanceMeters <= 20) {
+        return 'Arriving';
+    }
+
+    const metersPerMinute = phase === 'to_pickup' ? 420 : 520;
+    return `${Math.max(1, Math.ceil(distanceMeters / metersPerMinute))} mins`;
+};
+
+const getTripStageMeta = (phase) => ({
+    to_pickup: { stage: 'To Pickup', route: 'Pickup First' },
+    otp_verification: { stage: 'Verify OTP', route: 'At Pickup' },
+    in_trip: { stage: 'On Trip', route: 'To Destination' },
+    payment_confirm: { stage: 'Collect Pay', route: 'Payment' },
+    review: { stage: 'Complete', route: 'Finished' },
+}[phase] || { stage: 'Active', route: 'Route' });
 
 const interpolatePosition = (start, end, ratio) => ({
     lat: Number(start.lat) + (Number(end.lat) - Number(start.lat)) * ratio,
@@ -332,6 +357,30 @@ const ActiveTrip = () => {
         if (!simulationRoute.length) return 0;
         return Math.min(100, Math.round((simulationStep / Math.max(simulationRoute.length - 1, 1)) * 100));
     }, [simulationRoute.length, simulationStep]);
+    const remainingDistanceMeters = useMemo(
+        () => getPathDistanceMeters(visibleRoutePath.length > 1 ? visibleRoutePath : [driverPosition, activeDestination]),
+        [activeDestination, driverPosition, visibleRoutePath],
+    );
+    const tripStageMeta = useMemo(() => getTripStageMeta(phase), [phase]);
+    const tripStats = useMemo(() => ([
+        {
+            label: 'Trip Stage',
+            value: tripStageMeta.stage,
+            icon: null,
+        },
+        {
+            label: 'ETA',
+            value: formatEta(remainingDistanceMeters, phase),
+            icon: Clock3,
+            iconClassName: 'text-orange-500',
+        },
+        {
+            label: 'Route',
+            value: tripStageMeta.route,
+            icon: MapPinned,
+            iconClassName: 'text-slate-500',
+        },
+    ]), [phase, remainingDistanceMeters, tripStageMeta]);
 
     const tripData = isParcel ? {
         sender: {
@@ -806,42 +855,20 @@ const ActiveTrip = () => {
                     <ArrowLeft size={18} className="text-slate-900" />
                 </button>
 
-                <div className="absolute top-8 left-16 right-4 z-50 flex items-center gap-3 bg-slate-900/92 backdrop-blur-xl p-3 rounded-2xl border border-white/10 shadow-2xl">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-slate-900 shadow-xl ${isParcel ? 'bg-orange-500' : 'bg-white'}`}>
-                        {isParcel ? <Package size={20} strokeWidth={2.5} /> : <img src={carIcon} alt="Taxi" className="h-7 w-7 object-contain" />}
-                    </div>
-                    <div className="flex-1 space-y-0.5 overflow-hidden">
-                        <h4 className="text-[9px] font-semibold uppercase tracking-wide leading-none flex items-center gap-2 text-amber-300">
-                            Driver Live
-                            <ArrowUpRight size={12} strokeWidth={3} />
-                        </h4>
-                        <p className="text-[13px] font-semibold text-white leading-tight truncate uppercase">
-                            {driverPosition.lat.toFixed(4)}, {driverPosition.lng.toFixed(4)}
-                        </p>
-                    </div>
-                </div>
+                <div className="absolute top-8 left-16 right-4 z-50 grid grid-cols-[minmax(0,1.15fr)_minmax(66px,0.72fr)_minmax(0,1fr)] gap-1.5">
+                    {tripStats.map((stat) => {
+                        const Icon = stat.icon;
 
-                <div className="absolute top-28 left-4 right-4 z-40 grid grid-cols-[minmax(0,1.25fr)_minmax(72px,0.75fr)_minmax(104px,1fr)] gap-2">
-                    <div className="min-w-0 rounded-2xl bg-white/92 border border-white/80 shadow-lg px-3 py-2">
-                        <p className="text-[8px] font-black uppercase tracking-[0.22em] text-slate-400">Trip Stage</p>
-                        <p className="text-[11px] font-black text-slate-900 mt-1 truncate">
-                            {phase === 'to_pickup' ? 'Heading To Pickup' : phase === 'otp_verification' ? 'Verify OTP' : phase === 'in_trip' ? 'On Trip' : phase === 'payment_confirm' ? 'Collect Payment' : 'Complete'}
-                        </p>
-                    </div>
-                    <div className="min-w-0 rounded-2xl bg-white/92 border border-white/80 shadow-lg px-3 py-2">
-                        <p className="text-[8px] font-black uppercase tracking-[0.22em] text-slate-400">ETA</p>
-                        <div className="flex items-center gap-1.5 mt-1">
-                            <Clock3 size={12} className="text-orange-500" />
-                            <p className="text-[11px] font-black text-slate-900 truncate">{phase === 'to_pickup' ? '2 mins' : '12 mins'}</p>
-                        </div>
-                    </div>
-                    <div className="min-w-0 rounded-2xl bg-white/92 border border-white/80 shadow-lg px-3 py-2">
-                        <p className="text-[8px] font-black uppercase tracking-[0.22em] text-slate-400">Route</p>
-                        <div className="flex items-center gap-1.5 mt-1">
-                            <MapPinned size={12} className="shrink-0 text-slate-500" />
-                            <p className="truncate text-[11px] font-black text-slate-900">{phase === 'to_pickup' ? 'Pickup First' : 'To Destination'}</p>
-                        </div>
-                    </div>
+                        return (
+                            <div key={stat.label} className="min-w-0 rounded-2xl border border-white/80 bg-white/92 px-2.5 py-2 shadow-lg backdrop-blur-md">
+                                <p className="truncate text-[7px] font-black uppercase tracking-[0.18em] text-slate-400">{stat.label}</p>
+                                <div className="mt-1 flex min-w-0 items-center gap-1.5">
+                                    {Icon ? <Icon size={11} className={`shrink-0 ${stat.iconClassName || 'text-slate-500'}`} /> : null}
+                                    <p className="truncate text-[10px] font-black leading-none text-slate-900">{stat.value}</p>
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
 
                 {canSimulateMovement && (

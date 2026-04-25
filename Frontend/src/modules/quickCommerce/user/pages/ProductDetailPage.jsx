@@ -59,10 +59,12 @@ const normalizeProduct = (product = {}, fallback = {}) => {
     .filter(Boolean);
 
   const images = [...new Set(imageCandidates)];
-  const price = normalizePrice(source.price ?? source.salePrice, 0);
+  const salePrice = normalizePrice(source.salePrice, 0);
+  const basePrice = normalizePrice(source.price, salePrice);
+  const price = salePrice > 0 ? salePrice : basePrice;
   const originalPrice = Math.max(
     price,
-    normalizePrice(source.originalPrice ?? source.mrp, price),
+    normalizePrice(source.originalPrice ?? source.mrp ?? source.price, price),
   );
   const stock = normalizePrice(source.stock, 0);
 
@@ -420,38 +422,40 @@ const ProductDetailPage = () => {
           </div>
 
           <div className="flex flex-col items-center gap-6 rounded-[2.5rem] border border-slate-100 bg-slate-50 p-6 sm:flex-row">
-            {quantity > 0 ? (
-              <div className="flex h-16 w-full items-center rounded-2xl bg-[#0c831f] px-2 text-white shadow-xl shadow-green-100 sm:w-auto">
-                <button
-                  onClick={() =>
-                    quantity === 1
-                      ? removeFromCart(product.id || product._id)
-                      : updateQuantity(product.id || product._id, -1)
-                  }
-                  className="flex h-12 w-12 items-center justify-center rounded-xl transition-all hover:bg-white/20"
-                >
-                  <Minus size={24} strokeWidth={3} />
-                </button>
-                <span className="w-16 text-center text-xl font-black">{quantity}</span>
-                <button
-                  onClick={() => updateQuantity(product.id || product._id, 1)}
-                  className="flex h-12 w-12 items-center justify-center rounded-xl transition-all hover:bg-white/20"
-                >
-                  <Plus size={24} strokeWidth={3} />
-                </button>
-              </div>
-            ) : (
-                <Button
-                  onClick={async () => {
-                    await addToCart(product);
-                    showToast(`${product.name} added to cart`, "success");
-                  }}
-                  className="h-16 w-full rounded-2xl bg-[#0c831f] text-lg font-black text-white shadow-xl shadow-green-100 transition-all hover:-translate-y-1 hover:bg-[#0b721b] sm:w-64"
-                >
-                <Plus className="mr-2" size={24} strokeWidth={3} />
-                ADD TO CART
-              </Button>
-            )}
+            <div className="w-full sm:w-72">
+              {quantity > 0 ? (
+                <div className="flex h-16 w-full items-center rounded-2xl bg-[#0c831f] px-2 text-white shadow-xl shadow-green-100">
+                  <button
+                    onClick={() =>
+                      quantity === 1
+                        ? removeFromCart(product.id || product._id)
+                        : updateQuantity(product.id || product._id, -1)
+                    }
+                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl transition-all hover:bg-white/20"
+                  >
+                    <Minus size={24} strokeWidth={3} />
+                  </button>
+                  <span className="flex-1 text-center text-xl font-black">{quantity}</span>
+                  <button
+                    onClick={() => updateQuantity(product.id || product._id, 1)}
+                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl transition-all hover:bg-white/20"
+                  >
+                    <Plus size={24} strokeWidth={3} />
+                  </button>
+                </div>
+              ) : (
+                  <Button
+                    onClick={async () => {
+                      await addToCart(product);
+                      showToast(`${product.name} added to cart`, "success");
+                    }}
+                    className="h-16 w-full rounded-2xl bg-[#0c831f] text-lg font-black text-white shadow-xl shadow-green-100 transition-all hover:-translate-y-1 hover:bg-[#0b721b]"
+                  >
+                  <Plus className="mr-2" size={24} strokeWidth={3} />
+                  ADD TO CART
+                </Button>
+              )}
+            </div>
 
             <div className="flex flex-col gap-1 text-center sm:text-left">
               <span className="flex items-center justify-center gap-1 text-xs font-black uppercase tracking-widest text-[#0c831f] sm:justify-start">

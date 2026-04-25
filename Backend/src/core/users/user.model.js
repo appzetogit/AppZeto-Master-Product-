@@ -139,13 +139,81 @@ const userSchema = new mongoose.Schema(
             default: 0,
             min: 0
         },
+        isPartner: {
+            type: Boolean,
+            default: false
+        },
+        partnerApprovalStatus: {
+            type: String,
+            enum: ['pending', 'approved', 'rejected'],
+            default: 'pending'
+        },
+        partnerSince: {
+            type: Date,
+            default: null
+        },
+        savedHotels: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'HotelProperty'
+        }],
+        hotelFcmTokens: {
+            app: {
+                type: String,
+                default: null
+            },
+            web: {
+                type: String,
+                default: null
+            }
+        },
+        address: {
+            street: { type: String, trim: true },
+            city: { type: String, trim: true },
+            state: { type: String, trim: true },
+            zipCode: { type: String, trim: true },
+            country: { type: String, default: 'India', trim: true },
+            coordinates: {
+                lat: { type: Number },
+                lng: { type: Number }
+            }
+        },
+        aadhaarNumber: { type: String, trim: true },
+        aadhaarFront: { type: String },
+        aadhaarBack: { type: String },
+        panNumber: { type: String, trim: true },
+        panCardImage: { type: String },
+        termsAccepted: { type: Boolean, default: false },
+        registrationStep: {
+            type: Number,
+            default: 1
+        },
+        otp: {
+            type: String,
+            select: false
+        },
+        otpExpires: {
+            type: Date,
+            select: false
+        },
+        profileImagePublicId: {
+            type: String,
+            default: null
+        },
+        isBlocked: {
+            type: Boolean,
+            default: false
+        },
+        isDeleted: {
+            type: Boolean,
+            default: false
+        },
         addresses: {
             type: [userAddressSchema],
             default: []
         }
     },
     {
-        collection: 'food_users',
+        collection: 'users',
         timestamps: true
     }
 );

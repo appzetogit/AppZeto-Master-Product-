@@ -511,7 +511,7 @@ export async function getDashboardStats(query = {}) {
                 { $limit: 5 },
                 {
                     $lookup: {
-                        from: 'food_users',
+                        from: 'users',
                         localField: '_id',
                         foreignField: '_id',
                         as: 'user'

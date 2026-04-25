@@ -45,6 +45,7 @@ import {
   ExploreGridSkeleton,
   HeroBannerSkeleton,
   LoadingSkeletonRegion,
+  RestaurantCardSkeleton,
   RestaurantGridSkeleton,
 } from "@food/components/ui/loading-skeletons";
 import { useProfile } from "@food/context/ProfileContext";
@@ -141,6 +142,52 @@ const InlineLazyFallback = ({ className = "" }) => (
 );
 
 const WEBVIEW_SESSION_CACHE_BUSTER = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+const getStoredDeliveryAddressMode = () => {
+  if (typeof window === "undefined") return "saved";
+  return window.localStorage.getItem("deliveryAddressMode") || "saved";
+};
+
+const LazyComponent = React.memo(({ children, placeholder, rootMargin = "300px" }) => {
+  const [inView, setInView] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (inView) return;
+    const currentRef = ref.current;
+    if (!currentRef) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setInView(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin, threshold: 0.01 }
+    );
+
+    observer.observe(currentRef);
+    return () => observer.disconnect();
+  }, [inView, rootMargin]);
+
+  return (
+    <div ref={ref} className="h-full min-h-[150px]">
+      {inView ? (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
+          className="h-full"
+        >
+          {children}
+        </motion.div>
+      ) : (
+        placeholder || <div className="h-full w-full animate-pulse rounded-3xl bg-slate-100/60" />
+      )}
+    </div>
+  );
+});
 
 const getRestaurantDisplayName = (restaurant) => {
   const nameCandidates = [
@@ -422,7 +469,6 @@ export default function Home() {
   const [vegModeOption, setVegModeOption] = useState("all"); // "all" or "pure-veg"
   const [isApplyingVegMode, setIsApplyingVegMode] = useState(false);
   const [isSwitchingOffVegMode, setIsSwitchingOffVegMode] = useState(false);
-  const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0, triangleLeft: 0 });
   const vegModeToggleRef = useRef(null);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const [heroBannerImages, setHeroBannerImages] = useState([]);
@@ -448,7 +494,7 @@ export default function Home() {
   const [, setRestaurantDietMeta] = useState({});
   const [showAllCategoriesModal, setShowAllCategoriesModal] = useState(false);
   const [availabilityTick, setAvailabilityTick] = useState(Date.now());
-  const RESTAURANTS_BATCH_SIZE = 9;
+  const RESTAURANTS_BATCH_SIZE = 6;
   const [visibleRestaurantCount, setVisibleRestaurantCount] = useState(
     RESTAURANTS_BATCH_SIZE,
   );
@@ -773,23 +819,6 @@ export default function Home() {
 
     if (newValue && !prevVegMode) {
       // Veg mode was just turned ON
-      // Calculate popup position relative to toggle
-      if (vegModeToggleRef.current) {
-        const rect = vegModeToggleRef.current.getBoundingClientRect();
-        const screenWidth = window.innerWidth;
-        const popupWidth = Math.min(screenWidth - 32, 320); // 320 is max-w-xs
-        
-        let left = rect.left + rect.width / 2 - popupWidth / 2;
-        left = Math.max(16, Math.min(left, screenWidth - popupWidth - 16));
-        
-        const triangleLeft = rect.left + rect.width / 2 - left;
-        
-        setPopupPosition({
-          top: rect.bottom + 10,
-          left: left,
-          triangleLeft: triangleLeft
-        });
-      }
       setShowVegModePopup(true);
       // Don't update context yet - wait for user to apply or cancel
     } else if (!newValue && prevVegMode) {
@@ -803,73 +832,6 @@ export default function Home() {
       setPrevVegMode(newValue);
     }
   };
-
-  // Update popup position on scroll/resize
-  useEffect(() => {
-    if (!showVegModePopup) return;
-
-    const updatePosition = () => {
-      if (vegModeToggleRef.current) {
-        const rect = vegModeToggleRef.current.getBoundingClientRect();
-        const screenWidth = window.innerWidth;
-        const popupWidth = Math.min(screenWidth - 32, 320);
-        
-        let left = rect.left + rect.width / 2 - popupWidth / 2;
-        left = Math.max(16, Math.min(left, screenWidth - popupWidth - 16));
-        
-        const triangleLeft = rect.left + rect.width / 2 - left;
-        
-        setPopupPosition({
-          top: rect.bottom + 10,
-          left: left,
-          triangleLeft: triangleLeft
-        });
-      }
-    };
-
-    window.addEventListener("scroll", updatePosition, true);
-    window.addEventListener("resize", updatePosition);
-
-    return () => {
-      window.removeEventListener("scroll", updatePosition, true);
-      window.removeEventListener("resize", updatePosition);
-    };
-  }, [showVegModePopup]);
-
-  // Fetch hero banners from public API (no auth required)
-  useEffect(() => {
-    let cancelled = false;
-    setLoadingBanners(true);
-    publicGetOnce("/food/hero-banners/public")
-      .then((response) => {
-        if (cancelled) return;
-        const data = response?.data?.data;
-        const list = Array.isArray(data?.banners)
-          ? data.banners
-          : Array.isArray(data)
-            ? data
-            : [];
-        const images = list
-          .map((b) => (b && typeof b.imageUrl === "string" ? b.imageUrl : ""))
-          .filter(Boolean);
-        
-        setHeroBannerImages(images);
-        setHeroBannersData(list);
-        setCurrentBannerIndex(0);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        debugError("Failed to fetch hero banners", err);
-        setHeroBannerImages([]);
-        setHeroBannersData([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingBanners(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   // Old backend endpoint removed: keep UI stable with empty categories.
   useEffect(() => {
@@ -1107,16 +1069,241 @@ export default function Home() {
   const { addToCart, cart } = useCart();
   const { location, loading, requestLocation } = useLocation();
   const {
-    zoneId,
-    zoneStatus,
-    isInService,
-    isOutOfService,
-    loading: zoneLoading,
-    error: zoneError,
+    zoneId: liveZoneId,
+    zoneStatus: liveZoneStatus,
+    isInService: isLiveLocationInService,
+    isOutOfService: isLiveLocationOutOfService,
+    loading: liveZoneLoading,
+    error: liveZoneError,
   } = useZone(location);
   const [showToast, setShowToast] = useState(false);
   const [showManageCollections, setShowManageCollections] = useState(false);
   const [selectedRestaurantSlug, setSelectedRestaurantSlug] = useState(null);
+
+  // Memoize cartCount to prevent recalculation on every render - use cart directly
+  const cartCount = useMemo(
+    () => cart.reduce((total, item) => total + (item.quantity || 0), 0),
+    [cart],
+  );
+  const hasFoodCartItems = useMemo(
+    () => cart.some((item) => (item?.orderType || "food") !== "quick"),
+    [cart],
+  );
+
+  const cityName = location?.city || "Select";
+  const stateName = location?.state || "Location";
+  const hasLiveLocation = useMemo(() => {
+    if (!location) return false;
+
+    const isPlaceholder = (value) => {
+      if (!value) return true;
+      const normalized = String(value).trim().toLowerCase();
+      return (
+        !normalized ||
+        normalized === "select location" ||
+        normalized === "current location"
+      );
+    };
+
+    const hasAddressText =
+      !isPlaceholder(location.formattedAddress) ||
+      !isPlaceholder(location.address);
+    const hasCityState =
+      !isPlaceholder(location.city) || !isPlaceholder(location.state);
+
+    return hasAddressText || hasCityState;
+  }, [location]);
+
+  const formatSavedAddress = useCallback((address) => {
+    if (!address) return "";
+
+    if (
+      address.formattedAddress &&
+      address.formattedAddress !== "Select location" &&
+      !/^-?\d+\.\d+,\s*-?\d+\.\d+$/.test(String(address.formattedAddress).trim())
+    ) {
+      return address.formattedAddress;
+    }
+
+    const parts = [];
+    if (address.additionalDetails) parts.push(address.additionalDetails);
+    if (address.street) parts.push(address.street);
+    if (address.area) parts.push(address.area);
+    if (address.city) parts.push(address.city);
+    if (address.state) parts.push(address.state);
+    if (address.zipCode || address.postalCode)
+      parts.push(address.zipCode || address.postalCode);
+
+    if (parts.length > 0) return parts.join(", ");
+    if (address.address && address.address !== "Select location")
+      return address.address;
+
+    return "";
+  }, []);
+
+  const [deliveryAddressMode, setDeliveryAddressMode] = useState(
+    getStoredDeliveryAddressMode,
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const syncDeliveryAddressMode = () => {
+      setDeliveryAddressMode(getStoredDeliveryAddressMode());
+    };
+
+    window.addEventListener("storage", syncDeliveryAddressMode);
+    window.addEventListener("userLocationUpdated", syncDeliveryAddressMode);
+    window.addEventListener("focus", syncDeliveryAddressMode);
+
+    return () => {
+      window.removeEventListener("storage", syncDeliveryAddressMode);
+      window.removeEventListener("userLocationUpdated", syncDeliveryAddressMode);
+      window.removeEventListener("focus", syncDeliveryAddressMode);
+    };
+  }, []);
+
+  const savedAddressText = useMemo(() => {
+    const defaultAddress = getDefaultAddress?.();
+    return formatSavedAddress(defaultAddress);
+  }, [getDefaultAddress, formatSavedAddress]);
+
+  const currentLocationText = useMemo(
+    () => formatSavedAddress(location),
+    [formatSavedAddress, location],
+  );
+
+  const defaultSavedAddress = useMemo(
+    () => getDefaultAddress?.() || null,
+    [getDefaultAddress],
+  );
+
+  const defaultSavedAddressLocation = useMemo(() => {
+    const coords = defaultSavedAddress?.location?.coordinates;
+    if (Array.isArray(coords) && coords.length >= 2) {
+      const lng = parseFloat(coords[0]);
+      const lat = parseFloat(coords[1]);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        return { latitude: lat, longitude: lng };
+      }
+    }
+
+    const lat = parseFloat(
+      defaultSavedAddress?.latitude || defaultSavedAddress?.lat,
+    );
+    const lng = parseFloat(
+      defaultSavedAddress?.longitude || defaultSavedAddress?.lng,
+    );
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      return { latitude: lat, longitude: lng };
+    }
+
+    return null;
+  }, [defaultSavedAddress]);
+
+  const {
+    zoneId: savedAddressZoneId,
+    zoneStatus: savedAddressZoneStatus,
+    isInService: isSavedAddressInService,
+    isOutOfService: isSavedAddressOutOfService,
+    loading: savedAddressZoneLoading,
+    error: savedAddressZoneError,
+  } = useZone(defaultSavedAddressLocation);
+
+  const shouldUseCurrentDeliveryLocation =
+    deliveryAddressMode === "current" && Boolean(currentLocationText);
+  const preferredAddressText = shouldUseCurrentDeliveryLocation
+    ? currentLocationText
+    : savedAddressText;
+  const hasSavedAddress =
+    !shouldUseCurrentDeliveryLocation &&
+    Boolean(defaultSavedAddress && savedAddressText);
+  const effectiveDeliveryLocation = useMemo(() => {
+    if (
+      shouldUseCurrentDeliveryLocation &&
+      Number.isFinite(location?.latitude) &&
+      Number.isFinite(location?.longitude)
+    ) {
+      return {
+        latitude: location.latitude,
+        longitude: location.longitude,
+      };
+    }
+
+    if (
+      Number.isFinite(defaultSavedAddressLocation?.latitude) &&
+      Number.isFinite(defaultSavedAddressLocation?.longitude)
+    ) {
+      return defaultSavedAddressLocation;
+    }
+
+    if (
+      Number.isFinite(location?.latitude) &&
+      Number.isFinite(location?.longitude)
+    ) {
+      return {
+        latitude: location.latitude,
+        longitude: location.longitude,
+      };
+    }
+
+    return null;
+  }, [
+    defaultSavedAddressLocation,
+    shouldUseCurrentDeliveryLocation,
+    location?.latitude,
+    location?.longitude,
+  ]);
+  const zoneId = hasSavedAddress ? savedAddressZoneId : liveZoneId;
+  const zoneStatus = hasSavedAddress ? savedAddressZoneStatus : liveZoneStatus;
+  const isInService = hasSavedAddress ? isSavedAddressInService : isLiveLocationInService;
+  const isOutOfService = hasSavedAddress ? isSavedAddressOutOfService : isLiveLocationOutOfService;
+  const zoneLoading = hasSavedAddress ? savedAddressZoneLoading : liveZoneLoading;
+  const zoneError = hasSavedAddress ? savedAddressZoneError : liveZoneError;
+  const shouldShowOutOfZoneHome =
+    hasSavedAddress &&
+    Boolean(defaultSavedAddressLocation) &&
+    !savedAddressZoneLoading &&
+    !savedAddressZoneError &&
+    isSavedAddressOutOfService;
+
+  // Fetch hero banners from public API (zone-aware)
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingBanners(true);
+    const heroBannerPath = zoneId
+      ? `/food/hero-banners/public?zoneId=${encodeURIComponent(String(zoneId))}`
+      : "/food/hero-banners/public";
+    publicGetOnce(heroBannerPath)
+      .then((response) => {
+        if (cancelled) return;
+        const data = response?.data?.data;
+        const list = Array.isArray(data?.banners)
+          ? data.banners
+          : Array.isArray(data)
+            ? data
+            : [];
+        const images = list
+          .map((b) => (b && typeof b.imageUrl === "string" ? b.imageUrl : ""))
+          .filter(Boolean);
+
+        setHeroBannerImages(images);
+        setHeroBannersData(list);
+        setCurrentBannerIndex(0);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        debugError("Failed to fetch hero banners", err);
+        setHeroBannerImages([]);
+        setHeroBannersData([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingBanners(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [zoneId]);
 
   // Fetch categories (zone-aware) for the homepage category rail.
   useEffect(() => {
@@ -1179,107 +1366,6 @@ export default function Home() {
       cancelled = true
     }
   }, [zoneId, normalizeImageUrl])
-
-  // Memoize cartCount to prevent recalculation on every render - use cart directly
-  const cartCount = useMemo(
-    () => cart.reduce((total, item) => total + (item.quantity || 0), 0),
-    [cart],
-  );
-
-  const cityName = location?.city || "Select";
-  const stateName = location?.state || "Location";
-  const hasLiveLocation = useMemo(() => {
-    if (!location) return false;
-
-    const isPlaceholder = (value) => {
-      if (!value) return true;
-      const normalized = String(value).trim().toLowerCase();
-      return (
-        !normalized ||
-        normalized === "select location" ||
-        normalized === "current location"
-      );
-    };
-
-    const hasAddressText =
-      !isPlaceholder(location.formattedAddress) ||
-      !isPlaceholder(location.address);
-    const hasCityState =
-      !isPlaceholder(location.city) || !isPlaceholder(location.state);
-
-    return hasAddressText || hasCityState;
-  }, [location]);
-
-  const formatSavedAddress = useCallback((address) => {
-    if (!address) return "";
-
-    if (
-      address.formattedAddress &&
-      address.formattedAddress !== "Select location"
-    ) {
-      return address.formattedAddress;
-    }
-
-    const parts = [];
-    if (address.additionalDetails) parts.push(address.additionalDetails);
-    if (address.street) parts.push(address.street);
-    if (address.city) parts.push(address.city);
-    if (address.state) parts.push(address.state);
-    if (address.zipCode) parts.push(address.zipCode);
-
-    if (parts.length > 0) return parts.join(", ");
-    if (address.address && address.address !== "Select location")
-      return address.address;
-
-    return "";
-  }, []);
-
-  const savedAddressText = useMemo(() => {
-    const defaultAddress = getDefaultAddress?.();
-    return formatSavedAddress(defaultAddress);
-  }, [getDefaultAddress, formatSavedAddress]);
-
-  const defaultSavedAddress = useMemo(
-    () => getDefaultAddress?.() || null,
-    [getDefaultAddress],
-  );
-
-  const defaultSavedAddressLocation = useMemo(() => {
-    const coords = defaultSavedAddress?.location?.coordinates;
-    if (Array.isArray(coords) && coords.length >= 2) {
-      const lng = parseFloat(coords[0]);
-      const lat = parseFloat(coords[1]);
-      if (Number.isFinite(lat) && Number.isFinite(lng)) {
-        return { latitude: lat, longitude: lng };
-      }
-    }
-
-    const lat = parseFloat(
-      defaultSavedAddress?.latitude || defaultSavedAddress?.lat,
-    );
-    const lng = parseFloat(
-      defaultSavedAddress?.longitude || defaultSavedAddress?.lng,
-    );
-    if (Number.isFinite(lat) && Number.isFinite(lng)) {
-      return { latitude: lat, longitude: lng };
-    }
-
-    return null;
-  }, [defaultSavedAddress]);
-
-  const {
-    isOutOfService: isSavedAddressOutOfService,
-    loading: savedAddressZoneLoading,
-    error: savedAddressZoneError,
-  } = useZone(defaultSavedAddressLocation);
-
-  const hasSavedAddress = Boolean(defaultSavedAddress && savedAddressText);
-  const shouldShowOutOfZoneHome =
-    hasSavedAddress &&
-    Boolean(defaultSavedAddressLocation) &&
-    !savedAddressZoneLoading &&
-    !savedAddressZoneError &&
-    isSavedAddressOutOfService;
 
   // Mock points value - replace with actual points from context/store
   const userPoints = 99;
@@ -1471,11 +1557,11 @@ export default function Home() {
 
         // Always send user coordinates when available so backend can compute distance/sort.
         if (
-          Number.isFinite(location?.latitude) &&
-          Number.isFinite(location?.longitude)
+          Number.isFinite(effectiveDeliveryLocation?.latitude) &&
+          Number.isFinite(effectiveDeliveryLocation?.longitude)
         ) {
-          params.lat = location.latitude;
-          params.lng = location.longitude;
+          params.lat = effectiveDeliveryLocation.latitude;
+          params.lng = effectiveDeliveryLocation.longitude;
         }
 
         // Sort by
@@ -1574,8 +1660,8 @@ export default function Home() {
           };
 
           // Get user coordinates
-          const userLat = location?.latitude;
-          const userLng = location?.longitude;
+          const userLat = effectiveDeliveryLocation?.latitude;
+          const userLng = effectiveDeliveryLocation?.longitude;
 
           // Transform API data to match expected format
           const transformedRestaurants = restaurantsArray
@@ -1828,8 +1914,8 @@ export default function Home() {
     [
       extractImages,
       buildRestaurantImageCandidates,
-      location?.latitude,
-      location?.longitude,
+      effectiveDeliveryLocation?.latitude,
+      effectiveDeliveryLocation?.longitude,
       zoneId,
     ],
   );
@@ -2515,7 +2601,7 @@ export default function Home() {
             aria-label={`Open hero banner ${currentBannerIndex + 1}`}
           />
 
-          <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex gap-1.5 px-3 py-1.5 bg-black/20 backdrop-blur-md rounded-full border border-white/10 z-30">
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 px-2.5 py-1.5 bg-black/20 backdrop-blur-md rounded-full border border-white/10 shadow-[0_8px_20px_-14px_rgba(15,23,42,0.8)] z-30">
             {heroBannerImages.map((_, index) => (
               <button
                 key={index}
@@ -2623,7 +2709,7 @@ export default function Home() {
           activeTab={activeTab}
           setActiveTab={handleTabChange}
           location={location}
-          savedAddressText={savedAddressText}
+          savedAddressText={preferredAddressText}
           handleLocationClick={handleLocationClick}
           handleSearchFocus={handleSearchFocus}
           placeholderIndex={placeholderIndex}
@@ -2700,6 +2786,20 @@ export default function Home() {
                         </motion.div>
                       );
                     })}
+                  </div>
+                </motion.section>
+              )}
+
+              {HeroBannerSection && (
+                <motion.section
+                  className="content-auto px-4 pt-3 sm:pt-4 lg:pt-5"
+                  initial={false}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <div className="overflow-hidden rounded-[22px] border border-slate-100 bg-white shadow-[0_18px_40px_-24px_rgba(15,23,42,0.3)]">
+                    <div className="aspect-[16/8.8] w-full sm:aspect-[16/7.2]">
+                      {HeroBannerSection}
+                    </div>
                   </div>
                 </motion.section>
               )}
@@ -2873,18 +2973,18 @@ export default function Home() {
                         restaurantSlug ||
                         index
                       }
-                      className="h-full transform transition-all duration-300 hover:-translate-y-3 hover:scale-[1.02]"
+                      className="h-full"
                       style={{
                         perspective: 1000,
-                        animation:
-                          index < 10
-                            ? `fade-in-up 0.5s ease-out ${index * 0.05}s backwards`
-                            : "none",
                       }}>
-                      <div className="h-full group">
-                        <Link
-                          to={`/user/restaurants/${restaurantSlug}`}
-                          className="h-full flex">
+                      <LazyComponent 
+                        placeholder={<RestaurantCardSkeleton />}
+                        rootMargin="500px"
+                      >
+                        <div className="h-full group hover:-translate-y-3 hover:scale-[1.02] transform transition-all duration-300">
+                          <Link
+                            to={`/user/restaurants/${restaurantSlug}`}
+                            className="h-full flex">
                           <Card
                             className={`overflow-hidden gap-0 cursor-pointer border-0 dark:border-gray-800 group bg-white dark:bg-[#1a1a1a] border-background transition-all duration-500 py-0 rounded-[28px] flex flex-col h-full w-full relative shadow-sm hover:shadow-xl ${
                               isOutOfService || !availability.isOpen
@@ -3004,8 +3104,10 @@ export default function Home() {
                           </Card>
                         </Link>
                       </div>
-                    </div>
-                  );
+                    </LazyComponent>
+                  </div>
+                );
+
                 })}
               </div>
             </div>
@@ -3548,118 +3650,97 @@ export default function Home() {
                   setVegModeContext(false);
                   setPrevVegMode(false);
                 }}
-                className="fixed inset-0 bg-black/30 z-[9998] backdrop-blur-sm"
+                className="fixed inset-0 bg-black/40 z-[9998] backdrop-blur-sm"
               />
 
-              {/* Popup */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9, y: -10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9, y: -10 }}
-                transition={{
-                  type: "spring",
-                  damping: 25,
-                  stiffness: 300,
-                  mass: 0.8,
-                }}
-                className="fixed z-[9999] bg-white dark:bg-[#1a1a1a] rounded-2xl shadow-2xl p-4 w-[calc(100%-2rem)] max-w-xs"
-                style={{
-                  top: `${popupPosition.top}px`,
-                  left: `${popupPosition.left}px`,
-                }}
-                onClick={(e) => e.stopPropagation()}>
-                {/* Pointer Triangle */}
-                <div
-                  className="absolute -top-2 w-3 h-3 bg-white dark:bg-[#1a1a1a] transform rotate-45"
-                  style={{
-                    left: `${popupPosition.triangleLeft - 6}px`,
-                    boxShadow: "-2px -2px 4px rgba(0,0,0,0.1)",
+              {/* Popup Container */}
+              <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pointer-events-none">
+                {/* Popup Content */}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                  transition={{
+                    type: "spring",
+                    damping: 25,
+                    stiffness: 400,
                   }}
-                />
+                  className="bg-white dark:bg-[#1a1a1a] rounded-[24px] shadow-2xl p-6 w-full max-w-sm pointer-events-auto border border-gray-100 dark:border-gray-800"
+                  onClick={(e) => e.stopPropagation()}>
+                  
+                  <div className="flex flex-col items-center text-center mb-6">
+                    <div className="w-16 h-16 bg-green-50 dark:bg-green-900/20 rounded-full flex items-center justify-center mb-4">
+                      <Leaf className="w-8 h-8 text-green-600 dark:text-green-500" />
+                    </div>
+                    {/* Title */}
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                      See veg dishes from
+                    </h3>
+                  </div>
 
-                {/* Title */}
-                <h3 className="text-base font-bold text-gray-900 dark:text-white mb-3">
-                  See veg dishes from
-                </h3>
-
-                {/* Radio Options */}
-                <div className="space-y-2 mb-4">
-                  {/* All restaurants */}
-                  <label
-                    className="flex items-center gap-2.5 cursor-pointer p-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                    onClick={() => setVegModeOption("all")}>
-                    <div className="relative flex items-center justify-center">
-                      <input
-                        type="radio"
-                        name="vegModeOption"
-                        value="all"
-                        checked={vegModeOption === "all"}
-                        onChange={() => setVegModeOption("all")}
-                        className="sr-only"
-                      />
-                      <div
-                        className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
-                          vegModeOption === "all"
-                            ? "border-green-600 dark:border-green-500 bg-green-600 dark:bg-green-500"
-                            : "border-gray-300 dark:border-gray-600 bg-white dark:bg-[#2a2a2a]"
-                        }`}>
+                  {/* Radio Options */}
+                  <div className="space-y-3 mb-6">
+                    {/* All restaurants */}
+                    <button
+                      className={`w-full flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${
+                        vegModeOption === "all"
+                          ? "border-green-600 bg-green-50 dark:border-green-500 dark:bg-green-900/20"
+                          : "border-gray-100 dark:border-gray-800 bg-white dark:bg-[#2a2a2a] hover:border-gray-200"
+                      }`}
+                      onClick={() => setVegModeOption("all")}>
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                        vegModeOption === "all"
+                          ? "border-green-600 bg-green-600 dark:border-green-500 dark:bg-green-500"
+                          : "border-gray-300 dark:border-gray-600"
+                      }`}>
                         {vegModeOption === "all" && (
-                          <div className="w-1.5 h-1.5 rounded-full bg-white dark:bg-white" />
+                          <div className="w-2 h-2 rounded-full bg-white" />
                         )}
                       </div>
-                    </div>
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">
-                      All restaurants
-                    </span>
-                  </label>
+                      <span className={`text-base font-semibold ${vegModeOption === "all" ? "text-green-700 dark:text-green-400" : "text-gray-700 dark:text-gray-300"}`}>
+                        All restaurants
+                      </span>
+                    </button>
 
-                  {/* Pure Veg restaurants only */}
-                  <label
-                    className="flex items-center gap-2.5 cursor-pointer p-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                    onClick={() => setVegModeOption("pure-veg")}>
-                    <div className="relative flex items-center justify-center">
-                      <input
-                        type="radio"
-                        name="vegModeOption"
-                        value="pure-veg"
-                        checked={vegModeOption === "pure-veg"}
-                        onChange={() => setVegModeOption("pure-veg")}
-                        className="sr-only"
-                      />
-                      <div
-                        className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
-                          vegModeOption === "pure-veg"
-                            ? "border-green-600 dark:border-green-500 bg-green-600 dark:bg-green-500"
-                            : "border-gray-300 dark:border-gray-600 bg-white dark:bg-[#2a2a2a]"
-                        }`}>
+                    {/* Pure Veg restaurants only */}
+                    <button
+                      className={`w-full flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${
+                        vegModeOption === "pure-veg"
+                          ? "border-green-600 bg-green-50 dark:border-green-500 dark:bg-green-900/20"
+                          : "border-gray-100 dark:border-gray-800 bg-white dark:bg-[#2a2a2a] hover:border-gray-200"
+                      }`}
+                      onClick={() => setVegModeOption("pure-veg")}>
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                        vegModeOption === "pure-veg"
+                          ? "border-green-600 bg-green-600 dark:border-green-500 dark:bg-green-500"
+                          : "border-gray-300 dark:border-gray-600"
+                      }`}>
                         {vegModeOption === "pure-veg" && (
-                          <div className="w-1.5 h-1.5 rounded-full bg-white dark:bg-white" />
+                          <div className="w-2 h-2 rounded-full bg-white" />
                         )}
                       </div>
-                    </div>
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">
-                      Pure Veg restaurants only
-                    </span>
-                  </label>
-                </div>
+                      <span className={`text-base font-semibold ${vegModeOption === "pure-veg" ? "text-green-700 dark:text-green-400" : "text-gray-700 dark:text-gray-300"}`}>
+                        Pure Veg restaurants only
+                      </span>
+                    </button>
+                  </div>
 
-                {/* Apply Button */}
-                <button
-                  onClick={() => {
-                    setShowVegModePopup(false);
-                    setIsApplyingVegMode(true);
-                    // Confirm veg mode is ON by updating context and prevVegMode
-                    setVegModeContext(true);
-                    setPrevVegMode(true);
-                    // Simulate applying veg mode settings
-                    setTimeout(() => {
-                      setIsApplyingVegMode(false);
-                    }, 2000);
-                  }}
-                  className="w-full bg-[#EB590E] text-white font-semibold py-2.5 rounded-xl hover:bg-[#D94F0C] transition-colors mb-2 text-sm">
-                  Apply
-                </button>
-              </motion.div>
+                  {/* Apply Button */}
+                  <button
+                    onClick={() => {
+                      setShowVegModePopup(false);
+                      setIsApplyingVegMode(true);
+                      setVegModeContext(true);
+                      setPrevVegMode(true);
+                      setTimeout(() => {
+                        setIsApplyingVegMode(false);
+                      }, 2000);
+                    }}
+                    className="w-full bg-[#EB590E] text-white font-bold py-4 rounded-2xl hover:bg-[#D94F0C] transition-all shadow-lg active:scale-[0.98] text-base">
+                    Apply Settings
+                  </button>
+                </motion.div>
+              </div>
             </>
           )}
         </AnimatePresence>
@@ -3694,32 +3775,32 @@ export default function Home() {
                   stiffness: 300,
                   mass: 0.8,
                 }}
-                className="fixed inset-0 z-[9999] flex dark:bg-[#lalala] dark:text-white items-center justify-center p-4"
+                className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
                 onClick={(e) => e.stopPropagation()}>
-                <div className="bg-white dark:bg-[#lalala] dark:text-white rounded-2xl shadow-2xl w-[85%] max-w-sm p-6">
+                <div className="bg-white dark:bg-[#1a1a1a] rounded-[24px] shadow-2xl w-[90%] max-w-sm p-6 border border-gray-100 dark:border-gray-800">
                   {/* Warning Icon */}
-                  <div className="flex justify-center mb-4">
-                    <div className="w-20 h-20 rounded-full bg-pink-100 flex items-center justify-center">
+                  <div className="flex justify-center mb-6">
+                    <div className="w-20 h-20 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center animate-pulse">
                       <AlertCircle
-                        className="w-20 h-20 text-white bg-red-500/90 rounded-full p-2"
-                        strokeWidth={2.5}
+                        className="w-14 h-14 text-red-600 dark:text-red-500"
+                        strokeWidth={2}
                       />
                     </div>
                   </div>
 
                   {/* Title */}
-                  <h2 className="text-2xl font-bold text-gray-900  text-center mb-2">
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white text-center mb-3">
                     Switch off Veg Mode?
                   </h2>
 
                   {/* Description */}
-                  <p className="text-gray-600 text-center mb-6 text-sm">
+                  <p className="text-gray-500 dark:text-gray-400 text-center mb-8 text-base">
                     You'll see all restaurants, including those serving non-veg
                     dishes
                   </p>
 
                   {/* Buttons */}
-                  <div className="space-y-3">
+                  <div className="flex flex-col gap-3">
                     <button
                       onClick={() => {
                         setShowSwitchOffPopup(false);
@@ -3732,7 +3813,7 @@ export default function Home() {
                           setPrevVegMode(false); // Set to false to match current state (veg mode is OFF)
                         }, 2000);
                       }}
-                      className="w-full bg-transparent text-red-600 font-normal py-1 text-normal rounded-xl hover:bg-red-50 transition-colors text-base">
+                      className="w-full bg-red-600 text-white font-bold py-4 rounded-2xl hover:bg-red-700 transition-all shadow-md active:scale-[0.98]">
                       Switch off
                     </button>
 
@@ -3743,7 +3824,7 @@ export default function Home() {
                         setVegModeContext(true);
                         // prevVegMode stays true (from before), which is correct
                       }}
-                      className="w-full text-gray-900 font-normal py-1 text-center rounded-xl hover:bg-gray-200 transition-colors text-base">
+                      className="w-full text-gray-600 dark:text-gray-400 font-bold py-4 text-center rounded-2xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-all active:scale-[0.98]">
                       Keep using this mode
                     </button>
                   </div>
@@ -4222,7 +4303,7 @@ export default function Home() {
           </AnimatePresence>,
           document.body,
         )}
-      {activeTab === "food" && (
+      {hasFoodCartItems && (
         <Suspense fallback={null}>
           <MiniCart />
         </Suspense>

@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { LoaderCircle, MapPin, Navigation } from 'lucide-react';
+import { MapPin, Navigation } from 'lucide-react';
 import { GoogleMap } from '@react-google-maps/api';
 import { HAS_VALID_GOOGLE_MAPS_KEY, useAppGoogleMapsLoader } from '../../admin/utils/googleMaps';
-
-const STORAGE_KEY = 'rydon24:lastLocation';
-const LOCATION_UPDATED_EVENT = 'rydon24:location-updated';
+import {
+  getSavedTaxiLocation,
+  saveTaxiLocation,
+} from '../services/savedLocation';
 const DEFAULT_CENTER = { lat: 17.385, lon: 78.4867 };
 const DEFAULT_ZOOM = 16;
 const MAP_CONTAINER_STYLE = { width: '100%', height: '100%' };
@@ -23,41 +24,20 @@ const LocationMapSection = () => {
     setCoords(next);
     setCenterCoords(next);
     setStatus('ready');
-    try {
-      const previous = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || '{}');
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        ...previous,
-        ...next,
-      }));
-    } catch {
-      // ignore
-    }
-    window.dispatchEvent(new Event(LOCATION_UPDATED_EVENT));
+    saveTaxiLocation(next);
   };
 
   const persistAddress = (address) => {
-    try {
-      const previous = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || '{}');
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        ...previous,
-        address: String(address || '').trim(),
-      }));
-      window.dispatchEvent(new Event(LOCATION_UPDATED_EVENT));
-    } catch {
-      // ignore
-    }
+    saveTaxiLocation({ address: String(address || '').trim() });
   };
 
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(STORAGE_KEY);
-      if (!saved) return;
-      const parsed = JSON.parse(saved);
-      if (typeof parsed?.lat === 'number' && typeof parsed?.lon === 'number') {
-        persistCoords({ lat: parsed.lat, lon: parsed.lon });
-      }
-    } catch {
-      // ignore
+    const saved = getSavedTaxiLocation();
+    if (Number.isFinite(saved?.lat) && Number.isFinite(saved?.lng)) {
+      const next = { lat: saved.lat, lon: saved.lng };
+      setCoords(next);
+      setCenterCoords(next);
+      setStatus('ready');
     }
   }, []);
 
@@ -212,12 +192,7 @@ const LocationMapSection = () => {
             )}
 
             {HAS_VALID_GOOGLE_MAPS_KEY && !loadError && !isLoaded && (
-              <div className="flex h-full w-full items-center justify-center">
-                <div className="flex items-center gap-2 rounded-[16px] bg-white/90 px-4 py-3 shadow-sm">
-                  <LoaderCircle size={18} className="animate-spin text-slate-500" />
-                  <span className="text-[12px] font-black text-slate-700">Loading map</span>
-                </div>
-              </div>
+              <div className="h-full w-full bg-[linear-gradient(135deg,#f8fafc_0%,#eef2f7_55%,#e2e8f0_100%)]" />
             )}
 
             {HAS_VALID_GOOGLE_MAPS_KEY && !loadError && isLoaded && (
@@ -270,11 +245,7 @@ const LocationMapSection = () => {
                   setCenterCoords(next);
 
                   if (!isDraggingRef.current && status === 'ready') {
-                    const previous = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || '{}');
-                    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
-                      ...previous,
-                      ...next,
-                    }));
+                    saveTaxiLocation(next);
                   }
                 }}
                 options={{
@@ -291,23 +262,23 @@ const LocationMapSection = () => {
 
             {/* The Pinpoint */}
             <div className="pointer-events-none absolute left-1/2 top-1/2 z-20 -translate-x-1/2">
-              {/* Point Shadow - anchored at the map center */}
               <motion.div
                 initial={false}
                 animate={{
-                  scale: isDragging ? [1, 1.3, 1.25] : 1,
-                  opacity: isDragging ? 0.35 : 0.7,
-                  y: isDragging ? 6 : 0,
+                  scale: isDragging ? [1, 1.28, 1.16] : 1,
+                  opacity: isDragging ? 0.22 : 0.38,
+                  y: isDragging ? 8 : 3,
                 }}
-                className="absolute left-1/2 top-0 h-[3px] w-4 -translate-x-1/2 rounded-[100%] bg-slate-900/30 blur-[1.5px]"
+                transition={{ duration: 0.24, ease: 'easeOut' }}
+                className="absolute left-1/2 top-[44px] h-[5px] w-5 -translate-x-1/2 rounded-full bg-slate-900/25 blur-[2px]"
               />
 
-              {/* Pin Body */}
               <motion.div
                 initial={false}
                 animate={{
-                  y: isDragging ? -28 : -3, // Clean lift when dragging
-                  scale: isDragging ? 1.06 : 1,
+                  y: isDragging ? -30 : -8,
+                  rotate: isDragging ? -4 : 0,
+                  scale: isDragging ? 1.04 : 1,
                 }}
                 transition={{
                   type: 'spring',
@@ -316,14 +287,13 @@ const LocationMapSection = () => {
                 }}
                 className="relative flex flex-col items-center -translate-y-full"
               >
-                {/* Floating Card */}
-                <div className="relative flex h-11 w-11 items-center justify-center rounded-[18px] border border-white/60 bg-white/95 shadow-[0_12px_28px_-4px_rgba(15,23,42,0.22)] backdrop-blur-md">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-[12px] bg-emerald-50/60">
-                    <MapPin size={22} strokeWidth={2.8} className="text-emerald-600" />
+                <div className="relative flex flex-col items-center">
+                  <div className="relative flex h-10 w-10 items-center justify-center rounded-full border-2 border-white/85 bg-[linear-gradient(180deg,#34d399_0%,#10b981_100%)] shadow-[0_14px_26px_-8px_rgba(16,185,129,0.45)]">
+                    <MapPin size={18} strokeWidth={2.9} className="text-white" />
+                    <div className="absolute inset-[8px] rounded-full border border-white/25" />
                   </div>
-
-                  {/* Visual Tip */}
-                  <div className="absolute -bottom-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 rounded-sm bg-white/95 border-r border-b border-black/5" />
+                  <div className="-mt-1 h-5 w-[3px] rounded-full bg-[linear-gradient(180deg,#10b981_0%,#047857_100%)] shadow-[0_6px_12px_rgba(4,120,87,0.25)]" />
+                  <div className="-mt-1.5 h-2.5 w-2.5 rotate-45 rounded-[3px] bg-[#065f46]" />
                 </div>
               </motion.div>
             </div>

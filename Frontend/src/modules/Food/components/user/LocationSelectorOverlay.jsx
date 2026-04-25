@@ -957,6 +957,23 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
       try {
         localStorage.setItem("deliveryAddressMode", "current");
       } catch {}
+      syncSelectedLocation({
+        ...locationData,
+        address:
+          locationData?.address ||
+          locationData?.formattedAddress ||
+          [locationData?.area, locationData?.city].filter(Boolean).join(", "),
+        formattedAddress:
+          locationData?.formattedAddress ||
+          [
+            locationData?.street || locationData?.area,
+            locationData?.city,
+            locationData?.state,
+            locationData?.postalCode,
+          ]
+            .filter(Boolean)
+            .join(", "),
+      })
       setShowAddressForm(false)
       setAddressFormData((prev) => ({
         ...prev,

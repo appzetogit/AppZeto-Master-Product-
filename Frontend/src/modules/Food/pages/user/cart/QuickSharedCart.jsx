@@ -267,7 +267,7 @@ export default function QuickSharedCart() {
 
   if (quickCart.length === 0) {
     return (
-      <div className="min-h-screen bg-slate-50 px-4 py-10">
+      <div className="min-h-screen overflow-x-hidden bg-slate-50 px-4 py-10">
         <div className="mx-auto max-w-3xl rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
           <ShoppingBag className="mx-auto h-12 w-12 text-emerald-600" />
           <h1 className="mt-4 text-2xl font-black text-slate-900">Your quick cart is empty</h1>
@@ -284,7 +284,7 @@ export default function QuickSharedCart() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-28">
+    <div className="min-h-screen overflow-x-hidden bg-slate-50 pb-28">
       <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">
         <button
           type="button"
@@ -295,8 +295,8 @@ export default function QuickSharedCart() {
           Back to quick shopping
         </button>
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
-          <section className="space-y-4">
+        <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+          <section className="min-w-0 space-y-4">
             <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-center justify-between gap-4">
                 <div>
@@ -319,7 +319,7 @@ export default function QuickSharedCart() {
                   key={item.id || item._id}
                   className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
                 >
-                  <div className="flex gap-4">
+                  <div className="flex min-w-0 gap-3 sm:gap-4">
                     <img
                       src={item.image || item.imageUrl}
                       alt={item.name}
@@ -330,12 +330,12 @@ export default function QuickSharedCart() {
                         {item.quickStoreName || "Quick Commerce"}
                       </p>
                       <h2 className="mt-1 truncate text-lg font-black text-slate-900">{item.name}</h2>
-                      <div className="mt-3 flex items-center justify-between gap-4">
+                      <div className="mt-3 flex min-w-0 items-center justify-between gap-3">
                         <p className="text-base font-bold text-slate-900">
                           {RUPEE_SYMBOL}
                           {Number(item.price || 0) * Number(item.quantity || 1)}
                         </p>
-                        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
+                        <div className="inline-flex shrink-0 items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
                           <button
                             type="button"
                             onClick={() => updateQuantity(item.id || item._id, Math.max(0, Number(item.quantity || 1) - 1))}

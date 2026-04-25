@@ -1,0 +1,175 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-background: #ACDCD9;
+  /* Much lighter teal for contrast */
+
+  --color-surface: #004F4D;
+  /* Deep Teal Text/Elements */
+  --color-accent: #14B8A6;
+  --color-textLight: #E6F7F6;
+  --color-textDark: #003836;
+  /* New Dark Text variable */
+
+  --color-honey: #FFC107;
+  --color-cardWhite: #FFFFFF;
+
+  --font-sans: "Poppins", sans-serif;
+
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+
+  /* Hotel Partner Theme - Updated to match User Module */
+  --color-partner-bg: #FFFFFF;
+  --color-partner-text-primary: #004F4D;
+  /* var(--color-surface) */
+  --color-partner-text-secondary: #003836;
+  /* var(--color-textDark) */
+  --color-partner-btn: #004F4D;
+  /* var(--color-surface) */
+  --color-partner-card: #F5F5F5;
+  --color-partner-border: #ACDCD9;
+  /* var(--color-background) */
+}
+
+@layer base {
+  body {
+    /* 
+       Reverted Background:
+       Clean Light Gray/White as per "Light Theme" preference.
+       The previous teal gradient was rejected.
+    */
+    @apply bg-slate-50 text-textDark font-sans min-h-screen selection:bg-teal-100;
+
+    /* Prevent pull-to-refresh and overscroll in some containers if needed */
+    /* overscroll-behavior-y: none; */
+
+    /* Better touch handling for mobile apps */
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    overflow-x: hidden;
+    width: 100%;
+    position: relative;
+  }
+
+  /* Prevent zoom on focus for iOS by ensuring font-size is at least 16px */
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Blog Content Typography Reset (for prose/prose-invert classes) */
+.prose-invert {
+  --tw-prose-body: #cbd5e1; /* slate-300 */
+  --tw-prose-headings: #ffffff;
+  --tw-prose-links: #10b981; /* emerald-500 */
+  --tw-prose-bold: #ffffff;
+}
+
+.prose p {
+  margin-top: 1.25em;
+  margin-bottom: 1.25em;
+  line-height: 1.8;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+.prose h1, .prose h2, .prose h3, .prose h4 {
+  color: var(--tw-prose-headings);
+  font-weight: 800;
+  margin-top: 2em;
+  margin-bottom: 1em;
+  line-height: 1.2;
+}
+
+.prose h1 { font-size: 2.25em; }
+.prose h2 { font-size: 1.5em; }
+.prose h3 { font-size: 1.25em; }
+
+.prose ul {
+  list-style-type: disc;
+  margin-top: 1.25em;
+  margin-bottom: 1.25em;
+  padding-left: 1.625em;
+}
+
+.prose ol {
+  list-style-type: decimal;
+  margin-top: 1.25em;
+  margin-bottom: 1.25em;
+  padding-left: 1.625em;
+}
+
+.prose li {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.prose a {
+  color: var(--tw-prose-links);
+  text-decoration: underline;
+  font-weight: 600;
+}
+
+.prose strong {
+  color: var(--tw-prose-bold);
+  font-weight: 700;
+}
+
+.prose img {
+  margin-top: 2em;
+  margin-bottom: 2em;
+  border-radius: 1.5rem;
+  width: 100%;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.prose blockquote {
+  font-style: italic;
+  border-left: 4px solid #10b981;
+  padding-left: 1.5em;
+  margin: 2em 0;
+  color: #e2e8f0;
+}
+
+/* COMPATIBILITY: Force dark background for Hotel Module to match white text */
+/* Hotel Partner Module Reset */
+body:has(#hotel-root) {
+  background-color: var(--color-partner-bg);
+  color: var(--color-partner-text-primary);
+}
+
+.text-muted {
+  @apply text-slate-400;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.input {
+  @apply w-full px-4 py-3 rounded-xl border-2 border-gray-400 outline-none transition-all placeholder:text-gray-400 focus:border-[#004F4D] focus:ring-4 focus:ring-[#004F4D]/10 bg-white text-[#003836] font-medium shadow-sm hover:border-gray-500;
+}
+
+@media print {
+
+  /* Hide Navbar and specific buttons during print */
+  nav,
+  .navbar,
+  footer,
+  .bottom-nav,
+  button[class*="print:hidden"],
+  [aria-label="Bottom Navigation"] {
+    display: none !important;
+  }
+}

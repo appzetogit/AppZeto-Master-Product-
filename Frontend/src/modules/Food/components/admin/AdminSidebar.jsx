@@ -46,6 +46,7 @@ import {
   IndianRupee,
   PiggyBank,
   Lock,
+  Hotel,
 } from "lucide-react"
 import { cn } from "@food/utils/utils"
 import { Input } from "@food/components/ui/input"
@@ -101,6 +102,7 @@ const iconMap = {
   IndianRupee,
   PiggyBank,
   Lock,
+  Hotel,
   X,
 }
 
@@ -281,6 +283,7 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
 
   const isQuickAdmin = location.pathname.startsWith("/admin/quick-commerce")
   const isTaxiAdmin = location.pathname.startsWith("/taxi/admin") || location.pathname.startsWith("/admin/taxi")
+  const isHotelAdmin = location.pathname.startsWith("/hotel/admin") || location.pathname.startsWith("/admin/hotel")
   const activeMenuData = isQuickAdmin ? quickAdminSidebarMenu : adminSidebarMenu
 
   // Ensure expandable keys exist for whichever admin module is active (food/quick)
@@ -302,6 +305,8 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
       navigate("/admin/quick-commerce")
     } else if (target === "taxi") {
       navigate("/taxi/admin/dashboard")
+    } else if (target === "hotel") {
+      navigate("/hotel/admin")
     } else {
       navigate("/admin/food")
     }
@@ -743,13 +748,13 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
                 Admin Panel
               </h2>
               <div className="mt-2 rounded-xl border border-neutral-800 bg-neutral-900/80 p-1">
-                <div className="grid grid-cols-3 gap-1">
+                <div className="grid grid-cols-2 gap-1">
                   <button
                     type="button"
                     onClick={() => switchAdminModule("food")}
                     className={cn(
                       "rounded-lg px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all",
-                      !isQuickAdmin && !isTaxiAdmin
+                      !isQuickAdmin && !isTaxiAdmin && !isHotelAdmin
                         ? "bg-white text-neutral-900 shadow"
                         : "text-neutral-400 hover:text-white"
                     )}
@@ -762,7 +767,7 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
                     className={cn(
                       "rounded-lg px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all",
                       isQuickAdmin
-                        ? "bg-[#0c831f] text-white shadow-[0_6px_20px_rgba(12,131,31,0.35)]"
+                        ? "bg-emerald-500 text-white shadow-[0_6px_20px_rgba(16,185,129,0.35)]"
                         : "text-neutral-400 hover:text-white"
                     )}
                   >
@@ -779,6 +784,18 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
                     )}
                   >
                     Taxi
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => switchAdminModule("hotel")}
+                    className={cn(
+                      "rounded-lg px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all",
+                      isHotelAdmin
+                        ? "bg-sky-500 text-white shadow-[0_6px_20px_rgba(14,165,233,0.35)]"
+                        : "text-neutral-400 hover:text-white"
+                    )}
+                  >
+                    Hotel
                   </button>
                 </div>
               </div>

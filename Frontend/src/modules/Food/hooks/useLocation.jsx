@@ -32,7 +32,94 @@ let globalReverseGeocodeLastSuccess = null
 // then rely on localStorage/DB. Live watching is enabled only via explicit user action.
 const AUTO_START_LIVE_WATCH = false
 
-const reverseGeocodeDirect = async (latitude, longitude) => {
+const isMeaningfulAddressValue = (value) => {
+  const normalized = String(value || "").trim().toLowerCase()
+  return Boolean(
+    normalized &&
+      normalized !== "select location" &&
+      normalized !== "current location" &&
+      !/^-?\d+\.\d+,\s*-?\d+\.\d+$/.test(normalized)
+  )
+}
+
+const buildBigDataCloudAddress = (data, latitude, longitude) => {
+  const administrative = Array.isArray(data?.localityInfo?.administrative)
+    ? data.localityInfo.administrative
+    : []
+
+  const adminNames = administrative
+    .map((item) => String(item?.name || "").trim())
+    .filter(Boolean)
+
+  const locality = String(data?.locality || data?.city || "").trim()
+  const city = String(data?.city || data?.locality || "").trim()
+  const state = String(data?.principalSubdivision || "").trim()
+  const postcode = String(data?.postcode || "").trim()
+
+  const areaCandidates = [
+    data?.locality,
+    data?.city,
+    administrative.find((item) => Number(item?.adminLevel) >= 8)?.name,
+    administrative.find((item) => Number(item?.adminLevel) === 6)?.name,
+    administrative.find((item) => Number(item?.adminLevel) === 5)?.name,
+  ]
+    .map((item) => String(item || "").trim())
+    .filter(Boolean)
+
+  const uniqueParts = []
+  const pushUnique = (value) => {
+    const next = String(value || "").trim()
+    if (!next) return
+    if (uniqueParts.some((part) => part.toLowerCase() === next.toLowerCase())) return
+    uniqueParts.push(next)
+  }
+
+  const explicitFormattedAddress =
+    data?.formattedAddress || data?.lookupSourceAddress || data?.displayName
+  if (isMeaningfulAddressValue(explicitFormattedAddress)) {
+    return {
+      area: areaCandidates[0] || city || "",
+      city: city || "Unknown City",
+      state,
+      country: String(data?.countryName || "").trim(),
+      postalCode: postcode,
+      address: String(explicitFormattedAddress).trim(),
+      formattedAddress: String(explicitFormattedAddress).trim(),
+    }
+  }
+
+  pushUnique(areaCandidates[0])
+  pushUnique(areaCandidates[1])
+  pushUnique(areaCandidates[2])
+  pushUnique(city)
+  pushUnique(state)
+  pushUnique(postcode)
+
+  if (uniqueParts.length === 0) {
+    const fallbackText = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
+    return {
+      area: "",
+      city: city || "Unknown City",
+      state,
+      country: String(data?.countryName || "").trim(),
+      postalCode: postcode,
+      address: fallbackText,
+      formattedAddress: fallbackText,
+    }
+  }
+
+  return {
+    area: areaCandidates[0] || locality || city || adminNames[0] || "",
+    city: city || "Unknown City",
+    state,
+    country: String(data?.countryName || "").trim(),
+    postalCode: postcode,
+    address: uniqueParts.join(", "),
+    formattedAddress: uniqueParts.join(", "),
+  }
+}
+
+const reverseGeocodeDirect = async (latitude, longitude, forceFresh = false) => {
   const now = Date.now()
   const movedMeters = geoDistanceMeters(
     globalReverseGeocodeLastCoords.latitude,
@@ -43,7 +130,9 @@ const reverseGeocodeDirect = async (latitude, longitude) => {
   const timeSinceLastStart = now - globalReverseGeocodeLastStartAt
 
   // If we recently geocoded a nearby point, reuse the last successful payload (no network).
+  // Skip cache when forceFresh is true (user explicitly requested current location)
   if (
+    !forceFresh &&
     globalReverseGeocodeLastSuccess &&
     movedMeters < GLOBAL_GEOCODE_REUSE_DISTANCE_METERS &&
     timeSinceLastStart < GLOBAL_GEOCODE_MIN_INTERVAL_MS
@@ -52,7 +141,8 @@ const reverseGeocodeDirect = async (latitude, longitude) => {
   }
 
   // If another caller is already fetching, wait for it when it's "close enough".
-  if (globalReverseGeocodeInFlight) {
+  // Skip dedup when forceFresh is true
+  if (!forceFresh && globalReverseGeocodeInFlight) {
     const inFlightMoved = geoDistanceMeters(
       globalReverseGeocodeLastCoords.latitude,
       globalReverseGeocodeLastCoords.longitude,
@@ -83,18 +173,7 @@ const reverseGeocodeDirect = async (latitude, longitude) => {
 
       const data = await res.json()
 
-      const value = {
-        city: data.city || data.locality || "Unknown City",
-        state: data.principalSubdivision || "",
-        country: data.countryName || "",
-        area: data.subLocality || "",
-        address:
-          data.formattedAddress ||
-          `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
-        formattedAddress:
-          data.formattedAddress ||
-          `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
-      }
+      const value = buildBigDataCloudAddress(data, latitude, longitude)
 
       globalReverseGeocodeLastSuccess = value
       return value
@@ -253,7 +332,7 @@ export function useLocation() {
 
   /* Removed Google Geocoding/Places (maps.googleapis.com). Uses BigDataCloud reverse-geocode only. */
   const reverseGeocodeWithGoogleMaps = async (latitude, longitude, _options = {}) =>
-    reverseGeocodeDirect(latitude, longitude)
+    reverseGeocodeDirect(latitude, longitude, _options?.forceFresh || false)
 
 
   /* ===================== OLA MAPS REVERSE GEOCODE (DEPRECATED - KEPT FOR FALLBACK) ===================== */
@@ -808,14 +887,15 @@ export function useLocation() {
                 debugLog("?? Calling reverse geocode with coordinates:", { latitude, longitude })
                 try {
                   addr = await reverseGeocodeWithGoogleMaps(latitude, longitude, {
-                    includePlaceDetails: Boolean(forceFresh && showLoading)
+                    includePlaceDetails: Boolean(forceFresh && showLoading),
+                    forceFresh: forceFresh
                   })
                   debugLog("? Reverse geocoding successful:", addr)
                 } catch (geocodeErr) {
                   debugWarn("?? Primary geocoding failed, trying fallback:", geocodeErr.message)
                   try {
                     // Fallback to direct reverse geocode (BigDataCloud)
-                    addr = await reverseGeocodeDirect(latitude, longitude)
+                    addr = await reverseGeocodeDirect(latitude, longitude, forceFresh)
                     debugLog("? Fallback geocoding successful:", addr)
 
                     // Validate fallback result - if it still has placeholder values, don't use it
@@ -1569,6 +1649,18 @@ export function useLocation() {
       // Clear cached location to force fresh fetch
       localStorage.removeItem("userLocation")
       debugLog("??? Cleared cached location from localStorage")
+
+      // Clear global reverse geocode cache so we get a truly fresh address
+      globalReverseGeocodeLastSuccess = null
+      globalReverseGeocodeLastStartAt = 0
+      globalReverseGeocodeLastCoords = { latitude: null, longitude: null }
+      globalReverseGeocodeInFlight = null
+      debugLog("??? Cleared global reverse geocode cache")
+
+      // Also clear instance-level geocode refs so fresh geocode happens
+      lastGeocodedCoordsRef.current = { latitude: null, longitude: null }
+      lastGeocodeAtRef.current = 0
+      lastResolvedAddressRef.current = null
 
       // Show loading, so pass showLoading = true
       // forceFresh = true, updateDB = true, showLoading = true

@@ -7,6 +7,8 @@ import {
   verifyRestaurantOtpAndLogin,
   requestDeliveryOtp,
   verifyDeliveryOtpAndLogin,
+  requestHotelPartnerOtp,
+  verifyHotelPartnerOtpAndLogin,
   logout,
   getProfile,
   updateAdminProfile,
@@ -121,6 +123,29 @@ export const verifyDeliveryOtpController = async (req, res, next) => {
   try {
     const { phone, otp, fcmToken, platform } = validateDeliveryOtpVerifyDto(req.body);
     const result = await verifyDeliveryOtpAndLogin(phone, otp, fcmToken, platform);
+    return sendResponse(res, 200, "Login successful", result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const requestHotelPartnerOtpController = async (req, res, next) => {
+  try {
+    const { phone } = validateUserOtpRequestDto(req.body);
+    const result = await requestHotelPartnerOtp(phone);
+    return sendResponse(res, 200, "OTP sent successfully", {
+      phone,
+      ...result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const verifyHotelPartnerOtpController = async (req, res, next) => {
+  try {
+    const { phone, otp, fcmToken, platform } = validateUserOtpVerifyDto(req.body);
+    const result = await verifyHotelPartnerOtpAndLogin(phone, otp, fcmToken, platform);
     return sendResponse(res, 200, "Login successful", result);
   } catch (error) {
     next(error);

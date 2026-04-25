@@ -6,6 +6,7 @@ import { AdminResetOtp } from "../admin/adminResetOtp.model.js";
 import { FoodRestaurant } from "../../modules/food/restaurant/models/restaurant.model.js";
 import { FoodDeliveryPartner } from "../../modules/food/delivery/models/deliveryPartner.model.js";
 import { Seller } from "../../modules/quick-commerce/seller/models/seller.model.js";
+import HotelPartner from "../../modules/hotel/partner/models/Partner.js";
 import { FoodReferralSettings } from "../../modules/food/admin/models/referralSettings.model.js";
 import { FoodReferralLog } from "../../modules/food/admin/models/referralLog.model.js";
 import { FoodUserWallet } from "../../modules/food/user/models/userWallet.model.js";
@@ -25,6 +26,7 @@ const ROLES = {
   DELIVERY_PARTNER: "DELIVERY_PARTNER",
   ADMIN: "ADMIN",
   SELLER: "SELLER",
+  PARTNER: "partner",
 };
 
 const getResolvedUserWalletBalance = async (userId, fallbackBalance = 0) => {
@@ -362,6 +364,125 @@ export const requestDeliveryOtp = async (phone) => {
   return shouldExposeOtp ? { otp } : {};
 };
 
+const getPhoneCandidates = (phone) => {
+  const raw = String(phone || "").trim();
+  const digits = raw.replace(/\D/g, "");
+  const last10 = digits.slice(-10);
+
+  return Array.from(new Set([
+    raw,
+    digits,
+    last10,
+    digits ? `+${digits}` : "",
+    last10 ? `+91${last10}` : "",
+    last10 ? `91${last10}` : "",
+  ].filter(Boolean)));
+};
+
+const findHotelPartnerForAuth = async (phone) => {
+  const phoneCandidates = getPhoneCandidates(phone);
+  const last10 = phoneCandidates.find((value) => value.length === 10);
+
+  const partner = await HotelPartner.findOne({
+    $or: [
+      { phone: { $in: phoneCandidates } },
+      ...(last10 ? [{ phone: { $regex: new RegExp(last10 + "$") } }] : []),
+    ],
+    isDeleted: { $ne: true },
+  });
+
+  return partner ? { partner, source: "hotel_partners" } : null;
+};
+
+export const requestHotelPartnerOtp = async (phone) => {
+  if (!phone) {
+    throw new ValidationError("Phone is required");
+  }
+
+  const found = await findHotelPartnerForAuth(phone);
+  if (!found) {
+    throw new AuthError("Partner account not found. Please register first.");
+  }
+
+  const { partner } = found;
+  if (partner.isBlocked || partner.isActive === false) {
+    throw new AuthError("Your account has been blocked by admin. Please contact support.");
+  }
+
+  const otp = await createOrUpdateOtp(phone);
+  const shouldExposeOtp =
+    config.nodeEnv !== "production" || config.useDefaultOtp;
+  return shouldExposeOtp ? { otp } : {};
+};
+
+export const verifyHotelPartnerOtpAndLogin = async (phone, otp, fcmToken, platform) => {
+  const result = await verifyOtp(phone, otp);
+  if (!result.valid) {
+    throw new AuthError(result.reason || "OTP verification failed");
+  }
+
+  const found = await findHotelPartnerForAuth(phone);
+  if (!found) {
+    throw new AuthError("Partner account not found. Please register first.");
+  }
+
+  const { partner } = found;
+
+  if (partner.isBlocked || partner.isActive === false) {
+    throw new AuthError("Your account has been blocked by admin. Please contact support.");
+  }
+
+  if (partner.isDeleted) {
+    throw new AuthError("Partner account not found. Please register first.");
+  }
+
+  if (partner.partnerApprovalStatus && partner.partnerApprovalStatus !== "approved") {
+    throw new AuthError(
+      partner.partnerApprovalStatus === "pending"
+        ? "Your partner registration is pending approval."
+        : "Your partner registration has been rejected. Please contact support.",
+    );
+  }
+
+  if (fcmToken) {
+    let needsSave = false;
+    const field = platform === "mobile" ? "app" : "web";
+    if (!partner.fcmTokens) partner.fcmTokens = {};
+    if (partner.fcmTokens[field] !== fcmToken) {
+      partner.fcmTokens[field] = fcmToken;
+      needsSave = true;
+    }
+    if (needsSave) await partner.save();
+  }
+
+  const payload = { userId: partner._id.toString(), role: ROLES.PARTNER };
+  const accessToken = signAccessToken(payload);
+  const refreshToken = signRefreshToken(payload);
+  const ttlMs = ms(config.jwtRefreshExpiresIn || "7d");
+  const expiresAt = new Date(Date.now() + ttlMs);
+
+  await FoodRefreshToken.create({
+    userId: partner._id,
+    token: refreshToken,
+    expiresAt,
+  });
+
+  const user = partner.toObject ? partner.toObject() : partner;
+  delete user.password;
+
+  return {
+    accessToken,
+    refreshToken,
+    user: {
+      ...user,
+      id: user._id,
+      role: "partner",
+      isPartner: true,
+    },
+    needsRegistration: false,
+  };
+};
+
 const normalizePhoneForDelivery = (phone) => {
   const digits = String(phone || "").replace(/\D/g, "");
   return digits.slice(-10) || null;
@@ -637,6 +758,21 @@ export const getProfile = async (userId, role) => {
       };
       break;
     }
+    case ROLES.PARTNER: {
+      const found = await Promise.all([
+        FoodUser.findById(id).lean(),
+        HotelPartner.findById(id).lean(),
+      ]);
+      const partner = found.find(Boolean);
+      if (!partner) break;
+      profile = {
+        ...partner,
+        role: "partner",
+        isPartner: true,
+      };
+      delete profile.password;
+      break;
+    }
     case ROLES.SELLER: {
       const seller = await Seller.findById(id).lean();
       if (!seller) break;
@@ -677,7 +813,7 @@ export const getProfile = async (userId, role) => {
   return { user: profile };
 };
 
-const ADMIN_SERVICES_ALLOWED = ["food", "quickCommerce", "taxi"];
+const ADMIN_SERVICES_ALLOWED = ["food", "quickCommerce", "taxi", "hotel"];
 
 /** Update admin profile (name, email, phone, profileImage). Only for ADMIN role. */
 export const updateAdminProfile = async (userId, body) => {

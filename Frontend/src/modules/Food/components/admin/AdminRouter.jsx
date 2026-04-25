@@ -1,5 +1,5 @@
 import { Suspense, lazy } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import ProtectedRoute from "./ProtectedRoute";
 import AdminLayout from "./AdminLayout";
 import Loader from "@food/components/Loader";
@@ -132,6 +132,13 @@ const AdminSignup = lazy(() => import("@food/pages/admin/auth/AdminSignup"));
 const AdminForgotPassword = lazy(() => import("@food/pages/admin/auth/AdminForgotPassword"));
 const QuickCommerceAdminRoutes = lazy(() => import("@/modules/quickCommerce/admin/routes"));
 
+const HotelAdminRedirect = () => {
+  const location = useLocation();
+  const suffix = location.pathname.replace(/^\/admin\/hotel/, "");
+  const normalizedSuffix = suffix && suffix !== "/" ? suffix : "";
+  return <Navigate to={`/hotel/admin${normalizedSuffix}${location.search}`} replace />;
+};
+
 export default function AdminRouter() {
   return (
     <Suspense fallback={<Loader />}>
@@ -151,6 +158,7 @@ export default function AdminRouter() {
             </ProtectedRoute>
           }
         />
+        <Route path="hotel/*" element={<HotelAdminRedirect />} />
 
         <Route
           element={

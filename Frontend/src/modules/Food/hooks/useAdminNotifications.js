@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { adminAPI } from "@food/api";
+import { API_BASE_URL } from "@food/api/config";
+import io from "socket.io-client";
 
 const STORAGE_KEY = "admin_notifications_dismissed_v1";
 const UPDATE_EVENT = "adminNotificationsUpdated";
@@ -192,6 +194,45 @@ const mapExpiredFssai = (response) => {
   }));
 };
 
+const mapDiningApprovalRequests = (response) => {
+  const payload = response?.data?.data;
+  const rows = payload?.restaurants || payload?.items || response?.data?.restaurants || [];
+
+  return (Array.isArray(rows) ? rows : [])
+    .filter((item) => item?.pendingDiningRequest?.requestedAt)
+    .map((item) => {
+      const categories = Array.isArray(item?.pendingDiningRequest?.categories)
+        ? item.pendingDiningRequest.categories.map((category) => category?.name).filter(Boolean)
+        : [];
+
+      return {
+        id: `approval-dining-${String(item?._id || item?.id || "")}-${String(item?.pendingDiningRequest?.requestedAt || item?.updatedAt || "")}`,
+        title: "Dining Approval Pending",
+        message: `${item?.restaurantName || item?.name || "Restaurant"} requested dining changes. Guests: ${Number(item?.pendingDiningRequest?.maxGuests ?? 0)}, Dining: ${item?.pendingDiningRequest?.isEnabled ? "On" : "Off"}.`,
+        type: "approval",
+        category: "dining_approval",
+        path: "/admin/food/dining-list",
+        createdAt: item?.pendingDiningRequest?.requestedAt || item?.updatedAt,
+        timeLabel: toDateLabel(item?.pendingDiningRequest?.requestedAt || item?.updatedAt),
+        metaLabel: joinMeta(item?.restaurantName || item?.name, categories.join(", "), item?.ownerPhone),
+      };
+    });
+};
+
+const resolveSocketOrigin = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return raw
+      .replace(/\/api\/v\d+\/?$/i, "")
+      .replace(/\/api\/?$/i, "")
+      .replace(/\/+$/, "");
+  }
+};
+
 export default function useAdminNotifications(options = {}) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(Boolean(options?.autoload !== false));
@@ -208,6 +249,7 @@ export default function useAdminNotifications(options = {}) {
         supportRes,
         deliverySupportRes,
         fssaiExpiredRes,
+        diningApprovalRes,
       ] = await Promise.all([
         adminAPI.getPendingRestaurants(),
         adminAPI.getDeliveryPartnerJoinRequests({ page: 1, limit: 50 }),
@@ -215,6 +257,7 @@ export default function useAdminNotifications(options = {}) {
         adminAPI.getSupportTicketsAdmin({ page: 1, limit: 50, source: "all" }),
         adminAPI.getDeliverySupportTickets({ page: 1, limit: 50 }),
         adminAPI.getExpiredFssaiNotifications(),
+        adminAPI.getDiningRestaurants(),
       ]);
 
       const restaurantRows =
@@ -229,6 +272,7 @@ export default function useAdminNotifications(options = {}) {
         ...mapUserRestaurantSupport(supportRes),
         ...mapDeliverySupport(deliverySupportRes),
         ...mapExpiredFssai(fssaiExpiredRes),
+        ...mapDiningApprovalRequests(diningApprovalRes),
       ])
         .filter((item) => !dismissed.has(item.id))
         .sort((a, b) => toDateValue(b.createdAt) - toDateValue(a.createdAt));
@@ -258,8 +302,28 @@ export default function useAdminNotifications(options = {}) {
   useEffect(() => {
     const timer = window.setInterval(() => {
       loadNotifications();
-    }, 5 * 60 * 1000);
+    }, 60 * 1000);
     return () => window.clearInterval(timer);
+  }, [loadNotifications]);
+
+  useEffect(() => {
+    const token = localStorage.getItem("admin_accessToken") || localStorage.getItem("accessToken");
+    const socketOrigin = resolveSocketOrigin(API_BASE_URL);
+    if (!token || !socketOrigin) return undefined;
+
+    const socket = io(socketOrigin, {
+      path: "/socket.io/",
+      transports: ["polling"],
+      auth: { token },
+    });
+
+    socket.on("admin_notification", () => {
+      loadNotifications();
+    });
+
+    return () => {
+      socket.disconnect();
+    };
   }, [loadNotifications]);
 
   const dismissOne = useCallback((id) => {

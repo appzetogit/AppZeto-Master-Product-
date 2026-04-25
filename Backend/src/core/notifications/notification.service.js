@@ -49,6 +49,7 @@ export const createInboxNotifications = async ({ notifications = [] } = {}) => {
     if (!rows.length) return [];
 
     const operations = rows.map((item) => {
+        const hasExplicitBroadcastId = item.broadcastId && mongoose.Types.ObjectId.isValid(String(item.broadcastId));
         const payload = {
             ownerType: item.ownerType,
             ownerId: ensureObjectId(item.ownerId, 'ownerId'),
@@ -60,13 +61,20 @@ export const createInboxNotifications = async ({ notifications = [] } = {}) => {
             metadata: item.metadata && typeof item.metadata === 'object' ? item.metadata : {},
         };
 
-        if (item.broadcastId && mongoose.Types.ObjectId.isValid(String(item.broadcastId))) {
+        if (hasExplicitBroadcastId) {
             payload.broadcastId = new mongoose.Types.ObjectId(String(item.broadcastId));
+        } else {
+            // The existing collection has a unique compound index on
+            // { broadcastId, ownerType, ownerId }. For inbox-only notifications
+            // (like dining approval requests) we still need a unique ObjectId here,
+            // otherwise MongoDB treats the missing value as null inside that index
+            // and throws duplicate key errors on repeated inserts for the same owner.
+            payload.broadcastId = new mongoose.Types.ObjectId();
         }
 
         return {
             updateOne: {
-                filter: payload.broadcastId
+                filter: hasExplicitBroadcastId
                     ? {
                         broadcastId: payload.broadcastId,
                         ownerType: payload.ownerType,
@@ -94,7 +102,7 @@ export const createInboxNotifications = async ({ notifications = [] } = {}) => {
         };
     });
 
-    await FoodNotification.bulkWrite(operations, { ordered: false });
+    await FoodNotification.collection.bulkWrite(operations, { ordered: false });
 
     const ids = rows
         .map((item) => item.broadcastId)

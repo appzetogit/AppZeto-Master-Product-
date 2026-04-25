@@ -10,6 +10,7 @@ const foodSrc = path.resolve(__dirname, './src/modules/Food')
 const servicesApi = path.resolve(__dirname, './src/services/api')
 const sharedSrc = path.resolve(__dirname, './src/shared')
 const coreSrc = path.resolve(__dirname, './src/core')
+const hotelSrc = path.resolve(__dirname, './src/modules/hotel')
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -25,6 +26,7 @@ export default defineConfig({
       '@core': coreSrc,
       '@quickCommerce': path.resolve(__dirname, './src/modules/quickCommerce'),
       '@delivery': path.resolve(__dirname, './src/modules/DeliveryV2'),
+      '@hotel': hotelSrc,
       '@': path.resolve(__dirname, './src'),
     },
     dedupe: ['react', 'react-dom', 'react-router-dom'],

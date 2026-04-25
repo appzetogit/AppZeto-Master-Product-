@@ -200,14 +200,6 @@ export default function RestaurantLogin() {
                 className="bg-transparent border-0 p-0 text-[#ef4f5f] font-bold hover:underline cursor-pointer"
               >
                 Terms
-              </button>{" "}
-              and{" "}
-              <button
-                type="button"
-                onClick={() => navigate("/food/restaurant/privacy")}
-                className="bg-transparent border-0 p-0 text-[#ef4f5f] font-bold hover:underline cursor-pointer"
-              >
-                Privacy Policy
               </button>
             </p>
           </div>

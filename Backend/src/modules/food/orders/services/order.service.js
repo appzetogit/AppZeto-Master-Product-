@@ -140,6 +140,36 @@ async function ensureUniqueOrderId() {
   return orderId;
 }
 
+function normalizeDeliveryAddress(address) {
+  if (!address || typeof address !== "object") return undefined;
+
+  const street =
+    String(address.street || "").trim() ||
+    String(address.address || "").trim() ||
+    String(address.formattedAddress || "").trim();
+  const city =
+    String(address.city || "").trim() ||
+    String(address.area || "").trim();
+  const state =
+    String(address.state || "").trim() ||
+    city;
+
+  return {
+    label: address.label || "Home",
+    street,
+    additionalDetails:
+      String(address.additionalDetails || "").trim() ||
+      String(address.area || "").trim(),
+    city,
+    state,
+    zipCode: String(address.zipCode || address.postalCode || "").trim(),
+    phone: String(address.phone || "").trim(),
+    location: address.location?.coordinates
+      ? { type: "Point", coordinates: address.location.coordinates }
+      : undefined,
+  };
+}
+
 function toGeoPoint(lat, lng) {
   if (lat == null || lng == null) return undefined;
   const a = Number(lat);
@@ -1694,20 +1724,7 @@ export async function createOrder(userId, dto) {
       : null;
   const dispatchMode = settings?.dispatchMode || "manual";
 
-  const deliveryAddress = dto.address
-    ? {
-        label: dto.address?.label || "Home",
-        street: dto.address?.street || "",
-        additionalDetails: dto.address?.additionalDetails || "",
-        city: dto.address?.city || "",
-        state: dto.address?.state || "",
-        zipCode: dto.address?.zipCode || "",
-        phone: dto.address?.phone || "",
-        location: dto.address?.location?.coordinates
-          ? { type: "Point", coordinates: dto.address.location.coordinates }
-          : undefined,
-      }
-    : undefined;
+  const deliveryAddress = normalizeDeliveryAddress(dto.address);
 
   const paymentMethod =
     dto.paymentMethod === "card" ? "razorpay" : dto.paymentMethod;

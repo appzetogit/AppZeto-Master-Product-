@@ -1,5 +1,7 @@
 import mongoose from 'mongoose';
 import { ValidationError } from '../../../../core/auth/errors.js';
+import { createInboxNotifications } from '../../../../core/notifications/notification.service.js';
+import { getIO, rooms } from '../../../../config/socket.js';
 import { FoodRestaurant } from '../../restaurant/models/restaurant.model.js';
 import { FoodDiningCategory } from '../models/diningCategory.model.js';
 import { FoodDiningRestaurant } from '../models/diningRestaurant.model.js';
@@ -21,19 +23,141 @@ const toObjectIdArray = (values) =>
         )
     ).map((value) => new mongoose.Types.ObjectId(value));
 
+const parseBoolean = (value, fallback = false) => {
+    if (value === undefined || value === null) return Boolean(fallback);
+    if (typeof value === 'boolean') return value;
+    const normalized = String(value).trim().toLowerCase();
+    if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
+    if (['false', '0', 'no', 'off'].includes(normalized)) return false;
+    return Boolean(fallback);
+};
+
+const toValidPrimaryCategoryId = (value, validCategoryIds = []) => {
+    const nextPrimaryCategoryId = mongoose.Types.ObjectId.isValid(value)
+        ? new mongoose.Types.ObjectId(String(value))
+        : null;
+
+    const isAllowed = nextPrimaryCategoryId
+        && validCategoryIds.some((categoryId) => String(categoryId) === String(nextPrimaryCategoryId));
+
+    return isAllowed ? nextPrimaryCategoryId : (validCategoryIds[0] || null);
+};
+
+const areObjectIdArraysEqual = (left = [], right = []) => {
+    if (left.length !== right.length) return false;
+    const leftIds = left.map((item) => String(item)).sort();
+    const rightIds = right.map((item) => String(item)).sort();
+    return leftIds.every((item, index) => item === rightIds[index]);
+};
+
+const emitDiningRealtimeAlert = (ownerType, ownerId, payload = {}) => {
+    const io = getIO();
+    if (!io || !ownerId) return;
+
+    if (ownerType === 'ADMIN') {
+        io.to(rooms.admin(ownerId)).emit('admin_notification', payload);
+        return;
+    }
+
+    if (ownerType === 'RESTAURANT') {
+        io.to(rooms.restaurant(ownerId)).emit('admin_notification', payload);
+    }
+};
+
+async function notifyRestaurantDiningRequestSubmitted(restaurant, pendingRequest, categories = []) {
+    const categoryLabel = categories.map((item) => item?.name).filter(Boolean).join(', ') || 'Dining';
+
+    await createInboxNotifications({
+        notifications: [
+            {
+                ownerType: 'RESTAURANT',
+                ownerId: restaurant._id,
+                title: 'Dining request submitted',
+                message: `Your dining update request for ${categoryLabel} was sent to admin for approval.`,
+                category: 'dining_request',
+                link: '/food/restaurant/reservations',
+                metadata: {
+                    type: 'dining_request_submitted',
+                    requestedAt: pendingRequest?.requestedAt || new Date().toISOString()
+                }
+            }
+        ]
+    });
+}
+
+async function notifyRestaurantDiningRequestResolved(restaurant, decision, categories = []) {
+    const isApproved = decision === 'approved';
+    const categoryLabel = categories.map((item) => item?.name).filter(Boolean).join(', ') || 'Dining';
+
+    await createInboxNotifications({
+        notifications: [
+            {
+                ownerType: 'RESTAURANT',
+                ownerId: restaurant._id,
+                title: isApproved ? 'Dining request approved' : 'Dining request rejected',
+                message: isApproved
+                    ? `Admin approved your dining request for ${categoryLabel}.`
+                    : `Admin rejected your dining request for ${categoryLabel}. Please review and submit again.`,
+                category: 'dining_request',
+                link: '/food/restaurant/reservations',
+                metadata: {
+                    type: isApproved ? 'dining_request_approved' : 'dining_request_rejected'
+                }
+            }
+        ]
+    });
+
+    emitDiningRealtimeAlert('RESTAURANT', restaurant._id, {
+        type: isApproved ? 'dining_request_approved' : 'dining_request_rejected',
+        restaurantId: String(restaurant._id)
+    });
+}
+
+async function notifyAdminsForDiningRequest(restaurant, categories = []) {
+    const categoryLabel = categories.map((item) => item?.name).filter(Boolean).join(', ') || 'Dining';
+
+    try {
+        const { FoodAdmin } = await import('../../../../core/admin/admin.model.js');
+        const { notifyAdminsSafely } = await import('../../../../core/notifications/firebase.service.js');
+
+        void notifyAdminsSafely({
+            title: 'Dining approval request',
+            body: `${restaurant.restaurantName || 'Restaurant'} submitted a dining update request.`,
+            data: {
+                type: 'dining_request',
+                restaurantId: String(restaurant._id)
+            }
+        });
+
+        const admins = await FoodAdmin.find({ isActive: true }).select('_id').lean();
+        admins.forEach((admin) => {
+            emitDiningRealtimeAlert('ADMIN', admin?._id, {
+                type: 'dining_request',
+                restaurantId: String(restaurant._id),
+                restaurantName: restaurant.restaurantName || '',
+                categories: categoryLabel
+            });
+        });
+    } catch (error) {
+        // Notification failures should not block the approval flow.
+    }
+}
+
 async function syncRestaurantDiningSettings(restaurantId, diningDoc) {
     const primaryCategory = diningDoc?.primaryCategoryId
         ? await FoodDiningCategory.findById(diningDoc.primaryCategoryId).select('slug').lean()
         : null;
+    const isEnabled = Boolean(diningDoc?.isEnabled);
+    const maxGuests = Math.max(0, Number(diningDoc?.maxGuests) || 0);
 
     await FoodRestaurant.findByIdAndUpdate(
         restaurantId,
         {
             $set: {
                 diningSettings: {
-                    isEnabled: Boolean(diningDoc?.isEnabled),
-                    maxGuests: Math.max(1, Number(diningDoc?.maxGuests) || 6),
-                    diningType: primaryCategory?.slug || 'family-dining'
+                    isEnabled,
+                    maxGuests: isEnabled ? Math.max(1, maxGuests || 6) : 0,
+                    diningType: isEnabled ? (primaryCategory?.slug || 'family-dining') : ''
                 }
             }
         },
@@ -149,6 +273,23 @@ function mapDiningRestaurant(restaurant, diningDoc, categoriesById) {
 
     const primaryCategoryId = diningDoc?.primaryCategoryId ? String(diningDoc.primaryCategoryId) : '';
     const primaryCategory = categories.find((category) => String(category._id) === primaryCategoryId) || categories[0] || null;
+    const pendingCategoryIds = (diningDoc?.pendingRequest?.categoryIds || []).map((id) => String(id));
+    const pendingCategories = pendingCategoryIds
+        .map((id) => categoriesById.get(id))
+        .filter(Boolean)
+        .map((category) => ({
+            _id: category._id,
+            name: category.name,
+            slug: category.slug,
+            imageUrl: category.imageUrl || ''
+        }));
+    const pendingPrimaryCategoryId = diningDoc?.pendingRequest?.primaryCategoryId
+        ? String(diningDoc.pendingRequest.primaryCategoryId)
+        : '';
+    const pendingPrimaryCategory =
+        pendingCategories.find((category) => String(category._id) === pendingPrimaryCategoryId)
+        || pendingCategories[0]
+        || null;
 
     return {
         _id: restaurant._id,
@@ -169,10 +310,183 @@ function mapDiningRestaurant(restaurant, diningDoc, categoriesById) {
         primaryCategoryId: primaryCategory?._id || null,
         diningSettings: {
             isEnabled: Boolean(diningDoc?.isEnabled),
-            maxGuests: Math.max(1, Number(diningDoc?.maxGuests) || 6),
+            maxGuests: diningDoc?.isEnabled ? Math.max(1, Number(diningDoc?.maxGuests) || 6) : 0,
             pureVegRestaurant: diningDoc?.pureVegRestaurant === true || restaurant?.pureVegRestaurant === true,
             diningType: primaryCategory?.slug || restaurant?.diningSettings?.diningType || ''
-        }
+        },
+        pendingDiningRequest: diningDoc?.pendingRequest?.requestedAt
+            ? {
+                isEnabled: Boolean(diningDoc?.pendingRequest?.isEnabled),
+                maxGuests: diningDoc?.pendingRequest?.isEnabled ? Math.max(1, Number(diningDoc?.pendingRequest?.maxGuests) || 6) : 0,
+                requestedAt: diningDoc?.pendingRequest?.requestedAt,
+                note: diningDoc?.pendingRequest?.note || '',
+                categories: pendingCategories,
+                categoryIds: pendingCategoryIds,
+                primaryCategoryId: pendingPrimaryCategory?._id || null,
+                diningType: pendingPrimaryCategory?.slug || primaryCategory?.slug || restaurant?.diningSettings?.diningType || ''
+            }
+            : null
+    };
+}
+
+export async function getRestaurantDiningSnapshot(restaurantId) {
+    if (!mongoose.Types.ObjectId.isValid(String(restaurantId || ''))) {
+        return {
+            categoryIds: [],
+            categories: [],
+            primaryCategoryId: null,
+            pendingDiningRequest: null
+        };
+    }
+
+    const diningDoc = await FoodDiningRestaurant.findOne({ restaurantId })
+        .select('categoryIds primaryCategoryId pendingRequest isEnabled maxGuests pureVegRestaurant')
+        .lean();
+
+    if (!diningDoc) {
+        return {
+            categoryIds: [],
+            categories: [],
+            primaryCategoryId: null,
+            pendingDiningRequest: null
+        };
+    }
+
+    const categoryIds = [
+        ...(diningDoc.categoryIds || []),
+        ...(diningDoc.pendingRequest?.categoryIds || [])
+    ].map((id) => new mongoose.Types.ObjectId(String(id)));
+
+    const categories = categoryIds.length > 0
+        ? await FoodDiningCategory.find({ _id: { $in: categoryIds } }).select('name slug imageUrl').lean()
+        : [];
+    const categoriesById = new Map(categories.map((category) => [String(category._id), category]));
+
+    const approvedCategoryIds = (diningDoc.categoryIds || []).map((id) => String(id));
+    const approvedCategories = approvedCategoryIds
+        .map((id) => categoriesById.get(id))
+        .filter(Boolean)
+        .map((category) => ({
+            _id: category._id,
+            name: category.name,
+            slug: category.slug,
+            imageUrl: category.imageUrl || ''
+        }));
+
+    const pendingCategoryIds = (diningDoc.pendingRequest?.categoryIds || []).map((id) => String(id));
+    const pendingCategories = pendingCategoryIds
+        .map((id) => categoriesById.get(id))
+        .filter(Boolean)
+        .map((category) => ({
+            _id: category._id,
+            name: category.name,
+            slug: category.slug,
+            imageUrl: category.imageUrl || ''
+        }));
+
+    const pendingPrimaryCategoryId = diningDoc.pendingRequest?.primaryCategoryId
+        ? String(diningDoc.pendingRequest.primaryCategoryId)
+        : '';
+    const pendingPrimaryCategory =
+        pendingCategories.find((category) => String(category._id) === pendingPrimaryCategoryId)
+        || pendingCategories[0]
+        || null;
+
+    return {
+        categoryIds: approvedCategoryIds,
+        categories: approvedCategories,
+        primaryCategoryId: diningDoc.primaryCategoryId || approvedCategories[0]?._id || null,
+        pendingDiningRequest: diningDoc.pendingRequest?.requestedAt
+            ? {
+                isEnabled: Boolean(diningDoc.pendingRequest.isEnabled),
+                maxGuests: diningDoc.pendingRequest.isEnabled ? Math.max(1, Number(diningDoc.pendingRequest.maxGuests) || 6) : 0,
+                requestedAt: diningDoc.pendingRequest.requestedAt,
+                note: diningDoc.pendingRequest.note || '',
+                categoryIds: pendingCategoryIds,
+                categories: pendingCategories,
+                primaryCategoryId: pendingPrimaryCategory?._id || null,
+                diningType: pendingPrimaryCategory?.slug || ''
+            }
+            : null
+    };
+}
+
+export async function submitRestaurantDiningRequest(restaurantId, body = {}) {
+    if (!mongoose.Types.ObjectId.isValid(String(restaurantId || ''))) {
+        throw new ValidationError('Invalid restaurant id');
+    }
+
+    const restaurant = await FoodRestaurant.findById(restaurantId)
+        .select('restaurantName pureVegRestaurant diningSettings')
+        .lean();
+
+    if (!restaurant) {
+        throw new ValidationError('Restaurant not found');
+    }
+
+    let diningDoc = await FoodDiningRestaurant.findOne({ restaurantId });
+    if (!diningDoc) {
+        diningDoc = new FoodDiningRestaurant({
+            restaurantId,
+            isEnabled: restaurant?.diningSettings?.isEnabled === true,
+            maxGuests: Math.max(1, Number(restaurant?.diningSettings?.maxGuests) || 6),
+            pureVegRestaurant: restaurant.pureVegRestaurant === true
+        });
+    }
+
+    const requestedCategoryIds = body.categoryIds !== undefined
+        ? toObjectIdArray(body.categoryIds)
+        : (diningDoc.pendingRequest?.categoryIds || diningDoc.categoryIds || []);
+    const nextIsEnabled = parseBoolean(body.isEnabled, diningDoc.isEnabled);
+
+    const validCategories = nextIsEnabled && requestedCategoryIds.length > 0
+        ? await FoodDiningCategory.find({ _id: { $in: requestedCategoryIds } }).select('name slug imageUrl').lean()
+        : [];
+    const validCategoryIds = validCategories.map((category) => category._id);
+    const primaryCategoryId = toValidPrimaryCategoryId(
+        body.primaryCategoryId !== undefined ? body.primaryCategoryId : diningDoc.pendingRequest?.primaryCategoryId,
+        validCategoryIds
+    );
+
+    if (nextIsEnabled && validCategoryIds.length === 0) {
+        throw new ValidationError('Select at least one dining category');
+    }
+
+    const nextRequest = {
+        isEnabled: nextIsEnabled,
+        maxGuests: nextIsEnabled
+            ? Math.max(1, parseInt(body.maxGuests ?? diningDoc.maxGuests ?? 6, 10) || 6)
+            : 0,
+        categoryIds: nextIsEnabled ? validCategoryIds : [],
+        primaryCategoryId: nextIsEnabled ? primaryCategoryId : null,
+        requestedAt: new Date(),
+        note: String(body.note || '').trim()
+    };
+
+    const matchesApprovedSettings =
+        nextRequest.isEnabled === Boolean(diningDoc.isEnabled)
+        && nextRequest.maxGuests === Math.max(1, Number(diningDoc.maxGuests) || 6)
+        && areObjectIdArraysEqual(nextRequest.categoryIds, diningDoc.categoryIds || [])
+        && String(nextRequest.primaryCategoryId || '') === String(diningDoc.primaryCategoryId || '');
+
+    if (matchesApprovedSettings) {
+        throw new ValidationError('No dining changes found to submit for approval');
+    }
+
+    diningDoc.pendingRequest = nextRequest;
+    if (typeof diningDoc.pureVegRestaurant !== 'boolean') {
+        diningDoc.pureVegRestaurant = restaurant.pureVegRestaurant === true;
+    }
+    await diningDoc.save();
+
+    await Promise.all([
+        notifyRestaurantDiningRequestSubmitted(restaurant, nextRequest, validCategories),
+        notifyAdminsForDiningRequest(restaurant, validCategories)
+    ]);
+
+    return {
+        status: 'pending',
+        requestedAt: nextRequest.requestedAt
     };
 }
 
@@ -279,7 +593,7 @@ export async function listDiningRestaurantsAdmin() {
             .select('restaurantName ownerName ownerPhone profileImage coverImages menuImages location area city status rating pureVegRestaurant diningSettings')
             .lean(),
         FoodDiningRestaurant.find({})
-            .select('restaurantId categoryIds primaryCategoryId isEnabled maxGuests pureVegRestaurant')
+            .select('restaurantId categoryIds primaryCategoryId isEnabled maxGuests pureVegRestaurant pendingRequest')
             .lean(),
         FoodDiningCategory.find({}).select('name slug imageUrl').lean()
     ]);
@@ -317,47 +631,91 @@ export async function updateDiningRestaurant(restaurantId, body = {}) {
         : [];
     const validCategoryIds = validCategories.map((category) => category._id);
 
-    if (body.categoryIds !== undefined) {
+    if (body.approvalAction === 'approve') {
+        if (!diningDoc.pendingRequest?.requestedAt) {
+            throw new ValidationError('No pending dining request found');
+        }
+
+        const pendingCategoryIds = toObjectIdArray(diningDoc.pendingRequest.categoryIds || []);
+        const pendingCategories = pendingCategoryIds.length > 0
+            ? await FoodDiningCategory.find({ _id: { $in: pendingCategoryIds } }).select('name slug imageUrl').lean()
+            : [];
+        const validPendingCategoryIds = pendingCategories.map((category) => category._id);
+
+        diningDoc.categoryIds = validPendingCategoryIds;
+        diningDoc.primaryCategoryId = toValidPrimaryCategoryId(
+            diningDoc.pendingRequest.primaryCategoryId,
+            validPendingCategoryIds
+        );
+        diningDoc.isEnabled = diningDoc.pendingRequest.isEnabled === true;
+        diningDoc.maxGuests = diningDoc.pendingRequest.isEnabled === true
+            ? Math.max(1, parseInt(diningDoc.pendingRequest.maxGuests, 10) || 6)
+            : 0;
+        if (diningDoc.isEnabled !== true) {
+            diningDoc.categoryIds = [];
+            diningDoc.primaryCategoryId = null;
+        }
+        diningDoc.set('pendingRequest', null);
+
+        await diningDoc.save();
+        await syncCategoryRestaurantLinks(restaurant._id, diningDoc.isEnabled ? validPendingCategoryIds : []);
+        await syncRestaurantDiningSettings(restaurant._id, diningDoc);
+        await notifyRestaurantDiningRequestResolved(restaurant, 'approved', pendingCategories);
+    } else if (body.approvalAction === 'reject') {
+        if (!diningDoc.pendingRequest?.requestedAt) {
+            throw new ValidationError('No pending dining request found');
+        }
+
+        const pendingCategoryIds = toObjectIdArray(diningDoc.pendingRequest.categoryIds || []);
+        const pendingCategories = pendingCategoryIds.length > 0
+            ? await FoodDiningCategory.find({ _id: { $in: pendingCategoryIds } }).select('name slug imageUrl').lean()
+            : [];
+        diningDoc.set('pendingRequest', null);
+        await diningDoc.save();
+        await notifyRestaurantDiningRequestResolved(restaurant, 'rejected', pendingCategories);
+    } else {
+        if (body.categoryIds !== undefined) {
         diningDoc.categoryIds = validCategoryIds;
-    }
-    if (body.isEnabled !== undefined) {
-        diningDoc.isEnabled = body.isEnabled === true;
-    }
-    if (body.maxGuests !== undefined) {
-        diningDoc.maxGuests = Math.max(1, parseInt(body.maxGuests, 10) || 6);
-    }
-    if (body.pureVegRestaurant !== undefined) {
-        if (typeof body.pureVegRestaurant === 'boolean') {
-            diningDoc.pureVegRestaurant = body.pureVegRestaurant;
-        } else if (typeof body.pureVegRestaurant === 'string') {
-            const normalized = body.pureVegRestaurant.trim().toLowerCase();
-            if (normalized === 'true' || normalized === '1' || normalized === 'yes') {
-                diningDoc.pureVegRestaurant = true;
-            } else if (normalized === 'false' || normalized === '0' || normalized === 'no') {
-                diningDoc.pureVegRestaurant = false;
+        }
+        if (body.isEnabled !== undefined) {
+            diningDoc.isEnabled = body.isEnabled === true;
+        }
+        if (body.maxGuests !== undefined) {
+            diningDoc.maxGuests = Math.max(1, parseInt(body.maxGuests, 10) || 6);
+        }
+        if (body.pureVegRestaurant !== undefined) {
+            if (typeof body.pureVegRestaurant === 'boolean') {
+                diningDoc.pureVegRestaurant = body.pureVegRestaurant;
+            } else if (typeof body.pureVegRestaurant === 'string') {
+                const normalized = body.pureVegRestaurant.trim().toLowerCase();
+                if (normalized === 'true' || normalized === '1' || normalized === 'yes') {
+                    diningDoc.pureVegRestaurant = true;
+                } else if (normalized === 'false' || normalized === '0' || normalized === 'no') {
+                    diningDoc.pureVegRestaurant = false;
+                }
             }
         }
-    }
 
-    if (body.primaryCategoryId !== undefined) {
-        diningDoc.primaryCategoryId = mongoose.Types.ObjectId.isValid(body.primaryCategoryId)
-            ? new mongoose.Types.ObjectId(body.primaryCategoryId)
-            : null;
-    }
+        if (body.primaryCategoryId !== undefined) {
+            diningDoc.primaryCategoryId = mongoose.Types.ObjectId.isValid(body.primaryCategoryId)
+                ? new mongoose.Types.ObjectId(body.primaryCategoryId)
+                : null;
+        }
 
-    const primaryCategoryIsAllowed = diningDoc.primaryCategoryId
-        && validCategoryIds.some((categoryId) => String(categoryId) === String(diningDoc.primaryCategoryId));
+        const primaryCategoryIsAllowed = diningDoc.primaryCategoryId
+            && validCategoryIds.some((categoryId) => String(categoryId) === String(diningDoc.primaryCategoryId));
 
-    if (!primaryCategoryIsAllowed) {
-        diningDoc.primaryCategoryId = validCategoryIds[0] || null;
-    }
-    if (typeof diningDoc.pureVegRestaurant !== 'boolean') {
-        diningDoc.pureVegRestaurant = restaurant.pureVegRestaurant === true;
-    }
+        if (!primaryCategoryIsAllowed) {
+            diningDoc.primaryCategoryId = validCategoryIds[0] || null;
+        }
+        if (typeof diningDoc.pureVegRestaurant !== 'boolean') {
+            diningDoc.pureVegRestaurant = restaurant.pureVegRestaurant === true;
+        }
 
-    await diningDoc.save();
-    await syncCategoryRestaurantLinks(restaurant._id, validCategoryIds);
-    await syncRestaurantDiningSettings(restaurant._id, diningDoc);
+        await diningDoc.save();
+        await syncCategoryRestaurantLinks(restaurant._id, validCategoryIds);
+        await syncRestaurantDiningSettings(restaurant._id, diningDoc);
+    }
 
     const categories = await FoodDiningCategory.find({}).select('name slug imageUrl').lean();
     const categoriesById = new Map(categories.map((category) => [String(category._id), category]));

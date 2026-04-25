@@ -26,6 +26,16 @@ const adminSchema = new mongoose.Schema(
             type: [String],
             default: []
         },
+        hotelFcmTokens: {
+            app: {
+                type: String,
+                default: null
+            },
+            web: {
+                type: String,
+                default: null
+            }
+        },
         role: {
             type: String,
             default: 'ADMIN'
@@ -36,12 +46,12 @@ const adminSchema = new mongoose.Schema(
         },
         servicesAccess: {
             type: [String],
-            enum: ['food', 'quickCommerce', 'taxi'],
+            enum: ['food', 'quickCommerce', 'taxi', 'hotel'],
             default: ['food']
         }
     },
     {
-        collection: 'food_admins',
+        collection: 'admins',
         timestamps: true
     }
 );

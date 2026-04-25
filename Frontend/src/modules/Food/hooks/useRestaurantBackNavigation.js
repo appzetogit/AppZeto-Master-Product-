@@ -29,7 +29,7 @@ const resolveRestaurantBackPath = ({ pathname, state }) => {
     normalizedPath === "/orders/all" ||
     /^\/orders\/[^/]+$/.test(normalizedPath)
   ) {
-    return explicitBackPath || "/food/restaurant/orders"
+    return explicitBackPath || "/food/restaurant"
   }
 
   if (
@@ -37,7 +37,7 @@ const resolveRestaurantBackPath = ({ pathname, state }) => {
     /^\/food\/[^/]+$/.test(normalizedPath) ||
     /^\/food\/[^/]+\/edit$/.test(normalizedPath)
   ) {
-    return explicitBackPath || "/food/restaurant/food/all"
+    return explicitBackPath || "/food/restaurant/inventory"
   }
 
   if (
@@ -45,18 +45,17 @@ const resolveRestaurantBackPath = ({ pathname, state }) => {
     /^\/advertisements\/[^/]+$/.test(normalizedPath) ||
     /^\/advertisements\/[^/]+\/edit$/.test(normalizedPath)
   ) {
-    return explicitBackPath || "/food/restaurant/advertisements"
+    return explicitBackPath || "/food/restaurant"
   }
 
   if (
     normalizedPath === "/coupon/new" ||
     /^\/coupon\/[^/]+\/edit$/.test(normalizedPath)
   ) {
-    return explicitBackPath || "/food/restaurant/coupon"
+    return explicitBackPath || "/food/restaurant"
   }
 
   if (
-    normalizedPath === "/edit" ||
     normalizedPath === "/edit-owner" ||
     normalizedPath === "/edit-cuisines" ||
     normalizedPath === "/edit-address" ||
@@ -70,7 +69,7 @@ const resolveRestaurantBackPath = ({ pathname, state }) => {
     /^\/outlet-timings\/[^/]+$/.test(normalizedPath) ||
     normalizedPath === "/zone-setup"
   ) {
-    return explicitBackPath || "/food/restaurant/details"
+    return explicitBackPath || "/food/restaurant/outlet-info"
   }
 
   if (
@@ -78,11 +77,7 @@ const resolveRestaurantBackPath = ({ pathname, state }) => {
     normalizedPath === "/delivery-settings" ||
     normalizedPath === "/rush-hour" ||
     normalizedPath === "/status" ||
-    normalizedPath === "/business-plan" ||
-    normalizedPath === "/config" ||
-    normalizedPath === "/categories" ||
     normalizedPath === "/menu-categories" ||
-    normalizedPath === "/privacy" ||
     normalizedPath === "/terms"
   ) {
     return explicitBackPath || "/food/restaurant"
@@ -94,7 +89,7 @@ const resolveRestaurantBackPath = ({ pathname, state }) => {
     normalizedPath === "/ratings-reviews" ||
     normalizedPath === "/dish-ratings"
   ) {
-    return explicitBackPath || "/food/restaurant/reviews"
+    return explicitBackPath || "/food/restaurant/feedback"
   }
 
   if (

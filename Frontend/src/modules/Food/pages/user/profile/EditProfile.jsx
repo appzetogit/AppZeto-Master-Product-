@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react"
-import { useNavigate } from "react-router-dom"
+import { useLocation, useNavigate } from "react-router-dom"
 import { ArrowLeft, X, Pencil, Loader2, Camera, Upload } from "lucide-react"
 import { Button } from "@food/components/ui/button"
 import { Input } from "@food/components/ui/input"
@@ -116,7 +116,12 @@ const clearEditProfileDraft = () => {
 
 export default function EditProfile() {
   const navigate = useNavigate()
+  const location = useLocation()
   const goBack = useAppBackNavigation()
+  const isSharedProfile = location.pathname.startsWith("/profile")
+  const profileSource = new URLSearchParams(location.search).get("from")
+  const sharedSourceQuery = profileSource ? `?from=${profileSource}` : ""
+  const profileHomePath = isSharedProfile ? `/profile${sharedSourceQuery}` : "/user/profile"
   const { userProfile, updateUserProfile } = useProfile()
 
   // Load from localStorage or use context
@@ -374,7 +379,7 @@ export default function EditProfile() {
         toast.success('Profile updated successfully')
 
         // Navigate back
-        navigate("/user/profile")
+        navigate(profileHomePath)
       }
     } catch (error) {
       debugError('Error updating profile:', error)

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { ArrowLeft, MapPin, Calendar, Clock, ChevronRight, AlertCircle, Plane } from 'lucide-react';
+import { getSavedTaxiLocationLabel, saveTaxiLocation } from '../../services/savedLocation';
 
 const VEHICLES = [
   { id: 'mini',  name: 'Mini Cab', icon: '🚕', fare: 499,  desc: 'Swift, Alto, WagonR',    seats: 4 },
@@ -13,7 +14,10 @@ const TERMINALS = ['T1', 'T2', 'T3'];
 
 const AirportCab = () => {
   const navigate = useNavigate();
-  const [pickup,   setPickup]   = useState('');
+  const [pickup,   setPickup]   = useState(() => {
+    const saved = getSavedTaxiLocationLabel();
+    return saved === 'Choose your location' ? '' : saved;
+  });
   const [terminal, setTerminal] = useState('');
   const [date,     setDate]     = useState('');
   const [time,     setTime]     = useState('');
@@ -76,6 +80,11 @@ const AirportCab = () => {
           <div className={`flex items-center gap-3 rounded-[16px] px-4 py-3.5 border-2 transition-all ${errors.pickup ? 'border-red-200 bg-red-50' : 'border-slate-100 bg-white/90'}`}>
             <MapPin size={16} className="text-slate-400 shrink-0" strokeWidth={2} />
             <input type="text" value={pickup} onChange={e => { setPickup(e.target.value); setErrors(p => ({ ...p, pickup: '' })); }}
+              onBlur={() => {
+                if (pickup.trim()) {
+                  saveTaxiLocation({ address: pickup });
+                }
+              }}
               placeholder="Your pickup location"
               className="flex-1 bg-transparent border-none text-[14px] font-bold text-slate-900 focus:outline-none placeholder:text-slate-300" />
           </div>

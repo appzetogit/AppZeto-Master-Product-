@@ -26,8 +26,8 @@ export default function UnifiedOTPFastLogin() {
 
   useEffect(() => {
     if (!isModuleAuthenticated("user")) return
-    navigate("/portal", { replace: true })
-  }, [navigate])
+    navigate(redirectTo, { replace: true })
+  }, [navigate, redirectTo])
 
   const clearNameFlow = () => {
     setShowNameInput(false)

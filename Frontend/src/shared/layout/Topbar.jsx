@@ -13,7 +13,6 @@ import { sellerApi } from '@/modules/seller/services/sellerApi';
 import { AnimatePresence } from 'framer-motion';
 import NotificationPopup from './NotificationPopup';
 import { toast } from 'sonner';
-import AdminModuleSwitcher from '@/shared/components/AdminModuleSwitcher';
 
 const Topbar = ({ onMenuClick }) => {
     const { user, logout, role } = useAuth();
@@ -122,10 +121,6 @@ const Topbar = ({ onMenuClick }) => {
             </div>
 
             <div className="flex items-center space-x-4">
-                {role === 'admin' && location.pathname.startsWith('/admin/quick-commerce') && (
-                    <AdminModuleSwitcher className="hidden lg:flex" />
-                )}
-
                 <div className="relative" ref={notificationRef}>
                     <button
                         onClick={() => setShowNotifications(!showNotifications)}

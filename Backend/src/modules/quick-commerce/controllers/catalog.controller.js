@@ -37,8 +37,15 @@ const publicCategoryFilter = {
 };
 
 const publicProductFilter = {
-  isActive: true,
-  ...approvedOrLegacyFilter,
+  $and: [
+    approvedOrLegacyFilter,
+    {
+      $or: [
+        { isActive: true },
+        { isActive: { $exists: false }, status: 'active' },
+      ],
+    },
+  ],
 };
 
 const mapCategory = (category) => ({
@@ -220,11 +227,30 @@ export const getOffers = async (_req, res) => {
   return res.json({ success: true, results: offers });
 };
 
-export const getCategories = async (_req, res) => {
+export const getCategories = async (req, res) => {
   setNoCache(res);
   await ensureQuickCommerceSeedData();
-  const categories = await QuickCategory.find(publicCategoryFilter).sort({ sortOrder: 1, name: 1 }).lean();
-  return res.json({ success: true, results: categories.map(mapCategory) });
+
+  const { tree, parentId } = req.query;
+  const filter = { ...publicCategoryFilter };
+  if (parentId) filter.parentId = parentId;
+
+  const categories = await QuickCategory.find(filter).sort({ sortOrder: 1, name: 1 }).lean();
+  const mapped = categories.map(mapCategory);
+
+  if (tree === 'true' || tree === true) {
+    const buildTree = (parentId = null) => {
+      return mapped
+        .filter((cat) => String(cat.parentId || '') === String(parentId || ''))
+        .map((cat) => ({
+          ...cat,
+          children: buildTree(cat._id),
+        }));
+    };
+    return res.json({ success: true, results: buildTree(null) });
+  }
+
+  return res.json({ success: true, results: mapped });
 };
 
 export const getProducts = async (req, res) => {

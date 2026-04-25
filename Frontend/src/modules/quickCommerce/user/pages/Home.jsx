@@ -728,8 +728,13 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
             p.mainImage ||
             p.image ||
             "https://images.unsplash.com/photo-1550989460-0adf9ea622e2",
-          price: p.salePrice || p.price,
-          originalPrice: p.price,
+          price:
+            Number(p.salePrice || 0) > 0
+              ? Number(p.salePrice)
+              : Number(p.price || 0),
+          originalPrice: Number(
+            p.originalPrice || p.mrp || p.price || p.salePrice || 0,
+          ),
           weight: p.weight || "1 unit",
           deliveryTime: "8-15 mins",
         }));
@@ -1059,10 +1064,10 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
       {isInitialPageLoading ? (
         <QuickHomeLoadingState embedded={embedded} />
       ) : (
-        <>
+        <div className={cn("pt-[160px] md:pt-[180px]", embedded && "pt-0")}>
       {/* Hero Banners (mobile): admin-configured or static fallback */}
       <>
-        <div className={cn("block md:hidden", embedded ? "-mt-[1px]" : "-mt-[26px]")}>
+        <div className={cn("block md:hidden", embedded ? "-mt-[1px]" : "mt-0")}>
           <div>
             <div
               className="relative w-full overflow-hidden"
@@ -1231,7 +1236,7 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
         <div
           className={cn(
             "w-full mb-5 overflow-hidden relative group z-20 md:mt-3",
-            embedded ? "-mt-[3px]" : "-mt-[24px]",
+            embedded ? "-mt-[35px]" : "-mt-[65px]",
           )}>
           <div
             className={cn(
@@ -1344,9 +1349,9 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
       <div
         className={cn(
           "mb-4 md:mb-8",
-          embedded ? "-mt-[2px] md:-mt-[12px]" : "-mt-[40px] md:-mt-[40px]",
+          embedded ? "-mt-[22px] md:-mt-[32px]" : "-mt-[60px] md:-mt-[60px]",
         )}>
-        <div className="relative overflow-hidden bg-linear-to-br from-[#0c831f]/10 via-[#0c831f]/5 to-transparent py-7 md:py-16 border-y border-[#0c831f]/10 shadow-sm md:shadow-[inset_0_-10px_40px_rgba(0,0,0,0.02)]">
+        <div className="relative overflow-hidden bg-linear-to-br from-[#0c831f]/10 via-[#0c831f]/5 to-transparent pt-[20px] pb-0 border-y border-[#0c831f]/10 shadow-sm md:shadow-[inset_0_-10px_40px_rgba(0,0,0,0.02)]">
           {/* Background Decoration */}
           <div className="absolute -top-10 -right-10 h-40 w-40 md:h-80 md:w-80 bg-[#0c831f]/10 rounded-full blur-3xl opacity-60" />
           <div className="absolute -bottom-10 -left-10 h-40 w-40 md:h-80 md:w-80 bg-yellow-400/10 rounded-full blur-3xl opacity-60" />
@@ -1354,7 +1359,7 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
           <div className="container mx-auto px-4 md:px-8 lg:px-[50px] relative z-10">
             <div className="flex justify-between items-center mb-6 md:mb-10 px-1">
               <div className="flex flex-col">
-                <h3 className="text-xl md:text-4xl font-[1000] text-[#1A1A1A] tracking-tighter uppercase leading-none pt-[25px]">
+                <h3 className="text-xl md:text-4xl font-[1000] text-[#1A1A1A] tracking-tighter uppercase leading-none">
                   Lowest Price <span className="text-[#0c831f]">ever</span>
                 </h3>
                 <div className="flex items-center gap-1.5 md:gap-2 mt-1.5 md:mt-3">
@@ -1380,7 +1385,7 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
               {products.slice(0, 12).map((product) => (
                 <div
                   key={product.id}
-                  className="w-[140px] md:w-[140px] shrink-0 snap-start">
+                  className="w-[130px] md:w-[160px] lg:w-[180px] shrink-0 snap-start">
                   <ProductCard
                     product={product}
                     className="bg-white shadow-[0_8px_20px_-8px_rgba(0,0,0,0.1)] md:shadow-[0_15px_30px_rgba(0,0,0,0.05)] border-green-50/50 md:border-slate-100 transition-all"
@@ -1414,8 +1419,13 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
                   _id: p._id,
                   name: p.name,
                   image: p.mainImage || p.image || "",
-                  price: p.salePrice ?? p.price,
-                  originalPrice: p.price ?? p.salePrice,
+                  price:
+                    Number(p.salePrice || 0) > 0
+                      ? Number(p.salePrice)
+                      : Number(p.price || 0),
+                  originalPrice: Number(
+                    p.originalPrice || p.mrp || p.price || p.salePrice || 0,
+                  ),
                   weight: p.weight,
                   deliveryTime: p.deliveryTime,
                 }));
@@ -1512,7 +1522,7 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
                         sectionProducts.map((product) => (
                           <div
                             key={product.id}
-                            className="w-[140px] md:w-[140px] flex-shrink-0 snap-start">
+                            className="w-[130px] md:w-[160px] lg:w-[180px] flex-shrink-0 snap-start">
                             <ProductCard
                               product={product}
                               className="bg-white border border-slate-100 shadow-[0_10px_24px_rgba(15,23,42,0.08)]"
@@ -1566,7 +1576,7 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
           <ProductDetailSheet />
         </>
       )}
-        </>
+        </div>
       )}
     </div>
   );

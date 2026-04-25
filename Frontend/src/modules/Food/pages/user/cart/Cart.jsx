@@ -107,6 +107,35 @@ const mapOrderItem = (item) => ({
   preparationTime: item.preparationTime,
 })
 
+const normalizeOrderAddress = (address, { recipientName = "", recipientPhone = "" } = {}) => {
+  if (!address || typeof address !== "object") return null
+
+  const resolvedStreet =
+    String(address.street || "").trim() ||
+    String(address.address || "").trim() ||
+    String(address.formattedAddress || "").trim()
+
+  const resolvedCity =
+    String(address.city || "").trim() ||
+    String(address.area || "").trim()
+
+  const resolvedState =
+    String(address.state || "").trim() ||
+    resolvedCity
+
+  return {
+    ...address,
+    label: address.label || "Home",
+    street: resolvedStreet,
+    city: resolvedCity,
+    state: resolvedState,
+    zipCode: address.zipCode || address.postalCode || "",
+    phone: recipientPhone || address.phone || "",
+    name: recipientName || address.name || "",
+    fullName: recipientName || address.fullName || address.name || "",
+  }
+}
+
 export default function Cart() {
   const companyName = useCompanyName()
   const navigate = useNavigate()
@@ -1621,16 +1650,16 @@ export default function Cart() {
         return;
       }
 
+      const normalizedAddress = normalizeOrderAddress(defaultAddress, {
+        recipientName,
+        recipientPhone: recipientPhone || defaultAddress?.phone || "",
+      })
+
       const orderPayload = {
         items: orderItems,
-        address: {
-          ...defaultAddress,
-          phone: recipientPhone || defaultAddress?.phone || "",
-          name: recipientName,
-          fullName: recipientName,
-        },
+        address: normalizedAddress,
         customerName: recipientName,
-        customerPhone: recipientPhone || defaultAddress?.phone || "",
+        customerPhone: normalizedAddress?.phone || "",
         restaurantId: finalRestaurantId,
         restaurantName: finalRestaurantName || undefined,
         pricing: orderPricing,
@@ -1919,7 +1948,7 @@ export default function Cart() {
   }
 
   return (
-    <div className="relative min-h-screen bg-slate-50 dark:bg-[#0a0a0a]">
+    <div className="relative min-h-screen overflow-x-hidden bg-slate-50 dark:bg-[#0a0a0a]">
       {/* Header - Sticky at top */}
       <div className="bg-white dark:bg-[#1a1a1a] border-b dark:border-gray-800 sticky top-0 z-20 flex-shrink-0">
         <div className="max-w-7xl mx-auto">
@@ -1974,7 +2003,7 @@ export default function Cart() {
               <div className="bg-white dark:bg-[#1a1a1a] px-4 md:px-6 py-4 md:py-5 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 dark:border-gray-800">
                 <div className="space-y-3 md:space-y-4">
                   {cart.map((item) => (
-                    <div key={item.id} className="flex items-start gap-3 md:gap-4">
+                    <div key={item.id} className="flex min-w-0 items-start gap-2 md:gap-4">
                       {/* Veg/Non-veg indicator */}
                       <div className={`w-4 h-4 md:w-5 md:h-5 border-2 ${item.isVeg !== false ? 'border-green-600' : 'border-red-600'} flex items-center justify-center mt-1 flex-shrink-0`}>
                         <div className={`w-2 h-2 md:w-2.5 md:h-2.5 rounded-full ${item.isVeg !== false ? 'bg-green-600' : 'bg-red-600'}`} />
@@ -1987,7 +2016,7 @@ export default function Cart() {
                         ) : null}
                       </div>
 
-                      <div className="flex items-center gap-3 md:gap-4">
+                      <div className="flex shrink-0 items-center gap-2 md:gap-4">
                         {/* Quantity controls */}
                         <div className="flex items-center border border-[#EB590E] dark:border-[#EB590E]/50 rounded">
                           <button
@@ -2153,7 +2182,7 @@ export default function Cart() {
                   />
                   <div className="mt-2 flex items-center justify-between gap-3">
                     <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                      Ye note order ke saath save hoga aur assigned delivery partner ko dikh sakta hai.
+                      This note will be saved with the order and will be visible to the delivery partner.
                     </p>
                     <span className="text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap">
                       {note.length}/240
@@ -2692,7 +2721,7 @@ export default function Cart() {
 
           {/* Placing Order Modal */}
           {showPlacingOrder && (
-            <div className="fixed inset-0 z-[60] h-screen w-screen overflow-hidden">
+            <div className="fixed inset-0 z-[60] h-screen w-full overflow-hidden">
               {/* Backdrop */}
               <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
 
@@ -2782,7 +2811,7 @@ export default function Cart() {
           {/* Order Success Celebration Page */}
           {showOrderSuccess && (
             <div
-              className="fixed inset-0 z-[70] bg-white dark:bg-[#0a0a0a] flex flex-col items-center justify-center h-screen w-screen overflow-hidden"
+              className="fixed inset-0 z-[70] bg-white dark:bg-[#0a0a0a] flex h-screen w-full flex-col items-center justify-center overflow-hidden"
               style={{ animation: 'fadeIn 0.3s ease-out' }}
             >
               {/* Confetti Background */}

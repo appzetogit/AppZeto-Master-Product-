@@ -5,12 +5,12 @@ import { motion } from "framer-motion"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@food/components/ui/card"
 import { Button } from "@food/components/ui/button"
 import { getCachedSettings, loadBusinessSettings } from "@common/utils/businessSettings"
-import quickSpicyLogo from "@food/assets/quicky-spicy-logo.png"
+
 
 export default function Home() {
   const navigate = useNavigate()
-  const [logoUrl, setLogoUrl] = useState(null)
-  const [companyName, setCompanyName] = useState("")
+  const [logoUrl, setLogoUrl] = useState(() => getCachedSettings()?.logo?.url || null)
+  const [companyName, setCompanyName] = useState(() => getCachedSettings()?.companyName || "Appzeto Food")
 
   useEffect(() => {
     const loadLogo = async () => {
@@ -43,15 +43,13 @@ export default function Home() {
       <Card className="w-full max-w-2xl shadow-lg">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-6">
-            {logoUrl || companyName ? (
+            {logoUrl ? (
               <img
-                src={logoUrl || quickSpicyLogo}
-                alt={companyName || "Logo"}
+                src={logoUrl}
+                alt={companyName}
                 className="h-16 w-auto object-contain"
                 onError={(e) => {
-                  if (e.target.src !== quickSpicyLogo) {
-                    e.target.src = quickSpicyLogo
-                  }
+                  e.target.style.display = 'none'
                 }}
               />
             ) : (

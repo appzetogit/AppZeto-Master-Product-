@@ -1,6 +1,6 @@
 import { GlobalSettings } from '../models/settings.model.js';
-import { sendResponse } from '../../../../utils/response.js';
-import { uploadImageBufferDetailed } from '../../../../services/cloudinary.service.js';
+import { sendResponse } from '../../../utils/response.js';
+import { uploadImageBufferDetailed } from '../../../services/cloudinary.service.js';
 
 export async function getGlobalSettings(req, res, next) {
     try {
@@ -20,7 +20,18 @@ export async function getGlobalSettings(req, res, next) {
 
 export async function updateGlobalSettings(req, res, next) {
     try {
-        const data = req.body.data ? JSON.parse(req.body.data) : {};
+        let data = {};
+        if (req.body.data) {
+            try {
+                data = typeof req.body.data === 'string' ? JSON.parse(req.body.data) : req.body.data;
+            } catch (e) {
+                console.error("Error parsing settings data:", e);
+                data = req.body;
+            }
+        } else {
+            data = req.body;
+        }
+        
         const { companyName, email, phoneCountryCode, phoneNumber, address, state, pincode, region, logoUrl, faviconUrl, themeColor } = data;
 
         // Validation

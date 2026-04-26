@@ -10,7 +10,7 @@ import { useLocationSelector, useSearchOverlay } from "./UserLayout"
 import { useProfile } from "@food/context/ProfileContext"
 import { FaLocationDot } from "react-icons/fa6"
 import { AnimatePresence, motion } from "framer-motion"
-import quickSpicyLogo from "@food/assets/quicky-spicy-logo.png"
+
 import { getCachedSettings, loadBusinessSettings } from "@common/utils/businessSettings"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -26,8 +26,8 @@ export default function DesktopNavbar({ showLogo = true }) {
     const { setSearchValue } = useSearchOverlay()
     const { vegMode, setVegMode } = useProfile()
     const [heroSearch, setHeroSearch] = useState("")
-    const [logoUrl, setLogoUrl] = useState(null)
-    const [companyName, setCompanyName] = useState(null)
+    const [logoUrl, setLogoUrl] = useState(() => getCachedSettings()?.logo?.url || null)
+    const [companyName, setCompanyName] = useState(() => getCachedSettings()?.companyName || null)
     const [hasScrolledPastBanner, setHasScrolledPastBanner] = useState(false)
     const navRef = useRef(null)
     const cartCount = getCartCount()
@@ -166,19 +166,19 @@ export default function DesktopNavbar({ showLogo = true }) {
                             {/* Logo */}
                             {showLogo && (
                                 <Link to="/food/user" className="flex items-center justify-center flex-shrink-0">
-                                    {logoUrl || companyName ? (
+                                    {logoUrl ? (
                                         <img
-                                            src={logoUrl || quickSpicyLogo}
-                                            alt={companyName || "Company Logo"}
+                                            src={logoUrl}
+                                            alt={companyName || "Logo"}
                                             className="h-10 w-auto md:h-14 lg:h-16 object-contain"
                                             onError={(e) => {
-                                                if (e.target.src !== quickSpicyLogo) {
-                                                    e.target.src = quickSpicyLogo
-                                                }
+                                                e.target.style.display = 'none'
                                             }}
                                         />
                                     ) : (
-                                        <img src={quickSpicyLogo} alt={companyName || "Logo"} className="h-10 w-auto md:h-14 lg:h-16 object-contain" />
+                                        <span className="text-xl font-bold text-gray-900 dark:text-white">
+                                          {companyName || "Appzeto"}
+                                        </span>
                                     )}
                                 </Link>
                             )}

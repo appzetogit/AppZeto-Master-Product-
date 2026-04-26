@@ -117,6 +117,9 @@ export const setCachedSettings = (settings) => {
     updateFavicon(settings.favicon?.url);
     updateTitle(settings.companyName);
     updateThemeColor(settings.themeColor);
+    
+    // Dispatch event so all components listening can update immediately
+    window.dispatchEvent(new CustomEvent('businessSettingsUpdated', { detail: settings }));
   }
 };
 

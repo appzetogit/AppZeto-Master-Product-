@@ -7,7 +7,7 @@ import { useCart } from "@food/context/CartContext"
 import { useLocationSelector } from "./UserLayout"
 import { FaLocationDot } from "react-icons/fa6"
 import { getCachedSettings, loadBusinessSettings } from "@common/utils/businessSettings"
-import quickSpicyLogo from "@food/assets/quicky-spicy-logo.png"
+
 
 export default function PageNavbar({
   textColor = "white",
@@ -20,8 +20,8 @@ export default function PageNavbar({
   const { getCartCount } = useCart()
   const { openLocationSelector } = useLocationSelector()
   const cartCount = getCartCount()
-  const [logoUrl, setLogoUrl] = useState(null)
-  const [companyName, setCompanyName] = useState(null)
+  const [logoUrl, setLogoUrl] = useState(() => getCachedSettings()?.logo?.url || null)
+  const [companyName, setCompanyName] = useState(() => getCachedSettings()?.companyName || null)
   const autoLocationAttemptedRef = useRef(false)
   const requestLocationRef = useRef(requestLocation)
   const enableLocationDebugLogs = false
@@ -994,24 +994,17 @@ export default function PageNavbar({
             {logoUrl ? (
               <img
                 src={logoUrl}
-                alt={companyName || "Company Logo"}
+                alt={companyName || "Logo"}
                 className="h-10 w-auto sm:h-12 md:h-14 object-contain scale-[1.8] sm:scale-[2] origin-left"
                 crossOrigin="anonymous"
                 onError={(e) => {
-                  // Fallback to name if image fails
                   e.target.style.display = 'none'
                 }}
               />
-            ) : companyName ? (
-              <span className={`text-lg font-bold text-${textColor}`}>
-                {companyName}
-              </span>
             ) : (
-              <img
-                src={quickSpicyLogo}
-                alt="Logo"
-                className="h-10 w-auto sm:h-12 md:h-14 object-contain scale-[1.8] sm:scale-[2] origin-left"
-              />
+              <span className={`text-lg font-bold text-${textColor} scale-[1.8] sm:scale-[2] origin-left inline-block`}>
+                {companyName || "Appzeto"}
+              </span>
             )}
           </Link>
         )}

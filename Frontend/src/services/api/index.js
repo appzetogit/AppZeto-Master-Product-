@@ -884,7 +884,6 @@ export const adminAPI = {
     if (files.favicon) formData.append("favicon", files.favicon);
 
     return apiClient.patch(API_ENDPOINTS.ADMIN.BUSINESS_SETTINGS, formData, {
-      headers: { "Content-Type": "multipart/form-data" },
       contextModule: "admin",
     });
   },

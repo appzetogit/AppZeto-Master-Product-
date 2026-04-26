@@ -6,4 +6,4 @@ const paymentGatewaySchema = new mongoose.Schema({
   active: { type: Boolean, default: true }
 }, { timestamps: true });
 
-export const PaymentGateway = mongoose.models.TaxiPaymentGateway || mongoose.model('TaxiPaymentGateway', paymentGatewaySchema);
+export const PaymentGateway = mongoose.models.TaxiPaymentGateway || mongoose.model('TaxiPaymentGateway', paymentGatewaySchema, 'taxi_paymentgatewaies');

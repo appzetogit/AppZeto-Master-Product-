@@ -111,4 +111,4 @@ foodTransactionSchema.index({ createdAt: -1 });
 foodTransactionSchema.index({ 'settlement.isRestaurantSettled': 1, restaurantId: 1 });
 foodTransactionSchema.index({ 'status': 1, paymentMethod: 1 });
 
-export const FoodTransaction = mongoose.model('FoodTransaction', foodTransactionSchema);
+export const FoodTransaction = mongoose.model('FoodTransaction', foodTransactionSchema, 'food_transactions');

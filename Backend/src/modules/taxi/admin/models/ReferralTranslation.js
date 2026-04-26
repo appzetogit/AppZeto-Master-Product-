@@ -42,4 +42,4 @@ referralTranslationSchema.index({ language_code: 1 }, { unique: true });
 
 export const ReferralTranslation =
   mongoose.models.TaxiReferralTranslation ||
-  mongoose.model('TaxiReferralTranslation', referralTranslationSchema);
+  mongoose.model('TaxiReferralTranslation', referralTranslationSchema, 'taxi_referraltranslations');

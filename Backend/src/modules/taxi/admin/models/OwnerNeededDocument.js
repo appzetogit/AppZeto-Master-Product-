@@ -41,4 +41,4 @@ ownerNeededDocumentSchema.index({ name: 1 });
 ownerNeededDocumentSchema.index({ active: 1, image_type: 1 });
 
 export const OwnerNeededDocument =
-  mongoose.models.TaxiOwnerNeededDocument || mongoose.model('TaxiOwnerNeededDocument', ownerNeededDocumentSchema);
+  mongoose.models.TaxiOwnerNeededDocument || mongoose.model('TaxiOwnerNeededDocument', ownerNeededDocumentSchema, 'taxi_ownerneededdocuments');

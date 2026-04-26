@@ -20,4 +20,4 @@ const adminAppSettingSchema = new mongoose.Schema(
 );
 
 export const AdminAppSetting =
-  mongoose.models.TaxiAdminAppSetting || mongoose.model('TaxiAdminAppSetting', adminAppSettingSchema);
+  mongoose.models.TaxiAdminAppSetting || mongoose.model('TaxiAdminAppSetting', adminAppSettingSchema, 'taxi_app_settings');

@@ -73,4 +73,4 @@ const zoneSchema = new mongoose.Schema(
 
 zoneSchema.index({ geometry: '2dsphere' });
 
-export const Zone = mongoose.models.TaxiZone || mongoose.model('TaxiZone', zoneSchema);
+export const Zone = mongoose.models.TaxiZone || mongoose.model('TaxiZone', zoneSchema, 'taxi_zones');

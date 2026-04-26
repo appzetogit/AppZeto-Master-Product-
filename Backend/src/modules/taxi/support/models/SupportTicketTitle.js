@@ -47,4 +47,4 @@ export const SUPPORT_TICKET_TYPES = SUPPORT_TYPES;
 
 export const SupportTicketTitle =
   mongoose.models.TaxiSupportTicketTitle ||
-  mongoose.model('TaxiSupportTicketTitle', supportTicketTitleSchema);
+  mongoose.model('TaxiSupportTicketTitle', supportTicketTitleSchema, 'taxi_supporttickettitles');

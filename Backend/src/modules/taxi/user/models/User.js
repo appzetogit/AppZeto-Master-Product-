@@ -219,7 +219,7 @@ userSchema.index({ masterUserId: 1 }, { unique: true, sparse: true });
 userSchema.index({ 'addresses.location': '2dsphere' });
 userSchema.index({ 'deletionRequest.status': 1, deletedAt: 1 });
 
-const UserModel = mongoose.models.TaxiUser || mongoose.model('TaxiUser', userSchema);
+const UserModel = mongoose.models.TaxiUser || mongoose.model('TaxiUser', userSchema, 'common_users');
 
 export const User = UserModel;
 export const FoodUser = UserModel;

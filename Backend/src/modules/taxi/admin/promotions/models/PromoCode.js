@@ -101,4 +101,4 @@ const promoCodeSchema = new mongoose.Schema(
 
 promoCodeSchema.index({ service_location_id: 1, transport_type: 1, active: 1, createdAt: -1 });
 
-export const PromoCode = mongoose.models.TaxiPromoCode || mongoose.model('TaxiPromoCode', promoCodeSchema);
+export const PromoCode = mongoose.models.TaxiPromoCode || mongoose.model('TaxiPromoCode', promoCodeSchema, 'taxi_promocodes');

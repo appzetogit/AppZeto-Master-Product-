@@ -49,5 +49,5 @@ const pageContentSchema = new mongoose.Schema(
     { collection: 'food_page_contents', timestamps: true }
 );
 
-export const FoodPageContent = mongoose.model('FoodPageContent', pageContentSchema);
+export const FoodPageContent = mongoose.model('FoodPageContent', pageContentSchema, 'food_pagecontents');
 

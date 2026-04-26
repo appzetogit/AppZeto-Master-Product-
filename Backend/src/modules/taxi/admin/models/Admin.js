@@ -37,4 +37,4 @@ const adminSchema = new mongoose.Schema(
   },
 );
 
-export const Admin = mongoose.models.TaxiAdmin || mongoose.model('TaxiAdmin', adminSchema);
+export const Admin = mongoose.models.TaxiAdmin || mongoose.model('TaxiAdmin', adminSchema, 'common_admins');

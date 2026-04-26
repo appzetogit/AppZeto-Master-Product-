@@ -6,4 +6,4 @@ const userPreferenceSchema = new mongoose.Schema({
   active: { type: Number, default: 1 }
 }, { timestamps: true });
 
-export const UserPreference = mongoose.models.TaxiUserPreference || mongoose.model('TaxiUserPreference', userPreferenceSchema);
+export const UserPreference = mongoose.models.TaxiUserPreference || mongoose.model('TaxiUserPreference', userPreferenceSchema, 'taxi_userpreferences');

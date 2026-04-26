@@ -9,4 +9,4 @@ const notificationChannelSchema = new mongoose.Schema({
   for_user: { type: Boolean, default: true }
 }, { timestamps: true });
 
-export const NotificationChannel = mongoose.models.TaxiNotificationChannel || mongoose.model('TaxiNotificationChannel', notificationChannelSchema);
+export const NotificationChannel = mongoose.models.TaxiNotificationChannel || mongoose.model('TaxiNotificationChannel', notificationChannelSchema, 'taxi_notificationchannels');

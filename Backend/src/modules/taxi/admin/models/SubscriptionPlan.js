@@ -11,4 +11,4 @@ const subscriptionPlanSchema = new mongoose.Schema({
   active: { type: Boolean, default: true }
 }, { timestamps: true });
 
-export const SubscriptionPlan = mongoose.models.TaxiSubscriptionPlan || mongoose.model('TaxiSubscriptionPlan', subscriptionPlanSchema);
+export const SubscriptionPlan = mongoose.models.TaxiSubscriptionPlan || mongoose.model('TaxiSubscriptionPlan', subscriptionPlanSchema, 'taxi_subscriptionplans');

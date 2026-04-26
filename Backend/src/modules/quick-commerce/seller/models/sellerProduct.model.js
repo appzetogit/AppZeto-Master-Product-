@@ -109,7 +109,7 @@ const sellerProductSchema = new mongoose.Schema(
     },
   },
   {
-    collection: "quick_products",
+    collection: 'quick_products',
     timestamps: true,
   },
 );

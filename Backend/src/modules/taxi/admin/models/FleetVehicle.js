@@ -76,5 +76,5 @@ const fleetVehicleSchema = new mongoose.Schema(
 fleetVehicleSchema.index({ owner_id: 1, license_plate_number: 1 }, { unique: true });
 
 export const FleetVehicle =
-  mongoose.models.TaxiFleetVehicle || mongoose.model('TaxiFleetVehicle', fleetVehicleSchema);
+  mongoose.models.TaxiFleetVehicle || mongoose.model('TaxiFleetVehicle', fleetVehicleSchema, 'taxi_fleetvehicles');
 

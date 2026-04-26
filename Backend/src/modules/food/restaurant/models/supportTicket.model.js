@@ -27,7 +27,5 @@ const restaurantSupportTicketSchema = new mongoose.Schema(
 restaurantSupportTicketSchema.index({ restaurantId: 1, createdAt: -1 });
 restaurantSupportTicketSchema.index({ status: 1, createdAt: -1 });
 
-export const FoodRestaurantSupportTicket = mongoose.model(
-    'FoodRestaurantSupportTicket',
-    restaurantSupportTicketSchema
-);
+export const FoodRestaurantSupportTicket = mongoose.model('FoodRestaurantSupportTicket', restaurantSupportTicketSchema
+, 'food_restaurantsupporttickets');

@@ -40,7 +40,7 @@ const sellerCategorySchema = new mongoose.Schema(
     },
   },
   {
-    collection: "quick_categories",
+    collection: 'quick_categories',
     timestamps: true,
   },
 );

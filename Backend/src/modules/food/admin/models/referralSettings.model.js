@@ -13,5 +13,5 @@ const referralSettingsSchema = new mongoose.Schema(
 
 referralSettingsSchema.index({ isActive: 1, createdAt: -1 });
 
-export const FoodReferralSettings = mongoose.model('FoodReferralSettings', referralSettingsSchema);
+export const FoodReferralSettings = mongoose.model('FoodReferralSettings', referralSettingsSchema, 'food_referral_settings');
 

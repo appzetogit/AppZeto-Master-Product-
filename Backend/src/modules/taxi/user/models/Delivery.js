@@ -148,4 +148,4 @@ const deliverySchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-export const Delivery = mongoose.models.Delivery || mongoose.model('Delivery', deliverySchema);
+export const Delivery = mongoose.models.Delivery || mongoose.model('Delivery', deliverySchema, 'taxi_deliveries');

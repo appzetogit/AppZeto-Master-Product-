@@ -56,4 +56,4 @@ const walletTransactionSchema = new mongoose.Schema(
 walletTransactionSchema.index({ driverId: 1, createdAt: -1 });
 
 export const WalletTransaction =
-  mongoose.models.WalletTransaction || mongoose.model('WalletTransaction', walletTransactionSchema);
+  mongoose.models.WalletTransaction || mongoose.model('WalletTransaction', walletTransactionSchema, 'taxi_wallet_transactions');

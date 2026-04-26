@@ -40,4 +40,4 @@ driverLoginSessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 export const DriverLoginSession =
   mongoose.models.TaxiDriverLoginSession ||
-  mongoose.model('TaxiDriverLoginSession', driverLoginSessionSchema);
+  mongoose.model('TaxiDriverLoginSession', driverLoginSessionSchema, 'taxi_driverloginsessions');

@@ -7,4 +7,4 @@ const adminRoleSchema = new mongoose.Schema({
   permissions: { type: [String], default: [] }
 }, { timestamps: true });
 
-export const AdminRole = mongoose.models.TaxiAdminRole || mongoose.model('TaxiAdminRole', adminRoleSchema);
+export const AdminRole = mongoose.models.TaxiAdminRole || mongoose.model('TaxiAdminRole', adminRoleSchema, 'taxi_adminroles');

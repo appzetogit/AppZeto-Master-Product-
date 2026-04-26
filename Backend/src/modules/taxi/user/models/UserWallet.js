@@ -64,4 +64,4 @@ const userWalletSchema = new mongoose.Schema(
 
 userWalletSchema.index({ userId: 1 }, { unique: true });
 
-export const UserWallet = mongoose.models.TaxiUserWallet || mongoose.model('TaxiUserWallet', userWalletSchema);
+export const UserWallet = mongoose.models.TaxiUserWallet || mongoose.model('TaxiUserWallet', userWalletSchema, 'taxi_userwallets');

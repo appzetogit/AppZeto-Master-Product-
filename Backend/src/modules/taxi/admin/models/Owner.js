@@ -159,4 +159,4 @@ ownerSchema.index({ company_name: 1 });
 ownerSchema.index({ service_location_id: 1 });
 ownerSchema.index({ legacy_id: 1 }, { sparse: true });
 
-export const Owner = mongoose.models.TaxiOwner || mongoose.model('TaxiOwner', ownerSchema);
+export const Owner = mongoose.models.TaxiOwner || mongoose.model('TaxiOwner', ownerSchema, 'taxi_owners');

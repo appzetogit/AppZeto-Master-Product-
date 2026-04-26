@@ -53,4 +53,4 @@ const notificationSchema = new mongoose.Schema(
 notificationSchema.index({ service_location_id: 1, send_to: 1, createdAt: -1 });
 
 export const Notification =
-  mongoose.models.TaxiNotification || mongoose.model('TaxiNotification', notificationSchema);
+  mongoose.models.TaxiNotification || mongoose.model('TaxiNotification', notificationSchema, 'taxi_notifications');

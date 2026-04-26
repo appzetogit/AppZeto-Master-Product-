@@ -210,6 +210,33 @@ const userSchema = new mongoose.Schema(
         addresses: {
             type: [userAddressSchema],
             default: []
+        },
+        // Taxi Module Fields
+        currentRideId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'TaxiRide',
+            default: null
+        },
+        deletionRequest: {
+            status: {
+                type: String,
+                enum: ['none', 'pending', 'approved', 'rejected'],
+                default: 'none',
+                index: true
+            },
+            reason: {
+                type: String,
+                default: '',
+                trim: true
+            },
+            requestedAt: {
+                type: Date,
+                default: null
+            },
+            reviewedAt: {
+                type: Date,
+                default: null
+            }
         }
     },
     {
@@ -221,5 +248,5 @@ const userSchema = new mongoose.Schema(
 userSchema.index({ phone: 1 }, { unique: true });
 userSchema.index({ 'addresses.location': '2dsphere' });
 
-export const FoodUser = mongoose.model('FoodUser', userSchema);
+export const FoodUser = mongoose.model('FoodUser', userSchema, 'common_users');
 

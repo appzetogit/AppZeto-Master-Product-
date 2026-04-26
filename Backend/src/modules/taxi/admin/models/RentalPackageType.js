@@ -40,4 +40,4 @@ rentalPackageTypeSchema.index({ name: 1, transport_type: 1 });
 rentalPackageTypeSchema.index({ transport_type: 1, status: 1 });
 
 export const RentalPackageType =
-  mongoose.models.TaxiRentalPackageType || mongoose.model('TaxiRentalPackageType', rentalPackageTypeSchema);
+  mongoose.models.TaxiRentalPackageType || mongoose.model('TaxiRentalPackageType', rentalPackageTypeSchema, 'taxi_rentalpackagetypes');

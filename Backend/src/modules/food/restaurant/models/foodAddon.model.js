@@ -45,5 +45,5 @@ foodAddonSchema.index({ restaurantId: 1, isDeleted: 1, createdAt: -1 });
 foodAddonSchema.index({ approvalStatus: 1, isDeleted: 1, requestedAt: -1 });
 foodAddonSchema.index({ restaurantId: 1, approvalStatus: 1, isDeleted: 1, requestedAt: -1 });
 
-export const FoodAddon = mongoose.model('FoodAddon', foodAddonSchema);
+export const FoodAddon = mongoose.model('FoodAddon', foodAddonSchema, 'food_addons');
 

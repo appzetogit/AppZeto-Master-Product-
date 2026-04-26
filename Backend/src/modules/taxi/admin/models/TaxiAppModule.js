@@ -52,4 +52,4 @@ const taxiAppModuleSchema = new mongoose.Schema(
   }
 );
 
-export const TaxiAppModule = mongoose.models.TaxiAppModule || mongoose.model('TaxiAppModule', taxiAppModuleSchema);
+export const TaxiAppModule = mongoose.models.TaxiAppModule || mongoose.model('TaxiAppModule', taxiAppModuleSchema, 'taxi_appmodules');

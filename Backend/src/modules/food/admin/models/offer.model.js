@@ -24,4 +24,4 @@ const foodOfferSchema = new mongoose.Schema(
 
 foodOfferSchema.index({ restaurantId: 1, createdAt: -1 });
 
-export const FoodOffer = mongoose.model('FoodOffer', foodOfferSchema);
+export const FoodOffer = mongoose.model('FoodOffer', foodOfferSchema, 'food_offers');

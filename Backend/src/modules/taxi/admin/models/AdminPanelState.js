@@ -18,4 +18,4 @@ const adminPanelStateSchema = new mongoose.Schema(
 );
 
 export const AdminPanelState =
-  mongoose.models.TaxiAdminPanelState || mongoose.model('TaxiAdminPanelState', adminPanelStateSchema);
+  mongoose.models.TaxiAdminPanelState || mongoose.model('TaxiAdminPanelState', adminPanelStateSchema, 'taxi_adminpanelstates');

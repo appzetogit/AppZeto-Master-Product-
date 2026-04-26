@@ -44,7 +44,7 @@ const sellerTransactionSchema = new mongoose.Schema(
     },
   },
   {
-    collection: "seller_transactions",
+    collection: 'quick_seller_transactions',
     timestamps: true,
   },
 );

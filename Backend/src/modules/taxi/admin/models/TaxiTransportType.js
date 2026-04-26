@@ -16,6 +16,6 @@ const taxiTransportTypeSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-const TaxiTransportType = mongoose.model('TaxiTransportType', taxiTransportTypeSchema);
+const TaxiTransportType = mongoose.model('TaxiTransportType', taxiTransportTypeSchema, 'taxi_transporttypes');
 
 export default TaxiTransportType;

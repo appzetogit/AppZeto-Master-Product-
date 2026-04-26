@@ -72,7 +72,7 @@ const sellerReturnSchema = new mongoose.Schema(
     },
   },
   {
-    collection: "seller_returns",
+    collection: 'quick_seller_returns',
     timestamps: true,
   },
 );
@@ -80,4 +80,4 @@ const sellerReturnSchema = new mongoose.Schema(
 sellerReturnSchema.index({ sellerId: 1, returnRequestedAt: -1 });
 sellerReturnSchema.index({ sellerId: 1, orderId: 1 }, { unique: true });
 
-export const SellerReturn = mongoose.model("SellerReturn", sellerReturnSchema);
+export const SellerReturn = mongoose.model('SellerReturn', sellerReturnSchema, 'quick_seller_returns');

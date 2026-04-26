@@ -113,4 +113,4 @@ vehicleSchema.pre('save', function syncActiveStatus() {
 vehicleSchema.index({ name: 1 });
 vehicleSchema.index({ transport_type: 1, status: 1 });
 
-export const Vehicle = mongoose.models.TaxiVehicle || mongoose.model('TaxiVehicle', vehicleSchema);
+export const Vehicle = mongoose.models.TaxiVehicle || mongoose.model('TaxiVehicle', vehicleSchema, 'taxi_vehicles');

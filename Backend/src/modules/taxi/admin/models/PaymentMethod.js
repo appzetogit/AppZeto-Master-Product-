@@ -21,4 +21,4 @@ const paymentMethodSchema = new mongoose.Schema(
 
 export const PaymentMethod =
   mongoose.models.TaxiPaymentMethod ||
-  mongoose.model('TaxiPaymentMethod', paymentMethodSchema);
+  mongoose.model('TaxiPaymentMethod', paymentMethodSchema, 'taxi_paymentmethods');

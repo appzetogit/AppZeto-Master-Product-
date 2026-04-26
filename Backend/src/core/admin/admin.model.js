@@ -51,7 +51,7 @@ const adminSchema = new mongoose.Schema(
         }
     },
     {
-        collection: 'admins',
+        collection: 'common_admins',
         timestamps: true
     }
 );
@@ -72,5 +72,5 @@ adminSchema.methods.comparePassword = function (candidatePassword) {
     return bcrypt.compare(candidatePassword, this.password);
 };
 
-export const FoodAdmin = mongoose.model('FoodAdmin', adminSchema);
+export const FoodAdmin = mongoose.model('CommonAdmin', adminSchema, 'common_admins');
 

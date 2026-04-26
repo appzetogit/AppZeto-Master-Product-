@@ -103,4 +103,4 @@ airportSchema.index({ service_location_id: 1, status: 1 });
 airportSchema.index({ location: '2dsphere' });
 airportSchema.index({ boundary: '2dsphere' });
 
-export const Airport = mongoose.models.TaxiAirport || mongoose.model('TaxiAirport', airportSchema);
+export const Airport = mongoose.models.TaxiAirport || mongoose.model('TaxiAirport', airportSchema, 'taxi_airports');

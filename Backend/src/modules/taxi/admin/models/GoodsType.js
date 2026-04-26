@@ -55,4 +55,4 @@ goodsTypeSchema.pre('save', function syncName() {
 goodsTypeSchema.index({ name: 1 });
 goodsTypeSchema.index({ goods_type_for: 1, status: 1 });
 
-export const GoodsType = mongoose.models.TaxiGoodsType || mongoose.model('TaxiGoodsType', goodsTypeSchema);
+export const GoodsType = mongoose.models.TaxiGoodsType || mongoose.model('TaxiGoodsType', goodsTypeSchema, 'taxi_goodstypes');

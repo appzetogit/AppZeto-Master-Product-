@@ -165,7 +165,7 @@ const sellerSchema = new mongoose.Schema(
     },
   },
   {
-    collection: "seller_profiles",
+    collection: 'quick_seller_profiles',
     timestamps: true,
   },
 );
@@ -265,4 +265,4 @@ sellerSchema.index({ phoneLast10: 1 });
 sellerSchema.index({ email: 1 }, { unique: true, sparse: true });
 sellerSchema.index({ location: "2dsphere" });
 
-export const Seller = mongoose.model("Seller", sellerSchema);
+export const Seller = mongoose.model('Seller', sellerSchema, 'quick_sellers');

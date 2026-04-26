@@ -7,4 +7,4 @@ const languageSchema = new mongoose.Schema({
   default_status: { type: Number, default: 0 }
 }, { timestamps: true });
 
-export const AppLanguage = mongoose.models.TaxiAppLanguage || mongoose.model('TaxiAppLanguage', languageSchema);
+export const AppLanguage = mongoose.models.TaxiAppLanguage || mongoose.model('TaxiAppLanguage', languageSchema, 'taxi_applanguages');

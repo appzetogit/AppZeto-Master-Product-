@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
 import { adminAPI } from "@food/api"
 import { setAuthData } from "@food/utils/auth"
-import { loadBusinessSettings } from "@common/utils/businessSettings"
+import { loadBusinessSettings, getCachedSettings } from "@common/utils/businessSettings"
 import { Button } from "@food/components/ui/button"
 import {
   Card,

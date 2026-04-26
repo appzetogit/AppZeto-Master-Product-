@@ -13,5 +13,5 @@ const deliveryEmergencyHelpSchema = new mongoose.Schema(
 
 deliveryEmergencyHelpSchema.index({ isActive: 1, createdAt: -1 });
 
-export const FoodDeliveryEmergencyHelp = mongoose.model('FoodDeliveryEmergencyHelp', deliveryEmergencyHelpSchema);
+export const FoodDeliveryEmergencyHelp = mongoose.model('FoodDeliveryEmergencyHelp', deliveryEmergencyHelpSchema, 'food_deliveryemergencyhelps');
 

@@ -93,7 +93,7 @@ const sellerOrderSchema = new mongoose.Schema(
     },
   },
   {
-    collection: "seller_orders",
+    collection: 'quick_seller_orders',
     timestamps: true,
   },
 );
@@ -102,4 +102,4 @@ sellerOrderSchema.index({ sellerId: 1, createdAt: -1 });
 sellerOrderSchema.index({ sellerId: 1, orderType: 1, createdAt: -1 });
 sellerOrderSchema.index({ sellerId: 1, orderId: 1 }, { unique: true });
 
-export const SellerOrder = mongoose.model("SellerOrder", sellerOrderSchema);
+export const SellerOrder = mongoose.model('SellerOrder', sellerOrderSchema, 'quick_seller_orders');

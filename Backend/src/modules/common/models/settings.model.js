@@ -34,4 +34,4 @@ const globalSettingsSchema = new mongoose.Schema(
 // We keep the collection name the same if we want to preserve data, 
 // or rename it if we want a fresh start. 
 // Given the user wants to "move" them, keeping data is likely preferred.
-export const GlobalSettings = mongoose.model('GlobalSettings', globalSettingsSchema, 'global_settings');
+export const GlobalSettings = mongoose.model('GlobalSettings', globalSettingsSchema, 'common_global_settings');

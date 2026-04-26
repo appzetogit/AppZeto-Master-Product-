@@ -77,4 +77,4 @@ ownerBookingSchema.index({ booking_reference: 1 }, { unique: true });
 ownerBookingSchema.index({ owner_id: 1, booking_status: 1 });
 ownerBookingSchema.index({ trip_date: -1 });
 
-export const OwnerBooking = mongoose.models.TaxiOwnerBooking || mongoose.model('TaxiOwnerBooking', ownerBookingSchema);
+export const OwnerBooking = mongoose.models.TaxiOwnerBooking || mongoose.model('TaxiOwnerBooking', ownerBookingSchema, 'taxi_ownerbookings');

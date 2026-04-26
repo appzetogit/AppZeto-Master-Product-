@@ -128,4 +128,4 @@ export const SUPPORT_TICKET_STATUS = SUPPORT_STATUS;
 
 export const SupportTicket =
   mongoose.models.TaxiSupportTicket ||
-  mongoose.model('TaxiSupportTicket', supportTicketSchema);
+  mongoose.model('TaxiSupportTicket', supportTicketSchema, 'taxi_supporttickets');

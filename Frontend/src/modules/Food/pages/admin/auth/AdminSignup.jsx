@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
+import { loadBusinessSettings, getCachedSettings } from "@common/utils/businessSettings"
 import { Button } from "@food/components/ui/button"
 import {
   Card,
@@ -15,7 +16,6 @@ import { Mail, User, Lock, Eye, EyeOff, ArrowLeft, Shield } from "lucide-react"
 
 import { authAPI, adminAPI } from "@food/api"
 import { setAuthData } from "@food/utils/auth"
-import { loadBusinessSettings } from "@common/utils/businessSettings"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}

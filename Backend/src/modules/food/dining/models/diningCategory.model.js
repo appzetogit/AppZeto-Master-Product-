@@ -41,4 +41,4 @@ const diningCategorySchema = new mongoose.Schema(
 
 diningCategorySchema.index({ isActive: 1, sortOrder: 1, createdAt: -1 });
 
-export const FoodDiningCategory = mongoose.model('FoodDiningCategory', diningCategorySchema);
+export const FoodDiningCategory = mongoose.model('FoodDiningCategory', diningCategorySchema, 'food_dining_categories');

@@ -36,4 +36,4 @@ const adminBusinessSettingSchema = new mongoose.Schema(
 );
 
 export const AdminBusinessSetting =
-  mongoose.models.TaxiAdminBusinessSetting || mongoose.model('TaxiAdminBusinessSetting', adminBusinessSettingSchema);
+  mongoose.models.TaxiAdminBusinessSetting || mongoose.model('TaxiAdminBusinessSetting', adminBusinessSettingSchema, 'taxi_business_settings');

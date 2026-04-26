@@ -24,5 +24,5 @@ const feeSettingsSchema = new mongoose.Schema(
 
 feeSettingsSchema.index({ isActive: 1, createdAt: -1 });
 
-export const FoodFeeSettings = mongoose.model('FoodFeeSettings', feeSettingsSchema);
+export const FoodFeeSettings = mongoose.model('FoodFeeSettings', feeSettingsSchema, 'food_fee_settings');
 

@@ -39,4 +39,4 @@ const foodRestaurantWithdrawalSchema = new mongoose.Schema({
 
 foodRestaurantWithdrawalSchema.index({ createdAt: -1 });
 
-export const FoodRestaurantWithdrawal = mongoose.model('FoodRestaurantWithdrawal', foodRestaurantWithdrawalSchema);
+export const FoodRestaurantWithdrawal = mongoose.model('FoodRestaurantWithdrawal', foodRestaurantWithdrawalSchema, 'food_restaurantwithdrawals');

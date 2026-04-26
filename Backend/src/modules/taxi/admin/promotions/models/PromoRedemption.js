@@ -101,4 +101,4 @@ promoRedemptionSchema.index({ promo_id: 1, ride_id: 1 }, { unique: true });
 promoRedemptionSchema.index({ promo_id: 1, user_id: 1, status: 1, createdAt: -1 });
 
 export const PromoRedemption =
-  mongoose.models.TaxiPromoRedemption || mongoose.model('TaxiPromoRedemption', promoRedemptionSchema);
+  mongoose.models.TaxiPromoRedemption || mongoose.model('TaxiPromoRedemption', promoRedemptionSchema, 'taxi_promoredemptions');

@@ -53,4 +53,4 @@ const bannerSchema = new mongoose.Schema(
 
 bannerSchema.index({ active: 1, createdAt: -1 });
 
-export const Banner = mongoose.models.TaxiBanner || mongoose.model('TaxiBanner', bannerSchema);
+export const Banner = mongoose.models.TaxiBanner || mongoose.model('TaxiBanner', bannerSchema, 'taxi_banners');

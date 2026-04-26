@@ -74,4 +74,4 @@ driverNeededDocumentSchema.index({ name: 1 });
 driverNeededDocumentSchema.index({ active: 1, image_type: 1 });
 
 export const DriverNeededDocument =
-  mongoose.models.TaxiDriverNeededDocument || mongoose.model('TaxiDriverNeededDocument', driverNeededDocumentSchema);
+  mongoose.models.TaxiDriverNeededDocument || mongoose.model('TaxiDriverNeededDocument', driverNeededDocumentSchema, 'taxi_driverneededdocuments');

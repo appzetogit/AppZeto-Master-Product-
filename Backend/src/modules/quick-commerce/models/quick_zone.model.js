@@ -61,4 +61,4 @@ const quickZoneSchema = new mongoose.Schema(
 quickZoneSchema.index({ isActive: 1, name: 1 });
 quickZoneSchema.index({ country: 1, name: 1 });
 
-export const QuickZone = mongoose.models.quick_zone || mongoose.model('quick_zone', quickZoneSchema);
+export const QuickZone = mongoose.models.quick_zone || mongoose.model('quick_zone', quickZoneSchema, 'quick_zones');

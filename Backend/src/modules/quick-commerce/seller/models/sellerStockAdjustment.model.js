@@ -30,7 +30,7 @@ const sellerStockAdjustmentSchema = new mongoose.Schema(
     },
   },
   {
-    collection: "seller_stock_adjustments",
+    collection: 'quick_seller_stock_adjustments',
     timestamps: true,
   },
 );

@@ -38,4 +38,4 @@ foodSchema.index({ approvalStatus: 1, createdAt: -1 });
 foodSchema.index({ approvalStatus: 1, requestedAt: -1 });
 foodSchema.index({ restaurantId: 1, approvalStatus: 1, createdAt: -1 });
 
-export const FoodItem = mongoose.model('FoodItem', foodSchema);
+export const FoodItem = mongoose.model('FoodItem', foodSchema, 'food_items');

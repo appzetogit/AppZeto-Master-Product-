@@ -23,6 +23,7 @@ import searchRoutes from '../modules/food/search/routes/search.routes.js';
 import { taxiRouter } from '../modules/taxi/routes/index.js';
 import hotelRoutes from '../modules/hotel/routes/index.js';
 import commonSettingsRoutes from '../modules/common/routes/settings.routes.js';
+import { getGlobalSettings as getPublicSettings } from '../modules/common/controllers/settings.controller.js';
 
 const router = express.Router();
 
@@ -55,11 +56,7 @@ router.use('/v1/uploads', uploadRoutes);
 router.use('/v1/common/settings', commonSettingsRoutes);
 
 // Backward compatibility for public settings
-router.get('/v1/food/admin/business-settings/public', (req, res, next) => {
-    // Redirect or just call the same controller
-    req.url = '/v1/common/settings/public';
-    next();
-});
+router.get('/v1/food/admin/business-settings/public', getPublicSettings);
 
 router.use('/v1/food/admin', authMiddleware, requireRoles('ADMIN'), restaurantAdminRoutes);
 router.use('/v1/food/user', authMiddleware, requireRoles('USER'), userRoutes);

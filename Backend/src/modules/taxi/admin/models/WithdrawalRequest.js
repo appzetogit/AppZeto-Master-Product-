@@ -9,4 +9,4 @@ const withdrawalRequestSchema = new mongoose.Schema({
   status: { type: String, enum: ['pending', 'completed', 'cancelled'], default: 'pending' }
 }, { timestamps: true });
 
-export const WithdrawalRequest = mongoose.models.TaxiWithdrawalRequest || mongoose.model('TaxiWithdrawalRequest', withdrawalRequestSchema);
+export const WithdrawalRequest = mongoose.models.TaxiWithdrawalRequest || mongoose.model('TaxiWithdrawalRequest', withdrawalRequestSchema, 'taxi_withdrawalrequests');

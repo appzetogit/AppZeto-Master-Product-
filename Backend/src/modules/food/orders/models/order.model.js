@@ -390,7 +390,7 @@ orderSchema.index({ 'dispatch.status': 1, orderStatus: 1 });
 orderSchema.index({ 'payment.status': 1, createdAt: -1 });
 orderSchema.index({ 'payment.method': 1, createdAt: -1 });
 
-export const FoodOrder = mongoose.model('FoodOrder', orderSchema);
+export const FoodOrder = mongoose.model('FoodOrder', orderSchema, 'food_orders');
 
 const settingsSchema = new mongoose.Schema(
     {
@@ -405,4 +405,4 @@ const settingsSchema = new mongoose.Schema(
     { collection: 'food_settings', timestamps: true }
 );
 
-export const FoodSettings = mongoose.model('FoodSettings', settingsSchema);
+export const FoodSettings = mongoose.model('FoodSettings', settingsSchema, 'food_settings');

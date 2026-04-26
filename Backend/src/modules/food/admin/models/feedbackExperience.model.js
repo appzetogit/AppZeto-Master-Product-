@@ -45,4 +45,4 @@ const feedbackExperienceSchema = new mongoose.Schema(
 feedbackExperienceSchema.index({ module: 1, createdAt: -1 });
 feedbackExperienceSchema.index({ userId: 1, createdAt: -1 });
 
-export const FeedbackExperience = mongoose.model('FeedbackExperience', feedbackExperienceSchema);
+export const FeedbackExperience = mongoose.model('FeedbackExperience', feedbackExperienceSchema, 'food_feedbackexperiences');

@@ -62,4 +62,4 @@ const zoneSchema = new mongoose.Schema(
 zoneSchema.index({ isActive: 1, name: 1 });
 zoneSchema.index({ country: 1, name: 1 });
 
-export const FoodZone = mongoose.model('FoodZone', zoneSchema);
+export const FoodZone = mongoose.model('FoodZone', zoneSchema, 'food_zones');

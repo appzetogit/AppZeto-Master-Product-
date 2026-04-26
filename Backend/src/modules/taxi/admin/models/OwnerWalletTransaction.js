@@ -29,4 +29,4 @@ const ownerWalletTransactionSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-export const OwnerWalletTransaction = mongoose.model('TaxiOwnerWalletTransaction', ownerWalletTransactionSchema);
+export const OwnerWalletTransaction = mongoose.model('TaxiOwnerWalletTransaction', ownerWalletTransactionSchema, 'taxi_ownerwallet_transactions');

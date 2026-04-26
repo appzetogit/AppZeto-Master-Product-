@@ -38,7 +38,7 @@ const sellerNotificationSchema = new mongoose.Schema(
     },
   },
   {
-    collection: "seller_notifications",
+    collection: 'quick_seller_notifications',
     timestamps: true,
   },
 );

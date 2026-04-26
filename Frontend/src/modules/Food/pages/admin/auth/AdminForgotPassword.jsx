@@ -15,7 +15,7 @@ import { Mail, ArrowLeft, Shield } from "lucide-react"
 
 import { adminAPI } from "@food/api"
 import { useCompanyName } from "@food/hooks/useCompanyName"
-import { loadBusinessSettings } from "@common/utils/businessSettings"
+import { loadBusinessSettings, getCachedSettings } from "@common/utils/businessSettings"
 
 export default function AdminForgotPassword() {
   const companyName = useCompanyName()

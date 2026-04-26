@@ -31,4 +31,4 @@ const promoUserCounterSchema = new mongoose.Schema(
 promoUserCounterSchema.index({ promo_id: 1, user_id: 1 }, { unique: true });
 
 export const PromoUserCounter =
-  mongoose.models.TaxiPromoUserCounter || mongoose.model('TaxiPromoUserCounter', promoUserCounterSchema);
+  mongoose.models.TaxiPromoUserCounter || mongoose.model('TaxiPromoUserCounter', promoUserCounterSchema, 'taxi_promousercounters');

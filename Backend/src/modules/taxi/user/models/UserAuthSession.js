@@ -35,4 +35,4 @@ userAuthSessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 export const UserAuthSession =
   mongoose.models.TaxiUserAuthSession ||
-  mongoose.model('TaxiUserAuthSession', userAuthSessionSchema);
+  mongoose.model('TaxiUserAuthSession', userAuthSessionSchema, 'taxi_userauthsessions');

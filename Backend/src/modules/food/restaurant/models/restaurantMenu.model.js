@@ -20,5 +20,5 @@ const restaurantMenuSchema = new mongoose.Schema(
     }
 );
 
-export const FoodRestaurantMenu = mongoose.model('FoodRestaurantMenu', restaurantMenuSchema);
+export const FoodRestaurantMenu = mongoose.model('FoodRestaurantMenu', restaurantMenuSchema, 'food_restaurantmenus');
 

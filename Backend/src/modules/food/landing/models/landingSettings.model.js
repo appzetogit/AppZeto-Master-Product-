@@ -50,5 +50,5 @@ const foodLandingSettingsSchema = new mongoose.Schema(
     }
 );
 
-export const FoodLandingSettings = mongoose.model('FoodLandingSettings', foodLandingSettingsSchema);
+export const FoodLandingSettings = mongoose.model('FoodLandingSettings', foodLandingSettingsSchema, 'food_landing_settings');
 

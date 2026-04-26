@@ -74,4 +74,4 @@ supportChatMessageSchema.index({ conversationKey: 1, createdAt: -1 });
 supportChatMessageSchema.index({ receiverRole: 1, receiverId: 1, readAt: 1, createdAt: -1 });
 
 export const SupportChatMessage =
-  mongoose.models.TaxiSupportChatMessage || mongoose.model('TaxiSupportChatMessage', supportChatMessageSchema);
+  mongoose.models.TaxiSupportChatMessage || mongoose.model('TaxiSupportChatMessage', supportChatMessageSchema, 'taxi_supportchatmessages');

@@ -9,6 +9,7 @@ import {
   getQuickOfferSections,
   getQuickOffers,
   getQuickSettings,
+  getQuickCategories,
 } from '../services/content.service.js';
 
 const setNoCache = (res) => {
@@ -25,8 +26,19 @@ const approvedOrLegacyFilter = {
 };
 
 const publicCategoryFilter = {
-  isActive: true,
   $and: [
+    {
+      $or: [
+        { isActive: true },
+        { isActive: { $exists: false } },
+      ],
+    },
+    {
+      $or: [
+        { status: 'active' },
+        { status: { $exists: false } },
+      ],
+    },
     {
       $or: [
         { type: { $ne: 'subcategory' } },
@@ -42,7 +54,13 @@ const publicProductFilter = {
     {
       $or: [
         { isActive: true },
-        { isActive: { $exists: false }, status: 'active' },
+        { isActive: { $exists: false } },
+      ],
+    },
+    {
+      $or: [
+        { status: 'active' },
+        { status: { $exists: false } },
       ],
     },
   ],
@@ -134,7 +152,7 @@ export const getHomeData = async (req, res) => {
   const headerId = req.query?.headerId || null;
 
   const [categories, products, settings, heroConfig, experienceSections, offerSections] = await Promise.all([
-    QuickCategory.find(publicCategoryFilter).sort({ sortOrder: 1, name: 1 }).lean(),
+    getQuickCategories(),
     QuickProduct.find(publicProductFilter).sort({ createdAt: -1 }).limit(18).lean(),
     getQuickSettings(),
     getQuickHeroConfig({ pageType, headerId }),
@@ -232,10 +250,7 @@ export const getCategories = async (req, res) => {
   await ensureQuickCommerceSeedData();
 
   const { tree, parentId } = req.query;
-  const filter = { ...publicCategoryFilter };
-  if (parentId) filter.parentId = parentId;
-
-  const categories = await QuickCategory.find(filter).sort({ sortOrder: 1, name: 1 }).lean();
+  const categories = await getQuickCategories({ parentId });
   const mapped = categories.map(mapCategory);
 
   if (tree === 'true' || tree === true) {

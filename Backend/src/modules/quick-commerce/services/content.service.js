@@ -16,10 +16,19 @@ const toIdString = (value) => {
 };
 
 const normalizeStatusQuery = () => ({
-  $or: [
-    { status: { $exists: false } },
-    { status: 'active' },
-    { isActive: true },
+  $and: [
+    {
+      $or: [
+        { status: { $exists: false } },
+        { status: 'active' },
+      ],
+    },
+    {
+      $or: [
+        { isActive: { $exists: false } },
+        { isActive: true },
+      ],
+    },
   ],
 });
 
@@ -285,4 +294,23 @@ export const getQuickOfferSections = async () => {
       productIds: hydratedProducts,
     };
   });
+};
+
+export const getQuickCategories = async (query = {}) => {
+  const filter = {
+    ...normalizeStatusQuery(),
+  };
+
+  if (query.type) filter.type = query.type;
+  if (query.parentId) filter.parentId = query.parentId;
+
+  // Combine with approval filter using $and to avoid overwriting $or from normalizeStatusQuery
+  const finalFilter = {
+    $and: [
+      filter,
+      approvedOrLegacyFilter,
+    ],
+  };
+
+  return QuickCategory.find(finalFilter).sort({ sortOrder: 1, name: 1 }).lean();
 };

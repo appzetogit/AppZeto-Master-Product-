@@ -261,7 +261,7 @@ export const adminApi = {
   },
 
   getParentUnits: async () => {
-    const response = await axiosInstance.get('/quick-commerce/admin/categories', { params: { flat: true, limit: 100 } });
+    const response = await axiosInstance.get('/quick-commerce/admin/categories', { params: { flat: true, limit: 1000 } });
     return {
       ...response,
       data: {

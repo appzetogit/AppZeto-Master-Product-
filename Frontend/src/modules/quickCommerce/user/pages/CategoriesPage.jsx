@@ -129,9 +129,9 @@ const CategoriesPage = () => {
 
     return (
         <div className="min-h-screen bg-[#F8F9FA]">
-            <MainLocationHeader />
+            <MainLocationHeader showCategories={false} />
             
-            <div className="max-w-[1400px] mx-auto px-3 pt-[160px] md:pt-[180px] pb-20">
+            <div className="max-w-[1400px] mx-auto px-3 pt-[150px] md:pt-[170px] pb-20">
                 <AnimatePresence mode='wait'>
                     {isLoading ? (
                         <motion.div 

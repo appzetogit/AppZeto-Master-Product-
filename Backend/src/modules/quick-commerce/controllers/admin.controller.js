@@ -269,7 +269,7 @@ export const getAdminCategories = async (_req, res) => {
   if (approvalStatus && approvalStatus !== 'all') query.approvalStatus = String(approvalStatus);
 
   const currentPage = Math.max(1, parseInt(page, 10) || 1);
-  const perPage = String(tree) === 'true' ? 5000 : Math.max(1, Math.min(parseInt(limit, 10) || 50, 100));
+  const perPage = String(tree) === 'true' ? 5000 : Math.max(1, Math.min(parseInt(limit, 10) || 50, 1000));
 
   const [categories, total] = await Promise.all([
     QuickCategory.find(query)

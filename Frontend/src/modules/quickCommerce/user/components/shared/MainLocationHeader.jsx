@@ -14,6 +14,7 @@ import {
   buildSearchBarBackgroundColor,
   shiftHex,
 } from "../../utils/headerTheme";
+import { customerApi } from "../../services/customerApi";
 import {
   getQuickCartPath,
   getQuickHomePath,
@@ -170,7 +171,37 @@ const MainLocationHeader = ({
   embeddedHeaderColor = null,
   showTopContent = true,
   showSearchBar = true,
+  showCategories = true,
 }) => {
+  const [internalCategories, setInternalCategories] = useState([]);
+  const displayCategories = categories.length > 0 ? categories : internalCategories;
+
+  useEffect(() => {
+    if (!showCategories || categories.length > 0) return;
+    
+    const fetchHeaderCategories = async () => {
+      try {
+        const res = await customerApi.getCategories();
+        if (res.data.success) {
+          const dbCats = res.data.results || res.data.result || [];
+          const headers = dbCats
+            .filter(cat => cat.type === 'header')
+            .map(cat => ({
+              ...cat,
+              id: cat._id,
+              // Simple mapping, might need icons/themes if they are not in DB
+              // But we can at least show names.
+            }));
+          setInternalCategories(headers);
+        }
+      } catch (err) {
+        console.error("Error fetching header categories:", err);
+      }
+    };
+    
+    fetchHeaderCategories();
+  }, [categories]);
+
   const { scrollY } = useScroll();
   const [isLocationOpen, setIsLocationOpen] = useState(false);
   const { currentLocation, refreshLocation, isFetchingLocation } =
@@ -592,7 +623,7 @@ const MainLocationHeader = ({
           </div>}
 
           {/* Categories Navigation - Smooth Collapse */}
-          {categories.length > 0 && (
+          {showCategories && displayCategories.length > 0 && (
             <motion.div
               layout
               transition={{
@@ -614,7 +645,7 @@ const MainLocationHeader = ({
                 "relative flex items-end md:justify-center gap-0 overflow-x-auto no-scrollbar -mx-2 px-2 md:mx-0 md:px-0 z-10 snap-x min-h-[68px] md:min-h-[76px] pb-0.5",
                 embedded ? "pt-0" : "pt-1",
               )}>
-              {categories.slice(0, 10).map((cat) => {
+              {displayCategories.slice(0, 10).map((cat) => {
                 const isActive = activeCategory?.id === cat.id;
                 return (
                   <CategoryNavColumn

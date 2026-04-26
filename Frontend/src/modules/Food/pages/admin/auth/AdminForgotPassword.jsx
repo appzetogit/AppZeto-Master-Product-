@@ -31,7 +31,7 @@ export default function AdminForgotPassword() {
   const [error, setError] = useState("")
   const [resendTimer, setResendTimer] = useState(0)
   const [logoUrl, setLogoUrl] = useState(() => getCachedSettings()?.logo?.url || null)
-  const [companyName, setCompanyName] = useState(() => getCachedSettings()?.companyName || null)
+  const [displayCompanyName, setDisplayCompanyName] = useState(() => getCachedSettings()?.companyName || null)
   const inputRefs = useRef(Array(6).fill(null).map(() => null))
 
   // Fetch business settings logo on mount
@@ -43,7 +43,7 @@ export default function AdminForgotPassword() {
           setLogoUrl(settings.logo.url)
         }
         if (settings?.companyName) {
-          setCompanyName(settings.companyName)
+          setDisplayCompanyName(settings.companyName)
         }
       } catch (error) {
         // Silently fail
@@ -56,6 +56,9 @@ export default function AdminForgotPassword() {
       const settings = await loadBusinessSettings();
       if (settings?.logo?.url) {
         setLogoUrl(settings.logo.url);
+      }
+      if (settings?.companyName) {
+        setDisplayCompanyName(settings.companyName);
       }
     };
     window.addEventListener('businessSettingsUpdated', handleSettingsUpdate);
@@ -229,7 +232,7 @@ export default function AdminForgotPassword() {
                 {logoUrl ? (
                   <img
                     src={logoUrl}
-                    alt={companyName || "Logo"}
+                    alt={displayCompanyName || "Logo"}
                     className="h-10 w-24 object-contain"
                     loading="lazy"
                     onError={(e) => {
@@ -238,7 +241,7 @@ export default function AdminForgotPassword() {
                   />
                 ) : (
                   <span className="text-xs font-bold text-gray-900 truncate px-2">
-                    {companyName || "Appzeto"}
+                    {displayCompanyName || "Appzeto"}
                   </span>
                 )}
               </div>

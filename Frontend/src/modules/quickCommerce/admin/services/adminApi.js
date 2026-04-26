@@ -261,7 +261,7 @@ export const adminApi = {
   },
 
   getParentUnits: async () => {
-    const response = await axiosInstance.get('/quick-commerce/admin/categories', { params: { flat: true, limit: 100 } });
+    const response = await axiosInstance.get('/quick-commerce/admin/categories', { params: { flat: true, limit: 1000 } });
     return {
       ...response,
       data: {
@@ -374,16 +374,16 @@ export const adminApi = {
   uploadExperienceBanner: (formData) => adminApi.uploadSettingsImage(formData, 'experience'),
   getHeroConfig: (params) => axiosInstance.get('/quick-commerce/admin/experience/hero', { params }),
   setHeroConfig: (payload) => axiosInstance.post('/quick-commerce/admin/experience/hero', payload),
-  getOffers: () => emptyResponse([]),
-  createOffer: () => emptyResponse({}),
-  updateOffer: () => emptyResponse({}),
-  deleteOffer: () => emptyResponse({}),
-  reorderOffers: () => emptyResponse({}),
-  getOfferSections: () => emptyResponse([]),
-  createOfferSection: () => emptyResponse({}),
-  updateOfferSection: () => emptyResponse({}),
-  deleteOfferSection: () => emptyResponse({}),
-  reorderOfferSections: () => emptyResponse({}),
+  getOffers: () => axiosInstance.get('/quick-commerce/offers'),
+  createOffer: (payload) => axiosInstance.post('/quick-commerce/admin/offers', payload),
+  updateOffer: (id, payload) => axiosInstance.put(`/quick-commerce/admin/offers/${id}`, payload),
+  deleteOffer: (id) => axiosInstance.delete(`/quick-commerce/admin/offers/${id}`),
+  reorderOffers: (items) => axiosInstance.post('/quick-commerce/admin/offers/reorder', items),
+  getOfferSections: () => axiosInstance.get('/quick-commerce/admin/offer-sections'),
+  createOfferSection: (payload) => axiosInstance.post('/quick-commerce/admin/offer-sections', payload),
+  updateOfferSection: (id, payload) => axiosInstance.put(`/quick-commerce/admin/offer-sections/${id}`, payload),
+  deleteOfferSection: (id) => axiosInstance.delete(`/quick-commerce/admin/offer-sections/${id}`),
+  reorderOfferSections: (items) => axiosInstance.post('/quick-commerce/admin/offer-sections/reorder', items),
   getCoupons: () => emptyResponse([]),
   createCoupon: () => emptyResponse({}),
   updateCoupon: () => emptyResponse({}),

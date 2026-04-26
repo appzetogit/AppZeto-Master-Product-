@@ -40,6 +40,11 @@ import {
   reorderAdminExperienceSections,
   getAdminHeroConfig,
   setAdminHeroConfig,
+  getAdminOfferSections,
+  createAdminOfferSection,
+  updateAdminOfferSection,
+  deleteAdminOfferSection,
+  reorderAdminOfferSections,
 } from '../controllers/admin.controller.js';
 
 import { authMiddleware } from '../../../core/auth/auth.middleware.js';
@@ -127,8 +132,14 @@ router.put('/admin/experience/sections/:id', ...adminOnly, updateAdminExperience
 router.delete('/admin/experience/sections/:id', ...adminOnly, deleteAdminExperienceSection);
 router.post('/admin/experience/sections/reorder', ...adminOnly, reorderAdminExperienceSections);
 
-// Hero Configuration Management
 router.get('/admin/experience/hero', ...adminOnly, getAdminHeroConfig);
 router.post('/admin/experience/hero', ...adminOnly, setAdminHeroConfig);
+
+// Offer Sections Management
+router.get('/admin/offer-sections', ...adminOnly, getAdminOfferSections);
+router.post('/admin/offer-sections', ...adminOnly, createAdminOfferSection);
+router.put('/admin/offer-sections/:id', ...adminOnly, updateAdminOfferSection);
+router.delete('/admin/offer-sections/:id', ...adminOnly, deleteAdminOfferSection);
+router.post('/admin/offer-sections/reorder', ...adminOnly, reorderAdminOfferSections);
 
 export default router;

@@ -22,6 +22,54 @@ import {
 } from "../../utils/routes";
 import LogoImage from "@/assets/Logo.png";
 import shoppingCartAnimation from "@/assets/lottie/shopping-cart.json";
+import { Sparkles } from "lucide-react";
+import { customerApi } from "../../services/customerApi";
+
+// MUI Icons (shared with Home.jsx)
+import HomeIcon from "@mui/icons-material/Home";
+import DevicesIcon from "@mui/icons-material/Devices";
+import LocalGroceryStoreIcon from "@mui/icons-material/LocalGroceryStore";
+import KitchenIcon from "@mui/icons-material/Kitchen";
+import ChildCareIcon from "@mui/icons-material/ChildCare";
+import PetsIcon from "@mui/icons-material/Pets";
+import SportsSoccerIcon from "@mui/icons-material/SportsSoccer";
+import CardGiftcardIcon from "@mui/icons-material/CardGiftcard";
+import MenuBookIcon from "@mui/icons-material/MenuBook";
+import SpaIcon from "@mui/icons-material/Spa";
+import ToysIcon from "@mui/icons-material/Toys";
+import DirectionsCarIcon from "@mui/icons-material/DirectionsCar";
+import LocalHospitalIcon from "@mui/icons-material/LocalHospital";
+import YardIcon from "@mui/icons-material/Yard";
+import BusinessCenterIcon from "@mui/icons-material/BusinessCenter";
+import MusicNoteIcon from "@mui/icons-material/MusicNote";
+import CheckroomIcon from "@mui/icons-material/Checkroom";
+import LocalCafeIcon from "@mui/icons-material/LocalCafe";
+import DiamondIcon from "@mui/icons-material/Diamond";
+import ColorLensIcon from "@mui/icons-material/ColorLens";
+import BuildIcon from "@mui/icons-material/Build";
+import LuggageIcon from "@mui/icons-material/Luggage";
+
+const ICON_COMPONENTS = {
+  electronics: DevicesIcon,
+  fashion: CheckroomIcon,
+  home: HomeIcon,
+  food: LocalCafeIcon,
+  sports: SportsSoccerIcon,
+  books: MenuBookIcon,
+  beauty: SpaIcon,
+  toys: ToysIcon,
+  automotive: DirectionsCarIcon,
+  pets: PetsIcon,
+  health: LocalHospitalIcon,
+  garden: YardIcon,
+  office: BusinessCenterIcon,
+  music: MusicNoteIcon,
+  jewelry: DiamondIcon,
+  baby: ChildCareIcon,
+  tools: BuildIcon,
+  luggage: LuggageIcon,
+  grocery: LocalGroceryStoreIcon,
+};
 
 // MUI Icons
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
@@ -105,7 +153,7 @@ function CategoryNavColumn({
       className="relative z-[2] flex min-w-[48px] shrink-0 cursor-pointer flex-col items-center gap-0.5 border-b-2 px-2 pb-0.5 pt-0.5 snap-start md:min-w-[58px]">
       <div className="relative z-10 flex h-9 w-9 items-center justify-center md:h-11 md:w-11">
         {typeof cat.icon === "function" ||
-        (typeof cat.icon === "object" && cat.icon.$$typeof) ? (
+          (typeof cat.icon === "object" && cat.icon.$$typeof) ? (
           <cat.icon
             sx={{
               fontSize: { xs: 20, md: 24 },
@@ -163,13 +211,14 @@ function CategoryNavColumn({
 }
 
 const MainLocationHeader = ({
-  categories = [],
+  categories: externalCategories = [],
   activeCategory,
   onCategorySelect,
   embedded = false,
   embeddedHeaderColor = null,
   showTopContent = true,
   showSearchBar = true,
+  showCategories = true,
 }) => {
   const { scrollY } = useScroll();
   const [isLocationOpen, setIsLocationOpen] = useState(false);
@@ -186,6 +235,29 @@ const MainLocationHeader = ({
   const homePath = getQuickHomePath(routerLocation.pathname);
   const searchPath = getQuickSearchPath(routerLocation.pathname);
   const wishlistPath = getQuickWishlistPath();
+
+  const [internalCategories, setInternalCategories] = useState([]);
+
+  useEffect(() => {
+    // Only fetch if showCategories is true and no external categories provided
+    if (showCategories && externalCategories.length === 0) {
+      customerApi.getCategories().then((res) => {
+        if (res.data.success) {
+          const dbCats = res.data.results || res.data.result || [];
+          const headers = dbCats
+            .filter((cat) => cat.type === "header")
+            .map((cat) => ({
+              ...cat,
+              id: cat._id,
+              icon: (cat.iconId && ICON_COMPONENTS[cat.iconId]) || Sparkles,
+            }));
+          setInternalCategories(headers);
+        }
+      });
+    }
+  }, [showCategories, externalCategories.length]);
+
+  const categories = externalCategories.length > 0 ? externalCategories : internalCategories;
 
   // Search Logic
   const handleSearchClick = () => {
@@ -387,120 +459,120 @@ const MainLocationHeader = ({
 
           {/* Desktop/Tablet Header Layout (md and above) */}
           {(showTopContent || showSearchBar) && (
-          <div className="hidden md:flex items-center justify-between relative z-20 px-2 lg:px-6 mb-4 mt-1">
-            {/* Left Section: Logo + Location row */}
-            <div className="flex items-center gap-4 lg:gap-8">
-              <div
-                onClick={() => navigate(homePath)}
-                className="flex items-center gap-3 cursor-pointer group shrink-0">
-                <div className="group-hover:scale-110 transition-all duration-300 drop-shadow-[0_2px_8px_rgba(255,255,255,0.2)]">
-                  <img
-                    src={logoUrl}
-                    alt={`${appName} Logo`}
-                    className="h-10 w-auto object-contain"
-                  />
+            <div className="hidden md:flex items-center justify-between relative z-20 px-2 lg:px-6 mb-4 mt-1">
+              {/* Left Section: Logo + Location row */}
+              <div className="flex items-center gap-4 lg:gap-8">
+                <div
+                  onClick={() => navigate(homePath)}
+                  className="flex items-center gap-3 cursor-pointer group shrink-0">
+                  <div className="group-hover:scale-110 transition-all duration-300 drop-shadow-[0_2px_8px_rgba(255,255,255,0.2)]">
+                    <img
+                      src={logoUrl}
+                      alt={`${appName} Logo`}
+                      className="h-10 w-auto object-contain"
+                    />
+                  </div>
+                </div>
+
+                {/* Location Block (Desktop inline row) */}
+                <div className="flex flex-col border-l border-black/10 pl-4 lg:pl-8 h-10 justify-center">
+                  <div className="flex items-center gap-1.5 opacity-70">
+                    <AccessTimeIcon sx={{ fontSize: 13, color: "#111827" }} />
+                    <span className="text-[11px] font-black text-slate-900 uppercase tracking-widest leading-none">
+                      {currentLocation.time}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    data-lenis-prevent
+                    data-lenis-prevent-touch
+                    onClick={() => {
+                      setIsLocationOpen(true);
+                    }}
+                    className="flex items-center gap-1 text-slate-900 hover:text-slate-700 cursor-pointer group active:scale-95 transition-all border-0 bg-transparent p-0 text-left">
+                    <LocationOnIcon sx={{ fontSize: 14, color: "inherit" }} />
+                    <div className="text-[13px] font-bold leading-tight max-w-[250px] lg:max-w-[320px] truncate">
+                      {isFetchingLocation
+                        ? "Detecting location..."
+                        : currentLocation.name}
+                    </div>
+                    <ChevronDownIcon
+                      sx={{ fontSize: 12, opacity: 0.5, color: "#111827" }}
+                    />
+                  </button>
                 </div>
               </div>
 
-              {/* Location Block (Desktop inline row) */}
-              <div className="flex flex-col border-l border-black/10 pl-4 lg:pl-8 h-10 justify-center">
-                <div className="flex items-center gap-1.5 opacity-70">
-                  <AccessTimeIcon sx={{ fontSize: 13, color: "#111827" }} />
-                  <span className="text-[11px] font-black text-slate-900 uppercase tracking-widest leading-none">
-                    {currentLocation.time}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  data-lenis-prevent
-                  data-lenis-prevent-touch
-                  onClick={() => {
-                    setIsLocationOpen(true);
-                  }}
-                  className="flex items-center gap-1 text-slate-900 hover:text-slate-700 cursor-pointer group active:scale-95 transition-all border-0 bg-transparent p-0 text-left">
-                  <LocationOnIcon sx={{ fontSize: 14, color: "inherit" }} />
-                  <div className="text-[13px] font-bold leading-tight max-w-[250px] lg:max-w-[320px] truncate">
-                    {isFetchingLocation
-                      ? "Detecting location..."
-                      : currentLocation.name}
-                  </div>
-                  <ChevronDownIcon
-                    sx={{ fontSize: 12, opacity: 0.5, color: "#111827" }}
-                  />
-                </button>
-              </div>
-            </div>
+              {/* Center Section: Search Bar */}
+              <div className="flex-1 max-w-[450px] lg:max-w-2xl px-6">
+                <div className="flex items-center gap-3">
+                  <motion.div
+                    onClick={handleSearchClick}
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                    style={{ backgroundColor: searchBarBg }}
+                    className="rounded-full px-4 h-11 shadow-md flex items-center border border-white/50 transition-all duration-200 focus-within:ring-2 focus-within:ring-emerald-400/60 cursor-pointer flex-1">
+                    <SearchIcon sx={{ color: "#000000", fontSize: 20 }} />
+                    <input
+                      type="text"
+                      placeholder={searchPlaceholder || "Search Products..."}
+                      readOnly
+                      className="flex-1 bg-transparent border-none outline-none pl-2 text-slate-800 font-semibold placeholder:text-slate-300 text-[15px] cursor-pointer"
+                    />
+                    <div className="flex items-center gap-2 border-l border-slate-100 pl-3">
+                      <MicIcon sx={{ color: "#000000", fontSize: 20 }} />
+                    </div>
+                  </motion.div>
 
-            {/* Center Section: Search Bar */}
-            <div className="flex-1 max-w-[450px] lg:max-w-2xl px-6">
-              <div className="flex items-center gap-3">
-                <motion.div
-                  onClick={handleSearchClick}
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.99 }}
-                  style={{ backgroundColor: searchBarBg }}
-                  className="rounded-full px-4 h-11 shadow-md flex items-center border border-white/50 transition-all duration-200 focus-within:ring-2 focus-within:ring-emerald-400/60 cursor-pointer flex-1">
-                  <SearchIcon sx={{ color: "#000000", fontSize: 20 }} />
-                  <input
-                    type="text"
-                    placeholder={searchPlaceholder || "Search Products..."}
-                    readOnly
-                    className="flex-1 bg-transparent border-none outline-none pl-2 text-slate-800 font-semibold placeholder:text-slate-300 text-[15px] cursor-pointer"
-                  />
-                  <div className="flex items-center gap-2 border-l border-slate-100 pl-3">
-                    <MicIcon sx={{ color: "#000000", fontSize: 20 }} />
-                  </div>
-                </motion.div>
+                  <motion.button
+                    initial={{ opacity: 0, scale: 0.9, y: -8 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: 0.15, ease: "easeOut" }}
+                    style={{
+                      opacity: cartOpacity,
+                      scale: cartScale,
+                      display: displayCart,
+                    }}
+                    type="button"
+                    aria-label="Open cart"
+                    onClick={() => navigate(cartPath)}
+                    className="group relative h-12 w-12 shrink-0 rounded-2xl border border-white/55 bg-white/28 shadow-[0_16px_35px_rgba(15,23,42,0.16)] backdrop-blur-xl transition-all duration-300 hover:bg-white/42 hover:shadow-[0_18px_40px_rgba(15,23,42,0.2)]">
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/30 via-transparent to-black/5 pointer-events-none" />
+                    <div className="absolute inset-x-2 top-1 h-px bg-white/70 pointer-events-none" />
+                    <Lottie
+                      animationData={shoppingCartAnimation}
+                      loop
+                      className="pointer-events-none absolute inset-0 scale-[1.18] drop-shadow-[0_8px_18px_rgba(0,0,0,0.14)] transition-transform duration-300 group-hover:scale-[1.25]"
+                    />
+                  </motion.button>
+                </div>
+              </div>
+
+              {/* Right Section: Action Icons */}
+              <div className="flex items-center gap-5 lg:gap-8 shrink-0">
+                <motion.button
+                  whileHover={{ scale: 1.15, rotate: 5 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => navigate(wishlistPath)}
+                  className="text-slate-900 hover:text-red-500 transition-all">
+                  <FavoriteBorderOutlinedIcon sx={{ fontSize: 24 }} />
+                </motion.button>
 
                 <motion.button
-                  initial={{ opacity: 0, scale: 0.9, y: -8 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.15, ease: "easeOut" }}
-                  style={{
-                    opacity: cartOpacity,
-                    scale: cartScale,
-                    display: displayCart,
-                  }}
-                  type="button"
-                  aria-label="Open cart"
+                  whileHover={{ scale: 1.15, rotate: -5 }}
+                  whileTap={{ scale: 0.9 }}
                   onClick={() => navigate(cartPath)}
-                  className="group relative h-12 w-12 shrink-0 rounded-2xl border border-white/55 bg-white/28 shadow-[0_16px_35px_rgba(15,23,42,0.16)] backdrop-blur-xl transition-all duration-300 hover:bg-white/42 hover:shadow-[0_18px_40px_rgba(15,23,42,0.2)]">
-                  <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/30 via-transparent to-black/5 pointer-events-none" />
-                  <div className="absolute inset-x-2 top-1 h-px bg-white/70 pointer-events-none" />
-                  <Lottie
-                    animationData={shoppingCartAnimation}
-                    loop
-                    className="pointer-events-none absolute inset-0 scale-[1.18] drop-shadow-[0_8px_18px_rgba(0,0,0,0.14)] transition-transform duration-300 group-hover:scale-[1.25]"
-                  />
+                  className="text-slate-900 hover:text-slate-700 transition-all relative group">
+                  <ShoppingCartOutlinedIcon sx={{ fontSize: 24 }} />
+                  {cartCount > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 bg-yellow-400 text-emerald-900 text-[9px] font-black rounded-full flex items-center justify-center border-2 border-green-800 shadow-sm transition-transform group-hover:-translate-y-0.5">
+                      {cartCount > 99 ? "99+" : cartCount}
+                    </span>
+                  )}
                 </motion.button>
+
               </div>
             </div>
-
-            {/* Right Section: Action Icons */}
-            <div className="flex items-center gap-5 lg:gap-8 shrink-0">
-              <motion.button
-                whileHover={{ scale: 1.15, rotate: 5 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => navigate(wishlistPath)}
-                className="text-slate-900 hover:text-red-500 transition-all">
-                <FavoriteBorderOutlinedIcon sx={{ fontSize: 24 }} />
-              </motion.button>
-
-              <motion.button
-                whileHover={{ scale: 1.15, rotate: -5 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => navigate(cartPath)}
-                className="text-slate-900 hover:text-slate-700 transition-all relative group">
-                <ShoppingCartOutlinedIcon sx={{ fontSize: 24 }} />
-                {cartCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 bg-yellow-400 text-emerald-900 text-[9px] font-black rounded-full flex items-center justify-center border-2 border-green-800 shadow-sm transition-transform group-hover:-translate-y-0.5">
-                    {cartCount > 99 ? "99+" : cartCount}
-                  </span>
-                )}
-              </motion.button>
-
-            </div>
-          </div>
           )}
 
           {/* Collapsible Delivery Info & Location (MOBILE ONLY) */}
@@ -592,7 +664,7 @@ const MainLocationHeader = ({
           </div>}
 
           {/* Categories Navigation - Smooth Collapse */}
-          {categories.length > 0 && (
+          {showCategories && categories.length > 0 && (
             <motion.div
               layout
               transition={{

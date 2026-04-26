@@ -59,7 +59,7 @@ const CategoryManagement = () => {
         setIsLoading(true);
         try {
             const [categoriesRes, parentsRes] = await Promise.all([
-                adminApi.getCategories(),
+                adminApi.getCategoryTree(),
                 adminApi.getParentUnits()
             ]);
 

@@ -33,7 +33,7 @@ const CategoryCard = ({ category, isFlipped }) => {
                 </div>
 
                 {/* Back Side (Name) */}
-                <div 
+                <div
                     className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] rounded-full p-2.5 flex items-center justify-center text-center shadow-inner border border-slate-50"
                     style={{ backgroundColor: category.color }}
                 >
@@ -58,20 +58,20 @@ const CategoriesPage = () => {
             const res = await customerApi.getCategories({ tree: true });
             if (res.data.success) {
                 const results = res.data.results || res.data.result || [];
-                
+
                 const allCategories = Array.isArray(results) ? results : [];
-                
+
                 // 1. Identify Header Categories (Top-level parents)
                 // We assume categories with no parentId are headers, or we use the tree structure if children are present
                 const headers = allCategories.filter(cat => !cat.parentId || (cat.children && cat.children.length > 0));
-                
+
                 const formattedGroups = headers
                     .filter((header) => (header.name || '').trim().toLowerCase() !== 'all')
                     .map((header, idx) => {
                         // 2. Find subcategories for this header
                         // Either from children array or by matching parentId
-                        let subs = header.children && header.children.length > 0 
-                            ? header.children 
+                        let subs = header.children && header.children.length > 0
+                            ? header.children
                             : allCategories.filter(cat => cat.parentId === header._id);
 
                         // If still no subs, we only show the header if it has an image (as a standalone), 
@@ -114,9 +114,9 @@ const CategoriesPage = () => {
         const interval = setInterval(() => {
             const randomIndex = Math.floor(Math.random() * allSubCategories.length);
             const targetId = allSubCategories[randomIndex].id;
-            
+
             setFlippedCategoryId(targetId);
-            
+
             // Revert flip after some time
             setTimeout(() => {
                 setFlippedCategoryId(null);
@@ -129,12 +129,12 @@ const CategoriesPage = () => {
 
     return (
         <div className="min-h-screen bg-[#F8F9FA]">
-            <MainLocationHeader />
-            
-            <div className="max-w-[1400px] mx-auto px-3 pt-[160px] md:pt-[180px] pb-20">
+            <MainLocationHeader showCategories={false} />
+
+            <div className="max-w-[1400px] mx-auto px-3 pt-[150px] md:pt-[170px] pb-20">
                 <AnimatePresence mode='wait'>
                     {isLoading ? (
-                        <motion.div 
+                        <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
@@ -145,7 +145,7 @@ const CategoriesPage = () => {
                     ) : (
                         <div className="space-y-6 md:space-y-8">
                             {groups.map((group, groupIdx) => (
-                                <motion.section 
+                                <motion.section
                                     key={group.id}
                                     initial={{ opacity: 0, y: 20 }}
                                     whileInView={{ opacity: 1, y: 0 }}
@@ -162,14 +162,14 @@ const CategoriesPage = () => {
 
                                     <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2 md:gap-3 lg:gap-4">
                                         {group.categories.map((category) => (
-                                            <Link 
-                                                key={category.id} 
+                                            <Link
+                                                key={category.id}
                                                 to={`/quick/categories/${category.id}`}
                                                 className="block"
                                             >
-                                                <CategoryCard 
-                                                    category={category} 
-                                                    isFlipped={flippedCategoryId === category.id} 
+                                                <CategoryCard
+                                                    category={category}
+                                                    isFlipped={flippedCategoryId === category.id}
                                                 />
                                             </Link>
                                         ))}

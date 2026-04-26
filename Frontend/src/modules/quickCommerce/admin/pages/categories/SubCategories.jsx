@@ -51,7 +51,7 @@ const SubCategories = () => {
   const fetchCategories = async () => {
     setIsLoading(true);
     try {
-      const res = await adminApi.getCategories();
+      const res = await adminApi.getCategories({ limit: 1000 });
       if (res.data.success) {
         const allCats = res.data.results || res.data.result || [];
         setCategories(allCats.filter((c) => c.type === "subcategory"));

@@ -16,17 +16,26 @@ const toIdString = (value) => {
 };
 
 const normalizeStatusQuery = () => ({
-  $or: [
-    { status: { $exists: false } },
-    { status: 'active' },
-    { isActive: true },
+  $and: [
+    {
+      $or: [
+        { status: 'active' },
+        { status: { $exists: false } },
+        { isActive: true },
+        { isActive: { $exists: false } },
+      ],
+    },
   ],
 });
 
 const approvedOrLegacyFilter = {
-  $or: [
-    { approvalStatus: { $exists: false } },
-    { approvalStatus: 'approved' },
+  $and: [
+    {
+      $or: [
+        { approvalStatus: 'approved' },
+        { approvalStatus: { $exists: false } },
+      ],
+    },
   ],
 };
 
@@ -77,10 +86,38 @@ export const getQuickExperienceSections = async ({ pageType = 'home', headerId =
   const sections = await QuickExperienceSection.find(query).sort({ order: 1, createdAt: 1 }).lean();
   if (!sections.length) return [];
 
+  // Fetch all categories once to build a recursive lookup for products
+  const allCategories = await QuickCategory.find(normalizeStatusQuery()).lean();
+  const categoryMap = new Map(allCategories.map(c => [String(c._id), c]));
+  const childrenMap = new Map();
+  allCategories.forEach(c => {
+    if (c.parentId) {
+      const pid = String(c.parentId);
+      if (!childrenMap.has(pid)) childrenMap.set(pid, []);
+      childrenMap.get(pid).push(c);
+    }
+  });
+
+  const getRecursiveChildIds = (catId, seen = new Set()) => {
+    const id = String(catId);
+    if (seen.has(id)) return [];
+    seen.add(id);
+    
+    let ids = [id];
+    const children = childrenMap.get(id) || [];
+    children.forEach(child => {
+      ids = [...ids, ...getRecursiveChildIds(child._id, seen)];
+    });
+    return ids;
+  };
+
   // Hydrate data
   const productIds = new Set();
   const categoryIds = new Set();
   const subcategoryIds = new Set();
+  
+  const dynamicProductCategoryIds = new Set();
+  const dynamicProductSubcategoryIds = new Set();
 
   sections.forEach((section) => {
     const { config = {} } = section;
@@ -109,16 +146,53 @@ export const getQuickExperienceSections = async ({ pageType = 'home', headerId =
       const nid = toIdString(id);
       if (nid) productIds.add(nid);
     });
+
+    // If products type and no explicit products, collect categories for dynamic fetch
+    if (section.displayType === 'products' && (!prodIds || prodIds.length === 0)) {
+       catIds.forEach(id => {
+         const nid = toIdString(id);
+         if (nid) {
+            getRecursiveChildIds(nid).forEach(childId => dynamicProductCategoryIds.add(childId));
+         }
+       });
+       subcatIds.forEach(id => {
+         const nid = toIdString(id);
+         if (nid) {
+            getRecursiveChildIds(nid).forEach(childId => dynamicProductSubcategoryIds.add(childId));
+         }
+       });
+    }
   });
 
   const [products, categories] = await Promise.all([
-    productIds.size
-      ? QuickProduct.find({ _id: { $in: Array.from(productIds) }, ...approvedOrLegacyFilter, isActive: true }).lean()
+    (productIds.size || dynamicProductCategoryIds.size || dynamicProductSubcategoryIds.size)
+      ? QuickProduct.find({ 
+          $and: [
+            { 
+              $or: [
+                { _id: { $in: Array.from(productIds) } },
+                { categoryId: { $in: Array.from(dynamicProductCategoryIds) } },
+                { subcategoryId: { $in: Array.from(dynamicProductSubcategoryIds) } },
+                { headerId: { $in: Array.from(dynamicProductCategoryIds) } }
+              ]
+            },
+            approvedOrLegacyFilter,
+            { 
+              $or: [
+                { isActive: true },
+                { isActive: { $exists: false } }
+              ]
+            }
+          ]
+        }).sort({ createdAt: -1 }).limit(300).lean()
       : Promise.resolve([]),
     (categoryIds.size || subcategoryIds.size)
       ? QuickCategory.find({
           _id: { $in: Array.from(new Set([...Array.from(categoryIds), ...Array.from(subcategoryIds)])) },
-          isActive: true
+          $or: [
+            { isActive: true },
+            { isActive: { $exists: false } }
+          ]
         }).lean()
       : Promise.resolve([]),
   ]);
@@ -137,8 +211,7 @@ export const getQuickExperienceSections = async ({ pageType = 'home', headerId =
           .map(id => categoriesById.get(toIdString(id)))
           .filter(Boolean);
       
-      if (config.categories) newConfig.categories = target;
-      else Object.assign(newConfig, target);
+      newConfig.categories = target;
     }
 
     if (section.displayType === 'subcategories') {
@@ -147,18 +220,37 @@ export const getQuickExperienceSections = async ({ pageType = 'home', headerId =
           .map(id => categoriesById.get(toIdString(id)))
           .filter(Boolean);
       
-      if (config.subcategories) newConfig.subcategories = target;
-      else Object.assign(newConfig, target);
+      newConfig.subcategories = target;
     }
 
     if (section.displayType === 'products') {
       const target = config.products ? { ...config.products } : { ...config };
-      target.items = (target.productIds || [])
+      const explicitItems = (target.productIds || [])
           .map(id => productsById.get(toIdString(id)))
           .filter(Boolean);
       
-      if (config.products) newConfig.products = target;
-      else Object.assign(newConfig, target);
+      if (explicitItems.length > 0) {
+        target.items = explicitItems;
+      } else {
+        // Fallback: Dynamic products based on categories
+        const sectionCatIds = new Set((target.categoryIds || []).map(toIdString).filter(Boolean));
+        const sectionSubcatIds = new Set((target.subcategoryIds || []).map(toIdString).filter(Boolean));
+        
+        // Include children in the section set for filtering
+        const expandedCatIds = new Set();
+        sectionCatIds.forEach(id => getRecursiveChildIds(id).forEach(cid => expandedCatIds.add(cid)));
+        const expandedSubcatIds = new Set();
+        sectionSubcatIds.forEach(id => getRecursiveChildIds(id).forEach(cid => expandedSubcatIds.add(cid)));
+
+        target.items = products.filter(p => 
+          expandedCatIds.has(toIdString(p.categoryId)) || 
+          expandedSubcatIds.has(toIdString(p.subcategoryId)) ||
+          expandedCatIds.has(toIdString(p.headerId))
+        ).slice(0, (target.rows || 1) * (target.columns || 4) || 20);
+      }
+      
+      // Always put in .products for frontend consistency
+      newConfig.products = target;
     }
 
     // For banners, we just ensure they are in the right place if they were flat
@@ -216,12 +308,19 @@ export const getQuickOffers = async () => {
   return collection.find(normalizeStatusQuery()).sort({ updatedAt: -1, createdAt: -1 }).toArray();
 };
 
-export const getQuickOfferSections = async () => {
+export const getQuickOfferSections = async (query = {}) => {
   const collection = getCollection('quick_offer_sections');
   if (!collection) return [];
 
+  const filter = normalizeStatusQuery();
+  if (query.status && query.status !== 'all') {
+    // Override normalizeStatusQuery if explicit status is provided
+    filter.$and = filter.$and.filter(f => !f.status);
+    filter.$and.push({ status: query.status });
+  }
+
   const sections = await collection
-    .find(normalizeStatusQuery())
+    .find(filter)
     .sort({ order: 1, createdAt: 1 })
     .toArray();
 
@@ -251,17 +350,10 @@ export const getQuickOfferSections = async () => {
 
   const [products, categories] = await Promise.all([
     productIds.size
-      ? QuickProduct.find({ _id: { $in: Array.from(productIds) }, ...approvedOrLegacyFilter, isActive: true }).lean()
+      ? QuickProduct.find({ _id: { $in: Array.from(productIds) } }).lean()
       : Promise.resolve([]),
     categoryIds.size
-      ? QuickCategory.find({
-          _id: { $in: Array.from(categoryIds) },
-          isActive: true,
-          $or: [
-            { type: { $ne: 'subcategory' } },
-            approvedOrLegacyFilter,
-          ],
-        }).lean()
+      ? QuickCategory.find({ _id: { $in: Array.from(categoryIds) } }).lean()
       : Promise.resolve([]),
   ]);
 
@@ -285,4 +377,78 @@ export const getQuickOfferSections = async () => {
       productIds: hydratedProducts,
     };
   });
+};
+
+export const createQuickOfferSection = async (data) => {
+  const collection = getCollection('quick_offer_sections');
+  if (!collection) throw new Error('Collection not found');
+
+  const section = {
+    ...data,
+    order: data.order ?? 0,
+    status: data.status || 'active',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  const result = await collection.insertOne(section);
+  return { ...section, _id: result.insertedId };
+};
+
+export const updateQuickOfferSection = async (id, data) => {
+  const collection = getCollection('quick_offer_sections');
+  if (!collection) throw new Error('Collection not found');
+
+  const update = {
+    ...data,
+    updatedAt: new Date(),
+  };
+  delete update._id;
+
+  const result = await collection.findOneAndUpdate(
+    { _id: toId(id) },
+    { $set: update },
+    { returnDocument: 'after' }
+  );
+
+  return result;
+};
+
+export const deleteQuickOfferSection = async (id) => {
+  const collection = getCollection('quick_offer_sections');
+  if (!collection) throw new Error('Collection not found');
+
+  await collection.deleteOne({ _id: toId(id) });
+  return true;
+};
+
+export const reorderQuickOfferSections = async (items = []) => {
+  const collection = getCollection('quick_offer_sections');
+  if (!collection) throw new Error('Collection not found');
+
+  const ops = items.map((item) => ({
+    updateOne: {
+      filter: { _id: toId(item.id) },
+      update: { $set: { order: item.order, updatedAt: new Date() } },
+    },
+  }));
+
+  if (ops.length > 0) {
+    await collection.bulkWrite(ops);
+  }
+  return true;
+};
+
+export const getQuickCategories = async (query = {}) => {
+  const filter = normalizeStatusQuery();
+
+  if (query.parentId) {
+    filter.$and.push({ parentId: query.parentId });
+  }
+
+  const categories = await QuickCategory.find(filter)
+    .sort({ order: 1, name: 1 })
+    .lean();
+
+  return categories;
 };

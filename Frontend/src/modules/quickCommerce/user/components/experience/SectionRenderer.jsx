@@ -23,25 +23,16 @@ const SectionRenderer = ({ sections = [], productsById = {}, categoriesById = {}
         }
 
         if (section.displayType === "categories") {
-          const categoryConfig = section.config?.categories || section.config || {};
-          const hydratedItems = categoryConfig.items;
-          const ids = categoryConfig.categoryIds || [];
+          const categoryConfig = section.config?.categories || {};
+          const hydratedItems = categoryConfig.items || [];
           const rows = categoryConfig.rows || 1;
           const visibleCount = rows * 4;
           
-          let items;
-          if (Array.isArray(hydratedItems) && hydratedItems.length > 0) {
-            items = hydratedItems.map(c => ({
-              ...c,
-              id: c.id || c._id,
-              image: c.image || c.mainImage
-            })).slice(0, visibleCount);
-          } else {
-            items = ids
-              .map((id) => ({ ...categoriesById[id], id }))
-              .filter(Boolean)
-              .slice(0, visibleCount);
-          }
+          const items = hydratedItems.map(c => ({
+            ...c,
+            id: c.id || c._id,
+            image: c.image || c.mainImage
+          })).slice(0, visibleCount);
 
           if (!items.length) return null;
 
@@ -49,7 +40,7 @@ const SectionRenderer = ({ sections = [], productsById = {}, categoriesById = {}
             <div
               key={section._id}
               id={`section-${section._id}`}
-              className="-mx-2 md:-mx-4 lg:-mx-6 px-2 md:px-4 lg:px-6"
+              className="mt-6"
             >
               {heading && (
                 <div className="flex items-center justify-between mb-2">
@@ -91,7 +82,7 @@ const SectionRenderer = ({ sections = [], productsById = {}, categoriesById = {}
         }
 
         if (section.displayType === "subcategories") {
-          const subConfig = section.config?.subcategories || section.config || {};
+          const subConfig = section.config?.subcategories || {};
           const items = subConfig.items || [];
 
           if (!items.length) return null;
@@ -100,7 +91,7 @@ const SectionRenderer = ({ sections = [], productsById = {}, categoriesById = {}
             <div
               key={section._id}
               id={`section-${section._id}`}
-              className="-mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 mt-6"
+              className="mt-6"
             >
               <div className="flex items-center justify-between mb-3">
                 {heading && (
@@ -160,45 +151,18 @@ const SectionRenderer = ({ sections = [], productsById = {}, categoriesById = {}
 
         if (section.displayType === "products") {
           const productConfig = section.config?.products || {};
-          const hydratedItems = productConfig.items; // Backend hydrated
-          const ids = productConfig.productIds || [];
+          const hydratedItems = productConfig.items || [];
           const rows = productConfig.rows || 1;
           const columns = productConfig.columns || 2;
           const singleRowScrollable = !!productConfig.singleRowScrollable;
 
-          let allProducts;
-
-          if (Array.isArray(hydratedItems) && hydratedItems.length > 0) {
-            allProducts = hydratedItems.map(p => ({
-              ...p,
-              id: p._id || p.id,
-              image: p.mainImage || p.image || "https://images.unsplash.com/photo-1550989460-0adf9ea622e2",
-              price: p.salePrice || p.price,
-              originalPrice: p.mrp || p.price
-            }));
-          } else if (ids.length) {
-            allProducts = ids.map((id) => productsById[id]).filter(Boolean);
-          } else {
-            const categoryFilter = productConfig.categoryIds || [];
-            const subcategoryFilter = productConfig.subcategoryIds || [];
-            const hasCategoryFilter = categoryFilter.length > 0;
-            const hasSubcategoryFilter = subcategoryFilter.length > 0;
-
-            const all = Object.values(productsById);
-            allProducts = all.filter((p) => {
-              const catId = p.categoryId?._id || p.categoryId;
-              const subId = p.subcategoryId?._id || p.subcategoryId;
-
-              const matchesCategory = hasCategoryFilter
-                ? categoryFilter.includes(catId)
-                : true;
-              const matchesSubcategory = hasSubcategoryFilter
-                ? subcategoryFilter.includes(subId)
-                : true;
-
-              return matchesCategory && matchesSubcategory;
-            });
-          }
+          const allProducts = hydratedItems.map(p => ({
+            ...p,
+            id: p._id || p.id,
+            image: p.mainImage || p.image || "https://images.unsplash.com/photo-1550989460-0adf9ea622e2",
+            price: p.salePrice || p.price,
+            originalPrice: p.mrp || p.price
+          }));
 
           if (!allProducts.length) return null;
 
@@ -207,7 +171,7 @@ const SectionRenderer = ({ sections = [], productsById = {}, categoriesById = {}
             <div
               key={section._id}
               id={`section-${section._id}`}
-              className="-mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 mt-6 mb-2"
+              className="mt-6 mb-2"
             >
                 <div className="flex items-center justify-between mb-3">
                   {heading && (
@@ -240,7 +204,7 @@ const SectionRenderer = ({ sections = [], productsById = {}, categoriesById = {}
             <div
               key={section._id}
               id={`section-${section._id}`}
-              className="-mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 mt-6"
+              className="mt-6"
             >
               <div className="flex items-center justify-between mb-3">
                 {heading && (
@@ -254,13 +218,17 @@ const SectionRenderer = ({ sections = [], productsById = {}, categoriesById = {}
               </div>
               <div
                 className={cn(
-                  "grid gap-3",
+                  "grid gap-2 md:gap-4",
                   columns === 1
                     ? "grid-cols-1"
                     : columns === 2
                     ? "grid-cols-2"
                     : columns === 3
                     ? "grid-cols-3"
+                    : columns === 4
+                    ? "grid-cols-4"
+                    : columns === 5
+                    ? "grid-cols-5"
                     : "grid-cols-2"
                 )}
               >

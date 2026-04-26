@@ -15,7 +15,12 @@ import {
   deleteQuickExperienceSection,
   reorderQuickExperienceSections,
   setQuickHeroConfig,
-  getQuickHeroConfig
+  getQuickHeroConfig,
+  getQuickOfferSections,
+  createQuickOfferSection,
+  updateQuickOfferSection,
+  deleteQuickOfferSection,
+  reorderQuickOfferSections,
 } from '../services/content.service.js';
 
 const toCategory = (category) => ({
@@ -269,7 +274,7 @@ export const getAdminCategories = async (_req, res) => {
   if (approvalStatus && approvalStatus !== 'all') query.approvalStatus = String(approvalStatus);
 
   const currentPage = Math.max(1, parseInt(page, 10) || 1);
-  const perPage = String(tree) === 'true' ? 5000 : Math.max(1, Math.min(parseInt(limit, 10) || 50, 100));
+  const perPage = String(tree) === 'true' ? 5000 : Math.max(1, Math.min(parseInt(limit, 10) || 50, 1000));
 
   const [categories, total] = await Promise.all([
     QuickCategory.find(query)
@@ -972,4 +977,32 @@ export const getAdminHeroConfig = async (req, res) => {
 export const setAdminHeroConfig = async (req, res) => {
   const config = await setQuickHeroConfig(req.body);
   return res.json({ success: true, result: config });
+};
+
+export const getAdminOfferSections = async (req, res) => {
+  const sections = await getQuickOfferSections(req.query);
+  return res.json({ success: true, results: sections });
+};
+
+export const createAdminOfferSection = async (req, res) => {
+  const section = await createQuickOfferSection(req.body);
+  return res.status(201).json({ success: true, result: section });
+};
+
+export const updateAdminOfferSection = async (req, res) => {
+  const section = await updateQuickOfferSection(req.params.id, req.body);
+  if (!section) {
+    return res.status(404).json({ success: false, message: 'Section not found' });
+  }
+  return res.json({ success: true, result: section });
+};
+
+export const deleteAdminOfferSection = async (req, res) => {
+  await deleteQuickOfferSection(req.params.id);
+  return res.json({ success: true, result: { deleted: true } });
+};
+
+export const reorderAdminOfferSections = async (req, res) => {
+  await reorderQuickOfferSections(req.body);
+  return res.json({ success: true, result: { reordered: true } });
 };

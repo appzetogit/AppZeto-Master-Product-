@@ -3,6 +3,7 @@ import { motion } from "framer-motion"
 import { useLocation, useNavigate } from "react-router-dom"
 import { UtensilsCrossed, ShoppingBasket, Car, Bed, ShieldCheck, User } from "lucide-react"
 import { hasLocalUserToken } from "../../taxi/modules/user/services/authService"
+import { cn } from "@food/utils/utils"
 
 const SERVICES = [
   {
@@ -73,6 +74,38 @@ export default function SuperAppPortal() {
     })),
     [],
   )
+
+  const [enabledModules, setEnabledModules] = React.useState({
+    food: true,
+    taxi: true,
+    quickCommerce: true,
+    hotel: true
+  })
+
+  React.useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const { getCachedSettings, loadBusinessSettings } = await import("@common/utils/businessSettings")
+        let settings = getCachedSettings()
+        if (!settings) {
+          settings = await loadBusinessSettings()
+        }
+        if (settings?.modules) {
+          setEnabledModules(settings.modules)
+        }
+      } catch (err) {
+        console.error("Failed to load settings in Portal:", err)
+      }
+    }
+    loadSettings()
+  }, [])
+
+  const filteredServices = useMemo(() => {
+    return SERVICES.filter(service => {
+      const moduleKey = service.id === 'grocery' ? 'quickCommerce' : service.id
+      return enabledModules[moduleKey] !== false
+    })
+  }, [enabledModules])
 
   const handleServiceClick = (service) => {
     if (service.id === "taxi" && !hasLocalUserToken()) {
@@ -178,8 +211,11 @@ export default function SuperAppPortal() {
         </motion.p>
 
         {/* Main Service Grid - compact for mobile */}
-        <div className="w-full max-w-[800px] mx-auto mt-3 sm:mt-4 grid grid-cols-2 gap-3 sm:gap-4 relative z-10">
-          {SERVICES.map((service, idx) => (
+        <div className={cn(
+          "w-full max-w-[800px] mx-auto mt-3 sm:mt-4 grid gap-3 sm:gap-4 relative z-10",
+          filteredServices.length === 1 ? "grid-cols-1 max-w-[400px]" : "grid-cols-2"
+        )}>
+          {filteredServices.map((service, idx) => (
             <motion.div
               key={service.id}
               initial={isNativeLikeShell ? false : { opacity: 0, y: 20, scale: 0.96 }}

@@ -146,8 +146,8 @@ const AppRoutes = () => {
 
   return (
     <Routes>
-        {/* Root now lands on the food homepage */}
-        <Route path="/" element={<Navigate to="/food/user" replace />} />
+        {/* Root now lands on the portal page */}
+        <Route path="/" element={<Navigate to="/user/auth/portal" replace />} />
 
         {/* Auth Module */}
         <Route path="/user/auth/*" element={<AuthApp />} />
@@ -291,7 +291,7 @@ const AppRoutes = () => {
         <Route path="/orders/*" element={<RedirectToFood />} />
 
         {/* Fallback 404 */}
-        <Route path="*" element={<Navigate to="/food/user" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
   )
 }

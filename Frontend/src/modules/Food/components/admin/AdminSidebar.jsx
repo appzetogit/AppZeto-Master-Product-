@@ -71,6 +71,7 @@ import {
   Briefcase,
   Car,
   ChevronDown as ChevronDownIcon,
+  LayoutGrid,
 } from "lucide-react"
 import { cn } from "@food/utils/utils"
 import { Input } from "@food/components/ui/input"
@@ -134,6 +135,7 @@ const iconMap = {
   Briefcase,
   Car,
   X,
+  LayoutGrid,
 }
 
 export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange }) {
@@ -141,6 +143,12 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
   const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState("")
   const [badges, setBadges] = useState({})
+  const [enabledModules, setEnabledModules] = useState(() => getCachedSettings()?.modules || {
+    food: true,
+    taxi: true,
+    quickCommerce: true,
+    hotel: true
+  })
 
   useEffect(() => {
     const fetchBadges = async () => {
@@ -227,6 +235,9 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
         }
         if (cached.companyName) {
           setCompanyName(cached.companyName)
+        }
+        if (cached.modules) {
+          setEnabledModules(cached.modules)
         }
       }
     }
@@ -317,12 +328,21 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
   const isCommonAdmin = location.pathname.startsWith("/admin/global-settings")
 
   const activeMenuData = useMemo(() => {
-    if (isQuickAdmin) return quickAdminSidebarMenu
-    if (isHotelAdmin) return hotelAdminSidebarMenu
-    if (isTaxiAdmin) return taxiAdminSidebarMenu
-    if (isCommonAdmin) return commonAdminSidebarMenu
-    return adminSidebarMenu
-  }, [isQuickAdmin, isHotelAdmin, isTaxiAdmin, isCommonAdmin])
+    let menu = adminSidebarMenu
+    if (isQuickAdmin) menu = quickAdminSidebarMenu
+    else if (isHotelAdmin) menu = hotelAdminSidebarMenu
+    else if (isTaxiAdmin) menu = taxiAdminSidebarMenu
+    else if (isCommonAdmin) menu = commonAdminSidebarMenu
+
+    // Special case for the "Module Switcher" or shared links if they exist
+    // But since we are filtering the WHOLE menu based on the active admin context:
+    if (isQuickAdmin && !enabledModules.quickCommerce) return []
+    if (isHotelAdmin && !enabledModules.hotel) return []
+    if (isTaxiAdmin && !enabledModules.taxi) return []
+    if (!isQuickAdmin && !isHotelAdmin && !isTaxiAdmin && !isCommonAdmin && !enabledModules.food) return []
+
+    return menu
+  }, [isQuickAdmin, isHotelAdmin, isTaxiAdmin, isCommonAdmin, enabledModules])
 
   // Ensure expandable keys exist for whichever admin module is active (food/quick)
   useEffect(() => {
@@ -789,65 +809,78 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
               </h2>
               <div className="mt-2 rounded-xl border border-neutral-800 bg-neutral-900/80 p-1">
                 <div className="grid grid-cols-2 gap-1">
+                  {enabledModules.food && (
+                    <button
+                      key="food-module-btn"
+                      type="button"
+                      onClick={() => switchAdminModule("food")}
+                      className={cn(
+                        "rounded-lg px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all",
+                        !isQuickAdmin && !isTaxiAdmin && !isHotelAdmin && !isCommonAdmin
+                          ? "bg-white text-neutral-900 shadow"
+                          : "text-neutral-400 hover:text-white"
+                      )}
+                    >
+                      Food
+                    </button>
+                  )}
+                  {enabledModules.quickCommerce && (
+                    <button
+                      key="quick-module-btn"
+                      type="button"
+                      onClick={() => switchAdminModule("quick")}
+                      className={cn(
+                        "rounded-lg px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all",
+                        isQuickAdmin
+                          ? "bg-emerald-500 text-white shadow-[0_6px_20px_rgba(16,185,129,0.35)]"
+                          : "text-neutral-400 hover:text-white"
+                      )}
+                    >
+                      Quick
+                    </button>
+                  )}
+                  {enabledModules.taxi && (
+                    <button
+                      key="taxi-module-btn"
+                      type="button"
+                      onClick={() => switchAdminModule("taxi")}
+                      className={cn(
+                        "rounded-lg px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all",
+                        isTaxiAdmin
+                          ? "bg-orange-500 text-white shadow-[0_6px_20px_rgba(249,115,22,0.35)]"
+                          : "text-neutral-400 hover:text-white"
+                      )}
+                    >
+                      Taxi
+                    </button>
+                  )}
+                  {enabledModules.hotel && (
+                    <button
+                      key="hotel-module-btn"
+                      type="button"
+                      onClick={() => switchAdminModule("hotel")}
+                      className={cn(
+                        "rounded-lg px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all",
+                        isHotelAdmin
+                          ? "bg-sky-500 text-white shadow-[0_6px_20px_rgba(14,165,233,0.35)]"
+                          : "text-neutral-400 hover:text-white"
+                      )}
+                    >
+                      Hotel
+                    </button>
+                  )}
                   <button
-                    type="button"
-                    onClick={() => switchAdminModule("food")}
-                    className={cn(
-                      "rounded-lg px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all",
-                      !isQuickAdmin && !isTaxiAdmin && !isHotelAdmin
-                        ? "bg-white text-neutral-900 shadow"
-                        : "text-neutral-400 hover:text-white"
-                    )}
-                  >
-                    Food
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => switchAdminModule("quick")}
-                    className={cn(
-                      "rounded-lg px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all",
-                      isQuickAdmin
-                        ? "bg-emerald-500 text-white shadow-[0_6px_20px_rgba(16,185,129,0.35)]"
-                        : "text-neutral-400 hover:text-white"
-                    )}
-                  >
-                    Quick
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => switchAdminModule("taxi")}
-                    className={cn(
-                      "rounded-lg px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all",
-                      isTaxiAdmin
-                        ? "bg-orange-500 text-white shadow-[0_6px_20px_rgba(249,115,22,0.35)]"
-                        : "text-neutral-400 hover:text-white"
-                    )}
-                  >
-                    Taxi
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => switchAdminModule("hotel")}
-                    className={cn(
-                      "rounded-lg px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all",
-                      isHotelAdmin
-                        ? "bg-sky-500 text-white shadow-[0_6px_20px_rgba(14,165,233,0.35)]"
-                        : "text-neutral-400 hover:text-white"
-                    )}
-                  >
-                    Hotel
-                  </button>
-                  <button
+                    key="global-settings-btn"
                     type="button"
                     onClick={() => switchAdminModule("common")}
                     className={cn(
-                      "rounded-lg px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all",
+                      "rounded-lg px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all col-span-2",
                       isCommonAdmin
                         ? "bg-violet-600 text-white shadow-[0_6px_20px_rgba(124,58,237,0.35)]"
                         : "text-neutral-400 hover:text-white"
                     )}
                   >
-                    Common
+                    Global Settings
                   </button>
                 </div>
               </div>

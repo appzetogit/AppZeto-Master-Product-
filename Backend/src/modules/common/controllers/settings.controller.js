@@ -32,26 +32,21 @@ export async function updateGlobalSettings(req, res, next) {
             data = req.body;
         }
         
-        const { companyName, email, phoneCountryCode, phoneNumber, address, state, pincode, region, logoUrl, faviconUrl, themeColor } = data;
+        const { companyName, email, phoneCountryCode, phoneNumber, address, state, pincode, region, logoUrl, faviconUrl, themeColor, modules } = data;
+        
+        console.log("Updating global settings with data:", data);
 
         // Validation
-        if (!companyName || companyName.trim().length < 2 || companyName.trim().length > 50) {
+        if (companyName !== undefined && (!companyName || companyName.trim().length < 2 || companyName.trim().length > 50)) {
             return res.status(400).json({ success: false, message: 'Company name must be between 2 and 50 characters' });
         }
-        if (!email || email.length > 100 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-            return res.status(400).json({ success: false, message: 'Invalid email address (max 100 characters)' });
+        
+        if (email && (email.length > 100 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))) {
+            return res.status(400).json({ success: false, message: 'Invalid email address' });
         }
-        if (!phoneNumber || !/^\d{7,15}$/.test(phoneNumber.trim())) {
+        
+        if (phoneNumber && !/^\d{7,15}$/.test(phoneNumber.trim())) {
             return res.status(400).json({ success: false, message: 'Invalid phone number (7-15 digits required)' });
-        }
-        if (address && address.length > 250) {
-            return res.status(400).json({ success: false, message: 'Address is too long (max 250 characters)' });
-        }
-        if (state && state.length > 50) {
-            return res.status(400).json({ success: false, message: 'State name is too long (max 50 characters)' });
-        }
-        if (pincode && !/^\d{4,10}$/.test(pincode.trim())) {
-            return res.status(400).json({ success: false, message: 'Invalid pincode (4-10 digits required)' });
         }
 
         let settings = await GlobalSettings.findOne();
@@ -85,6 +80,14 @@ export async function updateGlobalSettings(req, res, next) {
         }
         if (themeColor !== undefined) {
             settings.themeColor = themeColor;
+        }
+        if (modules !== undefined) {
+            settings.modules = {
+                food: modules.food !== undefined ? modules.food : settings.modules?.food,
+                taxi: modules.taxi !== undefined ? modules.taxi : settings.modules?.taxi,
+                quickCommerce: modules.quickCommerce !== undefined ? modules.quickCommerce : settings.modules?.quickCommerce,
+                hotel: modules.hotel !== undefined ? modules.hotel : settings.modules?.hotel
+            };
         }
 
         // Handle file uploads

@@ -133,6 +133,7 @@ const QuickCommerceAdminRoutes = lazy(() => import("@/modules/quickCommerce/admi
 const TaxiAdminRoutes = lazy(() => import("@/modules/taxi/modules/admin/routes"));
 const HotelAdminRoutes = lazy(() => import("@/modules/hotel/app/admin/routes"));
 const GlobalApplicationSettings = lazy(() => import("@/modules/common/admin/pages/GlobalApplicationSettings"));
+const ModuleManagement = lazy(() => import("@/modules/common/admin/pages/ModuleManagement"));
 
 const HotelAdminRedirect = () => {
   const location = useLocation();
@@ -176,6 +177,7 @@ export default function AdminRouter() {
             <Route index element={<Navigate to="app" replace />} />
             <Route path="app" element={<GlobalApplicationSettings />} />
             <Route path="admin" element={<AdminProfile />} />
+            <Route path="modules" element={<ModuleManagement />} />
           </Route>
 
           {/* FOOD ADMIN - All food related routes nested here */}

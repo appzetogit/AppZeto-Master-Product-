@@ -20,7 +20,13 @@ const globalSettingsSchema = new mongoose.Schema(
             url: { type: String, default: '' },
             publicId: { type: String, default: '' }
         },
-        themeColor: { type: String, default: '#0a0a0a' }
+        themeColor: { type: String, default: '#0a0a0a' },
+        modules: {
+            food: { type: Boolean, default: true },
+            taxi: { type: Boolean, default: true },
+            quickCommerce: { type: Boolean, default: true },
+            hotel: { type: Boolean, default: true }
+        }
     },
     { timestamps: true }
 );

@@ -37,6 +37,7 @@ const ContentManager = () => {
     const [selectedHeaderId, setSelectedHeaderId] = useState('');
     const [sections, setSections] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [catSearchTerm, setCatSearchTerm] = useState('');
 
     const [activeTab, setActiveTab] = useState('banners');
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -73,19 +74,24 @@ const ContentManager = () => {
 
     const loadHeaderCategories = async () => {
         try {
-            // Use category tree so that header -> category -> subcategory hierarchy is available
-            const res = await adminApi.getCategoryTree({ type: 'header' });
+            // Fetch the full tree (all headers and their children)
+            const res = await adminApi.getCategoryTree();
             if (res.data.success) {
                 const tree = res.data.results || res.data.result || [];
                 const headers = Array.isArray(tree) ? tree : [];
                 setHeaderCategories(headers);
-                if (!selectedHeaderId && headers.length) {
+                
+                // If on a header page, ensure we have the correct header selected
+                const headerIdFromUrl = searchParams.get('headerId');
+                if (pageType === 'header' && headerIdFromUrl) {
+                    setSelectedHeaderId(headerIdFromUrl);
+                } else if (!selectedHeaderId && headers.length) {
                     setSelectedHeaderId(headers[0]._id);
                 }
             }
         } catch (e) {
             console.error(e);
-            showToast('Failed to load header categories', 'error');
+            showToast('Failed to load categories', 'error');
         }
     };
 
@@ -151,6 +157,7 @@ const ContentManager = () => {
             singleRowScrollable: false,
         });
         setActiveTab('banners');
+        setCatSearchTerm('');
     };
 
     const openCreateModal = () => {
@@ -358,7 +365,6 @@ const ContentManager = () => {
             bannerItems: prev.bannerItems.filter((_, i) => i !== idx),
         }));
     };
-
     return (
         <div className="ds-section-spacing animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
             {/* Header */}
@@ -802,131 +808,190 @@ const ContentManager = () => {
                                     />
                                 </div>
                             </div>
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                    Categories under this header
-                                </label>
-                                <div className="flex flex-wrap gap-2">
-                                    {(selectedHeader?.children || []).map(c => {
-                                        const isSelected = formData.categoryIds.includes(c._id);
-                                        return (
-                                            <button
-                                                key={c._id}
-                                                type="button"
-                                                onClick={() =>
-                                                    setFormData(prev => ({
-                                                        ...prev,
-                                                        categoryIds: isSelected
-                                                            ? prev.categoryIds.filter(id => id !== c._id)
-                                                            : [...prev.categoryIds, c._id],
-                                                    }))
-                                                }
-                                                className={cn(
-                                                    "px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all",
-                                                    isSelected
-                                                        ? "bg-primary text-white border-primary"
-                                                        : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-white"
-                                                )}
-                                            >
-                                                {c.name}
-                                            </button>
-                                        );
-                                    })}
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                        Categories {pageType === 'home' ? '(Across all headers)' : `(Under ${selectedHeader?.name})`}
+                                    </label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            placeholder="Search categories..."
+                                            value={catSearchTerm}
+                                            onChange={(e) => setCatSearchTerm(e.target.value)}
+                                            className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-primary/20 w-40"
+                                        />
+                                    </div>
                                 </div>
-                                <p className="text-[10px] text-slate-400">
+                                <div className="space-y-4 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                                    {headerCategories
+                                        .filter(h => pageType === 'home' || h._id === selectedHeaderId)
+                                        .map(header => {
+                                            const relevantChildren = (header.children || []).filter(c => 
+                                                !catSearchTerm || c.name.toLowerCase().includes(catSearchTerm.toLowerCase())
+                                            );
+                                            
+                                            if (!relevantChildren.length && catSearchTerm) return null;
+
+                                            return (
+                                                <div key={header._id} className="space-y-2">
+                                                    {pageType === 'home' && (
+                                                        <div className="text-[9px] font-black text-slate-300 uppercase tracking-[0.2em] mb-1">
+                                                            {header.name}
+                                                        </div>
+                                                    )}
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {relevantChildren.map(c => {
+                                                            const isSelected = formData.categoryIds.includes(c._id);
+                                                            return (
+                                                                <button
+                                                                    key={c._id}
+                                                                    type="button"
+                                                                    onClick={() =>
+                                                                        setFormData(prev => ({
+                                                                            ...prev,
+                                                                            categoryIds: isSelected
+                                                                                ? prev.categoryIds.filter(id => id !== c._id)
+                                                                                : [...prev.categoryIds, c._id],
+                                                                        }))
+                                                                    }
+                                                                    className={cn(
+                                                                        "px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all",
+                                                                        isSelected
+                                                                            ? "bg-primary text-white border-primary shadow-sm"
+                                                                            : "bg-white text-slate-600 border-slate-200 hover:border-primary/30 hover:bg-slate-50"
+                                                                    )}
+                                                                >
+                                                                    {c.name}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                </div>
+                                <p className="text-[10px] text-slate-400 mt-2">
                                     These categories will be rendered in 4-column grids per row.
                                 </p>
-                            </div>
                         </div>
                     )}
 
                     {formData.displayType === 'subcategories' && (
                         <div className="space-y-4">
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                    Parent categories
-                                </label>
-                                <div className="flex flex-wrap gap-2">
-                                    {(selectedHeader?.children || []).map(c => {
-                                        const isSelected = formData.subCategoryCategoryIds.includes(c._id);
-                                        return (
-                                            <button
-                                                key={c._id}
-                                                type="button"
-                                                onClick={() =>
-                                                    setFormData(prev => {
-                                                        const alreadySelected = prev.subCategoryCategoryIds.includes(c._id);
-                                                        let nextCategoryIds;
-                                                        let nextSubCategoryIds = prev.subCategoryIds;
-
-                                                        if (alreadySelected) {
-                                                            nextCategoryIds = prev.subCategoryCategoryIds.filter(id => id !== c._id);
-                                                            const childIds = (c.children || []).map(child => child._id);
-                                                            nextSubCategoryIds = prev.subCategoryIds.filter(
-                                                                id => !childIds.includes(id)
-                                                            );
-                                                        } else {
-                                                            nextCategoryIds = [...prev.subCategoryCategoryIds, c._id];
-                                                        }
-
-                                                        return {
-                                                            ...prev,
-                                                            subCategoryCategoryIds: nextCategoryIds,
-                                                            subCategoryIds: nextSubCategoryIds,
-                                                        };
-                                                    })
-                                                }
-                                                className={cn(
-                                                    "px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all",
-                                                    isSelected
-                                                        ? "bg-primary text-white border-primary"
-                                                        : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-white"
-                                                )}
-                                            >
-                                                {c.name}
-                                            </button>
-                                        );
-                                    })}
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                        Parent categories
+                                    </label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            placeholder="Search..."
+                                            value={catSearchTerm}
+                                            onChange={(e) => setCatSearchTerm(e.target.value)}
+                                            className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-primary/20 w-32"
+                                        />
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                    Subcategories
-                                </label>
-                                <div className="flex flex-wrap gap-2">
-                                    {(selectedHeader?.children || [])
-                                        .filter(c => formData.subCategoryCategoryIds.includes(c._id))
-                                        .flatMap(c => c.children || [])
-                                        .map(s => {
-                                        const isSelected = formData.subCategoryIds.includes(s._id);
-                                        return (
-                                            <button
-                                                key={s._id}
-                                                type="button"
-                                                onClick={() =>
-                                                    setFormData(prev => ({
-                                                        ...prev,
-                                                        subCategoryIds: isSelected
-                                                            ? prev.subCategoryIds.filter(id => id !== s._id)
-                                                            : [...prev.subCategoryIds, s._id],
-                                                    }))
-                                                }
-                                                className={cn(
-                                                    "px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all",
-                                                    isSelected
-                                                        ? "bg-primary text-white border-primary"
-                                                        : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-white"
-                                                )}
-                                            >
-                                                {s.name}
-                                            </button>
-                                        );
-                                    })}
+                                <div className="space-y-4 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                                    {headerCategories
+                                        .filter(h => pageType === 'home' || h._id === selectedHeaderId)
+                                        .map(header => {
+                                            const relevantChildren = (header.children || []).filter(c => 
+                                                !catSearchTerm || c.name.toLowerCase().includes(catSearchTerm.toLowerCase()) || 
+                                                (c.children || []).some(sc => sc.name.toLowerCase().includes(catSearchTerm.toLowerCase()))
+                                            );
+
+                                            if (!relevantChildren.length && catSearchTerm) return null;
+
+                                            return (
+                                                <div key={header._id} className="space-y-3">
+                                                    {pageType === 'home' && (
+                                                        <div className="text-[9px] font-black text-slate-300 uppercase tracking-[0.2em] mb-1">
+                                                            {header.name}
+                                                        </div>
+                                                    )}
+                                                    <div className="space-y-4 pl-1">
+                                                        {relevantChildren.map(c => {
+                                                            const isSelected = formData.subCategoryCategoryIds.includes(c._id);
+                                                            return (
+                                                                <div key={c._id} className="space-y-2">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() =>
+                                                                            setFormData(prev => {
+                                                                                const alreadySelected = prev.subCategoryCategoryIds.includes(c._id);
+                                                                                let nextCategoryIds;
+                                                                                let nextSubCategoryIds = prev.subCategoryIds;
+
+                                                                                if (alreadySelected) {
+                                                                                    nextCategoryIds = prev.subCategoryCategoryIds.filter(id => id !== c._id);
+                                                                                    const childIds = (c.children || []).map(child => child._id);
+                                                                                    nextSubCategoryIds = prev.subCategoryIds.filter(
+                                                                                        id => !childIds.includes(id)
+                                                                                    );
+                                                                                } else {
+                                                                                    nextCategoryIds = [...prev.subCategoryCategoryIds, c._id];
+                                                                                }
+
+                                                                                return {
+                                                                                    ...prev,
+                                                                                    subCategoryCategoryIds: nextCategoryIds,
+                                                                                    subCategoryIds: nextSubCategoryIds,
+                                                                                };
+                                                                            })
+                                                                        }
+                                                                        className={cn(
+                                                                            "px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all",
+                                                                            isSelected
+                                                                                ? "bg-primary text-white border-primary shadow-sm"
+                                                                                : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-white"
+                                                                        )}
+                                                                    >
+                                                                        {c.name}
+                                                                    </button>
+
+                                                                    {isSelected && (
+                                                                        <div className="flex flex-wrap gap-2 pl-4 border-l-2 border-slate-100 py-1">
+                                                                            {(c.children || [])
+                                                                                .filter(s => !catSearchTerm || s.name.toLowerCase().includes(catSearchTerm.toLowerCase()))
+                                                                                .map(s => {
+                                                                                const isSubSelected = formData.subCategoryIds.includes(s._id);
+                                                                                return (
+                                                                                    <button
+                                                                                        key={s._id}
+                                                                                        type="button"
+                                                                                        onClick={() =>
+                                                                                            setFormData(prev => ({
+                                                                                                ...prev,
+                                                                                                subCategoryIds: isSubSelected
+                                                                                                    ? prev.subCategoryIds.filter(id => id !== s._id)
+                                                                                                    : [...prev.subCategoryIds, s._id],
+                                                                                            }))
+                                                                                        }
+                                                                                        className={cn(
+                                                                                            "px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all",
+                                                                                            isSubSelected
+                                                                                                ? "bg-primary/10 text-primary border-primary/20"
+                                                                                                : "bg-white text-slate-500 border-slate-200 hover:border-primary/20"
+                                                                                        )}
+                                                                                    >
+                                                                                        {s.name}
+                                                                                    </button>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                 </div>
                                 <p className="text-[10px] text-slate-400">
                                     Displayed in 4-column grids per row.
                                 </p>
-                            </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                                     Rows
@@ -982,88 +1047,121 @@ const ContentManager = () => {
                                     Show products in a single horizontally scrollable row
                                 </label>
                             </div>
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                    Filter by categories / subcategories (optional)
-                                </label>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="flex flex-wrap gap-2">
-                                        {(selectedHeader?.children || []).map(c => {
-                                            const isSelected = formData.productCategoryIds.includes(c._id);
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                        Filter by categories / subcategories (optional)
+                                    </label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            placeholder="Search..."
+                                            value={catSearchTerm}
+                                            onChange={(e) => setCatSearchTerm(e.target.value)}
+                                            className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-primary/20 w-32"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-4 max-h-60 overflow-y-auto pr-2 custom-scrollbar border border-slate-100 rounded-2xl p-4 bg-slate-50/30">
+                                    {headerCategories
+                                        .filter(h => pageType === 'home' || h._id === selectedHeaderId)
+                                        .map(header => {
+                                            const relevantChildren = (header.children || []).filter(c => 
+                                                !catSearchTerm || c.name.toLowerCase().includes(catSearchTerm.toLowerCase()) || 
+                                                (c.children || []).some(sc => sc.name.toLowerCase().includes(catSearchTerm.toLowerCase()))
+                                            );
+
+                                            if (!relevantChildren.length && catSearchTerm) return null;
+
                                             return (
-                                                <button
-                                                    key={c._id}
-                                                    type="button"
-                                                    onClick={() =>
-                                                        setFormData(prev => {
-                                                            const alreadySelected = prev.productCategoryIds.includes(c._id);
-                                                            let nextCategoryIds;
-                                                            let nextSubCategoryIds = prev.productSubCategoryIds;
-
-                                                            if (alreadySelected) {
-                                                                nextCategoryIds = prev.productCategoryIds.filter(id => id !== c._id);
-                                                                const childIds = (c.children || []).map(child => child._id);
-                                                                nextSubCategoryIds = prev.productSubCategoryIds.filter(
-                                                                    id => !childIds.includes(id)
-                                                                );
-                                                            } else {
-                                                                nextCategoryIds = [...prev.productCategoryIds, c._id];
-                                                            }
-
-                                                            return {
-                                                                ...prev,
-                                                                productCategoryIds: nextCategoryIds,
-                                                                productSubCategoryIds: nextSubCategoryIds,
-                                                            };
-                                                        })
-                                                    }
-                                                    className={cn(
-                                                        "px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all",
-                                                        isSelected
-                                                            ? "bg-primary text-white border-primary"
-                                                            : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-white"
+                                                <div key={header._id} className="space-y-3">
+                                                    {pageType === 'home' && (
+                                                        <div className="text-[9px] font-black text-slate-300 uppercase tracking-[0.2em]">
+                                                            {header.name}
+                                                        </div>
                                                     )}
-                                                >
-                                                    {c.name}
-                                                </button>
+                                                    <div className="grid grid-cols-1 gap-4">
+                                                        {relevantChildren.map(c => {
+                                                            const isSelected = formData.productCategoryIds.includes(c._id);
+                                                            return (
+                                                                <div key={c._id} className="space-y-2">
+                                                                    <button
+                                                                        key={c._id}
+                                                                        type="button"
+                                                                        onClick={() =>
+                                                                            setFormData(prev => {
+                                                                                const alreadySelected = prev.productCategoryIds.includes(c._id);
+                                                                                let nextCategoryIds;
+                                                                                let nextSubCategoryIds = prev.productSubCategoryIds;
+
+                                                                                if (alreadySelected) {
+                                                                                    nextCategoryIds = prev.productCategoryIds.filter(id => id !== c._id);
+                                                                                    const childIds = (c.children || []).map(child => child._id);
+                                                                                    nextSubCategoryIds = prev.productSubCategoryIds.filter(
+                                                                                        id => !childIds.includes(id)
+                                                                                    );
+                                                                                } else {
+                                                                                    nextCategoryIds = [...prev.productCategoryIds, c._id];
+                                                                                }
+
+                                                                                return {
+                                                                                    ...prev,
+                                                                                    productCategoryIds: nextCategoryIds,
+                                                                                    productSubCategoryIds: nextSubCategoryIds,
+                                                                                };
+                                                                            })
+                                                                        }
+                                                                        className={cn(
+                                                                            "px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all",
+                                                                            isSelected
+                                                                                ? "bg-primary text-white border-primary shadow-sm"
+                                                                                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                                                                        )}
+                                                                    >
+                                                                        {c.name}
+                                                                    </button>
+                                                                    
+                                                                    {isSelected && (
+                                                                        <div className="flex flex-wrap gap-2 pl-4 border-l-2 border-slate-100 py-1">
+                                                                            {(c.children || [])
+                                                                                .filter(s => !catSearchTerm || s.name.toLowerCase().includes(catSearchTerm.toLowerCase()))
+                                                                                .map(s => {
+                                                                                    const isSubSelected = formData.productSubCategoryIds.includes(s._id);
+                                                                                    return (
+                                                                                        <button
+                                                                                            key={s._id}
+                                                                                            type="button"
+                                                                                            onClick={() =>
+                                                                                                setFormData(prev => ({
+                                                                                                    ...prev,
+                                                                                                    productSubCategoryIds: isSubSelected
+                                                                                                        ? prev.productSubCategoryIds.filter(id => id !== s._id)
+                                                                                                        : [...prev.productSubCategoryIds, s._id],
+                                                                                                }))
+                                                                                            }
+                                                                                            className={cn(
+                                                                                                "px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all",
+                                                                                                isSubSelected
+                                                                                                    ? "bg-primary/10 text-primary border-primary/20"
+                                                                                                    : "bg-white text-slate-500 border-slate-200 hover:border-primary/20"
+                                                                                            )}
+                                                                                        >
+                                                                                            {s.name}
+                                                                                        </button>
+                                                                                    );
+                                                                                })}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
                                             );
                                         })}
-                                    </div>
-                                    <div className="flex flex-wrap gap-2">
-                                        {(selectedHeader?.children || [])
-                                            .filter(c => formData.productCategoryIds.includes(c._id))
-                                            .flatMap(c => c.children || [])
-                                            .map(s => {
-                                                const isSelected = formData.productSubCategoryIds.includes(s._id);
-                                                return (
-                                                    <button
-                                                        key={s._id}
-                                                        type="button"
-                                                        onClick={() =>
-                                                            setFormData(prev => ({
-                                                                ...prev,
-                                                                productSubCategoryIds: isSelected
-                                                                    ? prev.productSubCategoryIds.filter(id => id !== s._id)
-                                                                    : [...prev.productSubCategoryIds, s._id],
-                                                            }))
-                                                        }
-                                                        className={cn(
-                                                            "px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all",
-                                                            isSelected
-                                                                ? "bg-primary text-white border-primary"
-                                                                : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-white"
-                                                        )}
-                                                    >
-                                                        {s.name}
-                                                    </button>
-                                                );
-                                            })}
-                                    </div>
                                 </div>
                                 <p className="text-[10px] text-slate-400">
                                     You can later extend this to select specific products.
                                 </p>
-                            </div>
                         </div>
                     )}
                     <button

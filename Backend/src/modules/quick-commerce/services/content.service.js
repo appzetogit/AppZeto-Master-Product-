@@ -46,23 +46,15 @@ export const getQuickSettings = async () => {
 };
 
 export const getQuickHeroConfig = async ({ pageType = 'home', headerId = null } = {}) => {
+  const collection = getCollection('quick_hero_configs');
+  if (!collection) return null;
+
   const query = { pageType };
   if (pageType === 'header') {
     query.headerId = headerId ? String(headerId) : null;
   }
 
-  let config = await QuickHeroConfig.findOne(query).sort({ updatedAt: -1, createdAt: -1 }).lean();
-
-  // Fallback: If it's a header page and no config found or banners are empty, fetch home page config
-  if (pageType === 'header') {
-    const hasBanners = config?.banners?.items?.length > 0;
-    if (!config || !hasBanners) {
-      console.log(`[getQuickHeroConfig] Fallback to home config for headerId: ${headerId}`);
-      config = await QuickHeroConfig.findOne({ pageType: 'home' }).sort({ updatedAt: -1, createdAt: -1 }).lean();
-    }
-  }
-
-  return config;
+  return QuickHeroConfig.findOne(query).sort({ updatedAt: -1, createdAt: -1 }).lean();
 };
 
 export const setQuickHeroConfig = async (data) => {

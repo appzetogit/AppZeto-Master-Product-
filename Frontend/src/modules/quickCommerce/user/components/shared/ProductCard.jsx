@@ -7,6 +7,7 @@ import { useCart } from "../../context/CartContext";
 import { useToast } from "@shared/components/ui/Toast";
 import { useCartAnimation } from "../../context/CartAnimationContext";
 import { resolveQuickImageUrl } from "../../utils/image";
+import { getCloudinarySrcSet } from "@/shared/utils/cloudinaryUtils";
 
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -198,6 +199,8 @@ const ProductCard = React.memo(
                 product.image ||
                 product.mainImage
               }
+              srcSet={getCloudinarySrcSet(product.image || product.mainImage)}
+              sizes="(max-width: 768px) 150px, (max-width: 1024px) 200px, 250px"
               alt={product.name}
               className="w-full h-full object-contain mix-blend-multiply transition-opacity duration-300"
               loading="lazy"

@@ -288,6 +288,7 @@ export default function Home() {
                 showCategorySkeleton={categories.loading}
                 navigate={navigate}
                 setShowAllCategoriesModal={setShowAllCategoriesModal}
+                backendOrigin={BACKEND_ORIGIN}
               />
             </Suspense>
 
@@ -306,6 +307,7 @@ export default function Home() {
                     setCurrentBannerIndex={setCurrentBannerIndex}
                     heroShellRef={heroShellRef}
                     navigate={navigate}
+                    backendOrigin={BACKEND_ORIGIN}
                   />
                 </div>
               </section>
@@ -324,6 +326,7 @@ export default function Home() {
                 exploreMoreHeading={landing.heading}
                 showExploreSkeleton={landing.loading}
                 finalExploreItems={landing.exploreMore}
+                backendOrigin={BACKEND_ORIGIN}
               />
             </Suspense>
 
@@ -408,7 +411,7 @@ export default function Home() {
               {categories.display.map(cat => (
                 <Link key={cat.id} to={`/user/category/${cat.slug}`} className="flex flex-col items-center gap-2" onClick={() => setShowAllCategoriesModal(false)}>
                   <div className="w-20 h-20 rounded-full overflow-hidden shadow-sm bg-gray-50">
-                    <OptimizedImage src={cat.image} className="w-full h-full object-cover" />
+                    <OptimizedImage src={cat.image} className="w-full h-full object-cover" backendOrigin={BACKEND_ORIGIN} />
                   </div>
                   <span className="text-xs font-semibold text-center">{cat.name}</span>
                 </Link>

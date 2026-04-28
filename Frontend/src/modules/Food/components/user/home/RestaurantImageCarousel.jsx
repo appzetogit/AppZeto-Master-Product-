@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import OptimizedImage from "@food/components/OptimizedImage";
 
 const WEBVIEW_SESSION_CACHE_BUSTER = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -153,12 +154,12 @@ const RestaurantImageCarousel = React.memo(
 
         <div className="absolute inset-0 transition-transform duration-500 ease-out group-hover:scale-110">
           {renderSrc && (
-            <img
-              ref={imageElementRef}
+            <OptimizedImage
               src={renderSrc}
               alt={`${restaurant?.name} - Image ${safeIndex + 1}`}
               className="w-full h-full object-cover"
-              loading={priority ? "eager" : "lazy"}
+              priority={priority}
+              backendOrigin={backendOrigin}
               onLoad={() => {
                 setLoadedBySrc((prev) => ({ ...prev, [renderSrc]: true }));
                 setLastGoodSrc(renderSrc);

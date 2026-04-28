@@ -1,4 +1,5 @@
 import { toast } from "sonner"
+import { compressImage } from "@/shared/utils/imageCompression"
 
 const openTransientImageInput = ({
   onSelectFile,
@@ -32,9 +33,12 @@ const openTransientImageInput = ({
     }
   }
 
-  input.onchange = (event) => {
+  input.onchange = async (event) => {
     const file = event?.target?.files?.[0] || null
-    if (file) onSelectFile(file)
+    if (file) {
+      const compressed = await compressImage(file)
+      onSelectFile(compressed)
+    }
     cleanup()
   }
 
@@ -164,7 +168,8 @@ export const openCamera = async ({ onSelectFile, fileNamePrefix = "camera-photo"
       return
     }
 
-    onSelectFile(selectedFile)
+    const compressed = await compressImage(selectedFile)
+    onSelectFile(compressed)
   } catch (error) {
     console.error("Camera capture failed:", error)
     // Try fallback on bridge failure

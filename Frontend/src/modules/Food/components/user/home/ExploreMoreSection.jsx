@@ -8,7 +8,8 @@ import discoveryBg from "@food/assets/food_discovery_bg.png";
 const ExploreMoreSection = memo(({
   exploreMoreHeading,
   showExploreSkeleton,
-  finalExploreItems
+  finalExploreItems,
+  backendOrigin = ""
 }) => {
   return (
     <section className="px-4 py-8">
@@ -31,6 +32,7 @@ const ExploreMoreSection = memo(({
                   src={item.image}
                   alt={item.label}
                   className="w-full h-full object-cover"
+                  backendOrigin={backendOrigin}
                 />
               </div>
               <span className="text-xs font-semibold text-gray-500 text-center tracking-tight">

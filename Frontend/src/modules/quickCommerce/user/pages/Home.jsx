@@ -65,6 +65,8 @@ import SectionRenderer from "../components/experience/SectionRenderer";
 import ExperienceBannerCarousel from "../components/experience/ExperienceBannerCarousel";
 import { useLocation } from "../context/LocationContext";
 import { resolveQuickImageUrl } from "../utils/image";
+import { getCloudinarySrcSet } from "@/shared/utils/cloudinaryUtils";
+import { useQuickHomeData } from "../hooks/useQuickHomeData";
 import {
   getSideImageByKey,
   getBackgroundColorByValue,
@@ -407,6 +409,13 @@ const MARQUEE_MESSAGES = [
 const QUICK_THEME_STORAGE_KEY = "food.quick.headerColor";
 const QUICK_HEADER_RETURN_STORAGE_KEY = "food.quick.headerReturn";
 
+const quickCategoryPalettes = [
+  { bgFrom: "#ffd96a", bgVia: "#ffeaa0", bgTo: "#fff0c7", glowColor: "rgba(255,184,0,0.18)", frameColor: "#f0d98a" },
+  { bgFrom: "#9fe88c", bgVia: "#c3f1b2", bgTo: "#e4f8da", glowColor: "rgba(126,220,141,0.18)", frameColor: "#bfe3b7" },
+  { bgFrom: "#f3a25d", bgVia: "#f9c48b", bgTo: "#fee0bf", glowColor: "rgba(255,139,61,0.16)", frameColor: "#efc08e" },
+  { bgFrom: "#b8eff0", bgVia: "#d5f7f5", bgTo: "#edfdfc", glowColor: "rgba(122,215,215,0.16)", frameColor: "#b9e5e3" },
+];
+
 const getQuickCategoryImage = (category = {}) => {
   const candidate =
     category?.image ||
@@ -475,44 +484,32 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
   const { isOpen: isProductDetailOpen } = useProductDetail();
   const { currentLocation } = useLocation();
   const navigate = useNavigate();
-  const routePathname =
-    typeof window !== "undefined" ? window.location.pathname : "";
+  const routePathname = typeof window !== "undefined" ? window.location.pathname : "";
   const quickCatsRef = useRef(null);
 
-  const initialAllCategory = {
-    ...ALL_CATEGORY,
-    // Avoid flashing a stale embedded color before the real dynamic header
-    // categories load for the standalone /quick home page.
-    headerColor: null,
-  };
+  // --- Core Data Hook (Optimized & Cached) ---
+  const {
+    categories,
+    activeCategory,
+    setActiveCategory,
+    products,
+    quickCategories,
+    experienceSections,
+    offerSections,
+    categoryMap,
+    subcategoryMap,
+    headerSections,
+    heroConfig,
+    isLoading,
+    isBootstrapped
+  } = useQuickHomeData({ currentLocation });
 
-  const [categories, setCategories] = useState([initialAllCategory]);
-  const [activeCategory, setActiveCategory] = useState(initialAllCategory);
-  const [products, setProducts] = useState([]);
-  const [quickCategories, setQuickCategories] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [hasResolvedInitialData, setHasResolvedInitialData] = useState(false);
-  const [hasResolvedInitialHeroConfig, setHasResolvedInitialHeroConfig] =
-    useState(false);
-  const [experienceSections, setExperienceSections] = useState([]);
-  const [headerSections, setHeaderSections] = useState([]);
-  const [heroConfig, setHeroConfig] = useState({
-    banners: { items: [] },
-    categoryIds: [],
-  });
   const [mobileBannerIndex, setMobileBannerIndex] = useState(0);
   const [isInstantBannerJump, setIsInstantBannerJump] = useState(false);
-  const [categoryMap, setCategoryMap] = useState({});
-  const [subcategoryMap, setSubcategoryMap] = useState({});
   const [pendingReturn, setPendingReturn] = useState(null);
-  const [offerSections, setOfferSections] = useState([]);
 
   useLayoutEffect(() => {
     if (!embedded || typeof window === "undefined") return;
-
-    // The embedded quick page lives inside the food route shell, so route
-    // switches can inherit the previous food scroll position. Reset to the
-    // top so it behaves like the standalone Blinkit-style page.
     window.scrollTo(0, 0);
   }, [embedded, routePathname]);
 
@@ -522,249 +519,6 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
       quickCatsRef.current.scrollBy({ left: scrollAmount, behavior: "smooth" });
     }
   };
-
-  const quickCategoryPalettes = [
-    {
-      bgFrom: "#ffd96a",
-      bgVia: "#ffeaa0",
-      bgTo: "#fff0c7",
-      glowColor: "rgba(255,184,0,0.18)",
-      frameColor: "#f0d98a",
-    },
-    {
-      bgFrom: "#9fe88c",
-      bgVia: "#c3f1b2",
-      bgTo: "#e4f8da",
-      glowColor: "rgba(126,220,141,0.18)",
-      frameColor: "#bfe3b7",
-    },
-    {
-      bgFrom: "#f3a25d",
-      bgVia: "#f9c48b",
-      bgTo: "#fee0bf",
-      glowColor: "rgba(255,139,61,0.16)",
-      frameColor: "#efc08e",
-    },
-    {
-      bgFrom: "#b8eff0",
-      bgVia: "#d5f7f5",
-      bgTo: "#edfdfc",
-      glowColor: "rgba(122,215,215,0.16)",
-      frameColor: "#b9e5e3",
-    },
-  ];
-
-  const fetchData = async () => {
-    setIsLoading(true);
-    try {
-      const hasValidLocation =
-        Number.isFinite(currentLocation?.latitude) &&
-        Number.isFinite(currentLocation?.longitude);
-      const productParams = { limit: 20 };
-      if (hasValidLocation) {
-        productParams.lat = currentLocation.latitude;
-        productParams.lng = currentLocation.longitude;
-      }
-
-      const [catRes, prodRes, expRes, sectionsRes] = await Promise.all([
-        customerApi.getCategories(),
-        hasValidLocation
-          ? customerApi.getProducts(productParams)
-          : Promise.resolve({ data: { success: true, result: { items: [] } } }),
-        customerApi
-          .getExperienceSections({ pageType: "home" })
-          .catch(() => null),
-        hasValidLocation
-          ? customerApi
-            .getOfferSections({
-              lat: currentLocation.latitude,
-              lng: currentLocation.longitude,
-            })
-            .catch(() => ({ data: {} }))
-          : Promise.resolve({ data: { results: [] } }),
-      ]);
-
-      if (catRes.data.success) {
-        const dbCats = catRes.data.results || catRes.data.result || [];
-
-        // Build lookup maps for categories & subcategories (used by SectionRenderer)
-        const catMap = {};
-        const subMap = {};
-        dbCats.forEach((c) => {
-          if (c.type === "category") {
-            catMap[c._id] = c;
-          } else if (c.type === "subcategory") {
-            subMap[c._id] = c;
-          }
-        });
-        setCategoryMap(catMap);
-        setSubcategoryMap(subMap);
-
-        // 1. Process Header Categories (Main Navigation)
-        const formattedHeaders = dbCats
-          .filter((cat) => cat.type === "header")
-          .map((cat) => {
-            const catName = cat.name;
-
-            // Theme / banner still come from local metadata for now
-            const meta = CATEGORY_METADATA[catName] ||
-              CATEGORY_METADATA[
-              catName.charAt(0).toUpperCase() + catName.slice(1).toLowerCase()
-              ] ||
-              CATEGORY_METADATA[catName.toUpperCase()] || {
-              icon: Sparkles,
-              theme: DEFAULT_CATEGORY_THEME,
-              banner: {
-                title: catName.toUpperCase(),
-                subtitle: "TOP PICKS",
-                floatingElements: "sparkles",
-              },
-            };
-
-            // Icon is fully driven by admin-chosen iconId, mapped to MUI
-            const IconComp =
-              (cat.iconId && ICON_COMPONENTS[cat.iconId]) ||
-              meta.icon ||
-              Sparkles;
-
-            return {
-              ...cat,
-              id: cat._id,
-              iconId: cat.iconId,
-              icon: IconComp,
-              theme: meta.theme,
-              headerColor: cat.headerColor || null,
-              banner: { ...meta.banner, textColor: "text-white" },
-            };
-          });
-
-        // 1a. Merge admin-configured "All" header color into the static ALL category
-        const allHeaderFromAdmin = formattedHeaders.find(
-          (h) =>
-            (h.slug && h.slug.toLowerCase() === "all") ||
-            (h.name && h.name.toLowerCase() === "all"),
-        );
-
-        const mergedAllCategory = allHeaderFromAdmin
-          ? {
-            ...ALL_CATEGORY,
-            // Preserve special id/_id used in UI logic, but take color and icon from admin
-            headerColor:
-              allHeaderFromAdmin.headerColor || ALL_CATEGORY.headerColor,
-            icon: allHeaderFromAdmin.icon || ALL_CATEGORY.icon,
-          }
-          : ALL_CATEGORY;
-
-        const headersWithoutAll = formattedHeaders.filter(
-          (h) =>
-            !(
-              (h.slug && h.slug.toLowerCase() === "all") ||
-              (h.name && h.name.toLowerCase() === "all")
-            ),
-        );
-
-        setCategories([mergedAllCategory, ...headersWithoutAll]);
-
-        // If active category is "All", keep it in sync with admin color updates
-        setActiveCategory((prev) =>
-          !prev || prev._id === "all" ? mergedAllCategory : prev,
-        );
-
-        // If we have a stored header to restore (coming back from a category page), set it
-        const storedHeaderReturn = window.sessionStorage.getItem(
-          QUICK_HEADER_RETURN_STORAGE_KEY,
-        );
-        if (storedHeaderReturn) {
-          try {
-            const parsed = JSON.parse(storedHeaderReturn);
-            if (parsed?.headerId) {
-              const match =
-                [mergedAllCategory, ...headersWithoutAll].find(
-                  (h) => h._id === parsed.headerId || h.id === parsed.headerId,
-                ) || null;
-              if (match) setActiveCategory(match);
-            }
-          } catch (e) { }
-        }
-
-        const stored = window.sessionStorage.getItem("experienceReturn");
-        if (stored) {
-          try {
-            const parsed = JSON.parse(stored);
-            if (parsed && parsed.headerId) {
-              const match = formattedHeaders.find(
-                (h) => h._id === parsed.headerId,
-              );
-              if (match) setActiveCategory(match);
-            }
-          } catch (e) { }
-        }
-
-        // 2. Process Quick Navigation Categories (Horizontal Scroll)
-        const formattedQuickCats = dbCats
-          .filter((cat) => cat.type === "category")
-          .map((cat) => ({
-            id: cat._id,
-            name: cat.name,
-            image: getQuickCategoryImage(cat),
-          }));
-        setQuickCategories(formattedQuickCats);
-      }
-
-      if (prodRes.data.success) {
-        const rawResult = prodRes.data.result;
-        const dbProds = Array.isArray(prodRes.data.results)
-          ? prodRes.data.results
-          : Array.isArray(rawResult?.items)
-            ? rawResult.items
-            : Array.isArray(rawResult)
-              ? rawResult
-              : [];
-
-        const formattedProds = dbProds.map((p) => ({
-          ...p,
-          id: p._id,
-          image:
-            p.mainImage ||
-            p.image ||
-            "https://images.unsplash.com/photo-1550989460-0adf9ea622e2",
-          price:
-            Number(p.salePrice || 0) > 0
-              ? Number(p.salePrice)
-              : Number(p.price || 0),
-          originalPrice: Number(
-            p.originalPrice || p.mrp || p.price || p.salePrice || 0,
-          ),
-          weight: p.weight || "1 unit",
-          deliveryTime: "8-15 mins",
-        }));
-        setProducts(formattedProds);
-      }
-
-      if (expRes && expRes.data && expRes.data.success) {
-        const raw = expRes.data.result || expRes.data.results || expRes.data;
-        setExperienceSections(Array.isArray(raw) ? raw : []);
-      } else {
-        setExperienceSections([]);
-      }
-
-      const sectionsList =
-        sectionsRes?.data?.results ||
-        sectionsRes?.data?.result ||
-        sectionsRes?.data;
-      setOfferSections(Array.isArray(sectionsList) ? sectionsList : []);
-    } catch (error) {
-      console.error("Error fetching data:", error);
-    } finally {
-      setIsLoading(false);
-      setHasResolvedInitialData(true);
-    }
-  };
-
-  // Initial data fetch: Consolidate storage check and API calls to prevent double fetching
-  useEffect(() => {
-    fetchData();
-  }, [currentLocation?.latitude, currentLocation?.longitude]); // Refetch when location changes
 
   useEffect(() => {
     if (typeof onThemeChange !== "function") return;
@@ -778,99 +532,33 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
     });
   }, [activeCategory, onThemeChange]);
 
-  // Fetch header-specific experience sections when active header category changes
-  useEffect(() => {
-    const fetchHeaderSections = async () => {
-      if (!activeCategory || activeCategory._id === "all") {
-        setHeaderSections([]);
-        return;
-      }
-      try {
-        const res = await customerApi.getExperienceSections({
-          pageType: "header",
-          headerId: activeCategory._id,
-        });
-        if (res.data.success) {
-          const raw = res.data.result || res.data.results || res.data;
-          setHeaderSections(Array.isArray(raw) ? raw : []);
-        } else {
-          setHeaderSections([]);
-        }
-      } catch (e) {
-        console.error("Error fetching header experience sections:", e);
-        setHeaderSections([]);
-      }
-    };
-
-    fetchHeaderSections();
-  }, [activeCategory]);
-
-  // Fetch hero config (separate from experience sections): header first, then fallback to home
-  useEffect(() => {
-    const fetchHeroConfig = async () => {
-      try {
-        const isHeader = activeCategory && activeCategory._id !== "all";
-        let payload = null;
-        if (isHeader) {
-          const res = await customerApi.getHeroConfig({
-            pageType: "header",
-            headerId: activeCategory._id,
-          });
-          if (res.data?.success && res.data?.result) {
-            payload = res.data.result;
-          }
-        }
-        if (
-          !payload ||
-          (payload.banners?.items?.length === 0 && !payload.categoryIds?.length)
-        ) {
-          const homeRes = await customerApi.getHeroConfig({ pageType: "home" });
-          if (homeRes.data?.success && homeRes.data?.result) {
-            payload = homeRes.data.result;
-          }
-        }
-        setHeroConfig(
-          payload &&
-            (payload.banners?.items?.length > 0 ||
-              payload.categoryIds?.length > 0)
-            ? {
-              banners: payload.banners || { items: [] },
-              categoryIds: payload.categoryIds || [],
-            }
-            : { banners: { items: [] }, categoryIds: [] },
-        );
-      } catch (e) {
-        console.error("Error fetching hero config:", e);
-        setHeroConfig({ banners: { items: [] }, categoryIds: [] });
-      } finally {
-        setHasResolvedInitialHeroConfig(true);
-      }
-    };
-
-    fetchHeroConfig();
-  }, [activeCategory]);
-
-  const isInitialPageLoading =
-    !hasResolvedInitialData || !hasResolvedInitialHeroConfig;
+  const isInitialPageLoading = !isBootstrapped || isLoading;
   const hasHeroBanners = (heroConfig.banners?.items || []).length > 0;
-  const shouldShowHeroFallback =
-    !isInitialPageLoading && !hasHeroBanners;
+  const shouldShowHeroFallback = !isInitialPageLoading && !hasHeroBanners;
 
-  // Autoplay for Mobile Banner Carousel (smooth, one-direction loop)
+  // Preload first hero banner for performance (Point 6)
   useEffect(() => {
-    const totalSlides = 3; // keep in sync with rendered slides
-    const intervalId = setInterval(() => {
-      setMobileBannerIndex((prev) => {
-        // Prevent index from growing unbounded (which would push banners off-screen)
-        if (prev >= totalSlides - 1) return prev;
-        return prev + 1;
-      });
-    }, 3500);
+    if (hasHeroBanners && heroConfig.banners.items[0]?.imageUrl) {
+      const link = document.createElement("link");
+      link.rel = "preload";
+      link.as = "image";
+      link.href = resolveQuickImageUrl(heroConfig.banners.items[0].imageUrl);
+      document.head.appendChild(link);
+      return () => {
+        if (document.head.contains(link)) document.head.removeChild(link);
+      };
+    }
+  }, [hasHeroBanners, heroConfig.banners.items]);
 
+  // Autoplay for Mobile Banner Carousel
+  useEffect(() => {
+    const totalSlides = 3;
+    const intervalId = setInterval(() => {
+      setMobileBannerIndex((prev) => (prev >= totalSlides - 1 ? prev : prev + 1));
+    }, 3500);
     return () => clearInterval(intervalId);
   }, []);
 
-  // After an instant jump back to first slide, re‑enable transition
   useEffect(() => {
     if (!isInstantBannerJump) return;
     const id = requestAnimationFrame(() => setIsInstantBannerJump(false));
@@ -878,163 +566,85 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
   }, [isInstantBannerJump]);
 
   const handleBannerTransitionEnd = () => {
-    const totalSlides = 3; // real1, real2, clone(real1)
+    const totalSlides = 3;
     if (mobileBannerIndex === totalSlides - 1) {
-      // Instantly jump back to the first slide without any reverse animation
       setIsInstantBannerJump(true);
       setMobileBannerIndex(0);
     }
   };
 
   const bestsellerCategories = useMemo(() => {
-    // Group products by category and take top 4 images for each
     const grouped = {};
     products.forEach((p) => {
       const catId = p.categoryId?._id || "other";
       const catName = p.categoryId?.name || "Other";
-      if (!grouped[catId]) {
-        grouped[catId] = { id: catId, name: catName, images: [] };
-      }
-      if (grouped[catId].images.length < 4) {
-        grouped[catId].images.push(p.image);
-      }
+      if (!grouped[catId]) grouped[catId] = { id: catId, name: catName, images: [] };
+      if (grouped[catId].images.length < 4) grouped[catId].images.push(p.image);
     });
     return Object.values(grouped).slice(0, 6);
   }, [products]);
 
   const productsById = useMemo(() => {
     const map = {};
-    products.forEach((p) => {
-      map[p._id || p.id] = p;
-    });
+    products.forEach((p) => { map[p._id || p.id] = p; });
     return map;
   }, [products]);
 
-  // Quick categories: from hero config (separate section) or global quickCategories
   const effectiveQuickCategories = useMemo(() => {
     const ids = heroConfig.categoryIds || [];
     if (ids.length > 0) {
-      const resolved = ids
-        .map((id) => categoryMap[id])
-        .filter(Boolean)
-        .map((c) => ({
-          id: c._id,
-          name: c.name,
-          image: getQuickCategoryImage(c),
-        }));
+      const resolved = ids.map((id) => categoryMap[id]).filter(Boolean).map((c) => ({
+        id: c._id, name: c.name, image: getQuickCategoryImage(c),
+      }));
       if (resolved.length > 0) return resolved;
     }
     return quickCategories;
   }, [heroConfig.categoryIds, categoryMap, quickCategories]);
 
-  // Experience sections for main content (all sections; hero is separate)
-  const sectionsForRenderer = headerSections.length
-    ? headerSections
-    : experienceSections;
+  const sectionsForRenderer = headerSections.length ? headerSections : experienceSections;
 
-  // Fade out banner as user scrolls (0 to 100px)
-  // Parallax effect for banner - moves slower than scroll
   const opacity = useTransform(scrollY, [0, 300], [1, 0.6]);
-  const y = useTransform(scrollY, [0, 300], [0, 80]); // Positive Y moves down as we scroll up = Parallax
+  const y = useTransform(scrollY, [0, 300], [0, 80]);
   const scale = useTransform(scrollY, [0, 300], [1, 0.95]);
   const pointerEvents = useTransform(scrollY, [0, 100], ["auto", "none"]);
-  // When returning from a category page, scroll back to the section that was clicked
+
   useEffect(() => {
     if (!pendingReturn?.sectionId) return;
-
-    const allSections = headerSections.length
-      ? headerSections
-      : experienceSections;
+    const allSections = sectionsForRenderer;
     if (!allSections.length) return;
+    if (!allSections.some((s) => s._id === pendingReturn.sectionId)) return;
 
-    const exists = allSections.some((s) => s._id === pendingReturn.sectionId);
-    if (!exists) return;
-
-    const id = `section-${pendingReturn.sectionId}`;
-    const el = document.getElementById(id);
+    const el = document.getElementById(`section-${pendingReturn.sectionId}`);
     if (el) {
       el.scrollIntoView({ behavior: "instant", block: "start" });
       window.sessionStorage.removeItem("experienceReturn");
       setPendingReturn(null);
     }
-  }, [headerSections, experienceSections, pendingReturn]);
+  }, [sectionsForRenderer, pendingReturn]);
 
-  // Helper to render dynamic floating elements
   const renderFloatingElements = (type) => {
-    const count = 10; // Optimized count for performance
-
+    const count = 10;
     const getParticleContent = (index) => {
       switch (type) {
-        case "hearts":
-          return (
-            <Heart
-              fill="white"
-              size={12 + (index % 5) * 2}
-              className="drop-shadow-sm"
-            />
-          );
-        case "snow":
-          return (
-            <Snowflake
-              fill="white"
-              size={10 + (index % 4) * 3}
-              className="drop-shadow-sm"
-            />
-          );
+        case "hearts": return <Heart fill="white" size={12 + (index % 5) * 2} className="drop-shadow-sm" />;
+        case "snow": return <Snowflake fill="white" size={10 + (index % 4) * 3} className="drop-shadow-sm" />;
         case "stars":
-        case "sparkles":
-          return (
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="white"
-              className="drop-shadow-md">
-              <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z" />
-            </svg>
-          );
-        default:
-          return (
-            <div
-              className="bg-white/40 rounded-full blur-[1px]"
-              style={{
-                width: 4 + (index % 3) * 3,
-                height: 4 + (index % 3) * 3,
-              }}
-            />
-          );
+        case "sparkles": return <svg width="20" height="20" viewBox="0 0 24 24" fill="white" className="drop-shadow-md"><path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z" /></svg>;
+        default: return <div className="bg-white/40 rounded-full blur-[1px]" style={{ width: 4 + (index % 3) * 3, height: 4 + (index % 3) * 3 }} />;
       }
     };
 
     return [...Array(count)].map((_, i) => {
       const duration = 15 + Math.random() * 20;
       const delay = Math.random() * -20;
-      const startX = Math.random() * 100;
-      const startY = Math.random() * 100;
-      const depth = 0.5 + Math.random() * 0.5; // Parallax depth
-
+      const depth = 0.5 + Math.random() * 0.5;
       return (
         <motion.div
-          key={i}
-          className="absolute pointer-events-none"
-          style={{
-            left: `${startX}%`,
-            top: `${startY}%`,
-            opacity: 0.1 * depth,
-            zIndex: Math.floor(depth * 10),
-          }}
-          animate={{
-            x: [0, 50, -50, 0],
-            y: [0, -100, -50, 0],
-            rotate: [0, 360],
-            scale: [depth, depth * 1.2, depth],
-          }}
-          transition={{
-            duration: duration / depth,
-            repeat: Infinity,
-            ease: "easeInOut",
-            delay: delay,
-          }}>
+          key={i} className="absolute pointer-events-none"
+          style={{ left: `${Math.random() * 100}%`, top: `${Math.random() * 100}%`, opacity: 0.1 * depth, zIndex: Math.floor(depth * 10) }}
+          animate={{ x: [0, 50, -50, 0], y: [0, -100, -50, 0], rotate: [0, 360], scale: [depth, depth * 1.2, depth] }}
+          transition={{ duration: duration / depth, repeat: Infinity, ease: "easeInOut", delay }}
+        >
           <div className="transform-gpu">{getParticleContent(i)}</div>
         </motion.div>
       );
@@ -1122,7 +732,7 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
                           </div>
                           <div className="absolute right-[-10px] bottom-0 top-0 w-2/5 flex items-center justify-center">
                             <img
-                              src="https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=400"
+                              src="https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=400&fm=webp"
                               alt="Promo"
                               className="w-full h-full object-contain rotate-3 scale-110"
                             />
@@ -1175,7 +785,7 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
                           </div>
                           <div className="absolute right-[-10px] bottom-0 top-0 w-2/5 flex items-center justify-center">
                             <img
-                              src="https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=400"
+                              src="https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=400&fm=webp"
                               alt="Promo"
                               className="w-full h-full object-contain rotate-3 scale-110"
                             />
@@ -1419,7 +1029,7 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
                       id: p._id,
                       _id: p._id,
                       name: p.name,
-                      image: p.mainImage || p.image || "",
+                      image: resolveQuickImageUrl(p.mainImage || p.image || ""),
                       price:
                         Number(p.salePrice || 0) > 0
                           ? Number(p.salePrice)
@@ -1487,8 +1097,11 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
                             <>
                               <img
                                 src={sectionProducts[0].image}
+                                srcSet={getCloudinarySrcSet(sectionProducts[0].image)}
+                                sizes="100px"
                                 alt={section.title}
                                 className="absolute inset-0 w-full h-full object-cover scale-110"
+                                loading="lazy"
                               />
                               <div className="absolute inset-0 bg-gradient-to-tr from-black/60 via-black/20 to-transparent" />
                               <div className="absolute -bottom-6 -right-6 w-16 h-16 rounded-full bg-amber-400/60 blur-xl mix-blend-screen" />

@@ -1,6 +1,7 @@
 import React, { memo } from "react";
 import { motion } from "framer-motion";
 import { HeroBannerSkeleton } from "@food/components/ui/loading-skeletons";
+import OptimizedImage from "@food/components/OptimizedImage";
 
 const BannerSection = memo(({
   showBannerSkeleton,
@@ -15,7 +16,8 @@ const BannerSection = memo(({
   handleMouseDown,
   handleMouseMove,
   handleMouseUp,
-  navigate
+  navigate,
+  backendOrigin = ""
 }) => {
   if (showBannerSkeleton) {
     return (
@@ -80,11 +82,12 @@ const BannerSection = memo(({
                     style={{ filter: "brightness(0.95)" }}
                   />
                 ) : (
-                  <img
+                  <OptimizedImage
                     src={image}
                     alt={`Hero Banner ${index + 1}`}
                     className="h-full w-full object-cover"
-                    loading={index === currentBannerIndex ? "eager" : "lazy"}
+                    priority={index === currentBannerIndex}
+                    backendOrigin={backendOrigin}
                     draggable={false}
                   />
                 )}

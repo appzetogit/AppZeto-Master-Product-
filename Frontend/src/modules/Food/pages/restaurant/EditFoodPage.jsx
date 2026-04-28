@@ -24,6 +24,7 @@ import { useRef } from "react"
 import { ImageSourcePicker } from "@food/components/ImageSourcePicker"
 import { isFlutterBridgeAvailable } from "@food/utils/imageUploadUtils"
 import { toast } from "sonner"
+import { compressImage } from "@/shared/utils/imageCompression"
 
 const defaultFormData = {
   name: "",
@@ -315,12 +316,14 @@ export default function EditFoodPage() {
     ]
   })()
 
-  const handleImageUpload = (field, file) => {
+  const handleImageUpload = async (field, file) => {
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
         toast.error("Image size too large. Max 5MB allowed.")
         return
       }
+      
+      const compressed = await compressImage(file)
       const reader = new FileReader()
       reader.onloadend = () => {
         setFormData(prev => ({
@@ -328,7 +331,7 @@ export default function EditFoodPage() {
           [field]: reader.result
         }))
       }
-      reader.readAsDataURL(file)
+      reader.readAsDataURL(compressed)
     }
   }
 

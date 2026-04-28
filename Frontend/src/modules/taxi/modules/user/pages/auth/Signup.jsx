@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import AuthLayout from '../../components/AuthLayout';
 import { User, Mail, Camera, Smartphone } from 'lucide-react';
 import { userAuthService } from '../../services/authService';
+import { compressImage } from '@/shared/utils/imageCompression';
 
 const Signup = () => {
   const location = useLocation();
@@ -48,7 +49,8 @@ const Signup = () => {
     setPhotoUploading(true);
 
     try {
-      const dataUrl = await readFileAsDataUrl(file);
+      const compressed = await compressImage(file);
+      const dataUrl = await readFileAsDataUrl(compressed);
       const uploadPayload = await userAuthService.uploadProfileImage(dataUrl);
       const secureUrl = uploadPayload?.data?.secureUrl || '';
 

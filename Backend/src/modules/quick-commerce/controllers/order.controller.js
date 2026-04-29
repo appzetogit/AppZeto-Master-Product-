@@ -6,12 +6,22 @@ import { QuickCart } from '../models/cart.model.js';
 import { QuickProduct } from '../models/product.model.js';
 import { Seller } from '../seller/models/seller.model.js';
 import { SellerOrder } from '../seller/models/sellerOrder.model.js';
+import { getSellerCommissionSnapshot } from '../admin/services/commission.service.js';
+import * as foodTransactionService from '../../food/orders/services/foodTransaction.service.js';
 
 const approvedProductFilter = {
-  isActive: true,
   $or: [
-    { approvalStatus: { $exists: false } },
-    { approvalStatus: 'approved' },
+    { isActive: true },
+    { isActive: { $exists: false } },
+    { status: 'active' },
+  ],
+  $and: [
+    {
+      $or: [
+        { approvalStatus: { $exists: false } },
+        { approvalStatus: 'approved' },
+      ],
+    },
   ],
 };
 
@@ -161,12 +171,16 @@ export const placeOrder = async (req, res) => {
       .map((item) => {
         const product = productMap[String(item.productId)];
         if (!product) return null;
+        const unitPrice =
+          Number(product.salePrice || 0) > 0
+            ? Number(product.salePrice)
+            : Number(product.price || 0);
         return {
           productId: product._id,
           sellerId: product.sellerId || null,
           name: product.name,
           image: product.image || product.mainImage || '',
-          price: product.price,
+          price: unitPrice,
           quantity: item.quantity,
         };
       })
@@ -187,12 +201,16 @@ export const placeOrder = async (req, res) => {
         .map((item) => {
           const product = fallbackProductMap[String(item.productId)];
           if (!product) return null;
+          const unitPrice =
+            Number(product.salePrice || 0) > 0
+              ? Number(product.salePrice)
+              : Number(product.price || 0);
           return {
             productId: product._id,
             sellerId: product.sellerId || null,
             name: product.name,
             image: product.image || product.mainImage || '',
-            price: product.price,
+            price: unitPrice,
             quantity: item.quantity,
           };
         })
@@ -200,6 +218,7 @@ export const placeOrder = async (req, res) => {
     }
 
     if (items.length === 0) {
+      logger.warn(`Quick placeOrder: No valid items found for productIds: ${JSON.stringify(productIds)} using idQuery: ${JSON.stringify(idQuery)}`);
       return res.status(400).json({ success: false, message: 'No valid items found in cart' });
     }
 
@@ -212,6 +231,9 @@ export const placeOrder = async (req, res) => {
     const sellerPaymentMode = isOnlinePayment ? 'online' : 'cash';
     const shouldFanOutSellerOrders = !isOnlinePayment;
     const deliveryAddress = normalizeDeliveryAddress(req.body?.address);
+
+    // Calculate rider earning (using base payout if distance is unknown/short)
+    const riderEarning = await foodTransactionService.getRiderEarning(0.1); 
 
     const order = await QuickOrder.create({
       orderType: 'quick',
@@ -247,6 +269,8 @@ export const placeOrder = async (req, res) => {
         amountDue: total,
       },
       orderStatus: 'placed',
+      riderEarning: riderEarning || 0,
+      platformProfit: Math.max(0, deliveryFee - (riderEarning || 0)), // Initial guess, will be updated with commission
       statusHistory: [
         {
           byRole: 'SYSTEM',
@@ -265,9 +289,8 @@ export const placeOrder = async (req, res) => {
       sellerBuckets.get(sellerId).push(item);
     });
 
-    const sellerOrders =
-      sellerBuckets.size > 0
-        ? Array.from(sellerBuckets.entries()).map(([sellerId, sellerItems]) => {
+    const sellerOrdersResults = sellerBuckets.size > 0
+        ? await Promise.all(Array.from(sellerBuckets.entries()).map(async ([sellerId, sellerItems]) => {
             const sellerSubtotal = sellerItems.reduce(
               (sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0),
               0,
@@ -275,6 +298,9 @@ export const placeOrder = async (req, res) => {
             const allocatedDeliveryFee = Number(
               ((deliveryFee * sellerSubtotal) / Math.max(subtotal, 1)).toFixed(2),
             );
+
+            // Calculate commission for this specific seller
+            const { commissionAmount } = await getSellerCommissionSnapshot(sellerId, sellerSubtotal);
 
             return {
               sellerId,
@@ -292,6 +318,7 @@ export const placeOrder = async (req, res) => {
               })),
               pricing: {
                 subtotal: sellerSubtotal,
+                commission: commissionAmount,
                 total: sellerSubtotal + allocatedDeliveryFee,
               },
               status: 'pending',
@@ -313,8 +340,28 @@ export const placeOrder = async (req, res) => {
                 method: sellerPaymentMode,
               },
             };
-          })
+          }))
         : [];
+
+    const totalSellerCommission = sellerOrdersResults.reduce((sum, so) => sum + (so.pricing?.commission || 0), 0);
+    
+    // Update the main order with the total commission
+    if (totalSellerCommission > 0) {
+      const platformProfit = Math.max(0, deliveryFee + totalSellerCommission - (riderEarning || 0));
+      await QuickOrder.updateOne(
+        { _id: order._id },
+        { 
+          $set: { 
+            'pricing.restaurantCommission': totalSellerCommission,
+            platformProfit: platformProfit
+          } 
+        }
+      );
+      order.pricing.restaurantCommission = totalSellerCommission;
+      order.platformProfit = platformProfit;
+    }
+
+    const sellerOrders = sellerOrdersResults;
 
     await QuickCart.findOneAndUpdate(idQuery, { $set: { items: [] } }, { upsert: false });
 
@@ -395,7 +442,7 @@ export const getOrderById = async (req, res) => {
       $or: orderIdentityQuery,
     };
 
-    const order = await QuickOrder.findOne(query).lean();
+    const order = await QuickOrder.findOne(query).select('+deliveryOtp').lean();
 
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' });

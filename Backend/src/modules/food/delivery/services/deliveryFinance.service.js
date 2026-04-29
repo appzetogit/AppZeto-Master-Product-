@@ -1,6 +1,5 @@
 import mongoose from 'mongoose';
 import { FoodOrder } from '../../orders/models/order.model.js';
-import { FoodTransaction } from '../../orders/models/foodTransaction.model.js';
 import { FoodDeliveryWithdrawal } from '../models/foodDeliveryWithdrawal.model.js';
 import { FoodDeliveryCashDeposit } from '../models/foodDeliveryCashDeposit.model.js';
 import { FoodDeliveryPartner } from '../models/deliveryPartner.model.js';
@@ -8,6 +7,9 @@ import { DeliveryBonusTransaction } from '../../admin/models/deliveryBonusTransa
 import { getDeliveryCashLimitSettings } from '../../admin/services/admin.service.js';
 import { ValidationError } from '../../../../core/auth/errors.js';
 import { createRazorpayOrder, getRazorpayKeyId, isRazorpayConfigured, verifyPaymentSignature } from '../../orders/helpers/razorpay.helper.js';
+import { Transaction } from '../../../../core/payments/models/transaction.model.js';
+import { getTransactionsByEntity } from '../../../../core/payments/transaction.service.js';
+import { FoodDeliveryWallet } from '../models/deliveryWallet.model.js';
 
 /**
  * Enhanced wallet fetch for delivery partners.
@@ -26,132 +28,68 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
     const partner = await FoodDeliveryPartner.findById(partnerId).lean();
     if (!partner) throw new ValidationError('Delivery partner not found');
 
-    const [cashLimitSettings, earningsAgg, cashCollectedAgg, cashDepositsAgg, bonusAgg, withdrawalAgg, withdrawalsList, depositList, totalDeliveries] = await Promise.all([
+    const [
+        cashLimitSettings,
+        walletDoc,
+        cashCollectedAgg,
+        totalDepositedCashAgg,
+        pendingWithdrawalsAgg,
+        transactionsResult,
+        totalDeliveries
+    ] = await Promise.all([
         getDeliveryCashLimitSettings(),
-        // 1. Total Earnings from Delivered Orders
+        FoodDeliveryWallet.findOne({ deliveryPartnerId: partnerId }).lean(),
         FoodOrder.aggregate([
-            { $match: { 'dispatch.deliveryPartnerId': partnerId, orderStatus: 'delivered' } },
-            { $group: { _id: null, totalEarned: { $sum: { $ifNull: ['$riderEarning', 0] } } } }
-        ]),
-        // 2. Gross cash collected (COD orders)
-        FoodOrder.aggregate([
-            { 
-                $match: { 
-                    'dispatch.deliveryPartnerId': partnerId, 
-                    orderStatus: 'delivered', 
-                    'payment.method': 'cash'
-                } 
-            },
+            { $match: { 'dispatch.deliveryPartnerId': partnerId, orderStatus: 'delivered', 'payment.method': 'cash' } },
             { $group: { _id: null, cashCollected: { $sum: { $ifNull: ['$pricing.total', 0] } } } }
         ]),
-        // 3. Cash deposits (deduct from cash-in-hand)
         FoodDeliveryCashDeposit.aggregate([
-            {
-                $match: {
-                    deliveryPartnerId: partnerId,
-                    status: 'Completed'
-                }
-            },
+            { $match: { deliveryPartnerId: partnerId, status: 'Completed' } },
             { $group: { _id: null, depositedCash: { $sum: { $ifNull: ['$amount', 0] } } } }
         ]),
-        // 4. Admin Bonuses
-        DeliveryBonusTransaction.aggregate([
-            { $match: { deliveryPartnerId: partnerId } },
-            { $group: { _id: null, total: { $sum: { $ifNull: ['$amount', 0] } } } }
-        ]),
-        // 5. Withdrawal Aggregates (Approved vs Pending)
         FoodDeliveryWithdrawal.aggregate([
-            { $match: { deliveryPartnerId: partnerId } },
-            { 
-                $group: { 
-                    _id: null, 
-                    totalWithdrawn: { $sum: { $cond: [{ $eq: ['$status', 'approved'] }, '$amount', 0] } },
-                    pendingWithdrawals: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, '$amount', 0] } }
-                } 
-            }
+            { $match: { deliveryPartnerId: partnerId, status: 'pending' } },
+            { $group: { _id: null, total: { $sum: '$amount' } } }
         ]),
-        // 6. Recent Withdrawals for History
-        FoodDeliveryWithdrawal.find({ deliveryPartnerId: partnerId })
-            .sort({ createdAt: -1 })
-            .limit(50)
-            .lean(),
-        FoodDeliveryCashDeposit.find({ deliveryPartnerId: partnerId })
-            .sort({ createdAt: -1 })
-            .limit(50)
-            .lean(),
-        // 7. Total Deliveries
+        getTransactionsByEntity('deliveryBoy', partnerId, { page: 1, limit: 50 }),
         FoodOrder.countDocuments({ 'dispatch.deliveryPartnerId': partnerId, orderStatus: 'delivered' })
     ]);
 
-    const totalEarned = Number(earningsAgg?.[0]?.totalEarned) || 0;
+    const wallet = walletDoc || { balance: 0, totalEarnings: 0, totalBonus: 0, totalSettled: 0 };
     const grossCashCollected = Number(cashCollectedAgg?.[0]?.cashCollected) || 0;
-    const totalDepositedCash = Number(cashDepositsAgg?.[0]?.depositedCash) || 0;
+    const totalDepositedCash = Number(totalDepositedCashAgg?.[0]?.depositedCash) || 0;
     const cashInHand = Math.max(0, grossCashCollected - totalDepositedCash);
-    const totalBonus = Number(bonusAgg?.[0]?.total) || 0;
-    const totalWithdrawn = Number(withdrawalAgg?.[0]?.totalWithdrawn) || 0;
-    const pendingWithdrawals = Number(withdrawalAgg?.[0]?.pendingWithdrawals) || 0;
+    const pendingWithdrawals = Number(pendingWithdrawalsAgg?.[0]?.total) || 0;
 
     const totalCashLimit = Number(cashLimitSettings.deliveryCashLimit) || 0;
     const deliveryWithdrawalLimit = Number(cashLimitSettings.deliveryWithdrawalLimit) || 100;
 
-    // Pocket Balance = (Earnings + Bonus) - Total Withdrawn (approved) - Pending Withdrawals
-    // Wait, usually pocket balance subtracts pending too so user knows how much is "left" to request.
-    const pocketBalance = Math.max(0, (totalEarned + totalBonus) - (totalWithdrawn + pendingWithdrawals));
+    const pocketBalance = Math.max(0, Number(wallet.balance || 0) - pendingWithdrawals);
 
-    // Fetch transactions for UI (Orders, Bonuses, Withdrawals)
-    const [ordersTx] = await Promise.all([
-        FoodOrder.find({ 'dispatch.deliveryPartnerId': partnerId, orderStatus: 'delivered' })
-            .sort({ createdAt: -1 })
-            .select('orderId riderEarning payment orderStatus createdAt')
-            .limit(20)
-            .lean(),
-    ]);
-
-    const transactions = [
-        ...(ordersTx || []).map(o => ({
-            id: o._id,
-            type: 'payment',
-            amount: o.riderEarning || 0,
-            status: 'Completed',
-            date: o.createdAt,
-            description: o.payment?.method === 'cash' ? 'COD delivery earning' : 'Online delivery earning',
-            orderId: o.orderId
-        })),
-        ...(withdrawalsList || []).map(w => ({
-            id: w._id,
-            type: 'withdrawal',
-            amount: w.amount,
-            status: w.status === 'pending' ? 'Pending' : (w.status === 'approved' ? 'Completed' : 'Rejected'),
-            date: w.createdAt,
-            description: `Withdrawal Request - ${w.paymentMethod}`,
-            payoutMethod: w.paymentMethod
-        })),
-        ...(depositList || []).map(d => ({
-            id: d._id,
-            type: 'deposit',
-            amount: d.amount,
-            status: d.status || 'Pending',
-            date: d.createdAt,
-            description: 'Cash limit settlement',
-            paymentMethod: d.paymentMethod || 'cash',
-            razorpayPaymentId: d.razorpayPaymentId || '',
-            razorpayOrderId: d.razorpayOrderId || ''
-        }))
-    ].sort((a, b) => new Date(b.date) - new Date(a.date));
+    const transactions = transactionsResult.transactions.map(t => ({
+        id: t._id,
+        type: t.category === 'settlement_payout' ? 'withdrawal' : (t.type === 'credit' ? 'payment' : 'adjustment'),
+        amount: t.amount,
+        status: t.status === 'completed' ? 'Completed' : (t.status === 'pending' ? 'Pending' : 'Failed'),
+        date: t.createdAt,
+        description: t.description || 'Wallet transaction',
+        orderId: t.orderId,
+        module: t.module
+    }));
 
     return {
-        totalBalance: totalEarned + totalBonus, // Gross lifetime earnings
-        pocketBalance, // Available to withdraw
-        cashInHand, // COD to be deposited/deducted
-        totalWithdrawn, // Actually paid out
-        pendingWithdrawals, // In process
-        totalEarned,
-        totalBonus,
+        totalBalance: (wallet.totalEarnings || 0) + (wallet.totalBonus || 0),
+        pocketBalance,
+        cashInHand,
+        totalWithdrawn: wallet.totalSettled || 0,
+        pendingWithdrawals,
+        totalEarned: wallet.totalEarnings || 0,
+        totalBonus: wallet.totalBonus || 0,
         totalCashLimit,
         availableCashLimit: Math.max(0, totalCashLimit - cashInHand),
         deliveryWithdrawalLimit,
         totalDeliveries: Number(totalDeliveries) || 0,
-        transactions: transactions.slice(0, 50)
+        transactions
     };
 };
 

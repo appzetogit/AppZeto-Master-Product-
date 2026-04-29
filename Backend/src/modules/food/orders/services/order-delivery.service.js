@@ -52,7 +52,13 @@ function emitOrderUpdate(order, deliveryPartnerId) {
         'order_status_update',
         payload,
       );
-      io.to(rooms.user(order.userId)).emit('order_status_update', payload);
+      if (order.userId) {
+        io.to(rooms.user(order.userId)).emit('order_status_update', payload);
+      }
+      const trackingId = order.orderId || order._id?.toString?.();
+      if (trackingId) {
+        io.to(rooms.tracking(trackingId)).emit('order_status_update', payload);
+      }
     }
 
     // Only send push notifications for key delivery milestones
@@ -858,10 +864,15 @@ export async function completeDelivery(orderId, deliveryPartnerId, body = {}) {
   enqueueOrderEvent('delivery_completed', {
     orderMongoId: order._id?.toString?.(),
     orderId: order._id.toString(),
+    restaurantId: order.restaurantId,
     deliveryPartnerId,
-    payMethod,
+    paymentMethod: payMethod,
     prevPayStatus,
     paymentStatus: order.payment?.status,
+    riderEarning: order.riderEarning || 0,
+    platformProfit: order.platformProfit || 0,
+    commissionAmount: order.pricing?.restaurantCommission || 0,
+    total: order.pricing?.total || 0
   });
   return sanitizeOrderForExternal(order);
 }

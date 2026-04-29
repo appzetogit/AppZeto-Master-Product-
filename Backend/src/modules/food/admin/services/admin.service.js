@@ -28,6 +28,14 @@ import { FoodRestaurantSupportTicket } from '../../restaurant/models/supportTick
 import { FoodOrder } from '../../orders/models/order.model.js';
 import { FoodTransaction } from '../../orders/models/foodTransaction.model.js';
 import { FoodRestaurantWithdrawal } from '../../restaurant/models/foodRestaurantWithdrawal.model.js';
+import { 
+    creditWallet, 
+    debitWallet
+} from '../../../../core/payments/wallet.service.js';
+import { 
+    getBalance,
+    getTransactionsByEntity
+} from '../../../../core/payments/transaction.service.js';
 import { FoodDeliveryWithdrawal } from '../../delivery/models/foodDeliveryWithdrawal.model.js';
 import { FoodDeliveryWallet } from '../../delivery/models/deliveryWallet.model.js';
 import { FoodDeliveryCashDeposit } from '../../delivery/models/foodDeliveryCashDeposit.model.js';
@@ -4717,7 +4725,7 @@ export async function getDeliveryWithdrawals(query = {}) {
         id: w._id,
         deliveryName: w.deliveryPartnerId?.name || 'N/A',
         deliveryPhone: w.deliveryPartnerId?.phone || 'N/A',
-        deliveryIdString: w.deliveryPartnerId?.profilePartnerId || 'N/A',
+        deliveryIdString: w.deliveryPartnerId?.profilePartnerId || w.deliveryPartnerId?.phone || 'N/A',
         status: w.status.charAt(0).toUpperCase() + w.status.slice(1)
     }));
 
@@ -4735,27 +4743,28 @@ export async function updateDeliveryWithdrawalStatus(id, { status, adminNote, re
         processedAt: new Date()
     };
 
+    const existing = await FoodDeliveryWithdrawal.findById(id).lean();
+    if (!existing) throw new ValidationError('Withdrawal request not found');
+    if (existing.status !== 'pending') throw new ValidationError(`Withdrawal is already ${existing.status}`);
+
     const updated = await FoodDeliveryWithdrawal.findByIdAndUpdate(
         id,
         { $set: update },
         { new: true }
     ).populate('deliveryPartnerId', 'name phone profilePartnerId').lean();
 
-    if (!updated) throw new ValidationError('Withdrawal request not found');
-
-    // If approved, deduct from wallet balance
+    // If approved, deduct from wallet balance using central transaction service
     if (status.toLowerCase() === 'approved' || status.toLowerCase() === 'processed') {
         const amount = Number(updated.amount || 0);
         if (amount > 0) {
-            await FoodDeliveryWallet.findOneAndUpdate(
-                { deliveryPartnerId: updated.deliveryPartnerId?._id || updated.deliveryPartnerId },
-                { 
-                    $inc: { 
-                        balance: -amount,
-                        totalSettled: amount 
-                    } 
-                }
-            );
+            await debitWallet({
+                entityType: 'deliveryBoy',
+                entityId: updated.deliveryPartnerId?._id || updated.deliveryPartnerId,
+                amount: amount,
+                description: `Withdrawal Approved - ${updated.orderId || updated.id}`,
+                category: 'settlement_payout',
+                metadata: { withdrawalId: updated._id, transactionId }
+            });
         }
     }
 

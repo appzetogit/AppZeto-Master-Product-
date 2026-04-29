@@ -4,10 +4,18 @@ import { QuickProduct } from '../models/product.model.js';
 import { ensureQuickCommerceSeedData } from '../services/seed.service.js';
 
 const approvedProductFilter = {
-  isActive: true,
   $or: [
-    { approvalStatus: { $exists: false } },
-    { approvalStatus: 'approved' },
+    { isActive: true },
+    { isActive: { $exists: false } },
+    { status: 'active' },
+  ],
+  $and: [
+    {
+      $or: [
+        { approvalStatus: { $exists: false } },
+        { approvalStatus: 'approved' },
+      ],
+    },
   ],
 };
 

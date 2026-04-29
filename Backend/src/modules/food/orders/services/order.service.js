@@ -1,3 +1,4 @@
+// Order Service - Backend Logic
 import mongoose from 'mongoose';
 import { FoodOrder, FoodSettings } from '../models/order.model.js';
 // import { paymentSnapshotFromOrder } from './foodOrderPayment.service.js';
@@ -728,59 +729,12 @@ async function applyAggregateRating(model, entityId, newRating) {
   await doc.save();
 }
 
-const COMMISSION_CACHE_MS = 10 * 1000;
-let commissionRulesCache = null;
-let commissionRulesLoadedAt = 0;
-
-async function getActiveCommissionRules() {
-  const now = Date.now();
-  if (
-    commissionRulesCache &&
-    now - commissionRulesLoadedAt < COMMISSION_CACHE_MS
-  ) {
-    return commissionRulesCache;
-  }
-  const list = await FoodDeliveryCommissionRule.find({
-    status: { $ne: false },
-  }).lean();
-  commissionRulesCache = list || [];
-  commissionRulesLoadedAt = now;
-  return commissionRulesCache;
-}
+// 🗑️ Moved to foodTransaction.service.js to centralize finance logic.
 
 // 🗑️ Moved to foodTransaction.service.js to centralize finance logic.
 
 
-async function getRiderEarning(distanceKm) {
-  const d = Number(distanceKm);
-  if (!Number.isFinite(d) || d <= 0) return 0;
-  const rules = await getActiveCommissionRules();
-  if (!rules.length) return 0;
 
-  const sorted = [...rules].sort(
-    (a, b) => (a.minDistance || 0) - (b.minDistance || 0),
-  );
-  const baseRule = sorted.find((r) => Number(r.minDistance || 0) === 0) || null;
-  if (!baseRule) return 0;
-
-  let earning = Number(baseRule.basePayout || 0);
-
-  for (const r of sorted) {
-    const perKm = Number(r.commissionPerKm || 0);
-    if (!Number.isFinite(perKm) || perKm <= 0) continue;
-    const min = Number(r.minDistance || 0);
-    const max = r.maxDistance == null ? null : Number(r.maxDistance);
-    if (d <= min) continue;
-    const upper = max == null ? d : Math.min(d, max);
-    const kmInSlab = Math.max(0, upper - min);
-    if (kmInSlab > 0) {
-      earning += kmInSlab * perKm;
-    }
-  }
-
-  if (!Number.isFinite(earning) || earning <= 0) return 0;
-  return Math.round(earning);
-}
 
 /** Append-only food_order_payments row; never blocks main flow on failure */
 // 🗑️ Deprecated in favor of FoodTransaction system.
@@ -1855,7 +1809,7 @@ export async function createOrder(userId, dto) {
 
   const riderEarning =
     orderType === "food" || orderType === "quick" || orderType === "mixed"
-      ? await getRiderEarning(distanceKm)
+      ? await foodTransactionService.getRiderEarning(distanceKm)
       : 0;
 
   const activeFeeSettings =
@@ -4057,7 +4011,13 @@ export async function getPaymentStatus(orderId, deliveryPartnerId) {
 // ----- Admin -----
 export async function listOrdersAdmin(query) {
   const { page, limit, skip } = buildPaginationOptions(query);
-  const filter = {};
+  const filter = {
+    orderType: { $in: ["food", "mixed"] },
+    $or: [
+      { "payment.method": { $in: ["cash", "wallet"] } },
+      { "payment.status": { $in: ["paid", "authorized", "captured", "settled", "refunded"] } },
+    ],
+  };
 
   // Extract raw query params
   const rawStatus = typeof query.status === "string" ? query.status.trim().toLowerCase() : "";
@@ -4068,12 +4028,6 @@ export async function listOrdersAdmin(query) {
   const startDateRaw = typeof query.startDate === "string" ? query.startDate.trim() : "";
   const endDateRaw = typeof query.endDate === "string" ? query.endDate.trim() : "";
   const search = typeof query.search === "string" ? query.search.trim() : "";
-
-  // Base filter for visible orders (exclude those that aren't properly created or paid if online)
-  filter.$or = [
-    { "payment.method": { $in: ["cash", "wallet"] } },
-    { "payment.status": { $in: ["paid", "authorized", "captured", "settled", "refunded"] } },
-  ];
 
   if (rawStatus && rawStatus !== "all") {
     switch (rawStatus) {
@@ -4362,6 +4316,48 @@ export async function recoverStuckOrders() {
     logger.error(`Watchdog Error during recovery: ${err.message}`);
   }
 }
+
+/**
+ * 🆕 Resync State Helper:
+ * - When a client reconnects, they call this to get their active order state.
+ * - For Delivery Partners: returns the current trip details.
+ * - For Users: returns the most recent active order being prepared or delivered.
+ */
+export async function resyncState(userId, role) {
+  if (!userId || !role) return { activeOrder: null };
+
+  let activeOrder = null;
+
+  try {
+    const roleUpper = String(role).toUpperCase();
+    
+    if (roleUpper === 'DELIVERY_PARTNER') {
+      activeOrder = await getCurrentTripDelivery(userId);
+    } else if (roleUpper === 'USER') {
+      const order = await FoodOrder.findOne({
+        userId: new mongoose.Types.ObjectId(userId),
+        orderStatus: {
+          $in: ["placed", "created", "confirmed", "preparing", "ready_for_pickup", "picked_up", "reached_pickup", "reached_drop"]
+        }
+      })
+      .populate({ path: "restaurantId", select: "restaurantName name phone location addressLine1 area city state profileImage" })
+      .sort({ createdAt: -1 })
+      .lean();
+
+      if (order) {
+        activeOrder = normalizeOrderForClient(order);
+        if (order.deliveryVerification?.dropOtp?.required && !order.deliveryVerification?.dropOtp?.verified) {
+          activeOrder.handoverOtp = order.deliveryOtp;
+        }
+      }
+    }
+  } catch (err) {
+    logger.error(`resyncState failed for ${role}:${userId} — ${err.message}`);
+  }
+
+  return { activeOrder };
+}
+
 
 
 

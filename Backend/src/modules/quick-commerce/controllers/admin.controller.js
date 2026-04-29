@@ -646,24 +646,52 @@ export const getAdminOrders = async (req, res) => {
     QuickOrder.countDocuments(query),
   ]);
 
+  const sellerIds = [...new Set(
+    orders.flatMap(order => 
+      (order.items || [])
+        .filter(item => item.type === 'quick')
+        .map(item => String(item.sourceId))
+    )
+  )].filter(id => mongoose.Types.ObjectId.isValid(id));
+
+  const sellers = await Seller.find({ _id: { $in: sellerIds } })
+    .select('_id shopName name')
+    .lean();
+
+  const sellerMap = sellers.reduce((acc, s) => {
+    acc[String(s._id)] = s;
+    return acc;
+  }, {});
+
   return res.json({
     success: true,
     result: {
-      items: orders.map((order) => ({
-        id: order._id,
-        _id: order._id,
-        orderId: order.orderId,
-        orderNumber: order.orderId,
-        orderType: order.orderType || 'quick',
-        total: order.pricing?.total || 0,
-        status: order.orderStatus,
-        itemCount: order.items.reduce((sum, item) => sum + item.quantity, 0),
-        items: order.items || [],
-        pricing: order.pricing || {},
-        payment: order.payment || {},
-        sessionId: order.sessionId,
-        createdAt: order.createdAt,
-      })),
+      items: orders.map((order) => {
+        const quickItems = (order.items || []).filter(item => item.type === 'quick');
+        const firstSellerId = quickItems[0]?.sourceId;
+        const seller = sellerMap[String(firstSellerId)] || null;
+        
+        return {
+          id: order._id,
+          _id: order._id,
+          orderId: order.orderId,
+          orderNumber: order.orderId,
+          orderType: order.orderType || 'quick',
+          total: order.pricing?.total || 0,
+          status: order.orderStatus,
+          itemCount: order.items.reduce((sum, item) => sum + item.quantity, 0),
+          items: order.items || [],
+          pricing: order.pricing || {},
+          payment: order.payment || {},
+          sessionId: order.sessionId,
+          createdAt: order.createdAt,
+          seller: seller ? {
+            _id: seller._id,
+            shopName: seller.shopName || seller.name || 'Store'
+          } : null,
+          storeName: seller?.shopName || seller?.name || ''
+        };
+      }),
       page: currentPage,
       limit: perPage,
       total,

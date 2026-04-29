@@ -56,14 +56,26 @@ export function sanitizeOrderForExternal(orderDoc) {
 export function emitDeliveryDropOtpToUser(order, plainOtp) {
   try {
     const io = getIO();
-    if (!io || !plainOtp || !order?.userId) return;
-    io.to(rooms.user(order.userId)).emit("delivery_drop_otp", {
+    if (!io || !plainOtp) return;
+
+    const payload = {
       orderMongoId: order._id?.toString?.(),
-      orderId: order.order_id || order._id?.toString?.(),
+      orderId: order.orderId || order.order_id || order._id?.toString?.(),
       otp: plainOtp,
       message:
         "Share this OTP with your delivery partner to hand over the order.",
-    });
+    };
+
+    // Emit to specific user room if logged in
+    if (order.userId) {
+      io.to(rooms.user(order.userId)).emit("delivery_drop_otp", payload);
+    }
+
+    // Always emit to tracking room (covers guests and active trackers)
+    const orderId = order.orderId || order.order_id || order._id?.toString?.();
+    if (orderId) {
+      io.to(rooms.tracking(orderId)).emit("delivery_drop_otp", payload);
+    }
   } catch (e) {
     logger.warn(`emitDeliveryDropOtpToUser failed: ${e?.message || e}`);
   }
@@ -192,7 +204,7 @@ export function buildDeliverySocketPayload(orderDoc, restaurantDoc = null) {
       order?.restaurantId?._id?.toString?.() ||
       order?.restaurantId?.toString?.() ||
       order?.restaurantId,
-    restaurantName: restaurant?.restaurantName || order?.restaurantName,
+    restaurantName: restaurant?.shopName || restaurant?.restaurantName || order?.restaurantName || "",
     restaurantAddress:
       restaurantLocation?.address ||
       restaurantLocation?.formattedAddress ||

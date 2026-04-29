@@ -300,9 +300,64 @@ const PendingSellers = () => {
                         ))}
                       </div>
 
-                      <div className="rounded-2xl border border-amber-100 bg-amber-50 p-5 text-sm font-medium leading-7 text-amber-800">
-                        Uploaded image refs: {viewingSeller.bankInfo?.upiQrImage ? 'UPI QR available' : 'UPI QR missing'} · {viewingSeller.documents?.shopLicenseImage ? 'shop license image available' : 'shop license image missing'}
-                      </div>
+                      {(viewingSeller.bankInfo?.upiQrImage || viewingSeller.documents?.shopLicenseImage) && (
+                        <div className="space-y-4 pt-2">
+                          <h4 className="text-base font-black text-slate-900 uppercase tracking-wider">Verification documents</h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                            {viewingSeller.bankInfo?.upiQrImage && (
+                              <div className="space-y-3">
+                                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">UPI QR Code</p>
+                                <div className="group relative aspect-square w-full overflow-hidden rounded-3xl border-2 border-slate-100 bg-slate-50 transition-all hover:border-primary/20 hover:shadow-xl hover:shadow-primary/5">
+                                  <img 
+                                    src={viewingSeller.bankInfo.upiQrImage} 
+                                    alt="UPI QR" 
+                                    className="h-full w-full object-contain p-4 transition-transform duration-500 group-hover:scale-105"
+                                  />
+                                  <a 
+                                    href={viewingSeller.bankInfo.upiQrImage} 
+                                    target="_blank" 
+                                    rel="noreferrer"
+                                    className="absolute inset-0 flex items-center justify-center bg-slate-900/0 backdrop-blur-0 opacity-0 transition-all duration-300 group-hover:bg-slate-900/40 group-hover:backdrop-blur-sm group-hover:opacity-100"
+                                  >
+                                    <div className="rounded-2xl bg-white/20 p-4 text-white backdrop-blur-md">
+                                      <HiOutlineEye className="h-8 w-8" />
+                                    </div>
+                                  </a>
+                                </div>
+                              </div>
+                            )}
+                            {viewingSeller.documents?.shopLicenseImage && (
+                              <div className="space-y-3">
+                                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Shop License</p>
+                                <div className="group relative aspect-square w-full overflow-hidden rounded-3xl border-2 border-slate-100 bg-slate-50 transition-all hover:border-primary/20 hover:shadow-xl hover:shadow-primary/5">
+                                  <img 
+                                    src={viewingSeller.documents.shopLicenseImage} 
+                                    alt="Shop License" 
+                                    className="h-full w-full object-contain p-4 transition-transform duration-500 group-hover:scale-105"
+                                  />
+                                  <a 
+                                    href={viewingSeller.documents.shopLicenseImage} 
+                                    target="_blank" 
+                                    rel="noreferrer"
+                                    className="absolute inset-0 flex items-center justify-center bg-slate-900/0 backdrop-blur-0 opacity-0 transition-all duration-300 group-hover:bg-slate-900/40 group-hover:backdrop-blur-sm group-hover:opacity-100"
+                                  >
+                                    <div className="rounded-2xl bg-white/20 p-4 text-white backdrop-blur-md">
+                                      <HiOutlineEye className="h-8 w-8" />
+                                    </div>
+                                  </a>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {!viewingSeller.bankInfo?.upiQrImage && !viewingSeller.documents?.shopLicenseImage && (
+                        <div className="rounded-2xl border border-amber-100 bg-amber-50 p-5 text-sm font-bold text-amber-800 flex items-center gap-3">
+                          <HiOutlineXCircle className="h-5 w-5" />
+                          No verification documents were uploaded with this application.
+                        </div>
+                      )}
 
                       <div className="flex flex-col gap-3 pt-4 md:flex-row">
                         <button type="button" disabled={isProcessing} onClick={() => handleReject(viewingSeller._id)} className="flex-1 rounded-2xl bg-slate-100 py-4 text-[11px] font-black uppercase tracking-[0.22em] text-slate-700 transition hover:bg-rose-50 hover:text-rose-600 disabled:opacity-60">
@@ -325,3 +380,4 @@ const PendingSellers = () => {
 };
 
 export default PendingSellers;
+

@@ -75,6 +75,9 @@ export const getUserWallet = async (userId) => {
 };
 
 export const createWalletTopupOrder = async (userId, amountInr) => {
+    if (!userId || !mongoose.Types.ObjectId.isValid(String(userId))) {
+        throw new ValidationError('User not found');
+    }
     const amount = Number(amountInr);
     if (!Number.isFinite(amount) || amount <= 0) {
         throw new ValidationError('Amount must be greater than 0');
@@ -99,16 +102,22 @@ export const createWalletTopupOrder = async (userId, amountInr) => {
     }
 
     const receipt = `wallet_topup_${String(userId).slice(-8)}_${Date.now()}`;
-    const order = await createRazorpayOrder(amountPaise, 'INR', receipt);
+    
+    try {
+        const order = await createRazorpayOrder(amountPaise, 'INR', receipt);
 
-    return {
-        razorpay: {
-            key: getRazorpayKeyId(),
-            orderId: String(order.id),
-            amount: Number(order.amount) || amountPaise,
-            currency: order.currency || 'INR'
-        }
-    };
+        return {
+            razorpay: {
+                key: getRazorpayKeyId(),
+                orderId: String(order.id),
+                amount: Number(order.amount) || amountPaise,
+                currency: order.currency || 'INR'
+            }
+        };
+    } catch (error) {
+        console.error('Razorpay Wallet Topup Error:', error);
+        throw new Error(error.description || error.message || 'Failed to create payment order');
+    }
 };
 
 export const verifyWalletTopupPayment = async (userId, payload) => {

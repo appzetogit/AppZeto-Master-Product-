@@ -1376,6 +1376,8 @@ export const updateSellerOrderStatusController = async (req, res) => {
                 ? "delivered"
                 : "placed";
 
+    const isDeliveringNow = nextStatus === "delivered" && previousSellerStatus !== "delivered";
+
     const parentOrder = await resolveParentQuickOrder(order, { populateUser: false })
       ?.select("_id orderId orderType orderStatus dispatch restaurantId")
       .lean();
@@ -1453,37 +1455,69 @@ export const updateSellerOrderStatusController = async (req, res) => {
       // best-effort realtime update
     }
 
-    if (
-      nextStatus === "confirmed" &&
-      parentOrder?._id &&
-      parentOrder?.orderType === "mixed" &&
-      !(
-        parentOrder?.dispatch?.status === "accepted" &&
-        parentOrder?.dispatch?.deliveryPartnerId
-      )
-    ) {
-      try {
-        const {
-          notifySplitDispatchOffersForOrder,
-          resendDeliveryNotificationRestaurant,
-        } = await import(
-          "../../../food/orders/services/order.service.js"
-        );
+    if (nextStatus === "confirmed" && parentOrder?._id) {
+      if (parentOrder?.orderType === "mixed") {
+        if (!(parentOrder?.dispatch?.status === "accepted" && parentOrder?.dispatch?.deliveryPartnerId)) {
+          try {
+            const {
+              notifySplitDispatchOffersForOrder,
+              resendDeliveryNotificationRestaurant,
+            } = await import("../../../food/orders/services/order.service.js");
+            try {
+              await notifySplitDispatchOffersForOrder(parentOrder._id.toString());
+            } catch (splitDispatchError) {
+              await resendDeliveryNotificationRestaurant(
+                parentOrder._id.toString(),
+                parentOrder.restaurantId?.toString?.() || parentOrder.restaurantId,
+              );
+              logger.info(
+                `Seller mixed-order split dispatch fallback used for ${order.orderId}: ${splitDispatchError?.message || splitDispatchError}`,
+              );
+            }
+          } catch (dispatchError) {
+            logger.warn(
+              `Seller mixed-order dispatch trigger failed for ${order.orderId}: ${dispatchError?.message || dispatchError}`,
+            );
+          }
+        }
+      } else if (parentOrder?.orderType === "quick") {
+        // New: Trigger dispatch notification for quick commerce orders
         try {
-          await notifySplitDispatchOffersForOrder(parentOrder._id.toString());
-        } catch (splitDispatchError) {
-          await resendDeliveryNotificationRestaurant(
-            parentOrder._id.toString(),
-            parentOrder.restaurantId?.toString?.() || parentOrder.restaurantId,
-          );
-          logger.info(
-            `Seller mixed-order split dispatch fallback used for ${order.orderId}: ${splitDispatchError?.message || splitDispatchError}`,
+          await triggerQuickOrderDispatch(parentOrder._id, sellerId);
+        } catch (dispatchError) {
+          logger.warn(
+            `Seller quick-order dispatch trigger failed for ${order.orderId}: ${dispatchError?.message || dispatchError}`,
           );
         }
-      } catch (dispatchError) {
-        logger.warn(
-          `Seller mixed-order dispatch trigger failed for ${order.orderId}: ${dispatchError?.message || dispatchError}`,
-        );
+      }
+    }
+
+    if (isDeliveringNow) {
+      try {
+        const existingTx = await SellerTransaction.findOne({
+          sellerId,
+          orderId: order.orderId,
+          type: "Order Payment",
+        });
+
+        if (!existingTx) {
+          const subtotal = num(order.pricing?.subtotal);
+          const commission = num(order.pricing?.commission);
+          const netEarning = Math.max(0, subtotal - commission);
+
+          await SellerTransaction.create({
+            sellerId,
+            type: "Order Payment",
+            amount: netEarning,
+            status: "Settled",
+            reference: `PAY-${order.orderId}`,
+            orderId: order.orderId,
+            customer: order.customer?.name || "Customer",
+          });
+          logger.info(`[Payout] Created transaction for seller ${sellerId}, order ${order.orderId}, net: ${netEarning}`);
+        }
+      } catch (txError) {
+        logger.error(`[Payout] Failed to create transaction for order ${order.orderId}: ${txError.message}`);
       }
     }
 
@@ -1679,13 +1713,20 @@ export const rejectSellerReturnController = async (req, res) => {
 export const getSellerEarningsController = async (req, res) => {
   try {
     const sellerId = sellerScope(req);
-    const transactions = await SellerTransaction.find({ sellerId })
-      .sort({ createdAt: -1 })
-      .lean();
+    const [transactions, orders] = await Promise.all([
+      SellerTransaction.find({ sellerId }).sort({ createdAt: -1 }).lean(),
+      SellerOrder.find({ sellerId, status: "delivered" }).select("pricing").lean(),
+    ]);
 
-    const totalRevenue = transactions
+    const totalNetEarnings = transactions
       .filter((item) => item.type === "Order Payment")
       .reduce((sum, item) => sum + num(item.amount), 0);
+    
+    const grossSales = orders.reduce((sum, o) => sum + num(o.pricing?.total), 0);
+    const totalCommission = orders.reduce((sum, o) => sum + num(o.pricing?.commission), 0);
+    const subtotal = orders.reduce((sum, o) => sum + num(o.pricing?.subtotal), 0);
+    const deliveryFees = grossSales - subtotal;
+
     const totalWithdrawn = transactions
       .filter(
         (item) => item.type === "Withdrawal" && item.status === "Settled",
@@ -1700,7 +1741,11 @@ export const getSellerEarningsController = async (req, res) => {
       .reduce((sum, item) => sum + Math.abs(num(item.amount)), 0);
 
     const balances = {
-      totalRevenue,
+      totalRevenue: totalNetEarnings, // Keeping field name for backward compatibility
+      totalNetEarnings,
+      grossSales,
+      totalCommission,
+      deliveryFees,
       totalWithdrawn,
       settledBalance: availableWithdrawalBalance(transactions),
       pendingPayouts,
@@ -1919,5 +1964,90 @@ export const getSellerStatsController = async (req, res) => {
     });
   } catch (error) {
     return sendError(res, 500, error.message || "Failed to load stats");
+  }
+};
+export const triggerQuickOrderDispatch = async (parentOrderId, sellerId) => {
+  try {
+    const quickOrder = await QuickOrder.findById(parentOrderId);
+    if (!quickOrder) return;
+
+    // Skip if already assigned and accepted
+    if (quickOrder.dispatch?.status === "accepted" && quickOrder.dispatch?.deliveryPartnerId) {
+      return;
+    }
+
+    const seller = await Seller.findById(sellerId).select("shopName name phone location").lean();
+    if (!seller) return;
+
+    const sellerOrigin =
+      Array.isArray(seller?.location?.coordinates) && seller.location.coordinates.length === 2
+        ? {
+          lat: Number(seller.location.coordinates[1]),
+          lng: Number(seller.location.coordinates[0]),
+        }
+        : (Number.isFinite(Number(seller?.location?.latitude)) &&
+          Number.isFinite(Number(seller?.location?.longitude))
+            ? {
+              lat: Number(seller.location.latitude),
+              lng: Number(seller.location.longitude),
+            }
+            : null);
+
+    const origin = sellerOrigin || getOrderAddressPoint(quickOrder);
+    if (!origin) return;
+
+    // Find nearby partners (up to 25 like food module)
+    const nearbyPartners = await listNearbyOnlineDeliveryPartnersByCoords(origin, {
+      maxKm: 15,
+      limit: 25,
+    });
+
+    if (nearbyPartners.length === 0) {
+      logger.info(`[QuickDispatch] No nearby partners found for order ${quickOrder.orderId}`);
+      return;
+    }
+
+    const io = getIO();
+    const deliveryPayload = {
+      ...buildDeliverySocketPayload(quickOrder, seller),
+      orderId: quickOrder.orderId,
+      orderMongoId: quickOrder._id?.toString?.(),
+      restaurantName: seller?.shopName || seller?.name || "Quick Commerce Seller",
+      restaurantPhone: seller?.phone || "",
+      dispatch: quickOrder.dispatch,
+      sourceType: "quick",
+    };
+
+    for (const partner of nearbyPartners) {
+      const deliveryRoom = rooms.delivery(partner.partnerId);
+      if (io) {
+        io.to(deliveryRoom).emit("new_order_available", {
+          ...deliveryPayload,
+          pickupDistanceKm: partner.distanceKm,
+        });
+        io.to(deliveryRoom).emit("play_notification_sound", {
+          orderId: quickOrder.orderId,
+          orderMongoId: quickOrder._id?.toString?.(),
+        });
+      }
+
+      await notifyOwnerSafely(
+        { ownerType: "DELIVERY_PARTNER", ownerId: partner.partnerId },
+        {
+          title: "New quick commerce order nearby",
+          body: `A new order #${quickOrder.orderId} is available near you.`,
+          data: {
+            type: "new_order",
+            orderId: quickOrder.orderId,
+            orderMongoId: quickOrder._id?.toString?.(),
+            link: "/delivery",
+          },
+        },
+      );
+    }
+
+    logger.info(`[QuickDispatch] Broadcasted order ${quickOrder.orderId} to ${nearbyPartners.length} partners`);
+  } catch (error) {
+    logger.error(`[QuickDispatch] Failed for order ${parentOrderId}: ${error.message}`);
   }
 };

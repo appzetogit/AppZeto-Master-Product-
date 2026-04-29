@@ -46,6 +46,15 @@ import {
   deleteAdminOfferSection,
   reorderAdminOfferSections,
 } from '../controllers/admin.controller.js';
+import {
+  getSellerCommissionBootstrap,
+  getSellerCommissions,
+  getSellerCommissionById,
+  createSellerCommission,
+  updateSellerCommission,
+  deleteSellerCommission,
+  toggleSellerCommissionStatus,
+} from '../controllers/adminCommission.controller.js';
 
 import { authMiddleware } from '../../../core/auth/auth.middleware.js';
 import { requireRoles } from '../../../core/roles/role.middleware.js';
@@ -141,5 +150,14 @@ router.post('/admin/offer-sections', ...adminOnly, createAdminOfferSection);
 router.put('/admin/offer-sections/:id', ...adminOnly, updateAdminOfferSection);
 router.delete('/admin/offer-sections/:id', ...adminOnly, deleteAdminOfferSection);
 router.post('/admin/offer-sections/reorder', ...adminOnly, reorderAdminOfferSections);
+
+// Seller Commission Management
+router.get('/admin/seller-commissions/bootstrap', ...adminOnly, getSellerCommissionBootstrap);
+router.get('/admin/seller-commissions', ...adminOnly, getSellerCommissions);
+router.get('/admin/seller-commissions/:id', ...adminOnly, getSellerCommissionById);
+router.post('/admin/seller-commissions', ...adminOnly, createSellerCommission);
+router.put('/admin/seller-commissions/:id', ...adminOnly, updateSellerCommission);
+router.delete('/admin/seller-commissions/:id', ...adminOnly, deleteSellerCommission);
+router.patch('/admin/seller-commissions/:id/toggle-status', ...adminOnly, toggleSellerCommissionStatus);
 
 export default router;

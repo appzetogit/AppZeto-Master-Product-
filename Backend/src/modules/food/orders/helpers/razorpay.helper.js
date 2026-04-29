@@ -1,12 +1,6 @@
 import crypto from 'crypto';
 
-let Razorpay;
-try {
-    const mod = await import('razorpay');
-    Razorpay = mod.default;
-} catch {
-    Razorpay = null;
-}
+import Razorpay from 'razorpay';
 
 import { config } from '../../../../config/env.js';
 

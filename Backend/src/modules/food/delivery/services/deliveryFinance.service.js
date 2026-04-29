@@ -26,7 +26,7 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
     const partner = await FoodDeliveryPartner.findById(partnerId).lean();
     if (!partner) throw new ValidationError('Delivery partner not found');
 
-    const [cashLimitSettings, earningsAgg, cashCollectedAgg, cashDepositsAgg, bonusAgg, withdrawalAgg, withdrawalsList, depositList] = await Promise.all([
+    const [cashLimitSettings, earningsAgg, cashCollectedAgg, cashDepositsAgg, bonusAgg, withdrawalAgg, withdrawalsList, depositList, totalDeliveries] = await Promise.all([
         getDeliveryCashLimitSettings(),
         // 1. Total Earnings from Delivered Orders
         FoodOrder.aggregate([
@@ -78,7 +78,9 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
         FoodDeliveryCashDeposit.find({ deliveryPartnerId: partnerId })
             .sort({ createdAt: -1 })
             .limit(50)
-            .lean()
+            .lean(),
+        // 7. Total Deliveries
+        FoodOrder.countDocuments({ 'dispatch.deliveryPartnerId': partnerId, orderStatus: 'delivered' })
     ]);
 
     const totalEarned = Number(earningsAgg?.[0]?.totalEarned) || 0;
@@ -148,6 +150,7 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
         totalCashLimit,
         availableCashLimit: Math.max(0, totalCashLimit - cashInHand),
         deliveryWithdrawalLimit,
+        totalDeliveries: Number(totalDeliveries) || 0,
         transactions: transactions.slice(0, 50)
     };
 };

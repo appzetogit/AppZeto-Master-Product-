@@ -1782,7 +1782,7 @@ export default function Inventory() {
         <div ref={tabBarRef} className="grid grid-cols-2 gap-3">
           <motion.button
             onClick={() => setActiveTab("all-items")}
-            className={`relative overflow-hidden rounded-[24px] border px-5 py-4 text-sm font-semibold whitespace-nowrap ${
+            className={`relative overflow-hidden rounded-[24px] border px-4 py-3 text-sm font-semibold whitespace-nowrap ${
               activeTab === "all-items"
                 ? "border-slate-950 text-white shadow-[0_18px_32px_-24px_rgba(15,23,42,0.8)]"
                 : "border-white/80 bg-white/80 text-slate-700 shadow-[0_16px_40px_-34px_rgba(15,23,42,0.4)]"
@@ -1816,7 +1816,7 @@ export default function Inventory() {
 
           <motion.button
             onClick={() => setActiveTab("add-ons")}
-            className={`relative overflow-hidden rounded-[24px] border px-5 py-4 text-sm font-semibold whitespace-nowrap ${
+            className={`relative overflow-hidden rounded-[24px] border px-4 py-3 text-sm font-semibold whitespace-nowrap ${
               activeTab === "add-ons"
                 ? "border-slate-950 text-white shadow-[0_18px_32px_-24px_rgba(15,23,42,0.8)]"
                 : "border-white/80 bg-white/80 text-slate-700 shadow-[0_16px_40px_-34px_rgba(15,23,42,0.4)]"
@@ -1917,7 +1917,7 @@ export default function Inventory() {
       >
         {/* Search and Filter */}
         <div className="sticky top-0 z-30 -mx-4 px-4 pb-4 bg-[#f3f5f8]/95 backdrop-blur supports-[backdrop-filter]:bg-[#f3f5f8]/80">
-          <div className="overflow-hidden rounded-[28px] border border-white/80 bg-white/90 p-4 shadow-[0_20px_48px_-34px_rgba(15,23,42,0.45)] backdrop-blur">
+          <div className="overflow-hidden rounded-2xl border border-white/80 bg-white/90 p-3 sm:p-4 shadow-[0_20px_48px_-34px_rgba(15,23,42,0.45)] backdrop-blur">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-slate-950">
@@ -1945,13 +1945,13 @@ export default function Inventory() {
 
             <div className="mt-4 flex gap-2 flex-wrap">
               <div className="flex-1 min-w-[220px] relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder={activeTab === "add-ons" ? "Search add-ons by name or status" : "Search categories or menu items"}
-                  className="h-12 w-full rounded-[20px] border border-slate-200 bg-slate-50 pl-11 pr-10 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-300 focus:bg-white focus:outline-none"
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-10 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-300 focus:bg-white focus:outline-none"
                 />
                 {searchQuery ? (
                   <button
@@ -1967,7 +1967,7 @@ export default function Inventory() {
 
               <button
                 onClick={() => setFilterOpen(true)}
-                className="relative flex h-12 items-center justify-center gap-2 rounded-[20px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 transition-colors hover:border-slate-300 hover:bg-slate-50"
+                className="relative flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 transition-colors hover:border-slate-300 hover:bg-slate-50"
               >
                 <SlidersHorizontal className="w-4 h-4 text-slate-700" />
                 <span>Filters</span>
@@ -1979,7 +1979,7 @@ export default function Inventory() {
               {activeTab === "add-ons" && (
                 <button
                   onClick={() => setIsAddAddonOpen((v) => !v)}
-                  className="h-12 rounded-[20px] bg-slate-950 px-4 text-sm font-semibold text-white shadow-[0_18px_32px_-24px_rgba(15,23,42,0.85)] transition-colors hover:bg-slate-800"
+                  className="h-10 rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white shadow-[0_18px_32px_-24px_rgba(15,23,42,0.85)] transition-colors hover:bg-slate-800"
                   style={{ minWidth: "128px" }}
                 >
                   {isAddAddonOpen ? "Close" : "Add Add-on"}
@@ -1999,7 +1999,7 @@ export default function Inventory() {
                     key={option.value}
                     type="button"
                     onClick={() => setSelectedFilter(option.value)}
-                    className={`shrink-0 rounded-full border px-3.5 py-2 text-xs font-semibold transition-colors ${
+                    className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
                       isActive
                         ? "border-slate-950 bg-slate-950 text-white shadow-[0_14px_28px_-24px_rgba(15,23,42,0.9)]"
                         : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-white"
@@ -2135,7 +2135,7 @@ export default function Inventory() {
                   {filteredAddons.map((addon) => (
                     <div
                       key={addon.id}
-                      className="rounded-[28px] border border-white/80 bg-white p-4 shadow-[0_20px_48px_-34px_rgba(15,23,42,0.45)]"
+                      className="rounded-2xl border border-white/80 bg-white p-3 sm:p-4 shadow-[0_20px_48px_-34px_rgba(15,23,42,0.45)]"
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
@@ -2214,7 +2214,7 @@ export default function Inventory() {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: isLoading ? 0.6 : 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
-                className="relative overflow-hidden rounded-[30px] border border-white/80 bg-white shadow-[0_22px_52px_-36px_rgba(15,23,42,0.45)]"
+                className="relative overflow-hidden rounded-2xl border border-white/80 bg-white shadow-[0_22px_52px_-36px_rgba(15,23,42,0.45)]"
                 ref={(el) => {
                   if (el) {
                     categoryRefs.current[category.id] = el
@@ -2234,7 +2234,7 @@ export default function Inventory() {
 
                 {/* Category Header - Clickable */}
                 <div
-                  className="cursor-pointer bg-[linear-gradient(135deg,#f8fbff_0%,#ffffff_58%,#f1f5f9_100%)] p-5"
+                  className="cursor-pointer bg-[linear-gradient(135deg,#f8fbff_0%,#ffffff_58%,#f1f5f9_100%)] p-3 sm:p-4"
                   onClick={() => toggleCategory(category.id)}
                 >
                   <div className="flex items-start justify-between gap-4">
@@ -2317,38 +2317,45 @@ export default function Inventory() {
                       className="overflow-hidden"
                     >
                       {/* Divider */}
-                      <div className="mx-5 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
-                      <div className="space-y-3 px-5 pb-5 pt-4">
+                      <div className="mx-3 sm:mx-4 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
+                      <div className="space-y-2 px-3 sm:px-4 pb-3 sm:pb-4 pt-3">
                         {categoryItems.map((item) => {
                           const approvalMeta = getApprovalDisplayMeta(item.approvalStatus)
                           const isRejectedItem = item.approvalStatus === "rejected"
 
                           return (
                           <div key={item.id}>
-                            <div className="flex items-center justify-between gap-3 rounded-[22px] border border-slate-200 bg-slate-50/80 px-4 py-3">
+                            <div className="flex items-center justify-between gap-2.5 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5">
                               <div className="flex flex-1 items-center gap-3 min-w-0">
-                                {/* Veg/Non-veg Icon */}
-                                <div className={`h-4 w-4 rounded-sm border-2 flex items-center justify-center ${item.isVeg ? 'border-green-600' : 'border-red-500'
-                                  }`}>
-                                  <div className={`h-2 w-2 rounded-full ${item.isVeg ? 'bg-green-600' : 'bg-red-500'
-                                    }`} />
-                                </div>
-                                <div className="min-w-0">
+                                {item.image || (item.images && item.images[0]) ? (
+                                  <img
+                                    src={item.image || item.images[0]}
+                                    alt={item.name}
+                                    className="h-16 w-16 shrink-0 rounded-lg object-cover border border-slate-200"
+                                    onError={(e) => {
+                                      e.target.style.display = 'none'
+                                    }}
+                                  />
+                                ) : null}
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate text-sm font-bold text-slate-950 mb-1.5">{item.name}</p>
                                   <div className="flex items-center gap-2 flex-wrap">
-                                    <p className="truncate text-sm font-semibold text-slate-900">{item.name}</p>
-                                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold flex items-center gap-1 ${
                                       item.isVeg
-                                        ? "bg-emerald-50 text-emerald-700"
-                                        : "bg-rose-50 text-rose-700"
+                                        ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                                        : "bg-rose-50 text-rose-700 border border-rose-100"
                                     }`}>
-                                      {item.isVeg ? "Veg" : "Non-veg"}
+                                      <div className={`h-2.5 w-2.5 shrink-0 rounded-sm border flex items-center justify-center ${item.isVeg ? 'border-green-600' : 'border-red-500'}`}>
+                                        <div className={`h-1 w-1 rounded-full ${item.isVeg ? 'bg-green-600' : 'bg-red-500'}`} />
+                                      </div>
+                                      {item.isVeg ? "VEG" : "NON-VEG"}
                                     </span>
-                                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${approvalMeta.className}`}>
-                                      {approvalMeta.label}
+                                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold border ${approvalMeta.className}`}>
+                                      {approvalMeta.label.toUpperCase()}
                                     </span>
                                     {item.isRecommended ? (
-                                      <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-700">
-                                        Recommended
+                                      <span className="rounded-full bg-sky-50 border border-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-700">
+                                        RECOMMENDED
                                       </span>
                                     ) : null}
                                   </div>

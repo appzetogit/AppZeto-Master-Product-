@@ -160,6 +160,7 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
   const isInitialPaid = ['paid', 'captured', 'authorized'].includes(String(order.payment?.status || "").toLowerCase());
   const [paymentStatus, setPaymentStatus] = useState(isInitialPaid ? 'paid' : 'idle');
   const [isSyncing, setIsSyncing] = useState(false);
+  const [selectedMode, setSelectedMode] = useState(null); // 'cash' or 'qr'
   const pollingRef = useRef(null);
 
   const orderId = order.orderId || order._id || 'ORD';
@@ -194,6 +195,7 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
 
   const generateQr = async () => {
     setIsGeneratingQr(true);
+    setSelectedMode('qr');
     try {
       const res = await deliveryAPI.createCollectQr(orderId, {
         name: order.userName || 'Customer',
@@ -212,6 +214,11 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
     } finally {
       setIsGeneratingQr(false);
     }
+  };
+
+  const handleCashSelection = () => {
+    setSelectedMode('cash');
+    // toast.info("Cash collection selected");
   };
 
   const isPaid = paymentStatus === 'paid';
@@ -252,15 +259,31 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
              </div>
 
              {!isPaid && (
-               <div className="space-y-4">
-                 <button 
-                   onClick={generateQr}
-                   disabled={isGeneratingQr}
-                   className="w-full py-4 bg-white border-2 border-amber-200 text-amber-800 rounded-2xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2"
-                 >
-                   {isGeneratingQr ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-5 h-5" />}
-                   Show Payment QR
-                 </button>
+               <div className="flex flex-col gap-3">
+                  <button 
+                    onClick={generateQr}
+                    disabled={isGeneratingQr}
+                    className={`w-full py-4 rounded-2xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
+                      selectedMode === 'qr' 
+                        ? 'bg-amber-600 text-white shadow-lg ring-2 ring-amber-300 ring-offset-2' 
+                        : 'bg-white border-2 border-amber-200 text-amber-800'
+                    }`}
+                  >
+                    {isGeneratingQr ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-5 h-5" />}
+                    Show Payment QR
+                  </button>
+
+                  <button 
+                    onClick={handleCashSelection}
+                    className={`w-full py-4 rounded-2xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
+                      selectedMode === 'cash' 
+                        ? 'bg-amber-600 text-white shadow-lg ring-2 ring-amber-300 ring-offset-2' 
+                        : 'bg-white border-2 border-amber-200 text-amber-800'
+                    }`}
+                  >
+                    <DollarSign className="w-5 h-5" />
+                    Cash in Hand
+                  </button>
                </div>
              )}
           </div>
@@ -268,12 +291,12 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
           {/* If the driver collects physical cash, they can directly slide this, bypassing QR */}
           <ActionSlider 
             key="action-payment"
-            label="Slide to Complete Order" 
+            label={!isPaid && !selectedMode ? "Select Payment Mode Above" : "Slide to Complete Order"} 
             successLabel="Delivered! ✓"
-            disabled={!isPaid && paymentStatus === 'pending'} // Disable only if we are specifically waiting for QR to sync
+            disabled={(!isPaid && !selectedMode) || (!isPaid && selectedMode === 'qr' && paymentStatus === 'pending')}
             onConfirm={async () => {
                 try {
-                    await onComplete(otpString);
+                    await onComplete(otpString, { paymentMode: selectedMode });
                 } catch (e) {
                     // Slider handles reset
                     throw e;

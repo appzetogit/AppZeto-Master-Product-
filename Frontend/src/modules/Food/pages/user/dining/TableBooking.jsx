@@ -60,7 +60,7 @@ const buildSlots = (timing) => {
   let cursor = opening
   const end = closing > opening ? closing : opening + 240
 
-  while (cursor <= end && slots.length < 16) {
+  while (cursor <= end && slots.length < 48) {
     const hours = Math.floor((cursor % (24 * 60)) / 60)
     const minutes = cursor % 60
     slots.push(formatTimeValue(`${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`))
@@ -128,6 +128,13 @@ export default function TableBooking() {
   })
   const [selectedSlot, setSelectedSlot] = useState(location.state?.selectedTime || null)
   const [selectedMealPeriod, setSelectedMealPeriod] = useState("lunch")
+  const [now, setNow] = useState(new Date())
+
+  // Keep 'now' updated every minute for real-time slot filtering
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60000)
+    return () => clearInterval(timer)
+  }, [])
 
   useEffect(() => {
     const fetchRestaurant = async () => {
@@ -170,7 +177,20 @@ export default function TableBooking() {
     }
     return buildFallbackTiming(restaurant)
   }, [outletTimings, selectedDate, restaurant])
-  const allSlots = useMemo(() => buildSlots(selectedDayTiming), [selectedDayTiming])
+  const allSlots = useMemo(() => {
+    const rawSlots = buildSlots(selectedDayTiming)
+    const isToday = selectedDate.toDateString() === now.toDateString()
+    if (!isToday) return rawSlots
+
+    const currentMinutes = now.getHours() * 60 + now.getMinutes()
+    // Buffer of 15 minutes to allow for lead time
+    const BUFFER_MINUTES = 15
+
+    return rawSlots.filter((slot) => {
+      const slotMinutes = parseTimeToMinutes(slot)
+      return slotMinutes !== null && slotMinutes > currentMinutes + BUFFER_MINUTES
+    })
+  }, [selectedDayTiming, selectedDate, now])
   const filteredSlots = useMemo(
     () => allSlots.filter((slot) => getMealPeriod(slot) === selectedMealPeriod),
     [allSlots, selectedMealPeriod]
@@ -224,6 +244,17 @@ export default function TableBooking() {
     if (!canProceed) {
       toast.error("Please select date, time, and guests to continue.")
       return
+    }
+
+    // Final real-time validation before proceeding
+    const isToday = selectedDate.toDateString() === now.toDateString()
+    if (isToday) {
+      const slotMinutes = parseTimeToMinutes(selectedSlot)
+      const currentMinutes = now.getHours() * 60 + now.getMinutes()
+      if (slotMinutes !== null && slotMinutes <= currentMinutes) {
+        toast.error("The selected time slot has already passed. Please choose a later time.")
+        return
+      }
     }
 
     const bookingDraft = {

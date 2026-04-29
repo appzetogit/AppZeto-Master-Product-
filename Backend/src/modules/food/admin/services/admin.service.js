@@ -34,6 +34,7 @@ import { FoodDeliveryCashDeposit } from '../../delivery/models/foodDeliveryCashD
 import { initiateRazorpayRefund } from '../../orders/helpers/razorpay.helper.js';
 import { refundWalletBalance } from '../../user/services/userWallet.service.js';
 import * as foodTransactionService from '../../orders/services/foodTransaction.service.js';
+import { getDeliveryPartnerWalletEnhanced } from '../../delivery/services/deliveryFinance.service.js';
 import {
     backfillLegacyCategoryWorkflow,
     categoryAllowsFoodType,
@@ -4677,19 +4678,20 @@ export async function getDeliveryWallets(query = {}) {
     const globalLimit = Number(cashLimitSettings?.deliveryCashLimit || 0);
 
     const wallets = await Promise.all(partners.map(async (p) => {
-        const wallet = await FoodDeliveryWallet.findOne({ deliveryPartnerId: p._id }).lean();
+        const wallet = await getDeliveryPartnerWalletEnhanced(p._id);
         
         return {
             walletId: wallet?._id,
             deliveryId: p._id,
             name: p.name,
-            deliveryIdString: p.phone, // Placeholder or sequential ID if available
-            pocketBalance: Number(wallet?.balance || 0),
-            remainingCashLimit: Math.max(0, globalLimit - Number(wallet?.cashInHand || 0)),
+            deliveryIdString: p.phone,
+            pocketBalance: Number(wallet?.pocketBalance || 0),
+            remainingCashLimit: Number(wallet?.availableCashLimit || 0),
             cashCollected: Number(wallet?.cashInHand || 0),
-            totalEarning: Number(wallet?.totalEarnings || 0),
+            totalEarning: Number(wallet?.totalEarned || 0),
             bonus: Number(wallet?.totalBonus || 0),
-            totalWithdrawn: Number(wallet?.totalSettled || 0)
+            totalWithdrawn: Number(wallet?.totalWithdrawn || 0),
+            totalDeliveries: Number(wallet?.totalDeliveries || 0)
         };
     }));
 

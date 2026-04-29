@@ -88,9 +88,10 @@ export const useUserNotifications = () => {
       // Optional: Show toast for important updates (Cancel, Ready, etc.)
       const isImportant = String(data.orderStatus).includes('cancel') || ['ready_for_pickup', 'ready', 'confirmed'].includes(data.orderStatus);
       if (isImportant) {
-        toast.message(title, {
+        toast.success(title, {
+          id: `order-status-${data.orderId}`,
           description: message,
-          duration: 10000
+          duration: 5000
         });
       }
 
@@ -129,16 +130,18 @@ export const useUserNotifications = () => {
       );
       const title = orderId ? `Order ${orderId}` : 'Delivery OTP';
       const parts = [message, otp ? `OTP: ${otp}` : ''].filter(Boolean);
-      toast.message(title, {
+      toast.success(title, {
+        id: `order-otp-${orderId}`,
         description: parts.join(' — ') || 'Handover OTP from your delivery partner.',
-        duration: 90_000
+        duration: 20000
       });
     });
 
     socketRef.current.on('admin_notification', (payload) => {
       toast.message(payload?.title || 'Notification', {
+        id: `admin-notif-${Date.now()}`,
         description: payload?.message || 'New broadcast notification received.',
-        duration: 8000
+        duration: 5000
       });
       dispatchNotificationInboxRefresh();
     });

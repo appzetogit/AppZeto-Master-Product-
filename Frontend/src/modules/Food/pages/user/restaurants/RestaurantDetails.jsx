@@ -1994,29 +1994,27 @@ function RestaurantDetailsContent() {
       className={`min-h-screen bg-white dark:bg-[#0a0a0a] flex flex-col transition-all duration-300 ${shouldShowGrayscale ? 'grayscale opacity-75' : ''
         }`}
     >
-      {/* Header - Back, Search, Menu (like reference image) */}
-      <div className="px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 pt-3 md:pt-4 lg:pt-5 pb-2 md:pb-3 bg-white dark:bg-[#1a1a1a]">
+      {/* Header - Back, Search, Menu */}
+      <div className="px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 pt-4 md:pt-6 pb-6 relative z-20 bg-white dark:bg-[#1a1a1a]">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          {/* Back Button */}
           <Button
             variant="outline"
             size="icon"
-            className="rounded-full h-10 w-10 border-gray-200 dark:border-gray-800 shadow-sm bg-white dark:bg-[#1a1a1a]"
+            className="rounded-full h-11 w-11 border-gray-200 dark:border-gray-800 shadow-sm bg-white dark:bg-[#1a1a1a]"
             onClick={goBack}
           >
             <ArrowLeft className="h-5 w-5 text-gray-900 dark:text-white" />
           </Button>
 
-          {/* Right side: Search pill + menu */}
           <div className="flex items-center gap-3">
             {!showSearch ? (
               <Button
                 variant="outline"
-                className="rounded-full h-10 px-4 border-gray-200 dark:border-gray-800 shadow-sm bg-white dark:bg-[#1a1a1a] flex items-center gap-2 text-gray-900 dark:text-white"
+                className="rounded-full h-11 px-5 border-gray-200 dark:border-gray-800 shadow-sm bg-white dark:bg-[#1a1a1a] flex items-center gap-2 text-gray-900 dark:text-white"
                 onClick={() => setShowSearch(true)}
               >
                 <Search className="h-4 w-4" />
-                <span className="text-sm font-medium">Search</span>
+                <span className="text-sm font-semibold">Search</span>
               </Button>
             ) : (
               <div className="flex items-center gap-2 flex-1 max-w-md">
@@ -2027,22 +2025,11 @@ function RestaurantDetailsContent() {
                     placeholder="Search for dishes..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-10 py-2 rounded-full border border-gray-200 dark:border-gray-800 shadow-sm bg-white dark:bg-[#1a1a1a] text-sm dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EB590E] focus:border-transparent"
+                    className="w-full pl-10 pr-10 py-2.5 rounded-full border border-gray-200 dark:border-gray-800 shadow-sm bg-white dark:bg-[#1a1a1a] text-sm dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EB590E] focus:border-transparent"
                     autoFocus
-                    onBlur={() => {
-                      if (!searchQuery) {
-                        setShowSearch(false)
-                      }
-                    }}
                   />
                   {searchQuery && (
-                    <button
-                      onClick={() => {
-                        setSearchQuery("")
-                        setShowSearch(false)
-                      }}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
+                    <button onClick={() => { setSearchQuery(""); setShowSearch(false); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
                       <X className="h-4 w-4" />
                     </button>
                   )}
@@ -2052,7 +2039,7 @@ function RestaurantDetailsContent() {
             <Button
               variant="outline"
               size="icon"
-              className="rounded-full h-10 w-10 border-gray-200 dark:border-gray-800 shadow-sm bg-white dark:bg-[#1a1a1a]"
+              className="rounded-full h-11 w-11 border-gray-200 dark:border-gray-800 shadow-sm bg-white dark:bg-[#1a1a1a]"
               onClick={() => setShowMenuOptionsSheet(true)}
             >
               <MoreVertical className="h-5 w-5 text-gray-900 dark:text-white" />
@@ -2061,81 +2048,115 @@ function RestaurantDetailsContent() {
         </div>
       </div>
 
-      {/* Main Content Card */}
-      <div className="bg-white dark:bg-[#1a1a1a] rounded-t-3xl relative z-10 min-h-[40vh]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 py-4 sm:py-5 md:py-6 lg:py-8 space-y-3 md:space-y-4 lg:space-y-5 pb-0">
-          {/* Restaurant Name and Rating */}
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{restaurant?.name || "Unknown Restaurant"}</h1>
-              <Info className="h-5 w-5 text-gray-400" />
-            </div>
-            <div className="flex flex-col items-end">
-              <Badge className="bg-green-600 text-white mb-1 flex items-center gap-1 px-2 py-1">
-                <Star className="h-3 w-3 fill-white" />
-                {restaurant?.rating || 4.5}
-              </Badge>
-              <span className="text-xs text-gray-500">By {(restaurant.reviews || 0).toLocaleString()}+</span>
-            </div>
-          </div>
-
-          {/* Top Category */} 
-          <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-            <Utensils className="h-4 w-4" />
-            <span>{restaurant?.topCategory || restaurant?.cuisine || "Multi-cuisine"}</span>
-          </div>
-
-          {/* Location */}
-          <div
-            className="flex items-center gap-1 text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
-            onClick={() => setShowLocationSheet(true)}
-          >
-            <MapPin className="h-4 w-4" />
-            <span>{restaurant?.distance || "1.2 km"} � {restaurant?.location || "Location"}</span>
-            <ChevronDown className="h-4 w-4 text-gray-500" />
-          </div>
-
-          {/* Delivery Time */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-              <Clock className="h-4 w-4" />
-              <span>{restaurant?.deliveryTime || "25-30 mins"}</span>
-            </div>
-            <Badge className={`${isRestaurantOffline ? "bg-rose-600" : "bg-emerald-600"} text-white`}>
-              {isRestaurantOffline ? "Offline" : "Open now"}
-            </Badge>
-          </div>
-
-          {isRestaurantOffline && (
-            <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-              This restaurant is currently offline. Orders are unavailable right now.
-            </div>
-          )}
-
-          {/* Offers */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm overflow-hidden">
-              <Tag className="h-4 w-4 text-[#EB590E]" />
-              <div className="relative h-5 overflow-hidden">
-                <AnimatePresence mode="wait">
-                  <motion.span
-                    key={highlightIndex}
-                    initial={{ y: 16, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: -16, opacity: 0 }}
-                    transition={{ duration: 0.3 }}
-                    className="text-[#EB590E] font-medium inline-block"
-                  >
-                    {highlightOffers[highlightIndex]}
-                  </motion.span>
-                </AnimatePresence>
+      {/* Main Content Card - "Same to Same" Redesign */}
+      <div className="bg-[#F8F9FA] dark:bg-[#0a0a0a] -mt-4 relative z-10 px-4 pt-0 min-h-[50vh]">
+        <div className="max-w-7xl mx-auto space-y-4">
+          {/* Info Card */}
+          <div className="bg-white dark:bg-[#1a1a1a] rounded-[28px] shadow-[0_10px_40px_rgb(0,0,0,0.04)] border border-gray-100 dark:border-gray-800 p-5 space-y-4">
+            {/* Top Row: Name & Rating */}
+            <div className="flex justify-between items-start">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <h1 className="text-2xl font-extrabold text-gray-900 dark:text-white tracking-tight">
+                  {restaurant?.name || "Unknown Restaurant"}
+                </h1>
+                <Info className="h-5 w-5 text-gray-400 cursor-pointer" />
+              </div>
+              <div className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400">
+                <Utensils className="h-4 w-4" />
+                <span>{restaurant?.topCategory || restaurant?.cuisine || "Multi-cuisine"}</span>
               </div>
             </div>
+
+            <div className="flex flex-col items-end gap-1">
+              <div className="bg-[#008d48] text-white px-2 py-1 rounded-lg flex items-center gap-1 font-bold text-sm shadow-sm">
+                <Star className="h-3.5 w-3.5 fill-white" />
+                <span>{restaurant?.rating || 4.5}</span>
+              </div>
+              <span className="text-[11px] font-medium text-gray-400">
+                {(restaurant.reviews || 0).toLocaleString()}+ ratings
+              </span>
+            </div>
           </div>
 
+          {/* Middle Row: Location & Open Status */}
+          <div className="flex items-center justify-between gap-4">
+            <div 
+              className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer flex-1 min-w-0"
+              onClick={() => setShowLocationSheet(true)}
+            >
+              <div className="flex items-center gap-2 truncate">
+                <MapPin className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                <span className="truncate">
+                  {restaurant?.distance || "1.2 km"} | {restaurant?.location || "Location"}
+                </span>
+                <ChevronDown className="h-4 w-4 text-gray-400 flex-shrink-0" />
+              </div>
+            </div>
+
+            <div className="flex-shrink-0">
+               <Badge className={`${isRestaurantOffline ? "bg-rose-100 text-rose-600 border-rose-200" : "bg-[#008d48] text-white border-transparent"} px-4 py-2 rounded-2xl text-xs font-bold shadow-sm whitespace-nowrap`}>
+                 {isRestaurantOffline ? "Offline" : "Open now"}
+               </Badge>
+            </div>
+          </div>
+
+          {/* Bottom Row: Delivery Time */}
+          <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+            <Clock className="h-4 w-4 text-gray-400" />
+            <span>{restaurant?.deliveryTime || "25-30 mins"}</span>
+          </div>
+        </div>
+
+        {/* Offer Card */}
+        <div className="max-w-7xl mx-auto mt-4 bg-white dark:bg-[#1a1a1a] rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 dark:border-gray-800 p-4 relative overflow-hidden">
+           <div className="flex items-center justify-between gap-4">
+             <div className="flex items-center gap-4">
+                <div className="h-12 w-12 rounded-full bg-[#FFF1E8] flex items-center justify-center flex-shrink-0">
+                  <Percent className="h-6 w-6 text-[#EB590E]" />
+                </div>
+                <div>
+                   <h3 className="text-sm font-black text-gray-900 dark:text-white uppercase tracking-tight">
+                     {highlightOffers[highlightIndex] || "Special Offer"}
+                   </h3>
+                   <p className="text-[11px] font-medium text-gray-400">
+                     Tap to view all offers
+                   </p>
+                </div>
+             </div>
+
+             {/* Redundant rating on offer card (as per screenshot) */}
+             <div className="flex flex-col items-end gap-1 opacity-60 scale-90 origin-right">
+                <div className="bg-[#008d48] text-white px-2 py-0.5 rounded-lg flex items-center gap-1 font-bold text-xs">
+                  <Star className="h-3 w-3 fill-white" />
+                  <span>{restaurant?.rating || 4.5}</span>
+                </div>
+                <span className="text-[10px] font-medium text-gray-400 whitespace-nowrap">
+                  {(restaurant.reviews || 0).toLocaleString()}+ ratings
+                </span>
+             </div>
+           </div>
+
+           {/* Pagination Dots */}
+           <div className="flex items-center gap-1 mt-3 px-1">
+              {highlightOffers.slice(0, 2).map((_, i) => (
+                <div 
+                  key={i} 
+                  className={`h-1.5 w-1.5 rounded-full transition-colors ${i === highlightIndex % 2 ? 'bg-[#EB590E]' : 'bg-gray-200'}`} 
+                />
+              ))}
+           </div>
+        </div>
+
+        {isRestaurantOffline && (
+          <div className="max-w-7xl mx-auto mt-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700">
+            This restaurant is currently offline. Orders are unavailable.
+          </div>
+        )}
+          
           {/* Filter/Category Buttons */}
-          <div className="border-y border-gray-200 py-3 -mx-4 px-4 overflow-x-auto scrollbar-hide">
-            <div className="flex flex-col gap-2 w-max">
+          <div className="border-y border-gray-200 dark:border-gray-800 py-3 -mx-4 px-4 overflow-x-auto scrollbar-hide">
+            <div className="max-w-7xl mx-auto flex flex-col gap-2 w-max px-4">
               <div className="flex items-center gap-2 w-max">
                 <Button
                   variant="outline"

@@ -932,12 +932,16 @@ Order again from this restaurant in the ${companyName} app.`
                                 order.payment.method || 'N/A'}
                         </span>
                         {order.payment.status && (
-                          <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] font-medium ${order.payment.status === 'completed' ? 'bg-green-100 text-green-700' :
-                              order.payment.status === 'failed' ? 'bg-red-100 text-red-700' :
-                                order.payment.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                                  'bg-gray-100 text-gray-700'
-                            }`}>
-                            {order.payment.status}
+                          <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                            (order.payment.status === 'paid' || order.payment.status === 'completed' || order.payment.status === 'captured') ? 'bg-green-100 text-green-700' :
+                            (order.payment.status === 'failed' || order.payment.status === 'cancelled') ? 'bg-red-100 text-red-700' :
+                            (order.payment.status === 'pending' || order.payment.status === 'cod_pending' || order.payment.status === 'created' || order.payment.status === 'pending_qr') ? 'bg-yellow-100 text-yellow-700' :
+                            (order.payment.status === 'refunded') ? 'bg-blue-100 text-blue-700' :
+                            'bg-gray-100 text-gray-700'
+                          }`}>
+                            {order.payment.status === 'cod_pending' || order.payment.status === 'created' || order.payment.status === 'pending_qr' ? 'Pending' : 
+                             order.payment.status === 'paid' || order.payment.status === 'captured' ? 'Paid' :
+                             order.payment.status}
                           </span>
                         )}
                       </p>

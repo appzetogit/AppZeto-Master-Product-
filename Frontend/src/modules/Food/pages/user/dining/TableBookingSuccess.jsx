@@ -57,8 +57,12 @@ export default function TableBookingSuccess() {
                 transition={{ delay: 0.2 }}
                 className="text-center space-y-2 mb-10"
             >
-                <h1 className="text-3xl font-black text-gray-900">Seat Confirmed!</h1>
-                <p className="text-gray-500 font-medium tracking-wide italic">Your table is ready for you</p>
+                <h1 className="text-3xl font-black text-gray-900">
+                    {booking.status === "pending" ? "Booking Requested!" : "Seat Confirmed!"}
+                </h1>
+                <p className="text-gray-500 font-medium tracking-wide italic">
+                    {booking.status === "pending" ? "Awaiting restaurant's approval" : "Your table is ready for you"}
+                </p>
                 <div className="pt-2">
                     <span className="bg-[#FFF2EB] text-[#EB590E] px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest border border-[#EB590E]/20">
                         BOOKING ID: {booking.bookingId}
@@ -126,8 +130,12 @@ export default function TableBookingSuccess() {
                         </div>
                         <div className="space-y-1">
                             <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Status</p>
-                            <div className="bg-[#EB590E] text-white px-2 py-0.5 rounded-lg text-xs font-bold w-fit">
-                                CONFIRMED
+                            <div className={`px-2 py-0.5 rounded-lg text-[10px] font-black w-fit uppercase ${
+                                booking.status === "pending" 
+                                    ? "bg-amber-100 text-amber-700 border border-amber-200" 
+                                    : "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                            }`}>
+                                {booking.status || "PENDING"}
                             </div>
                         </div>
                     </div>

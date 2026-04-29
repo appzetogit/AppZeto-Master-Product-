@@ -29,7 +29,7 @@ export default function BottomNavigation() {
       <Link
         to="/user/auth/portal"
         state={{ redirectTo }}
-        className="relative z-10 -mb-2 ml-auto mr-4 flex h-9 w-fit items-center gap-2 rounded-t-[16px] rounded-b-[8px] border border-b-0 border-gray-200 bg-white px-3 pb-2 pt-1.5 shadow-[0_-1px_0_rgba(255,255,255,0.9),0_-6px_18px_-10px_rgba(0,0,0,0.12)]"
+        className="relative z-10 mb-0.5 ml-auto mr-4 flex h-9 w-fit items-center gap-2 rounded-t-[16px] rounded-b-[8px] border border-gray-200 bg-white px-3 pb-2 pt-1.5 shadow-[0_-1px_0_rgba(255,255,255,0.9),0_-6px_18px_-10px_rgba(0,0,0,0.12)]"
       >
         <div className="pointer-events-none absolute -bottom-2 left-2 right-2 h-2 rounded-b-full bg-white" />
         <div className="text-left leading-none">

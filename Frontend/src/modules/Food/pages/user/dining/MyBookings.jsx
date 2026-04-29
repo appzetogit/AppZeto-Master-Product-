@@ -88,8 +88,8 @@ export default function MyBookings() {
 
     const getStatusLabel = (status) => {
         const key = String(status || "").toLowerCase()
-        if (key === "confirmed") return "Pending"
-        if (key === "accepted") return "Accepted"
+        if (key === "pending") return "Pending"
+        if (key === "confirmed" || key === "accepted") return "Confirmed"
         if (key === "checked-in") return "Checked-in"
         if (key === "completed") return "Completed"
         if (key === "cancelled") return "Cancelled"
@@ -98,8 +98,8 @@ export default function MyBookings() {
 
     const getStatusBadgeClass = (status) => {
         const key = String(status || "").toLowerCase()
-        if (key === "confirmed") return "bg-amber-100 text-amber-700"
-        if (key === "accepted") return "bg-green-100 text-green-700"
+        if (key === "pending") return "bg-amber-100 text-amber-700"
+        if (key === "confirmed" || key === "accepted") return "bg-green-100 text-green-700"
         if (key === "checked-in") return "bg-[#FFF2EB] text-[#EB590E]"
         if (key === "completed") return "bg-blue-100 text-blue-700"
         if (key === "cancelled") return "bg-red-100 text-red-700"
@@ -143,7 +143,7 @@ export default function MyBookings() {
         <AnimatedPage className="bg-slate-50 min-h-screen pb-10">
             {/* Header */}
             <div className="bg-white p-4 flex items-center shadow-sm sticky top-0 z-10">
-                <button onClick={() => navigate("/")}>
+                <button onClick={() => navigate("/profile?from=food")}>
                     <ArrowLeft className="w-6 h-6 text-gray-700 cursor-pointer" />
                 </button>
                 <h1 className="ml-4 text-xl font-semibold text-gray-800">My Table Bookings</h1>

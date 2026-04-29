@@ -41,5 +41,5 @@ const foodDiningBannerSchema = new mongoose.Schema(
 
 foodDiningBannerSchema.index({ isActive: 1, sortOrder: 1 });
 
-export const FoodDiningBanner = mongoose.model('FoodDiningBanner', foodDiningBannerSchema, 'food_diningbanners');
+export const FoodDiningBanner = mongoose.model('FoodDiningBanner', foodDiningBannerSchema, 'food_dining_banners');
 

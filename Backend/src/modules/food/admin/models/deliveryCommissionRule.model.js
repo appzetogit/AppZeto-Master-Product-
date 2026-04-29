@@ -14,5 +14,5 @@ const deliveryCommissionRuleSchema = new mongoose.Schema(
 
 deliveryCommissionRuleSchema.index({ createdAt: -1 });
 
-export const FoodDeliveryCommissionRule = mongoose.model('FoodDeliveryCommissionRule', deliveryCommissionRuleSchema, 'food_deliverycommissionrules');
+export const FoodDeliveryCommissionRule = mongoose.model('FoodDeliveryCommissionRule', deliveryCommissionRuleSchema, 'food_delivery_commission_rules');
 

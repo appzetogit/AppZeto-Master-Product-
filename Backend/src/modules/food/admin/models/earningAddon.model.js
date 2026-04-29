@@ -17,5 +17,5 @@ const earningAddonSchema = new mongoose.Schema(
 
 earningAddonSchema.index({ status: 1, startDate: 1, endDate: 1 });
 
-export const FoodEarningAddon = mongoose.model('FoodEarningAddon', earningAddonSchema, 'food_earningaddons');
+export const FoodEarningAddon = mongoose.model('FoodEarningAddon', earningAddonSchema, 'food_earning_addons');
 

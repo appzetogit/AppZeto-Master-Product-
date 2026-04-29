@@ -20,4 +20,4 @@ const adminWalletSchema = new mongoose.Schema(
     { collection: 'food_admin_wallets', timestamps: true }
 );
 
-export const FoodAdminWallet = mongoose.model('FoodAdminWallet', adminWalletSchema, 'food_adminwallets');
+export const FoodAdminWallet = mongoose.model('FoodAdminWallet', adminWalletSchema, 'food_admin_wallets');

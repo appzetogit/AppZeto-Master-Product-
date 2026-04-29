@@ -30,4 +30,4 @@ const deliveryWalletSchema = new mongoose.Schema(
     { collection: 'food_delivery_wallets', timestamps: true }
 );
 
-export const FoodDeliveryWallet = mongoose.model('FoodDeliveryWallet', deliveryWalletSchema, 'food_deliverywallets');
+export const FoodDeliveryWallet = mongoose.model('FoodDeliveryWallet', deliveryWalletSchema, 'food_delivery_wallets');

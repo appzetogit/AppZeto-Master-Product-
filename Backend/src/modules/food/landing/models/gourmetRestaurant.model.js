@@ -31,5 +31,5 @@ const foodGourmetRestaurantSchema = new mongoose.Schema(
 foodGourmetRestaurantSchema.index({ restaurantId: 1 });
 foodGourmetRestaurantSchema.index({ isActive: 1, priority: 1 });
 
-export const FoodGourmetRestaurant = mongoose.model('FoodGourmetRestaurant', foodGourmetRestaurantSchema, 'food_gourmetrestaurants');
+export const FoodGourmetRestaurant = mongoose.model('FoodGourmetRestaurant', foodGourmetRestaurantSchema, 'food_gourmet_restaurants');
 

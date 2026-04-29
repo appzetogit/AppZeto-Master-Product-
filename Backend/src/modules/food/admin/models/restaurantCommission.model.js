@@ -24,5 +24,5 @@ const restaurantCommissionSchema = new mongoose.Schema(
 );
 
 
-export const FoodRestaurantCommission = mongoose.model('FoodRestaurantCommission', restaurantCommissionSchema, 'food_restaurantcommissions');
+export const FoodRestaurantCommission = mongoose.model('FoodRestaurantCommission', restaurantCommissionSchema, 'food_restaurant_commissions');
 

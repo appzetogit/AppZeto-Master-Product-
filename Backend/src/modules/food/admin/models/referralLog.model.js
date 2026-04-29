@@ -26,5 +26,5 @@ const referralLogSchema = new mongoose.Schema(
 referralLogSchema.index({ refereeId: 1, role: 1 }, { unique: true });
 referralLogSchema.index({ referrerId: 1, role: 1, createdAt: -1 });
 
-export const FoodReferralLog = mongoose.model('FoodReferralLog', referralLogSchema, 'food_referrallogs');
+export const FoodReferralLog = mongoose.model('FoodReferralLog', referralLogSchema, 'food_referral_logs');
 

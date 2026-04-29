@@ -12,4 +12,4 @@ const foodOfferUsageSchema = new mongoose.Schema(
 
 foodOfferUsageSchema.index({ offerId: 1, userId: 1 }, { unique: true });
 
-export const FoodOfferUsage = mongoose.model('FoodOfferUsage', foodOfferUsageSchema, 'food_offerusages');
+export const FoodOfferUsage = mongoose.model('FoodOfferUsage', foodOfferUsageSchema, 'food_offer_usages');

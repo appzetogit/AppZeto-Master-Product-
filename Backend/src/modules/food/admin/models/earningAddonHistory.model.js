@@ -26,5 +26,5 @@ const earningAddonHistorySchema = new mongoose.Schema(
 earningAddonHistorySchema.index({ deliveryPartnerId: 1, completedAt: -1 });
 earningAddonHistorySchema.index({ offerId: 1, deliveryPartnerId: 1, status: 1 });
 
-export const FoodEarningAddonHistory = mongoose.model('FoodEarningAddonHistory', earningAddonHistorySchema, 'food_earningaddonhistories');
+export const FoodEarningAddonHistory = mongoose.model('FoodEarningAddonHistory', earningAddonHistorySchema, 'food_earning_addon_history');
 

@@ -652,7 +652,7 @@ export const getAdminOrders = async (req, res) => {
         .filter(item => item.type === 'quick')
         .map(item => String(item.sourceId))
     )
-  )].filter(Boolean);
+  )].filter(id => mongoose.Types.ObjectId.isValid(id));
 
   const sellers = await Seller.find({ _id: { $in: sellerIds } })
     .select('_id shopName name')

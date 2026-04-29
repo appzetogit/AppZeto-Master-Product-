@@ -7,6 +7,7 @@ import { QuickProduct } from '../models/product.model.js';
 import { Seller } from '../seller/models/seller.model.js';
 import { SellerOrder } from '../seller/models/sellerOrder.model.js';
 import { getSellerCommissionSnapshot } from '../admin/services/commission.service.js';
+import * as foodTransactionService from '../../food/orders/services/foodTransaction.service.js';
 
 const approvedProductFilter = {
   $or: [
@@ -231,6 +232,9 @@ export const placeOrder = async (req, res) => {
     const shouldFanOutSellerOrders = !isOnlinePayment;
     const deliveryAddress = normalizeDeliveryAddress(req.body?.address);
 
+    // Calculate rider earning (using base payout if distance is unknown/short)
+    const riderEarning = await foodTransactionService.getRiderEarning(0.1); 
+
     const order = await QuickOrder.create({
       orderType: 'quick',
       orderId: orderNumber,
@@ -265,6 +269,8 @@ export const placeOrder = async (req, res) => {
         amountDue: total,
       },
       orderStatus: 'placed',
+      riderEarning: riderEarning || 0,
+      platformProfit: Math.max(0, deliveryFee - (riderEarning || 0)), // Initial guess, will be updated with commission
       statusHistory: [
         {
           byRole: 'SYSTEM',
@@ -341,11 +347,18 @@ export const placeOrder = async (req, res) => {
     
     // Update the main order with the total commission
     if (totalSellerCommission > 0) {
+      const platformProfit = Math.max(0, deliveryFee + totalSellerCommission - (riderEarning || 0));
       await QuickOrder.updateOne(
         { _id: order._id },
-        { $set: { 'pricing.restaurantCommission': totalSellerCommission } }
+        { 
+          $set: { 
+            'pricing.restaurantCommission': totalSellerCommission,
+            platformProfit: platformProfit
+          } 
+        }
       );
       order.pricing.restaurantCommission = totalSellerCommission;
+      order.platformProfit = platformProfit;
     }
 
     const sellerOrders = sellerOrdersResults;

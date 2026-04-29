@@ -1,10 +1,15 @@
 import { FoodTransaction } from '../models/foodTransaction.model.js';
 import { FoodRestaurantCommission } from '../../admin/models/restaurantCommission.model.js';
+import { FoodDeliveryCommissionRule } from '../../admin/models/deliveryCommissionRule.model.js';
 import mongoose from 'mongoose';
 
 const RESTAURANT_COMMISSION_CACHE_MS = 60 * 1000;
 let restaurantCommissionRulesCache = null;
 let restaurantCommissionRulesLoadedAt = 0;
+
+const DELIVERY_COMMISSION_CACHE_MS = 10 * 1000;
+let deliveryCommissionRulesCache = null;
+let deliveryCommissionRulesLoadedAt = 0;
 
 async function getActiveRestaurantCommissionRules() {
   const now = Date.now();
@@ -78,6 +83,53 @@ export async function getRestaurantCommissionSnapshot(orderDoc) {
   }
 
   return computeRestaurantCommissionAmount(baseAmount, rule);
+}
+
+export async function getActiveCommissionRules() {
+  const now = Date.now();
+  if (
+    deliveryCommissionRulesCache &&
+    now - deliveryCommissionRulesLoadedAt < DELIVERY_COMMISSION_CACHE_MS
+  ) {
+    return deliveryCommissionRulesCache;
+  }
+  const list = await FoodDeliveryCommissionRule.find({
+    status: { $ne: false },
+  }).lean();
+  deliveryCommissionRulesCache = list || [];
+  deliveryCommissionRulesLoadedAt = now;
+  return deliveryCommissionRulesCache;
+}
+
+export async function getRiderEarning(distanceKm) {
+  const d = Number(distanceKm);
+  if (!Number.isFinite(d) || d < 0) return 0;
+  const rules = await getActiveCommissionRules();
+  if (!rules.length) return 0;
+
+  const sorted = [...rules].sort(
+    (a, b) => (a.minDistance || 0) - (b.minDistance || 0),
+  );
+  const baseRule = sorted.find((r) => Number(r.minDistance || 0) === 0) || null;
+  if (!baseRule) return 0;
+
+  let earning = Number(baseRule.basePayout || 0);
+
+  for (const r of sorted) {
+    const perKm = Number(r.commissionPerKm || 0);
+    if (!Number.isFinite(perKm) || perKm <= 0) continue;
+    const min = Number(r.minDistance || 0);
+    const max = r.maxDistance == null ? null : Number(r.maxDistance);
+    if (d <= min) continue;
+    const upper = max == null ? d : Math.min(d, max);
+    const kmInSlab = Math.max(0, upper - min);
+    if (kmInSlab > 0) {
+      earning += kmInSlab * perKm;
+    }
+  }
+
+  if (!Number.isFinite(earning) || earning <= 0) return 0;
+  return Math.round(earning);
 }
 
 /**

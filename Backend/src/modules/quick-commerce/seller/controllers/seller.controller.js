@@ -1376,6 +1376,8 @@ export const updateSellerOrderStatusController = async (req, res) => {
                 ? "delivered"
                 : "placed";
 
+    const isDeliveringNow = nextStatus === "delivered" && previousSellerStatus !== "delivered";
+
     const parentOrder = await resolveParentQuickOrder(order, { populateUser: false })
       ?.select("_id orderId orderType orderStatus dispatch restaurantId")
       .lean();
@@ -1487,6 +1489,35 @@ export const updateSellerOrderStatusController = async (req, res) => {
             `Seller quick-order dispatch trigger failed for ${order.orderId}: ${dispatchError?.message || dispatchError}`,
           );
         }
+      }
+    }
+
+    if (isDeliveringNow) {
+      try {
+        const existingTx = await SellerTransaction.findOne({
+          sellerId,
+          orderId: order.orderId,
+          type: "Order Payment",
+        });
+
+        if (!existingTx) {
+          const subtotal = num(order.pricing?.subtotal);
+          const commission = num(order.pricing?.commission);
+          const netEarning = Math.max(0, subtotal - commission);
+
+          await SellerTransaction.create({
+            sellerId,
+            type: "Order Payment",
+            amount: netEarning,
+            status: "Settled",
+            reference: `PAY-${order.orderId}`,
+            orderId: order.orderId,
+            customer: order.customer?.name || "Customer",
+          });
+          logger.info(`[Payout] Created transaction for seller ${sellerId}, order ${order.orderId}, net: ${netEarning}`);
+        }
+      } catch (txError) {
+        logger.error(`[Payout] Failed to create transaction for order ${order.orderId}: ${txError.message}`);
       }
     }
 
@@ -1682,13 +1713,20 @@ export const rejectSellerReturnController = async (req, res) => {
 export const getSellerEarningsController = async (req, res) => {
   try {
     const sellerId = sellerScope(req);
-    const transactions = await SellerTransaction.find({ sellerId })
-      .sort({ createdAt: -1 })
-      .lean();
+    const [transactions, orders] = await Promise.all([
+      SellerTransaction.find({ sellerId }).sort({ createdAt: -1 }).lean(),
+      SellerOrder.find({ sellerId, status: "delivered" }).select("pricing").lean(),
+    ]);
 
-    const totalRevenue = transactions
+    const totalNetEarnings = transactions
       .filter((item) => item.type === "Order Payment")
       .reduce((sum, item) => sum + num(item.amount), 0);
+    
+    const grossSales = orders.reduce((sum, o) => sum + num(o.pricing?.total), 0);
+    const totalCommission = orders.reduce((sum, o) => sum + num(o.pricing?.commission), 0);
+    const subtotal = orders.reduce((sum, o) => sum + num(o.pricing?.subtotal), 0);
+    const deliveryFees = grossSales - subtotal;
+
     const totalWithdrawn = transactions
       .filter(
         (item) => item.type === "Withdrawal" && item.status === "Settled",
@@ -1703,7 +1741,11 @@ export const getSellerEarningsController = async (req, res) => {
       .reduce((sum, item) => sum + Math.abs(num(item.amount)), 0);
 
     const balances = {
-      totalRevenue,
+      totalRevenue: totalNetEarnings, // Keeping field name for backward compatibility
+      totalNetEarnings,
+      grossSales,
+      totalCommission,
+      deliveryFees,
       totalWithdrawn,
       settledBalance: availableWithdrawalBalance(transactions),
       pendingPayouts,

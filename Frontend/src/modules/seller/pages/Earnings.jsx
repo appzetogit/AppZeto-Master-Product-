@@ -124,17 +124,18 @@ const Earnings = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <BlurFade delay={0.2}>
-          <Card className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white border-none shadow-lg h-full">
+          <Card className="bg-gradient-to-br from-indigo-600 to-blue-700 text-white border-none shadow-lg h-full">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-emerald-100 font-medium">Total Revenue</p>
-                <h3 className="text-4xl font-bold mt-2">₹{Number(data?.balances?.totalRevenue ?? 0).toLocaleString()}</h3>
+                <p className="text-indigo-100 font-medium">Total Net Earnings</p>
+                <h3 className="text-4xl font-bold mt-2">₹{Number(data?.balances?.totalNetEarnings ?? 0).toLocaleString()}</h3>
+                <p className="text-xs text-indigo-200 mt-2">After all deductions</p>
               </div>
               <div className="p-3 bg-white/20 rounded-xl">
                 <DollarSign className="h-8 w-8 text-white" />
               </div>
             </div>
-            <div className="mt-8 flex items-center text-emerald-100 bg-white/10 w-fit px-3 py-1 rounded-full text-sm">
+            <div className="mt-8 flex items-center text-indigo-100 bg-white/10 w-fit px-3 py-1 rounded-full text-sm">
               <TrendingUp className="mr-2" />
               <span>Real-time earnings data</span>
             </div>
@@ -144,31 +145,84 @@ const Earnings = () => {
         <BlurFade delay={0.3}>
           <Card className="h-full border-none shadow-md bg-white p-6 flex flex-col justify-between group hover:shadow-xl transition-all duration-300">
             <div className="flex justify-between items-start">
+              <div className="w-full">
+                <p className="text-xs font-black text-slate-600 uppercase tracking-widest mb-4">
+                  Earnings Breakdown
+                </p>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-500 font-medium">Gross Sales (Incl. Delivery)</span>
+                    <span className="text-slate-900 font-bold">₹{Number(data?.balances?.grossSales ?? 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-500 font-medium">Admin Commission</span>
+                    <span className="text-rose-500 font-bold">- ₹{Number(data?.balances?.totalCommission ?? 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-500 font-medium">Delivery Charges</span>
+                    <span className="text-rose-500 font-bold">- ₹{Number(data?.balances?.deliveryFees ?? 0).toLocaleString()}</span>
+                  </div>
+                  <div className="pt-2 border-t border-slate-100 flex justify-between items-center">
+                    <span className="text-slate-900 font-black">Net Payout</span>
+                    <span className="text-emerald-600 font-black">₹{Number(data?.balances?.totalNetEarnings ?? 0).toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </BlurFade>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <BlurFade delay={0.35}>
+          <Card className="border-none shadow-md bg-white p-6 group hover:shadow-xl transition-all duration-300">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <p className="text-xs font-black text-slate-600 uppercase tracking-widest mb-1">
+                  Available to Withdraw
+                </p>
+                <h2 className="text-2xl font-black text-emerald-600 tracking-tight">
+                  ₹{Number(data?.balances?.settledBalance ?? 0).toLocaleString()}
+                </h2>
+              </div>
+              <div className="p-2 bg-emerald-50 rounded-lg">
+                <ArrowDownToLine className="h-5 w-5 text-emerald-600" />
+              </div>
+            </div>
+          </Card>
+        </BlurFade>
+
+        <BlurFade delay={0.4}>
+          <Card className="border-none shadow-md bg-white p-6 group hover:shadow-xl transition-all duration-300">
+            <div className="flex justify-between items-start mb-4">
               <div>
                 <p className="text-xs font-black text-slate-600 uppercase tracking-widest mb-1">
                   Total Withdrawn
                 </p>
-                <h2 className="text-3xl font-black text-slate-900 tracking-tight">
+                <h2 className="text-2xl font-black text-slate-900 tracking-tight">
                   ₹{Number(data?.balances?.totalWithdrawn ?? 0).toLocaleString()}
                 </h2>
               </div>
-              <div className="p-3 bg-indigo-50 rounded-lg group-hover:scale-110 transition-transform duration-300">
-                <Banknote className="h-6 w-6 text-indigo-500" />
+              <div className="p-2 bg-indigo-50 rounded-lg">
+                <Banknote className="h-5 w-5 text-indigo-500" />
               </div>
             </div>
-            <div className="mt-4">
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-xs">
-                  <ArrowDownToLine className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-slate-600 uppercase">
-                    Available to Withdraw
-                  </p>
-                  <p className="text-xs font-black text-slate-900">
-                    ₹{Number(data?.balances?.settledBalance ?? 0).toLocaleString()}
-                  </p>
-                </div>
+          </Card>
+        </BlurFade>
+
+        <BlurFade delay={0.45}>
+          <Card className="border-none shadow-md bg-white p-6 group hover:shadow-xl transition-all duration-300">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <p className="text-xs font-black text-slate-600 uppercase tracking-widest mb-1">
+                  Pending Payouts
+                </p>
+                <h2 className="text-2xl font-black text-amber-600 tracking-tight">
+                  ₹{Number(data?.balances?.pendingPayouts ?? 0).toLocaleString()}
+                </h2>
+              </div>
+              <div className="p-2 bg-amber-50 rounded-lg">
+                <BarChart3 className="h-5 w-5 text-amber-500" />
               </div>
             </div>
           </Card>

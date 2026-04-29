@@ -3992,6 +3992,7 @@ export async function getPaymentStatus(orderId, deliveryPartnerId) {
 export async function listOrdersAdmin(query) {
   const { page, limit, skip } = buildPaginationOptions(query);
   const filter = {
+    orderType: { $in: ["food", "mixed"] },
     $or: [
       { "payment.method": { $in: ["cash", "wallet"] } },
       { "payment.status": { $in: ["paid", "authorized", "captured", "settled", "refunded"] } },
@@ -4259,6 +4260,48 @@ export async function recoverStuckOrders() {
     logger.error(`Watchdog Error during recovery: ${err.message}`);
   }
 }
+
+/**
+ * 🆕 Resync State Helper:
+ * - When a client reconnects, they call this to get their active order state.
+ * - For Delivery Partners: returns the current trip details.
+ * - For Users: returns the most recent active order being prepared or delivered.
+ */
+export async function resyncState(userId, role) {
+  if (!userId || !role) return { activeOrder: null };
+
+  let activeOrder = null;
+
+  try {
+    const roleUpper = String(role).toUpperCase();
+    
+    if (roleUpper === 'DELIVERY_PARTNER') {
+      activeOrder = await getCurrentTripDelivery(userId);
+    } else if (roleUpper === 'USER') {
+      const order = await FoodOrder.findOne({
+        userId: new mongoose.Types.ObjectId(userId),
+        orderStatus: {
+          $in: ["placed", "created", "confirmed", "preparing", "ready_for_pickup", "picked_up", "reached_pickup", "reached_drop"]
+        }
+      })
+      .populate({ path: "restaurantId", select: "restaurantName name phone location addressLine1 area city state profileImage" })
+      .sort({ createdAt: -1 })
+      .lean();
+
+      if (order) {
+        activeOrder = normalizeOrderForClient(order);
+        if (order.deliveryVerification?.dropOtp?.required && !order.deliveryVerification?.dropOtp?.verified) {
+          activeOrder.handoverOtp = order.deliveryOtp;
+        }
+      }
+    }
+  } catch (err) {
+    logger.error(`resyncState failed for ${role}:${userId} — ${err.message}`);
+  }
+
+  return { activeOrder };
+}
+
 
 
 

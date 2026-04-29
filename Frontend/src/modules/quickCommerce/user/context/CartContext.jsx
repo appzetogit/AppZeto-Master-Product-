@@ -128,7 +128,7 @@ const persistQuickCartSnapshot = (items) => {
   }
 };
 
-const useStandaloneQuickCart = () => {
+const useStandaloneQuickCart = (isBridged = false) => {
   const { isAuthenticated } = useAuth();
   const [cart, setCart] = useState(() => readStoredQuickCart());
 
@@ -202,8 +202,10 @@ const useStandaloneQuickCart = () => {
   }, [isAuthenticated]);
 
   useEffect(() => {
-    persistQuickCartSnapshot(cart);
-  }, [cart]);
+    if (!isBridged) {
+      persistQuickCartSnapshot(cart);
+    }
+  }, [cart, isBridged]);
 
   const addToCart = async (product) => {
     const id = getProductId(product);
@@ -331,9 +333,10 @@ const useStandaloneQuickCart = () => {
 };
 
 export const CartProvider = ({ children }) => {
+  const { isAuthenticated } = useAuth();
   const foodCart = useFoodCart();
-  const standaloneCart = useStandaloneQuickCart();
   const isUsingFoodCart = foodCart?._isProvider === true;
+  const standaloneCart = useStandaloneQuickCart(isUsingFoodCart);
 
   const quickItemsFromFoodCart = useMemo(
     () => (Array.isArray(foodCart?.cart) ? foodCart.cart.filter(isQuickCartItem) : []),
@@ -366,6 +369,17 @@ export const CartProvider = ({ children }) => {
 
       persistQuickCartSnapshot(nextQuickItems);
       foodCart.addToCart(normalizedProduct);
+
+      if (isAuthenticated) {
+        try {
+          await customerApi.addToCart({
+            productId: normalizedProduct.id,
+            quantity: 1,
+          });
+        } catch (error) {
+          console.error("Failed to sync bridged addToCart to backend", error);
+        }
+      }
     };
 
     const removeFromCart = async (productId) => {
@@ -376,6 +390,14 @@ export const CartProvider = ({ children }) => {
       );
       persistQuickCartSnapshot(nextQuickItems);
       foodCart.removeFromCart(resolvedProductId);
+
+      if (isAuthenticated) {
+        try {
+          await customerApi.removeFromCart(resolvedProductId);
+        } catch (error) {
+          console.error("Failed to sync bridged removeFromCart to backend", error);
+        }
+      }
     };
 
     const updateQuantity = async (productId, delta) => {
@@ -396,11 +418,34 @@ export const CartProvider = ({ children }) => {
             );
       persistQuickCartSnapshot(nextQuickItems);
       foodCart.updateQuantity(resolvedProductId, nextQuantity);
+
+      if (isAuthenticated) {
+        try {
+          if (nextQuantity === 0) {
+            await customerApi.removeFromCart(resolvedProductId);
+          } else {
+            await customerApi.updateCartQuantity({
+              productId: resolvedProductId,
+              quantity: nextQuantity,
+            });
+          }
+        } catch (error) {
+          console.error("Failed to sync bridged updateQuantity to backend", error);
+        }
+      }
     };
 
     const clearCart = async () => {
       persistQuickCartSnapshot([]);
       foodCart.clearCart();
+
+      if (isAuthenticated) {
+        try {
+          await customerApi.clearCart();
+        } catch (error) {
+          console.error("Failed to sync bridged clearCart to backend", error);
+        }
+      }
     };
 
     return {

@@ -100,6 +100,52 @@ const normalizeRestaurantTime = (value) => {
     return '';
 };
 
+const isPointInPolygon = (lat, lng, polygon) => {
+    if (!Array.isArray(polygon) || polygon.length < 3) return false;
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const xi = polygon[i].longitude;
+        const yi = polygon[i].latitude;
+        const xj = polygon[j].longitude;
+        const yj = polygon[j].latitude;
+        const intersect =
+            yi > lat !== yj > lat &&
+            lng < ((xj - xi) * (lat - yi)) / (yj - yi + 0.0) + xi;
+        if (intersect) inside = !inside;
+    }
+    return inside;
+};
+
+const detectZoneFromPartner = (partner, zones) => {
+    let detectedZone = null;
+    if (partner.lastLat && partner.lastLng) {
+        const match = zones.find(z => isPointInPolygon(partner.lastLat, partner.lastLng, z.coordinates));
+        if (match) detectedZone = match.zoneName || match.name;
+    }
+    
+    if (!detectedZone) {
+        const city = (partner.city || '').trim().toLowerCase();
+        const state = (partner.state || '').trim().toLowerCase();
+        const address = (partner.address || '').trim().toLowerCase();
+        const locStr = `${city} ${state} ${address}`;
+
+        const match = zones.find(z => {
+            const zName = (z.name || '').toLowerCase();
+            const zZoneName = (z.zoneName || '').toLowerCase();
+            const zLoc = (z.serviceLocation || '').toLowerCase();
+            
+            if (city && (zName === city || zZoneName === city || zLoc === city)) return true;
+            if (zName && locStr.includes(zName)) return true;
+            if (zZoneName && locStr.includes(zZoneName)) return true;
+            if (zLoc && locStr.includes(zLoc)) return true;
+            return false;
+        });
+        
+        if (match) detectedZone = match.zoneName || match.name;
+    }
+    return detectedZone;
+};
+
 const timeToMinutes = (value) => {
     const normalized = normalizeRestaurantTime(value);
     if (!normalized) return null;
@@ -3484,36 +3530,9 @@ export async function getDeliveryJoinRequests(query) {
     // Fetch all active zones for detection
     const zones = await FoodZone.find({ isActive: true }).lean();
 
-    const isPointInPolygon = (lat, lng, polygon) => {
-        if (!Array.isArray(polygon) || polygon.length < 3) return false;
-        let inside = false;
-        for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-            const xi = polygon[i].longitude;
-            const yi = polygon[i].latitude;
-            const xj = polygon[j].longitude;
-            const yj = polygon[j].latitude;
-            const intersect =
-                yi > lat !== yj > lat &&
-                lng < ((xj - xi) * (lat - yi)) / (yj - yi + 0.0) + xi;
-            if (intersect) inside = !inside;
-        }
-        return inside;
-    };
-
     let requests = list.map((doc) => {
-        let detectedZone = null;
-        if (doc.lastLat && doc.lastLng) {
-            const match = zones.find(z => isPointInPolygon(doc.lastLat, doc.lastLng, z.coordinates));
-            if (match) detectedZone = match.name;
-        }
+        const detectedZone = detectZoneFromPartner(doc, zones);
         
-        // Fallback to city/address matching if no coord match or no coords
-        if (!detectedZone) {
-            const locStr = `${doc.city || ''} ${doc.state || ''} ${doc.address || ''}`.toLowerCase();
-            const match = zones.find(z => locStr.includes(z.name.toLowerCase()));
-            if (match) detectedZone = match.name;
-        }
-
         return {
             ...doc,
             detectedZoneName: detectedZone || doc.city || doc.state || 'N/A'
@@ -3534,6 +3553,7 @@ export async function getDeliveryJoinRequests(query) {
         name: doc.name || '',
         email: doc.email || '',
         phone: doc.phone || '',
+        city: doc.city || '',
         zone: doc.detectedZoneName,
         vehicleType: doc.vehicleType || '',
         status: doc.status === 'rejected' ? 'denied' : doc.status,
@@ -3685,20 +3705,27 @@ export async function getDeliveryPartners(query) {
 
     const countsMap = new Map(orderCountsAgg.map(item => [item._id.toString(), item.totalOrders]));
 
-    const deliveryPartners = list.map((doc, index) => ({
-        _id: doc._id,
-        sl: skip + index + 1,
-        name: doc.name || '',
-        email: doc.email || '',
-        phone: doc.phone || '',
-        deliveryId: doc._id ? `DP-${doc._id.toString().slice(-8).toUpperCase()}` : null,
-        zone: doc.city || doc.state || doc.address || '',
-        vehicleType: doc.vehicleType || '',
-        status: doc.status,
-        profilePhoto: doc.profilePhoto || null,
-        profileImage: doc.profilePhoto ? { url: doc.profilePhoto } : null,
-        totalOrders: countsMap.get(doc._id.toString()) || 0
-    }));
+    // Fetch zones for detection
+    const zones = await FoodZone.find({ isActive: true }).lean();
+
+    const deliveryPartners = list.map((doc, index) => {
+        const detectedZone = detectZoneFromPartner(doc, zones);
+        return {
+            _id: doc._id,
+            sl: skip + index + 1,
+            name: doc.name || '',
+            email: doc.email || '',
+            phone: doc.phone || '',
+            city: doc.city || '',
+            deliveryId: doc._id ? `DP-${doc._id.toString().slice(-8).toUpperCase()}` : null,
+            zone: detectedZone || doc.city || doc.state || doc.address || 'N/A',
+            vehicleType: doc.vehicleType || '',
+            status: doc.status,
+            profilePhoto: doc.profilePhoto || null,
+            profileImage: doc.profilePhoto ? { url: doc.profilePhoto } : null,
+            totalOrders: countsMap.get(doc._id.toString()) || 0
+        };
+    });
 
     return {
         deliveryPartners,
@@ -4002,11 +4029,16 @@ export async function getEarningAddons() {
         const end = a.endDate ? new Date(a.endDate).getTime() : 0;
         const isValid = Boolean(a.status === 'active' && start && end && now >= start && now <= end);
         const isExpired = Boolean(end && now > end);
+        const isUpcoming = Boolean(start && now < start);
+
+        let status = a.status || 'inactive';
+        if (isExpired) status = 'expired';
+        else if (isUpcoming && a.status === 'active') status = 'upcoming';
 
         return {
             ...a,
             isValid,
-            status: isExpired ? 'expired' : (a.status || 'inactive')
+            status
         };
     });
 
@@ -4282,11 +4314,16 @@ export async function checkEarningAddonCompletions(deliveryPartnerId, _force = f
 export async function getDeliveryPartnerById(id) {
     const partner = await FoodDeliveryPartner.findById(id).lean();
     if (!partner) return null;
+
+    const zones = await FoodZone.find({ isActive: true }).lean();
+    const detectedZone = detectZoneFromPartner(partner, zones);
+
     const deliveryId = partner._id ? `DP-${partner._id.toString().slice(-8).toUpperCase()}` : null;
     return {
         ...partner,
         email: partner.email || null,
         deliveryId,
+        detectedZone: detectedZone || partner.city || partner.state || 'N/A',
         status: partner.status === 'rejected' ? 'blocked' : partner.status,
         profileImage: partner.profilePhoto ? { url: partner.profilePhoto } : null,
         documents: {

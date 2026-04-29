@@ -325,7 +325,7 @@ export default function SafetyEmergencyReports() {
                       <span className="text-sm font-medium text-slate-900">{report.userName}</span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm text-slate-700">{report.userEmail}</span>
+                      <span className="text-sm text-slate-700">{report.userEmail || "NA"}</span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {getPriorityBadge(report.priority)}
@@ -464,11 +464,11 @@ export default function SafetyEmergencyReports() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">User Name</label>
-                    <p className="text-base font-semibold text-slate-900 dark:text-white">{selectedReport.userName || 'N/A'}</p>
+                    <p className="text-base font-semibold text-slate-900 dark:text-white">{selectedReport.userName || 'NA'}</p>
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Email Address</label>
-                    <p className="text-base font-semibold text-slate-900 dark:text-white break-all">{selectedReport.userEmail || 'N/A'}</p>
+                    <p className="text-base font-semibold text-slate-900 dark:text-white break-all">{selectedReport.userEmail || 'NA'}</p>
                   </div>
                   {selectedReport.userId?.phone && (
                     <div className="space-y-1">

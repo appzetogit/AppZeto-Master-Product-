@@ -371,6 +371,12 @@ export default function JoinRequest() {
                     </th>
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
                       <div className="flex items-center gap-2">
+                        <span>City</span>
+                        <ArrowUpDown className="w-3 h-3 text-slate-400 cursor-pointer hover:text-slate-600" />
+                      </div>
+                    </th>
+                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
+                      <div className="flex items-center gap-2">
                         <span>Vehicle Type</span>
                         <ArrowUpDown className="w-3 h-3 text-slate-400 cursor-pointer hover:text-slate-600" />
                       </div>
@@ -433,6 +439,9 @@ export default function JoinRequest() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="text-sm text-slate-700">{request.zone}</span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="text-sm text-slate-700">{request.city || 'N/A'}</span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="text-sm text-slate-700">{request.vehicleType}</span>
@@ -685,6 +694,12 @@ export default function JoinRequest() {
                         <div>
                           <label className="text-xs font-semibold text-slate-500 uppercase">Area</label>
                           <p className="text-sm text-slate-900 mt-1">{viewDetails.location.area}</p>
+                        </div>
+                      )}
+                      {viewDetails.detectedZone && (
+                        <div>
+                          <label className="text-xs font-semibold text-slate-500 uppercase">Detected Zone</label>
+                          <p className="text-sm text-slate-900 mt-1 font-medium">{viewDetails.detectedZone}</p>
                         </div>
                       )}
                       {viewDetails.location.city && (

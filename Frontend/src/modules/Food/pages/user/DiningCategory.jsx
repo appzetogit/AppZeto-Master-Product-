@@ -71,7 +71,9 @@ export default function DiningCategory() {
         )
 
         if (response?.data?.success) {
-          const mapped = (Array.isArray(response.data.data) ? response.data.data : []).map((restaurant) => {
+          const mapped = (Array.isArray(response.data.data) ? response.data.data : [])
+            .filter((r) => r?.diningSettings?.isEnabled !== false && r?.isAcceptingOrders !== false)
+            .map((restaurant) => {
             const availability = getRestaurantAvailabilityStatus(restaurant)
             return {
               id: restaurant._id || restaurant.id,

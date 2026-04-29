@@ -167,7 +167,8 @@ export const useOrderManager = () => {
   /**
    * Finalize Delivery with OTP Check
    */
-  const completeDelivery = async (otp) => {
+  const completeDelivery = async (otp, options = {}) => {
+    const { paymentMode } = options;
     const orderId = activeOrder?.orderId;
     try {
       // 1. Verify OTP first
@@ -178,7 +179,11 @@ export const useOrderManager = () => {
         
         try {
           // 2. Mark as complete
-          const completeRes = await deliveryAPI.completeDelivery(orderId, { otp, rating: 5 });
+          const completeRes = await deliveryAPI.completeDelivery(orderId, { 
+            otp, 
+            rating: 5,
+            paymentMode
+          });
           if (completeRes.data?.success && completeRes.data?.data?.order) {
             finalOrder = completeRes.data.data.order;
           }

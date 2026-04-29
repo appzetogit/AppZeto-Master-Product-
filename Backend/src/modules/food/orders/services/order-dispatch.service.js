@@ -199,7 +199,7 @@ export async function tryAutoAssign(orderId, options = {}) {
         attempt: attempt + 1
       }, { delay: 30000 }); // Retry faster (30s) if no one found
 
-      return order;
+      return { ...order.toObject(), notifiedCount: 0 };
     }
 
     const io = getIO();
@@ -252,7 +252,7 @@ export async function tryAutoAssign(orderId, options = {}) {
       attempt: attempt + 1
     }, { delay: 60000 });
 
-    return order;
+    return { ...order.toObject(), notifiedCount: eligible.length };
   } finally {
     await FoodOrder.findByIdAndUpdate(orderId, {
       $unset: { 'dispatch.dispatchingAt': '' },
@@ -313,6 +313,9 @@ export async function resendDeliveryNotificationRestaurant(orderId, restaurantId
   order.dispatch.offeredTo = [];
   await order.save();
 
-  await tryAutoAssign(order._id);
-  return { success: true };
+  const res = await tryAutoAssign(order._id, { attempt: 3 });
+  return { 
+    success: true, 
+    notifiedCount: res?.notifiedCount || 0 
+  };
 }

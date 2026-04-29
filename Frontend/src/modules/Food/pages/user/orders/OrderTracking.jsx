@@ -1454,9 +1454,8 @@ export default function OrderTracking() {
       // Show notification toast
       if (message) {
         toast.success(message, {
-          duration: 5000,
-          icon: '???',
-          position: 'top-center',
+          id: `order-status-${orderId}`,
+          duration: 4000,
           description: estimatedDeliveryTime
             ? `Estimated delivery in ${Math.round(estimatedDeliveryTime / 60)} minutes`
             : undefined
@@ -1464,7 +1463,7 @@ export default function OrderTracking() {
 
         // Optional: Vibrate device if supported
         if (navigator.vibrate) {
-          navigator.vibrate([200, 100, 200]);
+          navigator.vibrate([100]);
         }
       }
     };
@@ -2161,37 +2160,7 @@ export default function OrderTracking() {
 
       {/* Scrollable Content */}
       <div className="max-w-4xl mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-6 space-y-4 md:space-y-6 pb-24 md:pb-32">
-        {/* 1-minute cancellation window after admin acceptance */}
-        {isAdminAccepted && isEditWindowOpen && (
-          <motion.div
-            className="bg-white rounded-xl p-4 shadow-sm border border-orange-100"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.25 }}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold text-gray-900">
-                Cancel order
-              </p>
-              <span className={`text-sm font-bold px-2 py-1 rounded-md ${isEditWindowOpen ? 'bg-orange-50 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>
-                {isEditWindowOpen ? editWindowText : 'Expired'}
-              </span>
-            </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Available for 1 minute after admin acceptance.
-            </p>
-            <div className="mt-3">
-              <Button
-                type="button"
-                onClick={handleCancelOrder}
-                disabled={!isEditWindowOpen}
-                className="w-full bg-red-600 hover:bg-red-700 text-white"
-              >
-                Cancel Order
-              </Button>
-            </div>
-          </motion.div>
-        )}
+
 
         {customerDeliveryOtp && orderStatus !== 'delivered' && orderStatus !== 'cancelled' && (
           <motion.div
@@ -2332,7 +2301,7 @@ export default function OrderTracking() {
                 </motion.button>
               </div>
             ))}
-            {order?.note && (
+            {order?.note && !isDeliveredOrder && (
               <div className="bg-blue-50/50 p-3 mx-4 mb-4 rounded-lg flex items-start gap-2 border border-blue-100">
                 <MessageSquare className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
                 <div className="flex-1">
@@ -2345,31 +2314,35 @@ export default function OrderTracking() {
         )}
 
         {/* Delivery Partner Safety */}
-        <motion.button
-          className="w-full bg-white rounded-xl p-4 shadow-sm flex items-center gap-3"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          whileTap={{ scale: 0.99 }}
-        >
-          <Shield className="w-6 h-6 text-gray-600" />
-          <span className="flex-1 text-left font-medium text-gray-900">
-            Learn about delivery partner safety
-          </span>
-          <ChevronRight className="w-5 h-5 text-gray-400" />
-        </motion.button>
+        {!isDeliveredOrder && (
+          <motion.button
+            className="w-full bg-white rounded-xl p-4 shadow-sm flex items-center gap-3"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            whileTap={{ scale: 0.99 }}
+          >
+            <Shield className="w-6 h-6 text-gray-600" />
+            <span className="flex-1 text-left font-medium text-gray-900">
+              Learn about delivery partner safety
+            </span>
+            <ChevronRight className="w-5 h-5 text-gray-400" />
+          </motion.button>
+        )}
 
         {/* Delivery Details Banner */}
-        <motion.div
-          className="bg-yellow-50 rounded-xl p-4 text-center"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.65 }}
-        >
-          <p className="text-yellow-800 font-medium">
-            All your delivery details in one place ??
-          </p>
-        </motion.div>
+        {!isDeliveredOrder && (
+          <motion.div
+            className="bg-yellow-50 rounded-xl p-4 text-center"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.65 }}
+          >
+            <p className="text-yellow-800 font-medium">
+              All your delivery details in one place 🚀
+            </p>
+          </motion.div>
+        )}
 
         {/* Contact & Address Section */}
         <motion.div
@@ -2446,15 +2419,17 @@ export default function OrderTracking() {
             })()}
             showArrow={false}
           />
-          <SectionItem
-            icon={MessageSquare}
-            title={order?.note ? "Edit delivery instructions" : "Add delivery instructions"}
-            subtitle={order?.note ? order.note.substring(0, 35) + (order.note.length > 35 ? "..." : "") : ""}
-            onClick={() => {
-              setDeliveryInstructions(order?.note || "");
-              setIsInstructionsModalOpen(true);
-            }}
-          />
+          {!isDeliveredOrder && (
+            <SectionItem
+              icon={MessageSquare}
+              title={order?.note ? "Edit delivery instructions" : "Add delivery instructions"}
+              subtitle={order?.note ? order.note.substring(0, 35) + (order.note.length > 35 ? "..." : "") : ""}
+              onClick={() => {
+                setDeliveryInstructions(order?.note || "");
+                setIsInstructionsModalOpen(true);
+              }}
+            />
+          )}
         </motion.div>
 
         {/* Pickup Sources Section */}
@@ -2553,7 +2528,7 @@ export default function OrderTracking() {
           </div>
         </motion.div>
 
-        {!isAdminAccepted && orderStatus !== 'cancelled' && (
+        {!isAdminAccepted && !isDeliveredOrder && orderStatus !== 'cancelled' && (
           <motion.div
             className="bg-white rounded-xl shadow-sm overflow-hidden"
             initial={{ opacity: 0, y: 20 }}

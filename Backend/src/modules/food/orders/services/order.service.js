@@ -2438,6 +2438,9 @@ export async function cancelOrder(orderId, userId, reason, refundTo) {
       reason: reason || "",
       processedAt: null,
     };
+  } else if (!["paid", "refunded"].includes(order.payment.status)) {
+    // For COD or unpaid online orders, mark payment as cancelled
+    order.payment.status = "cancelled";
   }
 
   // User-cancelled online refunds are handled from admin so the 30-second policy can be enforced.
@@ -2706,6 +2709,11 @@ export async function updateOrderStatusRestaurant(
       
       title = "Order Cancelled ❌";
       body = `Unfortunately, your order has been cancelled by the restaurant.${refundDetail}`;
+      
+      // Update payment status for cancellation
+      if (!isOnlinePaid) {
+        order.payment.status = "cancelled";
+      }
     }
 
     const notifyList = [
@@ -2982,8 +2990,12 @@ export async function resendDeliveryNotificationRestaurant(orderId, restaurantId
         await notifySplitDispatchOffers(order);
     } else {
         // Trigger smart dispatch logic immediately
-        const { tryAutoAssign } = await import('./order.service.js');
-        await tryAutoAssign(order._id);
+        const { tryAutoAssign } = await import('./order-dispatch.service.js');
+        const dispatchRes = await tryAutoAssign(order._id, { attempt: 3 });
+        return { 
+          success: true, 
+          notifiedCount: dispatchRes?.notifiedCount || 0 
+        };
     }
 
     return { success: true };
@@ -3626,14 +3638,13 @@ export async function completeDelivery(orderId, deliveryPartnerId, body = {}) {
     throw new ForbiddenError("Not your order");
   }
 
-  const { otp, ratings } = body;
+  const { otp, ratings, paymentMode } = body;
 
-  // Inline verification if OTP is passed in body but not yet verified in DB
-  if (otp && order.deliveryVerification?.dropOtp?.required && !order.deliveryVerification?.dropOtp?.verified) {
-     // We can refetch with secret to verify, but for robustness against racing calls, 
-     // we assume the prior verify-otp call did its job. 
-     // If we really want security, we'd verify here too.
-     // For now, let's just proceed if 'verified' is false but OTP provided.
+  // Dynamically update payment method based on delivery partner selection
+  if (paymentMode === 'cash') {
+    order.payment.method = 'cash';
+  } else if (paymentMode === 'qr') {
+    order.payment.method = 'razorpay_qr';
   }
 
   if (

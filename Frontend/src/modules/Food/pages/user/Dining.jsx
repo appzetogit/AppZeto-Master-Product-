@@ -216,7 +216,12 @@ export default function Dining() {
 
   const normalizedRestaurantList = useMemo(() => {
     return (Array.isArray(restaurantList) ? restaurantList : [])
-      .filter((restaurant) => String(restaurant?.restaurantName || restaurant?.name || "").trim().length > 0)
+      .filter((restaurant) => {
+        const hasName = String(restaurant?.restaurantName || restaurant?.name || "").trim().length > 0
+        const isDiningEnabled = restaurant?.diningSettings?.isEnabled !== false
+        const isAcceptingOrders = restaurant?.isAcceptingOrders !== false
+        return hasName && isDiningEnabled && isAcceptingOrders
+      })
       .map((restaurant, index) => {
         const distanceKm = getDistanceKm(location, restaurant)
         const restaurantName = String(restaurant?.restaurantName || restaurant?.name || "").trim()
@@ -972,7 +977,7 @@ export default function Dining() {
                             {restaurant.offer && (
                               <div className="flex items-center gap-2 text-sm">
                                 <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#FFF1E8] px-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#EB590E]">
-                                  Off
+                                  Offer
                                 </span>
                                 <span className="text-gray-700 dark:text-gray-300 font-medium">{restaurant.offer}</span>
                               </div>
@@ -1164,7 +1169,7 @@ export default function Dining() {
                           {restaurant.offer && (
                             <div className="flex items-center gap-2 text-sm">
                               <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#FFF1E8] px-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#EB590E]">
-                                Off
+                                Offer
                               </span>
                               <span className="text-gray-700 dark:text-gray-300 font-medium">{restaurant.offer}</span>
                             </div>

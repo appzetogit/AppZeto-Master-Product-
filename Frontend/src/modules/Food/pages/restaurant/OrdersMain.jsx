@@ -21,6 +21,10 @@ import {
   Clock,
   Users,
   MessageSquare,
+  Check,
+  Phone,
+  Hash,
+  User,
 } from "lucide-react";
 import { toast } from "sonner";
 import BottomNavOrders from "@food/components/restaurant/BottomNavOrders";
@@ -552,36 +556,41 @@ function TableBookings() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let isMounted = true;
+  const fetchBookings = async () => {
+    try {
+      const res = await restaurantAPI.getCurrentRestaurant();
+      const restaurant =
+        res.data?.data?.restaurant || res.data?.restaurant || res.data?.data;
+      const restaurantId = restaurant?._id || restaurant?.id;
 
-    const fetchBookings = async () => {
-      try {
-        const res = await restaurantAPI.getCurrentRestaurant();
-        const restaurant =
-          res.data?.data?.restaurant || res.data?.restaurant || res.data?.data;
-        const restaurantId = restaurant?._id || restaurant?.id;
-
-        if (restaurantId) {
-          const response = await diningAPI.getRestaurantBookings(restaurant);
-          if (isMounted && response.data.success) {
-            setBookings(response.data.data);
-          }
+      if (restaurantId) {
+        const response = await diningAPI.getRestaurantBookings(restaurant);
+        if (response.data.success) {
+          setBookings(response.data.data);
         }
-      } catch (error) {
-        debugError("Error fetching table bookings:", error);
-      } finally {
-        if (isMounted) setLoading(false);
       }
-    };
+    } catch (error) {
+      debugError("Error fetching table bookings:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchBookings();
     const interval = setInterval(fetchBookings, 10000);
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
+    return () => clearInterval(interval);
   }, []);
+
+  const handleUpdateStatus = async (bookingId, nextStatus) => {
+    try {
+      await diningAPI.updateBookingStatusRestaurant(bookingId, nextStatus);
+      toast.success(`Booking ${nextStatus}`);
+      fetchBookings();
+    } catch (error) {
+      toast.error("Failed to update booking status");
+    }
+  };
 
   if (loading)
     return (
@@ -600,64 +609,109 @@ function TableBookings() {
           <p className="text-gray-400 text-sm">No table bookings yet</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {bookings.map((booking) => (
             <div
               key={booking._id}
-              className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm transition-all hover:border-gray-300">
-              <div className="flex justify-between items-start mb-3">
-                <div className="flex-1">
-                  <h3 className="text-sm font-bold text-gray-900">
-                    {booking.user?.name}
-                  </h3>
-                  <p className="text-[11px] text-gray-500">
-                    {booking.user?.phone || "No phone"}
-                  </p>
+              className="bg-white rounded-[2rem] p-5 border border-gray-100 shadow-sm transition-all hover:shadow-md">
+              {/* Header: Avatar, Name, ID and Status */}
+              <div className="flex justify-between items-start mb-5">
+                <div className="flex gap-3 items-center">
+                  <div className="h-12 w-12 rounded-full bg-[#111827] flex items-center justify-center text-white text-lg font-bold">
+                    {booking.user?.name?.charAt(0).toUpperCase() || "U"}
+                  </div>
+                  <div>
+                    <h3 className="text-[15px] font-bold text-gray-900 leading-tight">
+                      {booking.user?.name}
+                    </h3>
+                    <p className="text-[11px] font-bold text-[#94A3B8] flex items-center gap-0.5 mt-0.5">
+                      <Hash className="w-3 h-3" />
+                      {booking.bookingId || booking._id?.slice(-8).toUpperCase()}
+                    </p>
+                  </div>
                 </div>
                 <span
-                  className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
+                  className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                     booking.status === "confirmed"
                       ? "bg-green-100 text-green-700"
-                      : booking.status === "checked-in"
-                        ? "bg-orange-100 text-orange-700"
-                        : booking.status === "completed"
-                          ? "bg-blue-100 text-blue-700"
-                          : "bg-gray-100 text-gray-600"
+                      : booking.status === "pending"
+                        ? "bg-[#FFF9E7] text-[#D97706]"
+                        : booking.status === "checked-in"
+                          ? "bg-orange-100 text-orange-700"
+                          : booking.status === "completed"
+                            ? "bg-blue-100 text-blue-700"
+                            : "bg-gray-100 text-gray-600"
                   }`}>
-                  {booking.status}
+                  {booking.status === "pending" ? "Pending" : booking.status}
                 </span>
               </div>
 
-              <div className="flex items-center gap-4 text-[11px] text-gray-600 bg-gray-50 p-2.5 rounded-xl border border-gray-100">
-                <div className="flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                  <span>
+              {/* Info Grid */}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 bg-[#F8FAFC] p-4 rounded-2xl border border-gray-50 mb-5">
+                <div className="flex items-center gap-2.5">
+                  <div className="h-7 w-7 rounded-lg bg-white flex items-center justify-center shadow-sm">
+                    <Calendar className="w-3.5 h-3.5 text-[#3B82F6]" />
+                  </div>
+                  <span className="text-[12px] font-semibold text-gray-700">
                     {new Date(booking.date).toLocaleDateString("en-GB", {
                       day: "2-digit",
                       month: "short",
                     })}
                   </span>
                 </div>
-                <div className="flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-gray-400" />
-                  <span>{booking.timeSlot}</span>
+                <div className="flex items-center gap-2.5">
+                  <div className="h-7 w-7 rounded-lg bg-white flex items-center justify-center shadow-sm">
+                    <Clock className="w-3.5 h-3.5 text-[#3B82F6]" />
+                  </div>
+                  <span className="text-[12px] font-semibold text-gray-700">
+                    {booking.timeSlot}
+                  </span>
                 </div>
-                <div className="flex items-center gap-1">
-                  <Users className="w-3.5 h-3.5 text-gray-400" />
-                  <span>{booking.guests} Guests</span>
+                <div className="flex items-center gap-2.5">
+                  <div className="h-7 w-7 rounded-lg bg-white flex items-center justify-center shadow-sm">
+                    <Users className="w-3.5 h-3.5 text-[#3B82F6]" />
+                  </div>
+                  <span className="text-[12px] font-semibold text-gray-700">
+                    {booking.guests} Guests
+                  </span>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <div className="h-7 w-7 rounded-lg bg-white flex items-center justify-center shadow-sm">
+                    <Phone className="w-3.5 h-3.5 text-[#3B82F6]" />
+                  </div>
+                  <span className="text-[12px] font-semibold text-gray-700">
+                    {booking.user?.phone || "No phone"}
+                  </span>
                 </div>
               </div>
 
               {booking.specialRequest && (
-                <div className="mt-3 p-2 bg-blue-50/50 rounded-lg border border-blue-100/50">
-                  <p className="text-[10px] text-blue-700 italic flex items-start gap-1">
-                    <MessageSquare className="w-3 h-3 mt-0.5 shrink-0" />
-                    <span className="line-clamp-2">
-                      {booking.specialRequest}
-                    </span>
+                <div className="mb-5 p-3 bg-blue-50/50 rounded-xl border border-blue-100/30">
+                  <p className="text-[11px] text-blue-700 italic flex items-start gap-1.5">
+                    <MessageSquare className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                    <span>{booking.specialRequest}</span>
                   </p>
                 </div>
               )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                {(booking.status === "pending" || booking.status === "confirmed") && (
+                  <button
+                    onClick={() => handleUpdateStatus(booking._id, "confirmed")}
+                    className="flex-1 bg-[#059669] text-white py-3 rounded-2xl text-[13px] font-bold hover:bg-[#047857] transition-all active:scale-[0.98] shadow-sm shadow-emerald-100 uppercase tracking-wide">
+                    Accept
+                  </button>
+                )}
+                {(booking.status === "pending" ||
+                  booking.status === "confirmed") && (
+                  <button
+                    onClick={() => handleUpdateStatus(booking._id, "cancelled")}
+                    className="flex-1 bg-[#F1F5F9] text-[#64748B] py-3 rounded-2xl text-[13px] font-bold hover:bg-gray-200 transition-all active:scale-[0.98] uppercase tracking-wide">
+                    Decline
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>

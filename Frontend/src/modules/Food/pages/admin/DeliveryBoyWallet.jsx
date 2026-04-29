@@ -23,8 +23,9 @@ export default function DeliveryBoyWallet() {
 
   const fetchWallets = async (overrides = {}) => {
     const p = overrides.page || page
+    const silent = overrides.silent || false
     try {
-      setLoading(true)
+      if (!silent) setLoading(true)
       const res = await adminAPI.getDeliveryWallets({
         search: searchQuery.trim() || undefined,
         page: p,
@@ -36,15 +37,15 @@ export default function DeliveryBoyWallet() {
         setTotal(data?.pagination?.total || 0)
         setPages(data?.pagination?.pages || 1)
       } else {
-        toast.error(res?.data?.message || "Failed to fetch delivery boy wallets")
+        if (!silent) toast.error(res?.data?.message || "Failed to fetch delivery boy wallets")
         setWallets([])
       }
     } catch (err) {
       debugError("Error fetching delivery boy wallets:", err)
-      toast.error(err?.response?.data?.message || "Failed to fetch delivery boy wallets")
+      if (!silent) toast.error(err?.response?.data?.message || "Failed to fetch delivery boy wallets")
       setWallets([])
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
 
@@ -59,6 +60,14 @@ export default function DeliveryBoyWallet() {
     }, 500)
     return () => clearTimeout(t)
   }, [searchQuery])
+
+  // Real-time polling: fetch data every 10 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchWallets({ silent: true })
+    }, 10000)
+    return () => clearInterval(interval)
+  }, [page, searchQuery])
 
   return (
     <div className="p-4 lg:p-6 bg-slate-50 min-h-screen">
@@ -106,13 +115,13 @@ export default function DeliveryBoyWallet() {
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">#</th>
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Name</th>
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">ID</th>
-                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Remaining cash limit</th>
-                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Pocket balance</th>
-                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Cash collected</th>
+                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider text-emerald-600">Pocket balance</th>
+                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider text-red-600">Cash in hand</th>
+                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Rem. cash limit</th>
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Total earning</th>
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Bonus</th>
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Total withdrawal</th>
-                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Cash in hand</th>
+                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Total Orders</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-slate-100">
@@ -130,15 +139,15 @@ export default function DeliveryBoyWallet() {
                     wallets.map((w, i) => (
                       <tr key={w.walletId || w.deliveryId} className="hover:bg-slate-50 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{(page - 1) * limit + i + 1}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{w.name || "—"}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{w.deliveryIdString || "—"}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-900">{w.name || "—"}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-xs font-medium text-slate-500">{w.deliveryIdString || "—"}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-emerald-600">{formatCurrency(w.pocketBalance)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-red-600">{formatCurrency(w.cashCollected)}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{formatCurrency(w.remainingCashLimit)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{formatCurrency(w.pocketBalance)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{formatCurrency(w.cashCollected)}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{formatCurrency(w.totalEarning)}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{formatCurrency(w.bonus)}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{formatCurrency(w.totalWithdrawn)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{formatCurrency(w.cashCollected)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900">{w.totalDeliveries || 0}</td>
                       </tr>
                     ))
                   )}

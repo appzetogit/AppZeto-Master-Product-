@@ -107,7 +107,7 @@ export const PickupActionModal = ({
   const primaryDestinationLabel = primaryPickupType === 'quick' ? 'Store' : 'Restaurant';
 
   return (
-    <div className="absolute inset-x-0 bottom-0 z-[110] p-0 sm:p-4 h-full flex items-end">
+    <div className="absolute inset-x-0 bottom-0 z-[110] p-0 sm:p-2 sm:mb-2 flex items-end justify-center">
       {/* Background Dim */}
       <motion.div
         initial={{ opacity: 0 }}
@@ -115,10 +115,10 @@ export const PickupActionModal = ({
         className="absolute inset-0 bg-black/40 -z-10"
       />
 
-      <motion.div
+      <motion.div 
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
-        className="w-full bg-white rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.3)] p-6 pb-12"
+        className="w-full max-w-lg bg-white rounded-t-[2rem] shadow-[0_-15px_40px_rgba(0,0,0,0.2)] p-4 pb-8"
       >
         {/* Handle / Minimize */}
         <div className="w-full flex justify-center pb-4 pt-1">
@@ -128,7 +128,7 @@ export const PickupActionModal = ({
         </div>
 
         {/* Restaurant Header */}
-        <div className="flex items-start justify-between mb-8 pb-4 border-b border-gray-50">
+        <div className="flex items-start justify-between mb-4 pb-3 border-b border-gray-50">
           <div className="flex gap-4">
             <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-lg shadow-black/5 overflow-hidden border border-gray-100">
               <img src={restaurantLogo} alt="Logo" className="w-full h-full object-cover" />
@@ -170,7 +170,7 @@ export const PickupActionModal = ({
           </div>
         </div>
 
-        <div className="mb-8 space-y-3">
+        <div className="mb-4 space-y-2">
           {pickupStops.map((pickup, index) => {
             const isQuickStore = pickup.pickupType === 'quick';
             const label = isQuickStore ? 'Store Pickup' : 'Restaurant Pickup';
@@ -181,7 +181,7 @@ export const PickupActionModal = ({
             return (
               <div
                 key={pickup.id || `${pickup.pickupType}-${index}`}
-                className="rounded-2xl border border-gray-100 bg-gray-50/80 p-4"
+                className="rounded-xl border border-gray-100 bg-gray-50/80 p-3"
               >
                 <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${accentClasses}`}>
                   <MapPin className="w-3.5 h-3.5" />
@@ -195,7 +195,7 @@ export const PickupActionModal = ({
         </div>
 
         {/* Action Sliders */}
-        <div className="space-y-6">
+        <div className="space-y-4">
           {!isAtPickup ? (
             <div>
               <p className={`text-center text-[10px] font-bold uppercase tracking-widest mb-3 transition-colors ${
@@ -275,7 +275,7 @@ export const PickupActionModal = ({
 
           {/* Delivery Instructions (User Note) */}
           {order?.note && (
-            <div className="bg-orange-50 border border-orange-100 rounded-2xl p-4 flex gap-3 items-start">
+            <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 flex gap-3 items-start">
               <ChefHat className="w-5 h-5 text-orange-500 mt-0.5 shrink-0" />
               <div>
                 <p className="text-[10px] font-bold text-orange-600 uppercase tracking-widest mb-1.5">User Instructions</p>
@@ -287,7 +287,7 @@ export const PickupActionModal = ({
           {/* Collapsible Order Summary */}
           <button 
             onClick={() => setShowItems(!showItems)}
-            className="w-full flex items-center justify-between p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 transition-colors"
+            className="w-full flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
           >
             <div className="flex items-center gap-3 text-gray-900 font-bold text-xs uppercase tracking-widest">
               <Package className="w-5 h-5 text-gray-400" />

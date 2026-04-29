@@ -129,12 +129,13 @@ export const getWalletController = async (req, res, next) => {
             createdAt: tx?.createdAt || tx?.date
         });
 
-        if (requestedTypeRaw === 'bonus' || requestedTypeRaw === 'deposit' || requestedTypeRaw === 'deduction') {
+        if (requestedTypeRaw === 'bonus' || requestedTypeRaw === 'deposit' || requestedTypeRaw === 'withdrawal' || requestedTypeRaw === 'deduction') {
             if (!deliveryPartnerId || !mongoose.Types.ObjectId.isValid(deliveryPartnerId)) {
                 return sendResponse(res, 200, 'Wallet fetched successfully', { wallet: { transactions: [] } });
             }
 
             const wallet = await getDeliveryPartnerWalletEnhanced(deliveryPartnerId);
+            
             if (requestedTypeRaw === 'bonus') {
                 const bonusList = await DeliveryBonusTransaction.find({ deliveryPartnerId })
                     .sort({ createdAt: -1 })
@@ -152,15 +153,56 @@ export const getWalletController = async (req, res, next) => {
                     description: b.reference || 'Bonus',
                     transactionId: b.transactionId
                 }));
-            } else {
-                const allowedTypes = requestedTypeRaw === 'deposit'
-                    ? new Set(['deposit'])
-                    : new Set(['withdrawal', 'deposit']);
+            } else if (requestedTypeRaw === 'deposit') {
+                const deposits = await mongoose.model('FoodDeliveryCashDeposit').find({ 
+                    deliveryPartnerId,
+                    status: 'Completed'
+                })
+                .sort({ createdAt: -1 })
+                .limit(limit)
+                .lean();
 
-                wallet.transactions = (wallet.transactions || [])
-                    .filter((tx) => allowedTypes.has(String(tx?.type || '').trim().toLowerCase()))
-                    .map(normalizeWalletTransaction)
-                    .slice(0, limit);
+                wallet.transactions = deposits.map(d => ({
+                    id: d._id,
+                    _id: d._id,
+                    type: 'deposit',
+                    amount: d.amount || 0,
+                    status: d.status || 'Completed',
+                    date: d.createdAt,
+                    createdAt: d.createdAt,
+                    description: 'Cash limit settlement'
+                }));
+            } else if (requestedTypeRaw === 'withdrawal') {
+                const withdrawals = await mongoose.model('FoodDeliveryWithdrawal').find({ 
+                    deliveryPartnerId 
+                })
+                .sort({ createdAt: -1 })
+                .limit(limit)
+                .lean();
+
+                wallet.transactions = withdrawals.map(w => ({
+                    id: w._id,
+                    _id: w._id,
+                    type: w.status === 'denied' || w.status === 'rejected' ? 'rejection' : 'withdrawal',
+                    amount: w.amount || 0,
+                    status: w.status === 'pending' ? 'Pending' : (w.status === 'approved' ? 'Completed' : 'Rejected'),
+                    date: w.createdAt,
+                    createdAt: w.createdAt,
+                    description: `Withdrawal Request - ${w.paymentMethod}`
+                }));
+            } else if (requestedTypeRaw === 'deduction') {
+                // Return both deposits and withdrawals for deduction statement
+                const [deposits, withdrawals] = await Promise.all([
+                   mongoose.model('FoodDeliveryCashDeposit').find({ deliveryPartnerId, status: 'Completed' }).sort({ createdAt: -1 }).limit(limit).lean(),
+                   mongoose.model('FoodDeliveryWithdrawal').find({ deliveryPartnerId }).sort({ createdAt: -1 }).limit(limit).lean()
+                ]);
+
+                const txs = [
+                   ...deposits.map(d => ({ id: d._id, _id: d._id, type: 'deposit', amount: d.amount, status: d.status, createdAt: d.createdAt, description: 'Limit settlement' })),
+                   ...withdrawals.map(w => ({ id: w._id, _id: w._id, type: 'withdrawal', amount: w.amount, status: w.status, createdAt: w.createdAt, description: `Withdrawal - ${w.paymentMethod}` }))
+                ].sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, limit);
+
+                wallet.transactions = txs;
             }
 
             return sendResponse(res, 200, 'Wallet fetched successfully', { wallet });

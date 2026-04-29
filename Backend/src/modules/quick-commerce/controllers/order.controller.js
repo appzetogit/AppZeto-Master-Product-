@@ -6,6 +6,7 @@ import { QuickCart } from '../models/cart.model.js';
 import { QuickProduct } from '../models/product.model.js';
 import { Seller } from '../seller/models/seller.model.js';
 import { SellerOrder } from '../seller/models/sellerOrder.model.js';
+import { getSellerCommissionSnapshot } from '../admin/services/commission.service.js';
 
 const approvedProductFilter = {
   $or: [
@@ -282,9 +283,8 @@ export const placeOrder = async (req, res) => {
       sellerBuckets.get(sellerId).push(item);
     });
 
-    const sellerOrders =
-      sellerBuckets.size > 0
-        ? Array.from(sellerBuckets.entries()).map(([sellerId, sellerItems]) => {
+    const sellerOrdersResults = sellerBuckets.size > 0
+        ? await Promise.all(Array.from(sellerBuckets.entries()).map(async ([sellerId, sellerItems]) => {
             const sellerSubtotal = sellerItems.reduce(
               (sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0),
               0,
@@ -292,6 +292,9 @@ export const placeOrder = async (req, res) => {
             const allocatedDeliveryFee = Number(
               ((deliveryFee * sellerSubtotal) / Math.max(subtotal, 1)).toFixed(2),
             );
+
+            // Calculate commission for this specific seller
+            const { commissionAmount } = await getSellerCommissionSnapshot(sellerId, sellerSubtotal);
 
             return {
               sellerId,
@@ -309,6 +312,7 @@ export const placeOrder = async (req, res) => {
               })),
               pricing: {
                 subtotal: sellerSubtotal,
+                commission: commissionAmount,
                 total: sellerSubtotal + allocatedDeliveryFee,
               },
               status: 'pending',
@@ -330,8 +334,21 @@ export const placeOrder = async (req, res) => {
                 method: sellerPaymentMode,
               },
             };
-          })
+          }))
         : [];
+
+    const totalSellerCommission = sellerOrdersResults.reduce((sum, so) => sum + (so.pricing?.commission || 0), 0);
+    
+    // Update the main order with the total commission
+    if (totalSellerCommission > 0) {
+      await QuickOrder.updateOne(
+        { _id: order._id },
+        { $set: { 'pricing.restaurantCommission': totalSellerCommission } }
+      );
+      order.pricing.restaurantCommission = totalSellerCommission;
+    }
+
+    const sellerOrders = sellerOrdersResults;
 
     await QuickCart.findOneAndUpdate(idQuery, { $set: { items: [] } }, { upsert: false });
 

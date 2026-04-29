@@ -16,4 +16,4 @@ const supportTicketSchema = new mongoose.Schema(
 
 supportTicketSchema.index({ userId: 1, createdAt: -1 });
 
-export const FoodSupportTicket = mongoose.model('FoodSupportTicket', supportTicketSchema, 'food_supporttickets');
+export const FoodSupportTicket = mongoose.model('FoodSupportTicket', supportTicketSchema, 'food_support_tickets');

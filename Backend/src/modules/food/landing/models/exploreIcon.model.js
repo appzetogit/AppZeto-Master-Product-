@@ -41,5 +41,5 @@ const foodExploreIconSchema = new mongoose.Schema(
 
 foodExploreIconSchema.index({ isActive: 1, sortOrder: 1 });
 
-export const FoodExploreIcon = mongoose.model('FoodExploreIcon', foodExploreIconSchema, 'food_exploreicons');
+export const FoodExploreIcon = mongoose.model('FoodExploreIcon', foodExploreIconSchema, 'food_explore_icons');
 

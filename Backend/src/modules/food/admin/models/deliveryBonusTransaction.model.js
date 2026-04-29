@@ -18,5 +18,5 @@ const deliveryBonusTransactionSchema = new mongoose.Schema(
 
 deliveryBonusTransactionSchema.index({ deliveryPartnerId: 1, createdAt: -1 });
 
-export const DeliveryBonusTransaction = mongoose.model('DeliveryBonusTransaction', deliveryBonusTransactionSchema, 'food_deliverybonus_transactions');
+export const DeliveryBonusTransaction = mongoose.model('DeliveryBonusTransaction', deliveryBonusTransactionSchema, 'food_delivery_bonus_transactions');
 

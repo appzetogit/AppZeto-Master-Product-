@@ -40,4 +40,4 @@ const foodDeliveryCashDepositSchema = new mongoose.Schema({
 
 foodDeliveryCashDepositSchema.index({ createdAt: -1 });
 
-export const FoodDeliveryCashDeposit = mongoose.model('FoodDeliveryCashDeposit', foodDeliveryCashDepositSchema, 'food_deliverycashdeposits');
+export const FoodDeliveryCashDeposit = mongoose.model('FoodDeliveryCashDeposit', foodDeliveryCashDepositSchema, 'food_delivery_cash_deposits');

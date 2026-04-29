@@ -388,4 +388,13 @@ export const adminApi = {
   createCoupon: () => emptyResponse({}),
   updateCoupon: () => emptyResponse({}),
   deleteCoupon: () => emptyResponse({}),
+
+  // Seller Commission Management
+  getSellerCommissionBootstrap: () => axiosInstance.get('/quick-commerce/admin/seller-commissions/bootstrap'),
+  getSellerCommissions: (params) => axiosInstance.get('/quick-commerce/admin/seller-commissions', { params }),
+  getSellerCommissionById: (id) => axiosInstance.get(`/quick-commerce/admin/seller-commissions/${id}`),
+  createSellerCommission: (payload) => axiosInstance.post('/quick-commerce/admin/seller-commissions', payload),
+  updateSellerCommission: (id, payload) => axiosInstance.put(`/quick-commerce/admin/seller-commissions/${id}`, payload),
+  deleteSellerCommission: (id) => axiosInstance.delete(`/quick-commerce/admin/seller-commissions/${id}`),
+  toggleSellerCommissionStatus: (id) => axiosInstance.patch(`/quick-commerce/admin/seller-commissions/${id}/toggle-status`),
 };

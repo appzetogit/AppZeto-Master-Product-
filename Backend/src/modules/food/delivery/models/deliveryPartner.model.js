@@ -126,5 +126,5 @@ const deliveryPartnerSchema = new mongoose.Schema(
 // Indices
 deliveryPartnerSchema.index({ lastLocation: '2dsphere' });
 
-export const FoodDeliveryPartner = mongoose.model('FoodDeliveryPartner', deliveryPartnerSchema, 'food_deliverypartners');
+export const FoodDeliveryPartner = mongoose.model('FoodDeliveryPartner', deliveryPartnerSchema, 'food_delivery_partners');
 

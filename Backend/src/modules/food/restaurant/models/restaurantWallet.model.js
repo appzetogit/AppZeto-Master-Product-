@@ -23,4 +23,4 @@ const restaurantWalletSchema = new mongoose.Schema(
     { collection: 'food_restaurant_wallets', timestamps: true }
 );
 
-export const FoodRestaurantWallet = mongoose.model('FoodRestaurantWallet', restaurantWalletSchema, 'food_restaurantwallets');
+export const FoodRestaurantWallet = mongoose.model('FoodRestaurantWallet', restaurantWalletSchema, 'food_restaurant_wallets');

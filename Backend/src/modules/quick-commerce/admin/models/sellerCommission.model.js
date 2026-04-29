@@ -1,10 +1,10 @@
 import mongoose from 'mongoose';
 
-const restaurantCommissionSchema = new mongoose.Schema(
+const sellerCommissionSchema = new mongoose.Schema(
     {
-        restaurantId: {
+        sellerId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'FoodRestaurant',
+            ref: 'Seller',
             required: true,
             unique: true,
             index: true
@@ -20,9 +20,7 @@ const restaurantCommissionSchema = new mongoose.Schema(
         notes: { type: String, trim: true, default: '' },
         status: { type: Boolean, default: true, index: true }
     },
-    { collection: 'food_restaurant_commissions', timestamps: true }
+    { collection: 'quick_seller_commissions', timestamps: true }
 );
 
-
-export const FoodRestaurantCommission = mongoose.model('FoodRestaurantCommission', restaurantCommissionSchema, 'food_restaurant_commissions');
-
+export const QuickSellerCommission = mongoose.model('QuickSellerCommission', sellerCommissionSchema, 'quick_seller_commissions');

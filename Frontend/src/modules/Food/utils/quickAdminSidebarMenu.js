@@ -58,6 +58,7 @@ export const quickAdminSidebarMenu = [
           { label: "Active Sellers", path: "/admin/quick-commerce/sellers/active" },
           { label: "Waiting for Review", path: "/admin/quick-commerce/sellers/pending" },
           { label: "Seller Locations", path: "/admin/quick-commerce/seller-locations" },
+          { label: "Seller Commission", path: "/admin/quick-commerce/sellers/commission" },
         ],
       },
       {

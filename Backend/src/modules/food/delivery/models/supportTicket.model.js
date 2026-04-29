@@ -39,4 +39,4 @@ const supportTicketSchema = new mongoose.Schema(
 supportTicketSchema.index({ deliveryPartnerId: 1, createdAt: -1 });
 supportTicketSchema.index({ status: 1, createdAt: -1 });
 
-export const DeliverySupportTicket = mongoose.model('DeliverySupportTicket', supportTicketSchema, 'food_deliverysupporttickets');
+export const DeliverySupportTicket = mongoose.model('DeliverySupportTicket', supportTicketSchema, 'food_delivery_support_tickets');

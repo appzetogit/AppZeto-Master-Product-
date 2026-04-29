@@ -26,5 +26,5 @@ const safetyEmergencyReportSchema = new mongoose.Schema(
 safetyEmergencyReportSchema.index({ createdAt: -1 });
 safetyEmergencyReportSchema.index({ status: 1, priority: 1, createdAt: -1 });
 
-export const FoodSafetyEmergencyReport = mongoose.model('FoodSafetyEmergencyReport', safetyEmergencyReportSchema, 'food_safetyemergencyreports');
+export const FoodSafetyEmergencyReport = mongoose.model('FoodSafetyEmergencyReport', safetyEmergencyReportSchema, 'food_safety_emergency_reports');
 

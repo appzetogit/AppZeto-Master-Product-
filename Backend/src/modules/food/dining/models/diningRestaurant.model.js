@@ -73,4 +73,4 @@ const diningRestaurantSchema = new mongoose.Schema(
 diningRestaurantSchema.index({ restaurantId: 1 }, { unique: true });
 diningRestaurantSchema.index({ isEnabled: 1, primaryCategoryId: 1 });
 
-export const FoodDiningRestaurant = mongoose.model('FoodDiningRestaurant', diningRestaurantSchema, 'food_diningrestaurants');
+export const FoodDiningRestaurant = mongoose.model('FoodDiningRestaurant', diningRestaurantSchema, 'food_dining_restaurants');

@@ -47,5 +47,5 @@ const foodHeroBannerSchema = new mongoose.Schema(
 
 foodHeroBannerSchema.index({ isActive: 1, sortOrder: 1 });
 
-export const FoodHeroBanner = mongoose.model('FoodHeroBanner', foodHeroBannerSchema, 'food_herobanners');
+export const FoodHeroBanner = mongoose.model('FoodHeroBanner', foodHeroBannerSchema, 'food_hero_banners');
 

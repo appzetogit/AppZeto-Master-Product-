@@ -50,6 +50,7 @@ const sellerOrderSchema = new mongoose.Schema(
     },
     pricing: {
       subtotal: { type: Number, min: 0, default: 0 },
+      commission: { type: Number, min: 0, default: 0 },
       total: { type: Number, min: 0, default: 0 },
     },
     status: {

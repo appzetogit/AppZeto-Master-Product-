@@ -11,5 +11,5 @@ const deliveryCashLimitSchema = new mongoose.Schema(
 
 deliveryCashLimitSchema.index({ isActive: 1, createdAt: -1 });
 
-export const FoodDeliveryCashLimit = mongoose.model('FoodDeliveryCashLimit', deliveryCashLimitSchema, 'food_deliverycashlimits');
+export const FoodDeliveryCashLimit = mongoose.model('FoodDeliveryCashLimit', deliveryCashLimitSchema, 'food_delivery_cash_limits');
 

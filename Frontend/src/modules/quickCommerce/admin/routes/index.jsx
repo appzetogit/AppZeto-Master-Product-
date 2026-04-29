@@ -42,6 +42,7 @@ const BillingCharges = React.lazy(() => import("../pages/BillingCharges"))
 const QuickZoneSetup = React.lazy(() => import("../pages/ZoneSetup"))
 const QuickAddZone = React.lazy(() => import("../pages/AddZone"))
 const QuickViewZone = React.lazy(() => import("../pages/ViewZone"))
+const SellerCommission = React.lazy(() => import("../pages/SellerCommission"))
 
 
 
@@ -64,6 +65,7 @@ function QuickCommerceAdminRoutesInner() {
       <Route path="/seller-requests" element={<PendingSellers />} />
       <Route path="/sellers/active" element={<ActiveSellers />} />
       <Route path="/sellers/active/:id" element={<SellerDetail />} />
+      <Route path="/sellers/commission" element={<SellerCommission />} />
       <Route path="/support-tickets" element={<SupportTickets />} />
       <Route path="/moderation" element={<ReviewModeration />} />
       <Route path="/experience-studio" element={<ContentManager />} />

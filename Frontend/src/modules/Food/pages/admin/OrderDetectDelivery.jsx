@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import OrdersTopbar from "@food/components/admin/orders/OrdersTopbar"
 import OrderDetectDeliveryTable from "@food/components/admin/orders/OrderDetectDeliveryTable"
 import ViewOrderDetectDeliveryDialog from "@food/components/admin/orders/ViewOrderDetectDeliveryDialog"
+import FilterPanel from "@food/components/admin/orders/FilterPanel"
 import SettingsDialog from "@food/components/admin/orders/SettingsDialog"
 import { useGenericTableManagement } from "@food/components/admin/orders/useGenericTableManagement"
 const debugLog = (...args) => {}
@@ -261,6 +262,17 @@ const transformOrder = (order, index) => {
   }
 }
 
+const orderStatuses = [
+  "Ordered",
+  "Restaurant Accepted",
+  "Rejected",
+  "Delivery Boy Assigned",
+  "Delivery Boy Reached Pickup",
+  "Order ID Accepted",
+  "Reached Drop",
+  "Ordered Delivered"
+]
+
 export default function OrderDetectDelivery() {
   const [visibleColumns, setVisibleColumns] = useState({
     si: true,
@@ -354,6 +366,11 @@ export default function OrderDetectDelivery() {
     
     return { total, ordered, restaurantAccepted, rejected, deliveryBoyAssigned, reachedPickup, orderIdAccepted, reachedDrop, delivered }
   }, [filteredData, orders.length])
+
+  const uniqueRestaurants = useMemo(() => {
+    const names = orders.map(o => o.restaurantName).filter(Boolean)
+    return [...new Set(names)].sort()
+  }, [orders])
 
   const resetColumns = () => {
     setVisibleColumns({
@@ -516,6 +533,18 @@ export default function OrderDetectDelivery() {
         </div>
       </div>
 
+      <FilterPanel
+        isOpen={isFilterOpen}
+        onClose={() => setIsFilterOpen(false)}
+        filters={filters}
+        setFilters={setFilters}
+        onApply={handleApplyFilters}
+        onReset={handleResetFilters}
+        restaurants={uniqueRestaurants}
+        statuses={orderStatuses}
+        hidePaymentStatus={true}
+        hideDeliveryType={true}
+      />
       <SettingsDialog
         isOpen={isSettingsOpen}
         onOpenChange={setIsSettingsOpen}

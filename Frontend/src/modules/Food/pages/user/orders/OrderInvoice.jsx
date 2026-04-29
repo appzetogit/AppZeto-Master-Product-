@@ -314,11 +314,13 @@ export default function OrderInvoice() {
 
         <ScrollReveal delay={0.2}>
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 no-print">
-            <Link to={`/user/orders/${orderId}`} className="flex-1">
-              <Button variant="outline" className="w-full text-sm sm:text-base h-10 sm:h-11">
-                Track Order
-              </Button>
-            </Link>
+            {order.status !== 'scheduled' && (
+              <Link to={`/user/orders/${orderId}`} className="flex-1">
+                <Button variant="outline" className="w-full text-sm sm:text-base h-10 sm:h-11">
+                  Track Order
+                </Button>
+              </Link>
+            )}
             <Link to="/user/orders" className="flex-1">
               <Button variant="outline" className="w-full text-sm sm:text-base h-10 sm:h-11">
                 Back to Orders

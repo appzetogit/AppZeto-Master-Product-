@@ -121,7 +121,8 @@ const paymentSchema = new mongoose.Schema(
                 'paid',
                 'failed',
                 'refunded',
-                'pending_qr'
+                'pending_qr',
+                'cancelled'
             ],
             default: 'cod_pending'
         },
@@ -325,6 +326,7 @@ const orderSchema = new mongoose.Schema(
             enum: [
                 'placed',
                 'created',
+                'scheduled',
                 'confirmed',
                 'preparing',
                 'ready_for_pickup',

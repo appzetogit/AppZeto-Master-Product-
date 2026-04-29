@@ -1,6 +1,17 @@
 import { X } from "lucide-react"
 
-export default function FilterPanel({ isOpen, onClose, filters, setFilters, onApply, onReset, restaurants = [] }) {
+export default function FilterPanel({ 
+  isOpen, 
+  onClose, 
+  filters, 
+  setFilters, 
+  onApply, 
+  onReset, 
+  restaurants = [], 
+  statuses = [],
+  hidePaymentStatus = false,
+  hideDeliveryType = false
+}) {
   if (!isOpen) return null
 
   return (
@@ -20,55 +31,82 @@ export default function FilterPanel({ isOpen, onClose, filters, setFilters, onAp
         </div>
         
         <div className="p-6 space-y-6">
-          {/* Payment Status Filter */}
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">
-              Payment Status
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {["All", "Paid", "Pending", "Failed", "Refunded", "Processing"].map((status) => (
-                <button
-                  key={status}
-                  onClick={() => setFilters(prev => ({ ...prev, paymentStatus: status === "All" ? "" : status }))}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    filters.paymentStatus === status || (status === "All" && !filters.paymentStatus)
-                      ? "bg-emerald-500 text-white shadow-md"
-                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                  }`}
-                >
-                  {status}
-                </button>
-              ))}
+          {/* Order Status Filter - Only shown if statuses are provided */}
+          {statuses.length > 0 && (
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Order Status
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {["All", ...statuses].map((status) => (
+                  <button
+                    key={status}
+                    onClick={() => setFilters(prev => ({ ...prev, status: status === "All" ? "" : status }))}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      filters.status === status || (status === "All" && !filters.status)
+                        ? "bg-blue-600 text-white shadow-md"
+                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    }`}
+                  >
+                    {status}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
+          {/* Payment Status Filter */}
+          {!hidePaymentStatus && (
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Payment Status
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {["All", "Paid", "Pending", "Failed", "Refunded", "Processing"].map((status) => (
+                  <button
+                    key={status}
+                    onClick={() => setFilters(prev => ({ ...prev, paymentStatus: status === "All" ? "" : status }))}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      filters.paymentStatus === status || (status === "All" && !filters.paymentStatus)
+                        ? "bg-emerald-500 text-white shadow-md"
+                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    }`}
+                  >
+                    {status}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Delivery Type Filter */}
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">
-              Delivery Type
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {["All", "Home Delivery", "Take Away", "Dine In"].map((type) => (
-                <button
-                  key={type}
-                  onClick={() => setFilters(prev => ({ ...prev, deliveryType: type === "All" ? "" : type }))}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    filters.deliveryType === type || (type === "All" && !filters.deliveryType)
-                      ? "bg-emerald-500 text-white shadow-md"
-                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                  }`}
-                >
-                  {type}
-                </button>
-              ))}
+          {!hideDeliveryType && (
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Delivery Type
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {["All", "Home Delivery", "Take Away", "Dine In"].map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => setFilters(prev => ({ ...prev, deliveryType: type === "All" ? "" : type }))}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      filters.deliveryType === type || (type === "All" && !filters.deliveryType)
+                        ? "bg-emerald-500 text-white shadow-md"
+                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    }`}
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Amount Range */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Min Amount ($)
+                Min Amount
               </label>
               <input
                 type="number"
@@ -80,7 +118,7 @@ export default function FilterPanel({ isOpen, onClose, filters, setFilters, onAp
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Max Amount ($)
+                Max Amount
               </label>
               <input
                 type="number"

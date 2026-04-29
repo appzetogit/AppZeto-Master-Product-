@@ -83,6 +83,7 @@ const isActiveOrder = (order) => {
   // Some refresh payloads provide live phase but sparse status; keep tracking visible.
   if (!status && phase) return ACTIVE_PHASES.has(phase);
   if (!status) return false;
+  if (status === "scheduled") return false;
   return true;
 };
 
@@ -338,6 +339,7 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
     const s = String(orderStatus);
     const p = String(orderPhase);
 
+    if (s === "scheduled") return "Your order is scheduled";
     if (s === "confirmed") return "Order confirmed";
     if (s === "preparing" || s === "created" || s === "pending") return "Preparing your order";
     if (s === "ready_for_pickup") return "Ready for pickup";
@@ -390,12 +392,19 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
 
             <div className="bg-gradient-to-br from-[#EB590E] to-[#D94E0A] shadow-lg shadow-orange-500/20 rounded-xl px-4 py-2 shrink-0 flex flex-col items-center justify-center border border-orange-200">
               <p className="text-orange-50 text-[10px] font-bold uppercase tracking-wider opacity-95 leading-tight mb-[2px]">
-                arriving in
+                {orderStatus === "scheduled" ? "Scheduled" : "arriving in"}
               </p>
               <p className="text-white text-base md:text-[17px] font-black leading-tight drop-shadow-sm">
-                {timeRemaining !== null
-                  ? `${Math.max(1, timeRemaining)} min`
-                  : "--"}
+                {orderStatus === "scheduled"
+                  ? activeOrder.scheduledAt
+                    ? new Date(activeOrder.scheduledAt).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "Scheduled"
+                  : timeRemaining !== null
+                    ? `${Math.max(1, timeRemaining)} min`
+                    : "--"}
               </p>
             </div>
           </div>

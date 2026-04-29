@@ -620,6 +620,7 @@ const transformOrderForTracking = (apiOrder, previousOrder = null, explicitResta
 function mapBackendOrderStatusToUi(raw) {
   const s = String(raw || "").toLowerCase()
   if (!s || s === "pending" || s === "created") return "placed"
+  if (s === "scheduled") return "scheduled"
   if (s === "confirmed" || s === "accepted") return "confirmed"
   if (s === "preparing" || s === "processed") return "preparing"
   if (s === "ready" || s === "ready_for_pickup" || s === "reached_pickup" || s === "order_confirmed") return "ready"
@@ -810,7 +811,7 @@ export default function OrderTracking() {
   const isQuickOrder =
     String(location.state?.orderType || "").toLowerCase() === "quick" ||
     /^QC/i.test(String(orderId || ""))
-  const ordersPath = isQuickOrder ? "/quick/orders" : "/user/orders"
+  const backPath = isQuickOrder ? "/quick" : "/food/user"
   const ordersContext = useOptionalOrders()
   const getOrderById = ordersContext?.getOrderById || (() => null)
   const { profile, getDefaultAddress } = useProfile()
@@ -830,7 +831,11 @@ export default function OrderTracking() {
   const [error, setError] = useState(null)
 
   const [showConfirmation, setShowConfirmation] = useState(confirmed)
-  const [orderStatus, setOrderStatus] = useState('placed')
+  const [orderStatus, setOrderStatus] = useState(() => 
+    prefetchedOrder 
+      ? mapOrderToTrackingUiStatus(isQuickOrder ? normalizeQuickOrderForTracking(prefetchedOrder) : prefetchedOrder) 
+      : 'placed'
+  )
   const [estimatedTime, setEstimatedTime] = useState(29)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [showCancelDialog, setShowCancelDialog] = useState(false)
@@ -863,6 +868,7 @@ export default function OrderTracking() {
       ? normalizeQuickOrderForTracking(prefetchedOrder)
       : prefetchedOrder
     setOrder((prev) => transformOrderForTracking(normalizedPrefetched, prev))
+    setOrderStatus(mapOrderToTrackingUiStatus(normalizedPrefetched))
     setError(null)
     setLoading(false)
   }, [isQuickOrder, prefetchedOrder])
@@ -1647,6 +1653,7 @@ export default function OrderTracking() {
         }
 
         setOrder(transformOrderForTracking(normalizedOrder, order, restaurantCoords, restaurantAddress))
+        setOrderStatus(mapOrderToTrackingUiStatus(normalizedOrder))
       }
     } catch (err) {
       debugError('Error refreshing order:', err)
@@ -1859,7 +1866,7 @@ export default function OrderTracking() {
         <div className="max-w-lg mx-auto text-center py-20">
           <h1 className="text-lg sm:text-xl md:text-2xl font-bold mb-4">Order Not Found</h1>
           <p className="text-gray-600 mb-6">{error || 'The order you\'re looking for doesn\'t exist.'}</p>
-          <Link to={ordersPath}>
+          <Link to={backPath}>
             <Button>Back to Orders</Button>
           </Link>
         </div>
@@ -1868,6 +1875,12 @@ export default function OrderTracking() {
   }
 
   const statusConfig = {
+    scheduled: {
+      title: "Order Scheduled",
+      subtitle: "Your order is scheduled. Please wait for the restaurant to respond.",
+      color: "bg-blue-600",
+      iconType: 'food'
+    },
     placed: {
       title: "Order Placed",
       subtitle: "Waiting for restaurant to accept",
@@ -2024,7 +2037,7 @@ export default function OrderTracking() {
       >
         {/* Navigation bar */}
         <div className="flex items-center justify-between px-4 py-3">
-          <Link to={ordersPath}>
+          <Link to={backPath}>
             <motion.button
               className="w-10 h-10 flex items-center justify-center"
               whileTap={{ scale: 0.9 }}
@@ -2105,10 +2118,12 @@ export default function OrderTracking() {
                     Live tracking
                   </p>
                   <h3 className="mt-2 text-lg font-bold text-gray-900">
-                    Waiting for delivery partner assignment
+                    {orderStatus === 'scheduled' ? 'Order Scheduled' : 'Waiting for delivery partner assignment'}
                   </h3>
                   <p className="mt-1 text-sm text-gray-600">
-                    The route map is ready. Live rider movement will appear here as soon as a rider accepts the trip.
+                    {orderStatus === 'scheduled' 
+                      ? 'The restaurant will receive your order 15 minutes before the scheduled time.' 
+                      : 'The route map is ready. Live rider movement will appear here as soon as a rider accepts the trip.'}
                   </p>
                 </div>
                 <div className="rounded-2xl bg-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-700">

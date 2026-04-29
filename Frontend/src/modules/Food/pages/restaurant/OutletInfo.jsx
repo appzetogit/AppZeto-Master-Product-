@@ -45,18 +45,23 @@ export default function OutletInfo() {
   const [restaurantData, setRestaurantData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [restaurantName, setRestaurantName] = useState("")
+  const [isPureVeg, setIsPureVeg] = useState(false)
   const [cuisineTags, setCuisineTags] = useState("")
   const [address, setAddress] = useState("")
+  const [primaryPhone, setPrimaryPhone] = useState("")
+  const [ownerInfo, setOwnerInfo] = useState({ name: "", phone: "", email: "" })
+  const [legalInfo, setLegalInfo] = useState({ fssai: "", gst: "", pan: "" })
+  const [bankInfo, setBankInfo] = useState({ account: "", type: "", holder: "", ifsc: "" })
   const [mainImage, setMainImage] = useState("https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800&h=400&fit=crop")
   const [thumbnailImage, setThumbnailImage] = useState("https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=200&h=200&fit=crop")
-  const [coverImages, setCoverImages] = useState([]) // Array of cover images (separate from menu images)
+  const [coverImages, setCoverImages] = useState([])
   const [showEditNameDialog, setShowEditNameDialog] = useState(false)
   const [editNameValue, setEditNameValue] = useState("")
   const [restaurantId, setRestaurantId] = useState("")
   const [restaurantMongoId, setRestaurantMongoId] = useState("")
   const [uploadingImage, setUploadingImage] = useState(false)
-  const [imageType, setImageType] = useState(null) // 'profile' or 'menu'
-  const [uploadingCount, setUploadingCount] = useState(0) // Track how many images are being uploaded
+  const [imageType, setImageType] = useState(null)
+  const [uploadingCount, setUploadingCount] = useState(0)
   
   const profileImageInputRef = useRef(null)
   const menuImageInputRef = useRef(null)
@@ -93,40 +98,61 @@ export default function OutletInfo() {
           setRestaurantData(data)
           
           // Set restaurant name
-          setRestaurantName(data.name || "")
+          setRestaurantName(data.restaurantName || data.name || "")
+          setIsPureVeg(data.pureVegRestaurant || false)
           
           // Set restaurant ID
           setRestaurantId(data.restaurantId || data.id || "")
-          // Set MongoDB _id for last 5 digits display
           const mongoId = String(data.id || data._id || "")
           setRestaurantMongoId(mongoId)
           
           // Format and set address
-          const formattedAddress = formatAddress(data.location)
+          const formattedAddress = formatAddress(data.location || data)
           setAddress(formattedAddress)
+          setPrimaryPhone(data.primaryContactNumber || data.ownerPhone || "")
+          
+          // Set Owner Info
+          setOwnerInfo({
+            name: data.ownerName || "",
+            phone: data.ownerPhone || "",
+            email: data.ownerEmail || ""
+          })
+
+          // Set Legal Info
+          setLegalInfo({
+            fssai: data.fssaiNumber || "",
+            gst: data.gstNumber || "",
+            pan: data.panNumber || ""
+          })
+
+          // Set Bank Info
+          setBankInfo({
+            account: data.accountNumber || "",
+            type: data.accountType || "",
+            holder: data.accountHolderName || "",
+            ifsc: data.ifscCode || ""
+          })
           
           // Format cuisines
-          if (data.cuisines && Array.isArray(data.cuisines) && data.cuisines.length > 0) {
+          if (data.cuisines && Array.isArray(data.cuisines)) {
             setCuisineTags(data.cuisines.join(", "))
           }
           
           // Set images
           if (data.profileImage?.url) {
             setThumbnailImage(data.profileImage.url)
+          } else if (typeof data.profileImage === 'string') {
+            setThumbnailImage(data.profileImage)
           }
-          // Use coverImages if available, otherwise fallback to menuImages for backward compatibility
+
           if (data.coverImages && Array.isArray(data.coverImages) && data.coverImages.length > 0) {
-            setCoverImages(data.coverImages.map(img => ({
-              url: img.url || img,
-              publicId: img.publicId
-            })))
-            setMainImage(data.coverImages[0].url || data.coverImages[0])
+            const formattedCovers = data.coverImages.map(img => typeof img === 'string' ? { url: img } : img)
+            setCoverImages(formattedCovers)
+            setMainImage(formattedCovers[0].url)
           } else if (data.menuImages && Array.isArray(data.menuImages) && data.menuImages.length > 0) {
-            setCoverImages(data.menuImages.map(img => ({
-              url: img.url,
-              publicId: img.publicId
-            })))
-            setMainImage(data.menuImages[0].url)
+            const formattedMenus = data.menuImages.map(img => typeof img === 'string' ? { url: img } : img)
+            setCoverImages(formattedMenus)
+            setMainImage(formattedMenus[0].url)
           } else {
             setCoverImages([])
           }
@@ -434,35 +460,180 @@ export default function OutletInfo() {
           </div>
         </div>
 
-        {/* Info Section */}
-        <div className="px-4 pt-[50px] pb-4 bg-white">
-          <div className="flex items-start gap-4">
-            <div className="flex flex-col gap-2">
-              <button onClick={() => navigate("/restaurant/ratings-reviews")} className="flex items-center gap-2 text-left w-full">
-                <div className="bg-green-700 px-2.5 py-1.5 rounded flex items-center gap-1 shrink-0">
-                  <span className="text-white text-sm font-bold">{restaurantData?.rating?.toFixed(1) || "0.0"}</span>
-                  <Star className="w-3.5 h-3.5 text-white fill-white" />
+        {/* Info Sections */}
+        <div className="px-4 pb-20 space-y-6">
+          {/* Basic Information */}
+          <section className="space-y-3">
+            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider ml-1">Basic Information</h3>
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+              <div className="p-4 border-b border-gray-100 flex justify-between items-start">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-400 font-medium mb-1">Restaurant Name</p>
+                  <p className="text-base font-bold text-gray-900">{restaurantName || "N/A"}</p>
                 </div>
-                <span className="text-gray-800 text-sm font-normal">{restaurantData?.totalRatings || 0} DELIVERY REVIEWS</span>
-                <ChevronRight className="w-4 h-4 text-gray-400 shrink-0 ml-auto" />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="px-4 py-4"><h2 className="text-base font-bold text-gray-900 text-center">Restaurant Information</h2></div>
-
-        <div className="px-4 pb-6 space-y-3">
-          <div className="bg-blue-100/50 rounded-lg p-4 border border-blue-300">
-            <div className="flex items-start justify-between">
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-gray-500 font-normal mb-1">Restaurant's name</p>
-                <p className="text-base font-semibold text-gray-900">{loading ? "Loading..." : (restaurantName || "N/A")}</p>
+                <button onClick={handleOpenEditDialog} className="p-2 hover:bg-gray-50 rounded-full transition-colors">
+                  <Pencil className="w-4 h-4 text-blue-600" />
+                </button>
               </div>
-              <button onClick={handleOpenEditDialog} className="text-blue-600 text-sm font-normal">Edit</button>
+              
+              <div className="p-4 border-b border-gray-100 flex justify-between items-start">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-400 font-medium mb-1">Cuisines</p>
+                  <p className="text-sm font-semibold text-gray-800">{cuisineTags || "Not selected"}</p>
+                </div>
+                <button onClick={() => navigate("/food/restaurant/edit-cuisines")} className="p-2 hover:bg-gray-50 rounded-full transition-colors">
+                  <Pencil className="w-4 h-4 text-blue-600" />
+                </button>
+              </div>
+
+              <div className="p-4 flex justify-between items-center">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-400 font-medium mb-1">Food Type</p>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 border-2 ${isPureVeg ? "border-green-600" : "border-red-600"} flex items-center justify-center p-0.5`}>
+                      <div className={`w-full h-full rounded-full ${isPureVeg ? "bg-green-600" : "bg-red-600"}`} />
+                    </div>
+                    <span className="text-sm font-semibold text-gray-800">{isPureVeg ? "Pure Veg" : "Veg & Non-Veg"}</span>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-          {/* ... other info cards ... */}
+          </section>
+
+          {/* Location & Contact */}
+          <section className="space-y-3">
+            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider ml-1">Location & Contact</h3>
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+              <div className="p-4 border-b border-gray-100 flex justify-between items-start">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                    <p className="text-xs text-gray-400 font-medium">Outlet Address</p>
+                  </div>
+                  <p className="text-sm font-semibold text-gray-800 leading-relaxed">{address || "Address not set"}</p>
+                </div>
+                <button onClick={() => navigate("/food/restaurant/edit-address")} className="p-2 hover:bg-gray-50 rounded-full transition-colors">
+                  <Pencil className="w-4 h-4 text-blue-600" />
+                </button>
+              </div>
+
+              <div className="p-4 flex justify-between items-center">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-400 font-medium mb-1">Primary Contact</p>
+                  <p className="text-sm font-bold text-gray-800">{primaryPhone || "N/A"}</p>
+                </div>
+                <button onClick={() => navigate("/food/restaurant/phone")} className="p-2 hover:bg-gray-50 rounded-full transition-colors">
+                  <Pencil className="w-4 h-4 text-blue-600" />
+                </button>
+              </div>
+            </div>
+          </section>
+
+          {/* Owner Details */}
+          <section className="space-y-3">
+            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider ml-1">Owner Details</h3>
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+              <div className="p-4 border-b border-gray-100 flex justify-between items-start">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-400 font-medium mb-1">Owner Name</p>
+                  <p className="text-sm font-bold text-gray-800">{ownerInfo.name || "N/A"}</p>
+                </div>
+                <button onClick={() => navigate("/food/restaurant/edit-owner")} className="p-2 hover:bg-gray-50 rounded-full transition-colors">
+                  <Pencil className="w-4 h-4 text-blue-600" />
+                </button>
+              </div>
+              
+              <div className="p-4 border-b border-gray-100">
+                <p className="text-xs text-gray-400 font-medium mb-1">Owner Phone</p>
+                <p className="text-sm font-semibold text-gray-800">{ownerInfo.phone || "N/A"}</p>
+              </div>
+
+              <div className="p-4">
+                <p className="text-xs text-gray-400 font-medium mb-1">Owner Email</p>
+                <p className="text-sm font-semibold text-gray-800">{ownerInfo.email || "N/A"}</p>
+              </div>
+            </div>
+          </section>
+
+          {/* Legal & Compliance */}
+          <section className="space-y-3">
+            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider ml-1">Legal & Compliance</h3>
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+              <div className="p-4 border-b border-gray-100 flex justify-between items-start">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-400 font-medium mb-1">FSSAI License</p>
+                  <p className="text-sm font-bold text-gray-800">{legalInfo.fssai || "Not provided"}</p>
+                </div>
+                <button onClick={() => navigate("/food/restaurant/fssai")} className="p-2 hover:bg-gray-50 rounded-full transition-colors">
+                  <Pencil className="w-4 h-4 text-blue-600" />
+                </button>
+              </div>
+
+              <div className="p-4 border-b border-gray-100">
+                <p className="text-xs text-gray-400 font-medium mb-1">GST Number</p>
+                <p className="text-sm font-bold text-gray-800">{legalInfo.gst || "Not provided"}</p>
+              </div>
+
+              <div className="p-4">
+                <p className="text-xs text-gray-400 font-medium mb-1">PAN Number</p>
+                <p className="text-sm font-bold text-gray-800">{legalInfo.pan || "Not provided"}</p>
+              </div>
+            </div>
+          </section>
+
+          {/* Operational Settings */}
+          <section className="space-y-3">
+            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider ml-1">Operational</h3>
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+              <div className="p-4 border-b border-gray-100 flex justify-between items-center">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Clock className="w-3.5 h-3.5 text-gray-400" />
+                    <p className="text-xs text-gray-400 font-medium">Outlet Timings</p>
+                  </div>
+                  <p className="text-sm font-semibold text-gray-800">
+                    {restaurantData?.openingTime && restaurantData?.closingTime 
+                      ? `${restaurantData.openingTime} - ${restaurantData.closingTime}` 
+                      : "Timings not set"}
+                  </p>
+                </div>
+                <button onClick={() => navigate("/food/restaurant/outlet-timings")} className="p-2 hover:bg-gray-50 rounded-full transition-colors">
+                  <Pencil className="w-4 h-4 text-blue-600" />
+                </button>
+              </div>
+
+              <div className="p-4">
+                <p className="text-xs text-gray-400 font-medium mb-1">Service Zone</p>
+                <p className="text-sm font-semibold text-gray-800">{restaurantData?.zoneId?.name || "Not assigned"}</p>
+              </div>
+            </div>
+          </section>
+
+          {/* Bank Account */}
+          <section className="space-y-3">
+            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider ml-1">Bank Account</h3>
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+              <div className="p-4 border-b border-gray-100 flex justify-between items-start">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-400 font-medium mb-1">Account Number</p>
+                  <p className="text-sm font-bold text-gray-800">{bankInfo.account || "Not provided"}</p>
+                </div>
+                <button onClick={() => navigate("/food/restaurant/update-bank-details")} className="p-2 hover:bg-gray-50 rounded-full transition-colors">
+                  <Pencil className="w-4 h-4 text-blue-600" />
+                </button>
+              </div>
+
+              <div className="p-4 border-b border-gray-100">
+                <p className="text-xs text-gray-400 font-medium mb-1">Account Holder</p>
+                <p className="text-sm font-semibold text-gray-800">{bankInfo.holder || "N/A"}</p>
+              </div>
+
+              <div className="p-4">
+                <p className="text-xs text-gray-400 font-medium mb-1">IFSC Code</p>
+                <p className="text-sm font-bold text-gray-800 uppercase">{bankInfo.ifsc || "N/A"}</p>
+              </div>
+            </div>
+          </section>
         </div>
       </div>
 

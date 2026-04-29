@@ -868,6 +868,7 @@ function emitOrderClaimedToOtherPartners(order, {
 }
 
 function canExposeOrderToRestaurant(orderLike) {
+  if (orderLike?.orderStatus === "scheduled") return false;
   const method = String(orderLike?.payment?.method || "").toLowerCase();
   const status = String(orderLike?.payment?.status || "").toLowerCase();
 
@@ -880,6 +881,7 @@ function canExposeOrderToRestaurant(orderLike) {
 async function notifyRestaurantNewOrder(orderDoc) {
   try {
     if (!orderDoc || !canExposeOrderToRestaurant(orderDoc)) return;
+    if (orderDoc.orderStatus === "scheduled") return;
 
     const io = getIO();
     if (io) {
@@ -1025,6 +1027,7 @@ async function upsertSellerOrdersForParent(orderDoc, options = {}) {
 async function notifySellerNewOrders(orderDoc, sellerOrders = []) {
   try {
     if (!orderDoc || !canExposeOrderToRestaurant(orderDoc) || !sellerOrders.length) return;
+    if (orderDoc.orderStatus === "scheduled") return;
 
     const io = getIO();
     for (const sellerOrder of sellerOrders) {
@@ -1314,6 +1317,39 @@ export async function notifySplitDispatchOffersForOrder(orderId) {
   }
 
   await notifySplitDispatchOffers(order);
+  return { success: true };
+}
+
+/** Triggered by BullMQ 15 minutes before scheduledAt. */
+export async function processScheduledOrderNotification(orderMongoId) {
+  const order = await FoodOrder.findById(orderMongoId);
+  if (!order) return { success: false, reason: "Order not found" };
+
+  // If order was cancelled or already confirmed, skip
+  if (order.orderStatus !== "scheduled") {
+    return { success: false, reason: `Order is in ${order.orderStatus} status` };
+  }
+
+  // Update status to 'placed' (which is the state for orders waiting restaurant action)
+  order.orderStatus = "placed";
+  pushStatusHistory(order, {
+    byRole: "SYSTEM",
+    from: "scheduled",
+    to: "placed",
+    note: "Scheduled order activated for restaurant review (15m window reached)",
+  });
+  await order.save();
+
+  // Now trigger the actual notifications
+  await notifyRestaurantNewOrder(order);
+  
+  const sellerOrders = order.orderType === "quick" || order.orderType === "mixed" 
+    ? await upsertSellerOrdersForParent(order)
+    : [];
+  if (sellerOrders.length > 0) {
+    await notifySellerNewOrders(order, sellerOrders);
+  }
+
   return { success: true };
 }
 
@@ -1873,7 +1909,7 @@ export async function createOrder(userId, dto) {
     ...(deliveryAddress ? { deliveryAddress } : {}),
     pricing: normalizedPricing,
     payment,
-    orderStatus: "created",
+    orderStatus: dto.scheduledAt ? "scheduled" : "created",
     ...(orderType === "food" || orderType === "mixed"
       ? { dispatch: { modeAtCreation: dispatchMode, status: "unassigned" } }
       : {}),
@@ -1982,6 +2018,21 @@ export async function createOrder(userId, dto) {
     if (hasQuickItems) {
       await notifySellerNewOrders(order, sellerOrders);
     }
+
+    // Schedule delayed notification if it's a scheduled order
+    if (order.orderStatus === "scheduled" && order.scheduledAt) {
+      const now = Date.now();
+      const scheduledTime = new Date(order.scheduledAt).getTime();
+      const notificationTime = scheduledTime - 15 * 60 * 1000;
+      const delay = Math.max(0, notificationTime - now);
+
+      enqueueOrderEvent("NOTIFY_SCHEDULED_ORDER", {
+        orderId: order.orderId,
+        orderMongoId: order._id.toString(),
+      }, { delay });
+      
+      logger.info(`Scheduled notification for order ${order.orderId} with delay of ${delay}ms`);
+    }
   } catch {
     // Don't block order placement on socket failures.
   }
@@ -2047,7 +2098,7 @@ export async function verifyPayment(userId, dto) {
     byRole: "USER",
     byId: userId,
     from: order.orderStatus,
-    to: "created",
+    to: order.orderStatus === "scheduled" ? "scheduled" : "created",
     note: "Payment verified",
   });
   await order.save();
@@ -2067,6 +2118,21 @@ export async function verifyPayment(userId, dto) {
   if (order.orderType === "quick" || order.orderType === "mixed") {
     const sellerOrders = await upsertSellerOrdersForParent(order);
     await notifySellerNewOrders(order, sellerOrders);
+  }
+
+  // Schedule delayed notification if it's a scheduled order and payment is now verified
+  if (order.orderStatus === "scheduled" && order.scheduledAt) {
+    const now = Date.now();
+    const scheduledTime = new Date(order.scheduledAt).getTime();
+    const notificationTime = scheduledTime - 15 * 60 * 1000;
+    const delay = Math.max(0, notificationTime - now);
+
+    enqueueOrderEvent("NOTIFY_SCHEDULED_ORDER", {
+      orderId: order.orderId,
+      orderMongoId: order._id.toString(),
+    }, { delay });
+    
+    logger.info(`Scheduled notification for verified order ${order.orderId} with delay of ${delay}ms`);
   }
 
   // Notify Customer about payment success

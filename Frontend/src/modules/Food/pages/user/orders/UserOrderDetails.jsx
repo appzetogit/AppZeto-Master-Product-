@@ -434,7 +434,7 @@ export default function UserOrderDetails() {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={goBack}
+            onClick={() => navigate('/food/user')}
             className="p-1 rounded-full hover:bg-gray-100"
           >
             <ArrowLeft className="w-6 h-6 text-gray-700 cursor-pointer" />
@@ -454,6 +454,13 @@ export default function UserOrderDetails() {
             <h2 className="font-semibold text-gray-800">
               {order.status === "delivered"
                 ? "Order was delivered"
+                : order.status === "scheduled"
+                ? `Scheduled for ${new Date(order.scheduledAt).toLocaleString("en-US", {
+                    day: "numeric",
+                    month: "short",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}`
                 : "Order status: " + (order.status || "Processing")}
             </h2>
           </div>

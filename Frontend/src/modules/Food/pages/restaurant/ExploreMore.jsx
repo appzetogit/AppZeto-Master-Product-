@@ -36,6 +36,7 @@ import { clearModuleAuth, clearAuthData, getCurrentUser } from "@food/utils/auth
 import { restaurantAPI } from "@food/api"
 import { firebaseAuth, ensureFirebaseInitialized } from "@food/firebase"
 import BottomNavOrders from "@food/components/restaurant/BottomNavOrders"
+import RestaurantProfile from "@food/pages/restaurant/RestaurantProfile"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -906,11 +907,15 @@ export default function ExploreMore() {
               <Search className="w-5 h-5 text-gray-900" />
             </button>
             <button
-              onClick={() => navigate("/food/restaurant/onboarding?step=1")}
-              className="p-2 hover:bg-gray-100 bg-gray-200 rounded-full transition-colors"
+              onClick={() => setProfileOpen(true)}
+              className="p-2 hover:bg-gray-100 bg-gray-200 rounded-full transition-colors overflow-hidden flex items-center justify-center"
               aria-label="Profile"
             >
-              <UserRound className="w-5 h-5 text-gray-900 " />
+              {userData.profileImage?.url ? (
+                <img src={userData.profileImage.url} alt="Profile" className="w-5 h-5 object-cover rounded-full" />
+              ) : (
+                <UserRound className="w-5 h-5 text-gray-900" />
+              )}
             </button>
           </div>
         </div>
@@ -1187,156 +1192,7 @@ export default function ExploreMore() {
       </AnimatePresence>
 
       {/* Profile Popup */}
-      <AnimatePresence>
-        {profileOpen && (
-          <>
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="fixed inset-0 bg-black/50 z-50"
-              onClick={() => setProfileOpen(false)}
-            />
-
-            {/* Popup Sheet */}
-            <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{
-                type: "spring",
-                damping: 30,
-                stiffness: 300
-              }}
-              className="fixed bottom-0 left-0 right-0 bg-white rounded-0 shadow-2xl z-50 max-h-[90vh] overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 sticky top-0 bg-white z-10">
-                <h2 className="text-lg font-bold text-gray-900">My profile</h2>
-                <button
-                  onClick={() => setProfileOpen(false)}
-                  className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
-                  aria-label="Close"
-                >
-                  <X className="w-5 h-5 text-gray-900" />
-                </button>
-              </div>
-
-              {/* User Information Section */}
-              <div className="px-6 py-6">
-                <button 
-                  onClick={() => {
-                    setProfileOpen(false)
-                    navigate("/food/restaurant/onboarding?step=1")
-                  }}
-                  className="w-full flex items-start gap-4 text-left p-2 -m-2 hover:bg-gray-50 rounded-xl transition-colors group"
-                >
-                  {/* Avatar */}
-                  <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center shrink-0 overflow-hidden ring-2 ring-white">
-                    {userData.profileImage?.url ? (
-                      <img
-                        src={userData.profileImage.url}
-                        alt={userData.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <User className="w-8 h-8 text-gray-400" />
-                    )}
-                  </div>
-
-                  {/* User Details */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <h3 className="text-base font-bold text-gray-900 truncate">
-                        {loadingRestaurant ? "Loading..." : userData.name}
-                      </h3>
-                      <Edit className="w-4 h-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                    {userData.phone && (
-                      <p className="text-sm text-gray-600 mb-1">
-                        {userData.phone}
-                      </p>
-                    )}
-                    {userData.email && (
-                      <p className="text-sm text-gray-600 mb-1">
-                        {userData.email}
-                      </p>
-                    )}
-                    <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mt-2 bg-blue-50 w-fit px-2 py-0.5 rounded">
-                      {userData.role}
-                    </p>
-                  </div>
-                </button>
-              </div>
-
-              {/* Logout Buttons */}
-              <div className="px-6 pb-6 space-y-3">
-                {/* Logout Button */}
-                <button
-                  onClick={handleLogout}
-                  disabled={isLoggingOut}
-                  className="w-full bg-red-600 hover:bg-red-700 disabled:bg-red-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors"
-                >
-                  {isLoggingOut ? "Logging out..." : "Logout"}
-                </button>
-
-                {/* Logout from all devices Button */}
-                <button
-                  onClick={handleLogoutAllDevices}
-                  disabled={isLoggingOut}
-                  className="w-full bg-white border-2 border-red-600 text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed font-semibold py-3 px-4 rounded-lg transition-colors"
-                >
-                  {isLoggingOut ? "Logging out..." : "Logout from all devices"}
-                </button>
-              </div>
-
-              {/* Footer Links */}
-              <div className="px-6 py-4 border-t border-gray-200">
-                <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
-                  <a
-                    href="#"
-                    className="hover:text-gray-700 transition-colors border-b border-dotted border-gray-400"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      // Navigate to terms of service
-                      debugLog("Terms of Service clicked")
-                    }}
-                  >
-                    Terms of Service
-                  </a>
-                  <span className="text-gray-400">|</span>
-                  <a
-                    href="#"
-                    className="hover:text-gray-700 transition-colors border-b border-dotted border-gray-400"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      // Navigate to privacy policy
-                      debugLog("Privacy Policy clicked")
-                    }}
-                  >
-                    Privacy Policy
-                  </a>
-                  <span className="text-gray-400">|</span>
-                  <a
-                    href="#"
-                    className="hover:text-gray-700 transition-colors border-b border-dotted border-gray-400"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      // Navigate to code of conduct
-                      debugLog("Code of Conduct clicked")
-                    }}
-                  >
-                    Code of Conduct
-                  </a>
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      <RestaurantProfile isOpen={profileOpen} onClose={() => setProfileOpen(false)} />
 
       {/* Schedule Off Reason Selection Popup */}
       <AnimatePresence>

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Search, Plus, Edit, Trash2, ToggleLeft, ToggleRight, Settings, ArrowUpDown, Check, Columns, Package } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@food/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@food/components/ui/dialog"
@@ -273,6 +273,7 @@ export default function EarningAddon() {
   const getStatusBadge = (status, isValid) => {
     const statusConfig = {
       active: { bg: "bg-green-100", text: "text-green-700", label: "Active" },
+      upcoming: { bg: "bg-blue-100", text: "text-blue-700", label: "Upcoming" },
       inactive: { bg: "bg-gray-100", text: "text-gray-700", label: "Inactive" },
       expired: { bg: "bg-red-100", text: "text-red-700", label: "Expired" },
       completed: { bg: "bg-blue-100", text: "text-blue-700", label: "Completed" },

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { ArrowLeft, Search, MoreVertical, ChevronRight, Star, RotateCcw, AlertCircle, Loader2, Clock, X, Share2, MessageCircle, Send, Copy, Mail, MessagesSquare, Link2 } from "lucide-react"
+import { ArrowLeft, Search, MoreVertical, ChevronRight, Star, RotateCcw, AlertCircle, Loader2, Clock, X, Share2, MessageCircle, Send, Copy, Mail, MessagesSquare, Link2, Calendar } from "lucide-react"
 import { orderAPI } from "@food/api"
 import { useCart } from "@food/context/CartContext"
 import { toast } from "sonner"
@@ -89,6 +89,7 @@ export default function Orders() {
     if (status === 'delivered' || status === 'completed') return 'delivered'
     if (status === 'out_for_delivery' || status === 'outForDelivery') return 'outForDelivery'
     if (status === 'ready' || status === 'preparing') return 'preparing'
+    if (status === 'scheduled') return 'scheduled'
     if (String(status).toLowerCase().includes('cancel')) return 'cancelled'
     return status || 'confirmed'
   }
@@ -690,7 +691,7 @@ Order again from this restaurant in the ${companyName} app.`
     <div className="min-h-screen bg-gray-50 pb-10 font-sans">
       {/* Header */}
       <div className="bg-white p-4 flex items-center shadow-sm sticky top-0 z-10">
-        <Link to="/user">
+        <Link to="/food/user">
           <ArrowLeft className="w-6 h-6 text-gray-700 cursor-pointer" />
         </Link>
         <h1 className="ml-4 text-xl font-semibold text-gray-800">Your Orders</h1>
@@ -958,6 +959,19 @@ Order again from this restaurant in the ${companyName} app.`
                     {isCancelled && !isRestaurantCancelled && !isUserCancelled && (
                       <p className="text-xs font-medium text-gray-500 mt-1">Cancelled</p>
                     )}
+                    {order.status === 'scheduled' && (
+                      <div className="flex items-center gap-1.5 mt-1.5 p-2 bg-blue-50 border border-blue-100 rounded-lg w-fit">
+                        <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                        <span className="text-[10px] font-bold text-blue-700 uppercase tracking-tight">
+                          Scheduled for {new Date(order.scheduledAt).toLocaleString("en-US", {
+                            day: "numeric",
+                            month: "short",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center ml-4">
                     <Link to={`/user/orders/${order.id}`}>
@@ -1019,7 +1033,7 @@ Order again from this restaurant in the ${companyName} app.`
                     </div>
                   ) : (
                     <div>
-                      <p className="text-xs text-gray-500">{order.status === 'preparing' ? 'Preparing' : order.status === 'outForDelivery' ? 'Out for delivery' : order.status === 'confirmed' ? 'Order confirmed' : ''}</p>
+                      <p className="text-xs text-gray-500">{order.status === 'preparing' ? 'Preparing' : order.status === 'outForDelivery' ? 'Out for delivery' : order.status === 'confirmed' ? 'Order confirmed' : order.status === 'scheduled' ? 'Scheduled' : ''}</p>
                       {/* Countdown Timer */}
                       {countdowns[order.id] && countdowns[order.id] > 0 && (
                         <div className="flex items-center gap-1 mt-1 text-xs text-[#EB590E] font-medium">

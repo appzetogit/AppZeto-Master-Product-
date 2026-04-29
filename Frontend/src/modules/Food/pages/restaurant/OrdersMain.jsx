@@ -1156,7 +1156,7 @@ export default function OrdersMain() {
         ? new Date(newOrder.scheduledAt).getTime()
         : null;
       const isFutureScheduled =
-        scheduledAt && scheduledAt > Date.now() + 30 * 60000;
+        scheduledAt && scheduledAt > Date.now() + 15 * 60000;
 
       if (isFutureScheduled) {
         toast.info(
@@ -1254,8 +1254,8 @@ export default function OrdersMain() {
               (order.status === "created" || order.status === "confirmed")
             ) {
               const scheduledTime = new Date(order.scheduledAt).getTime();
-              // Show popup if scheduled time is <= 30 mins from now
-              if (scheduledTime <= now + 30 * 60000) return true;
+              // Show popup if scheduled time is <= 15 mins from now
+              if (scheduledTime <= now + 15 * 60000) return true;
             }
 
             return false;
@@ -1898,7 +1898,12 @@ export default function OrdersMain() {
           />
         );
       case "scheduled":
-        return <EmptyState message="Scheduled orders will appear here" />;
+        return (
+          <ScheduledOrders
+            onSelectOrder={handleSelectOrder}
+            refreshToken={ordersRefreshToken}
+          />
+        );
       case "completed":
         return (
           <CompletedOrders
@@ -3540,6 +3545,111 @@ const OutForDeliveryOrders = ({ onSelectOrder, refreshToken = 0 }) => {
     </div>
   );
 };
+
+// Scheduled Orders List
+function ScheduledOrders({ onSelectOrder, refreshToken = 0 }) {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchOrders = async () => {
+      try {
+        const response = await restaurantAPI.getOrders();
+        if (!isMounted) return;
+
+        if (response.data?.success && response.data.data?.orders) {
+          const scheduledOrders = response.data.data.orders.filter(
+            (order) => order.status === "scheduled",
+          );
+
+          const transformedOrders = scheduledOrders.map((order) => ({
+            orderId: order.orderId || order._id,
+            mongoId: order._id,
+            status: order.status || "scheduled",
+            customerName: order.userId?.name || "Customer",
+            type: order.deliveryFleet === "standard" ? "Home Delivery" : "Express Delivery",
+            tableOrToken: null,
+            timePlaced: new Date(order.createdAt).toLocaleTimeString("en-US", {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+            scheduledAt: order.scheduledAt,
+            itemsSummary: buildOrderItemsSummary(order.items),
+            photoUrl: getOrderPreviewItem(order.items)?.image || null,
+            photoAlt: getOrderPreviewItem(order.items)?.name || "Order",
+            paymentMethod: order.paymentMethod || order.payment?.method || null,
+          }));
+
+          setOrders(transformedOrders);
+        } else {
+          setOrders([]);
+        }
+      } catch (error) {
+        if (error.code !== "ERR_NETWORK" && error.response?.status !== 404) {
+          debugError("Error fetching scheduled orders:", error);
+        }
+        setOrders([]);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    fetchOrders();
+    const interval = setInterval(fetchOrders, 30000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [refreshToken]);
+
+  if (loading) {
+    return (
+      <div className="pt-4 pb-6">
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="text-base font-semibold text-black">Scheduled orders</h2>
+          <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
+        </div>
+        <div className="text-center py-8 text-gray-500 text-sm">Loading...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pt-4 pb-6">
+      <div className="flex items-baseline justify-between mb-3">
+        <h2 className="text-base font-semibold text-black">Scheduled orders</h2>
+        <span className="text-xs text-gray-500">{orders.length} total</span>
+      </div>
+      {orders.length === 0 ? (
+        <div className="text-center py-12 bg-white rounded-2xl border border-gray-200 flex flex-col items-center">
+           <Calendar className="w-12 h-12 text-gray-300 mb-3" />
+           <p className="text-gray-500 text-sm">Scheduled orders will appear here</p>
+        </div>
+      ) : (
+        <div>
+          {orders.map((order) => {
+             const scheduledTime = new Date(order.scheduledAt).toLocaleString("en-US", {
+               day: "numeric",
+               month: "short",
+               hour: "2-digit",
+               minute: "2-digit",
+             });
+             return (
+               <OrderCard
+                 key={order.orderId || order.mongoId}
+                 {...order}
+                 timePlaced={`For: ${scheduledTime}`}
+                 onSelect={onSelectOrder}
+               />
+             );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Empty State Component
 function EmptyState({ message = "Temporarily closed" }) {

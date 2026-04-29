@@ -64,12 +64,15 @@ const resolveRestaurantBackPath = ({ pathname, state }) => {
     normalizedPath === "/update-bank-details" ||
     normalizedPath === "/fssai" ||
     normalizedPath === "/fssai/update" ||
-    normalizedPath === "/outlet-info" ||
     normalizedPath === "/outlet-timings" ||
     /^\/outlet-timings\/[^/]+$/.test(normalizedPath) ||
     normalizedPath === "/zone-setup"
   ) {
     return explicitBackPath || "/food/restaurant/outlet-info"
+  }
+
+  if (normalizedPath === "/outlet-info") {
+    return explicitBackPath || "/food/restaurant/explore"
   }
 
   if (

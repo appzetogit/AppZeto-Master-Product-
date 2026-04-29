@@ -27,6 +27,16 @@ export const processOrderJob = async (job) => {
         }
     }
 
+    // Handle Scheduled Order Activation
+    if (action === 'NOTIFY_SCHEDULED_ORDER') {
+        try {
+            const { processScheduledOrderNotification } = await import('../../../modules/food/orders/services/order.service.js');
+            await processScheduledOrderNotification(orderMongoId);
+        } catch (err) {
+            logger.error(`[BullMQ:order] NOTIFY_SCHEDULED_ORDER failed: ${err.message}`);
+        }
+    }
+
 
     return { processed: true, action, jobId: job.id };
 };

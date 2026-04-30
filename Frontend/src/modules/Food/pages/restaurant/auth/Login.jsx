@@ -199,7 +199,7 @@ export default function RestaurantLogin() {
                 onClick={() => navigate("/food/restaurant/terms")}
                 className="bg-transparent border-0 p-0 text-[#ef4f5f] font-bold hover:underline cursor-pointer"
               >
-                Terms
+                Terms & Conditions
               </button>
             </p>
           </div>

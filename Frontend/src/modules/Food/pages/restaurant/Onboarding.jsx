@@ -237,6 +237,7 @@ const loadOnboardingFromLocalStorage = () => {
 const clearOnboardingFromLocalStorage = () => {
   try {
     localStorage.removeItem(ONBOARDING_STORAGE_KEY)
+    localStorage.removeItem("restaurant_pendingPhone")
   } catch (error) {
     debugError("Failed to clear onboarding data from localStorage:", error)
   }
@@ -736,16 +737,20 @@ export default function RestaurantOnboarding() {
   }, [step2, step3])
 
   // Clear onboarding data when user navigates away using browser back button
-  useEffect(() => {
-    const handlePopState = () => {
-      clearOnboardingFromLocalStorage()
-      clearOnboardingFileCache()
-    }
-    window.addEventListener("popstate", handlePopState)
-    return () => {
-      window.removeEventListener("popstate", handlePopState)
-    }
-  }, [])
+   useEffect(() => {
+     const handlePopState = () => {
+       // Clear auth and onboarding data synchronously on back navigation
+       // to ensure the session is terminated as per user request.
+       clearModuleAuth("restaurant")
+       clearAuthData()
+       clearOnboardingFromLocalStorage()
+       clearOnboardingFileCache()
+     }
+     window.addEventListener("popstate", handlePopState)
+     return () => {
+       window.removeEventListener("popstate", handlePopState)
+     }
+   }, [])
 
   useEffect(() => {
     return () => {
@@ -2379,11 +2384,7 @@ export default function RestaurantOnboarding() {
         <header className="px-4 py-4 sm:px-6 sm:py-5 bg-white flex items-center justify-between border-b">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => {
-                clearOnboardingFromLocalStorage()
-                clearOnboardingFileCache()
-                navigate("/food/restaurant/explore")
-              }}
+              onClick={handleLogout}
               className="p-1 hover:bg-gray-100 rounded-full transition-colors"
               aria-label="Close onboarding"
             >

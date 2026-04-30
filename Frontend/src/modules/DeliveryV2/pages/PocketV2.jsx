@@ -199,6 +199,18 @@ export const PocketV2 = () => {
   return (
     <div className="min-h-screen bg-[#f6e9dc] pb-32 font-poppins">
        
+       {/* 0. Header */}
+       <div className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between sticky top-0 z-[100] safe-top">
+          <div className="flex items-center gap-4">
+             <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center text-[#ff8100] border border-orange-100">
+                <Wallet className="w-5 h-5" />
+             </div>
+             <div>
+                <h1 className="text-xl font-black text-gray-950 uppercase tracking-tighter">Pocket History</h1>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Earnings & Wallet Hub</p>
+             </div>
+          </div>
+       </div>
        {/* 1. BANK DETAILS BANNER */}
        {!walletState.bankDetailsFilled && (
          <div className="bg-yellow-400 px-4 py-3 flex items-center gap-3 border-b border-yellow-500/20">
@@ -222,7 +234,7 @@ export const PocketV2 = () => {
           
           {/* 2. WEEKLY EARNINGS CARD */}
           <div 
-            onClick={() => navigate('/food/delivery/earnings')}
+            onClick={() => navigate('/food/delivery/pocket/details')}
             className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 text-center mb-5 transition-all active:scale-[0.98]"
           >
              <p className="text-gray-500 text-[11px] font-bold uppercase tracking-widest mb-2">Earnings: {getCurrentWeekRange()}</p>
@@ -284,7 +296,6 @@ export const PocketV2 = () => {
                       </svg>
                       <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-2">
                          <span className="text-base font-black text-black leading-none truncate">₹{activeOffer.currentEarnings}</span>
-                        <HelpCircle className="w-2.5 h-2.5 text-gray-300 mt-1 cursor-help" />
                       </div>
                    </div>
                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mt-4">Earned Yet</p>
@@ -386,7 +397,19 @@ export const PocketV2 = () => {
           {showDepositPopup && (
              <div className="fixed inset-0 z-[1000] flex items-end">
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowDepositPopup(false)} className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
-                <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="relative w-full bg-white rounded-t-[2.5rem] p-8 pb-12 shadow-2xl">
+                <motion.div 
+                   drag="y"
+                   dragConstraints={{ top: 0, bottom: 0 }}
+                   dragElastic={0.1}
+                   onDragEnd={(e, info) => {
+                      if (info.offset.y > 100) setShowDepositPopup(false);
+                   }}
+                   initial={{ y: '100%' }} 
+                   animate={{ y: 0 }} 
+                   exit={{ y: '100%' }} 
+                   transition={{ type: "spring", damping: 25, stiffness: 200 }} 
+                   className="relative w-full bg-white rounded-t-[2.5rem] p-8 pb-12 shadow-2xl"
+                >
                    <div className="w-16 h-1.5 bg-gray-100 rounded-full mx-auto mb-8" />
                    
                    <div className="text-center mb-8">

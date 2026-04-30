@@ -150,6 +150,7 @@ export default function HomeHeader({
   headerVideoUrl,
   quickThemeColor,
   onQuickTabIntent,
+  bannerComponent,
 }) {
   const navigate = useNavigate();
   const routerLocation = useRouterLocation();
@@ -242,38 +243,40 @@ export default function HomeHeader({
     <motion.div
       className={`relative transition-all duration-400 ${
         isFood
-          ? "min-h-[450px] overflow-hidden"
+          ? "min-h-[320px] overflow-hidden"
           : "min-h-[188px] overflow-visible"
       }`}
       style={{ background: isFood ? "transparent" : theme.topBg, color: theme.text }}
     >
       {headerVideoUrl && (
         <div className="absolute inset-0 z-0 flex justify-center overflow-hidden">
-          <video
-            ref={videoRef}
-            src={headerVideoUrl}
-            autoPlay
-            loop
-            muted
-            playsInline
-            preload="metadata"
-            aria-hidden="true"
-            className={`h-[132%] w-[124%] max-w-none -translate-y-4 scale-[0.9] object-cover object-center transition-opacity duration-200 ${
-              isFood ? "opacity-100" : "opacity-0"
-            }`}
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-[#7f2d25]/88 via-[#7f2d25]/18 via-[28%] to-black/22" />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/18 via-transparent to-black/16" />
+            {/* Video temporarily removed to improve loading time
+            <video
+              ref={videoRef}
+              src={headerVideoUrl}
+              autoPlay
+              loop
+              muted
+              playsInline
+              preload="metadata"
+              aria-hidden="true"
+              className={`h-full w-full object-cover object-center transition-opacity duration-200 ${
+                isFood ? "opacity-100" : "opacity-0"
+              }`}
+            />
+            */}
+          <div className="absolute inset-0 bg-gradient-to-b from-[#0B0F19] via-[#1c1439] to-[#0a0a0a]" />
+          <div className="absolute inset-0 bg-gradient-to-br from-[#312e81]/30 via-transparent to-transparent" />
         </div>
       )}
 
       <div
-        className="absolute inset-0 z-[1] opacity-[0.1] pointer-events-none"
+        className="absolute inset-0 z-[1] opacity-[0.25] pointer-events-none"
         style={{
           backgroundImage: `url(${foodPattern})`,
           backgroundSize: "200px",
           backgroundRepeat: "repeat",
-          mixBlendMode: "soft-light",
+          mixBlendMode: "overlay",
         }}
       />
 
@@ -519,6 +522,12 @@ export default function HomeHeader({
           )}
         </div>
       </div>
+
+      {isFood && bannerComponent && (
+        <div className="relative z-10 w-full pb-5 pt-1">
+          {bannerComponent}
+        </div>
+      )}
     </motion.div>
   );
 }

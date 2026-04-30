@@ -32,7 +32,7 @@ const BannerSection = memo(({
       <div
         ref={heroShellRef}
         data-home-hero-shell="true"
-        className="relative w-full h-full overflow-hidden bg-white"
+        className="relative w-full h-full overflow-hidden bg-transparent"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -79,11 +79,43 @@ const BannerSection = memo(({
                     className="h-full w-full object-cover"
                     style={{ filter: "brightness(0.95)" }}
                   />
+                ) : bannerData?.isFallback ? (
+                  <div className="relative h-full w-full rounded-[24px] overflow-hidden flex items-center bg-gradient-to-br from-indigo-900/40 via-[#1e1b4b]/60 to-black/50 shadow-2xl border border-white/10 backdrop-blur-sm">
+                    <img src={image} className="absolute right-0 top-0 h-full w-3/5 object-cover opacity-60 mix-blend-overlay [mask-image:linear-gradient(to_right,transparent,black_40%)]" alt="Banner background" />
+                    <div className="relative z-10 px-5 sm:px-8 flex flex-col justify-center h-full text-white w-full">
+                      <motion.span 
+                        initial={{ opacity: 0, y: 15 }}
+                        animate={{ opacity: currentBannerIndex === index ? 1 : 0, y: currentBannerIndex === index ? 0 : 15 }}
+                        transition={{ delay: 0.1, duration: 0.5, ease: "easeOut" }}
+                        className="text-[11px] sm:text-xs font-black uppercase tracking-[0.2em] text-[#F6881F] mb-1.5"
+                      >
+                        {bannerData.title}
+                      </motion.span>
+                      <motion.h3 
+                        initial={{ opacity: 0, x: -30 }}
+                        animate={{ opacity: currentBannerIndex === index ? 1 : 0, x: currentBannerIndex === index ? 0 : -30 }}
+                        transition={{ delay: 0.2, duration: 0.6, type: "spring", bounce: 0.4 }}
+                        className="text-[22px] sm:text-3xl font-black leading-[1.1] mb-3 sm:mb-4 max-w-[65%] drop-shadow-lg"
+                      >
+                        {bannerData.subtitle}
+                      </motion.h3>
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: currentBannerIndex === index ? 1 : 0, scale: currentBannerIndex === index ? 1 : 0.8 }}
+                        transition={{ delay: 0.4, duration: 0.4, type: "spring" }}
+                        className="w-fit"
+                      >
+                        <button className="bg-gradient-to-r from-[#F6881F] to-[#FF5E3A] hover:opacity-90 transition-opacity text-white text-[11px] sm:text-sm font-bold px-5 sm:px-6 py-2 sm:py-2.5 rounded-full shadow-[0_4px_14px_rgba(246,136,31,0.4)]">
+                          {bannerData.action}
+                        </button>
+                      </motion.div>
+                    </div>
+                  </div>
                 ) : (
                   <img
                     src={image}
                     alt={`Hero Banner ${index + 1}`}
-                    className="h-full w-full object-cover"
+                    className="h-full w-full object-cover rounded-[24px]"
                     loading={index === currentBannerIndex ? "eager" : "lazy"}
                     draggable={false}
                   />

@@ -133,6 +133,18 @@ const getStoredDeliveryAddressMode = () => {
   return window.localStorage.getItem("deliveryAddressMode") || "saved";
 };
 
+const defaultBannersImages = [
+  "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=1000&auto=format&fit=crop", 
+  "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?q=80&w=1000&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?q=80&w=1000&auto=format&fit=crop"
+];
+
+const defaultBannersData = [
+  { isFallback: true, title: "Super Saver", subtitle: "66% OFF for 10 mins!", action: "Order Now" },
+  { isFallback: true, title: "Midnight Cravings", subtitle: "Free Delivery on Pizza", action: "Explore" },
+  { isFallback: true, title: "Biryani Festival", subtitle: "Flat ₹150 Off", action: "Claim Offer" }
+];
+
 export default function Home() {
   const HERO_BANNER_AUTO_SLIDE_MS = 3500;
   const BACKEND_ORIGIN = API_BASE_URL.replace(/\/api\/?$/, "");
@@ -212,6 +224,18 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [activeTab]);
 
+  const activeBannerImages = useMemo(() => banners?.images?.length > 0 ? banners.images : defaultBannersImages, [banners?.images]);
+  const activeBannerData = useMemo(() => banners?.data?.length > 0 ? banners.data : defaultBannersData, [banners?.data]);
+
+  // Auto-slide banners
+  useEffect(() => {
+    if (!activeBannerImages.length) return;
+    const interval = setInterval(() => {
+      setCurrentBannerIndex((prev) => (prev + 1) % activeBannerImages.length);
+    }, HERO_BANNER_AUTO_SLIDE_MS);
+    return () => clearInterval(interval);
+  }, [activeBannerImages.length]);
+
   // Sync activeTab with URL
   useEffect(() => {
     const isQuick = routerLocation.pathname.endsWith("/quick");
@@ -268,6 +292,21 @@ export default function Home() {
             onVegModeChange={handleVegModeChange}
             headerVideoUrl={landing.videoUrl}
             quickThemeColor={quickThemeColor}
+            bannerComponent={
+              <Suspense fallback={<HeroBannerSkeleton className="h-[160px] w-full" />}>
+                <div className="h-[160px] sm:h-44 md:h-52 lg:h-60 mt-2 relative z-10 w-full px-4">
+                  <BannerSection 
+                    showBannerSkeleton={banners.loading}
+                    heroBannerImages={activeBannerImages}
+                    heroBannersData={activeBannerData}
+                    currentBannerIndex={currentBannerIndex}
+                    setCurrentBannerIndex={setCurrentBannerIndex}
+                    heroShellRef={heroShellRef}
+                    navigate={navigate}
+                  />
+                </div>
+              </Suspense>
+            }
           />
         )}
       </div>
@@ -295,21 +334,7 @@ export default function Home() {
               <RecommendedSection recommendedForYouRestaurants={meta.recommended} />
             </Suspense>
 
-            <Suspense fallback={<HeroBannerSkeleton className="h-full w-full px-4 mt-3" />}>
-              <section className="content-auto px-4 pt-3 sm:pt-4 lg:pt-5">
-                <div className="overflow-hidden rounded-[22px] border border-slate-100 bg-white shadow-[0_18px_40px_-24px_rgba(15,23,42,0.3)] h-48 sm:h-56 md:h-64 lg:h-72">
-                  <BannerSection 
-                    showBannerSkeleton={banners.loading}
-                    heroBannerImages={banners.images}
-                    heroBannersData={banners.data}
-                    currentBannerIndex={currentBannerIndex}
-                    setCurrentBannerIndex={setCurrentBannerIndex}
-                    heroShellRef={heroShellRef}
-                    navigate={navigate}
-                  />
-                </div>
-              </section>
-            </Suspense>
+
 
             <Suspense fallback={null}>
                <SortFilterSection 

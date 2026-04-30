@@ -71,11 +71,16 @@ export default function RestaurantLogin() {
 
   const ensurePhoneFieldVisible = () => {
     window.setTimeout(() => {
-      phoneInputRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      })
-    }, 180)
+      const content = document.getElementById('login-content')
+      if (content) {
+        content.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      } else {
+        phoneInputRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        })
+      }
+    }, 300)
   }
 
   const handleSendOTP = async () => {
@@ -125,7 +130,7 @@ export default function RestaurantLogin() {
         <div className="absolute bottom-0 w-full h-[100px] bg-white rounded-t-[100px] shadow-[0_-20px_40px_rgba(0,0,0,0.05)]" />
       </div>
 
-      <div className="flex-1 flex flex-col items-center px-4 sm:px-8 -mt-12 sm:-mt-16 z-10 overflow-hidden">
+      <div id="login-content" className="flex-1 flex flex-col items-center px-4 sm:px-8 -mt-12 sm:-mt-16 z-10 overflow-hidden">
         <div className="w-28 h-28 sm:w-32 sm:h-32 bg-white rounded-full shadow-xl flex items-center justify-center border-4 border-slate-50 mb-4 sm:mb-6">
           <div className="text-center">
             <div className="w-16 h-16 bg-[#ef4f5f] rounded-2xl mx-auto flex items-center justify-center transform rotate-12 shadow-lg mb-1">

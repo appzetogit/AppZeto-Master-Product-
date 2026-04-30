@@ -9,6 +9,81 @@ const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
+const DB_NAME = "DeliverySignupDB"
+const STORE_NAME = "documents"
+
+const initDB = () => {
+  return new Promise((resolve) => {
+    try {
+      const request = indexedDB.open(DB_NAME, 1)
+      request.onupgradeneeded = (e) => {
+        const db = e.target.result
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          db.createObjectStore(STORE_NAME)
+        }
+      }
+      request.onsuccess = (e) => resolve(e.target.result)
+      request.onerror = () => resolve(null)
+    } catch (e) {
+      resolve(null)
+    }
+  })
+}
+
+const saveFileToDB = async (key, file) => {
+  const db = await initDB()
+  if (!db) return
+  return new Promise((resolve) => {
+    try {
+      const transaction = db.transaction(STORE_NAME, "readwrite")
+      const store = transaction.objectStore(STORE_NAME)
+      store.put(file, key)
+      transaction.oncomplete = () => resolve()
+      transaction.onerror = () => resolve()
+    } catch (e) {
+      resolve()
+    }
+  })
+}
+
+const getFileFromDB = async (key) => {
+  const db = await initDB()
+  if (!db) return null
+  return new Promise((resolve) => {
+    try {
+      const transaction = db.transaction(STORE_NAME, "readonly")
+      const store = transaction.objectStore(STORE_NAME)
+      const request = store.get(key)
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => resolve(null)
+    } catch (e) {
+      resolve(null)
+    }
+  })
+}
+
+const removeFileFromDB = async (key) => {
+  const db = await initDB()
+  if (!db) return
+  try {
+    const transaction = db.transaction(STORE_NAME, "readwrite")
+    transaction.objectStore(STORE_NAME).delete(key)
+  } catch (e) {
+    debugError("Error removing file from DB:", e)
+  }
+}
+
+const clearDB = async () => {
+  const db = await initDB()
+  if (!db) return
+  try {
+    const transaction = db.transaction(STORE_NAME, "readwrite")
+    transaction.objectStore(STORE_NAME).clear()
+  } catch (e) {
+    debugError("Error clearing DB:", e)
+  }
+}
+
 const createEmptyUploadedDocs = () => ({
   profilePhoto: null,
   aadharPhoto: null,
@@ -46,6 +121,7 @@ const hasDocumentValue = (localFile, uploadedValue) => {
   if (typeof uploadedValue === "string") return uploadedValue.trim().length > 0
   if (uploadedValue && typeof uploadedValue === "object") {
     if (typeof uploadedValue.url === "string" && uploadedValue.url.trim()) return true
+    if (uploadedValue && uploadedValue.file === true) return true
   }
   return false
 }
@@ -113,11 +189,40 @@ export default function SignupStep2() {
   const [activePicker, setActivePicker] = useState(null) // { docType: string, title: string, ref: any }
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [uploading, setUploading] = useState({})
+  const [restoring, setRestoring] = useState({})
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" })
     document.documentElement.scrollTop = 0
     document.body.scrollTop = 0
+
+    const loadSavedFiles = async () => {
+      const docTypes = ["profilePhoto", "aadharPhoto", "panPhoto", "drivingLicensePhoto"]
+      const restored = {}
+      let hasRestored = false
+
+      setRestoring(Object.fromEntries(docTypes.map(t => [t, true])))
+
+      try {
+        for (const type of docTypes) {
+          const file = await getFileFromDB(type)
+          if (file && (file instanceof File || file instanceof Blob)) {
+            const restoredFile = file instanceof File ? file : new File([file], `${type}.jpg`, { type: file.type || "image/jpeg" })
+            restored[type] = restoredFile
+            hasRestored = true
+          }
+        }
+      } catch (e) {
+        debugError("Error loading saved files from DB:", e)
+      } finally {
+        setRestoring({})
+      }
+
+      if (hasRestored) {
+        setDocuments(prev => ({ ...prev, ...restored }))
+      }
+    }
+    loadSavedFiles()
   }, [])
 
   // Save uploaded docs to session storage whenever they change
@@ -136,7 +241,7 @@ export default function SignupStep2() {
         }
       })
     }
-  }, [documents])
+  }, [])
 
   const getPreviewSrc = (docType) => {
     const uploaded = uploadedDocs[docType]
@@ -169,8 +274,15 @@ export default function SignupStep2() {
       return
     }
 
-    setDocuments((prev) => ({ ...prev, [docType]: file }))
+    setDocuments((prev) => {
+      const oldFile = prev[docType]
+      if (oldFile && oldFile._previewUrl) {
+        URL.revokeObjectURL(oldFile._previewUrl)
+      }
+      return { ...prev, [docType]: file }
+    })
     setUploadedDocs((prev) => ({ ...prev, [docType]: { file: true } }))
+    await saveFileToDB(docType, file)
     toast.success(`${docType.replace(/([A-Z])/g, " $1").trim()} selected`)
   }
 
@@ -186,14 +298,18 @@ export default function SignupStep2() {
   }
 
   const handleRemove = (docType) => {
-    setDocuments(prev => ({
-      ...prev,
-      [docType]: null
-    }))
+    setDocuments(prev => {
+      const file = prev[docType]
+      if (file && file._previewUrl) {
+        URL.revokeObjectURL(file._previewUrl)
+      }
+      return { ...prev, [docType]: null }
+    })
     setUploadedDocs(prev => ({
       ...prev,
       [docType]: null
     }))
+    removeFileFromDB(docType)
   }
 
   const handleSubmit = async (e) => {
@@ -303,6 +419,7 @@ export default function SignupStep2() {
       if (response?.data?.success) {
         sessionStorage.removeItem("deliverySignupDetails")
         sessionStorage.removeItem("deliverySignupDocs")
+        clearDB()
         if (isCompleteProfile) {
           sessionStorage.removeItem("deliveryNeedsRegistration")
           const pendingPhone = `${details.countryCode || "+91"} ${String(details.phone || "").replace(/\D/g, "").slice(0, 15)}`.trim()
@@ -341,7 +458,7 @@ export default function SignupStep2() {
 
   const DocumentUpload = ({ docType, label, required = true }) => {
     const uploaded = uploadedDocs[docType]
-    const isUploading = uploading[docType]
+    const isUploading = uploading[docType] || restoring[docType]
     const hasUploadedDocument = hasDocumentValue(documents[docType], uploaded)
 
     return (
@@ -375,7 +492,7 @@ export default function SignupStep2() {
               {isUploading ? (
                 <>
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500 mb-2"></div>
-                  <p className="text-sm text-gray-500">Uploading...</p>
+                  <p className="text-sm text-gray-500">{uploading[docType] ? "Uploading..." : "Restoring..."}</p>
                 </>
               ) : (
                 <>

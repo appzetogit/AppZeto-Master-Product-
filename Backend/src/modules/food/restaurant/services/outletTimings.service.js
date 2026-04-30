@@ -42,8 +42,8 @@ const toClientShape = (doc) => {
         const isOpen = found ? found.isOpen !== false : true;
         map[day] = {
             isOpen,
-            openingTime: isOpen ? normalizeTime(found?.openingTime, '09:00') : '',
-            closingTime: isOpen ? normalizeTime(found?.closingTime, '22:00') : ''
+            openingTime: normalizeTime(found?.openingTime, '09:00'),
+            closingTime: normalizeTime(found?.closingTime, '22:00')
         };
     }
     return map;
@@ -72,8 +72,8 @@ export async function upsertOutletTimingsForRestaurant(restaurantId, outletTimin
         return {
             day,
             isOpen,
-            openingTime: isOpen ? normalizeTime(src.openingTime, '09:00') : '',
-            closingTime: isOpen ? normalizeTime(src.closingTime, '22:00') : ''
+            openingTime: normalizeTime(src.openingTime, '09:00'),
+            closingTime: normalizeTime(src.closingTime, '22:00')
         };
     });
 

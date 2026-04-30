@@ -102,6 +102,19 @@ export default function RestaurantStatus() {
 
   // Check if restaurant is currently open based on outlet timings only
   useEffect(() => {
+    const handleAutoTurnOff = async () => {
+      setDeliveryStatus(false)
+      try {
+        await restaurantAPI.updateAcceptingOrders(false)
+        persistRestaurantOnlineStatus(false)
+        window.dispatchEvent(new CustomEvent('restaurantStatusChanged', { 
+          detail: { isOnline: false } 
+        }))
+      } catch (e) {
+        debugError("Auto turn off failed:", e)
+      }
+    }
+
     const checkIfOpen = () => {
       const now = new Date()
       const currentDayFull = now.toLocaleDateString('en-US', { weekday: 'long' }) // "Monday", "Tuesday", etc.
@@ -122,7 +135,11 @@ export default function RestaurantStatus() {
       if (dayData.isOpen === false) {
         setIsDayClosed(true)
         setIsWithinTimings(false)
-        setShowOutletClosedDialog(true)
+        // Show dialog only if it was online, to prevent annoying popups every minute
+        if (deliveryStatus) {
+          setShowOutletClosedDialog(true)
+          handleAutoTurnOff()
+        }
         return
       }
 
@@ -147,6 +164,10 @@ export default function RestaurantStatus() {
 
       setIsDayClosed(false)
       setIsWithinTimings(isWithin)
+
+      if (!isWithin && deliveryStatus) {
+        handleAutoTurnOff()
+      }
     }
 
     checkIfOpen()
@@ -163,7 +184,7 @@ export default function RestaurantStatus() {
       clearInterval(interval)
       window.removeEventListener("outletTimingsUpdated", handleOutletTimingsUpdate)
     }
-  }, [currentDateTime, outletTimings])
+  }, [currentDateTime, outletTimings, deliveryStatus])
 
   // Note: Delivery status is now manually controlled by user via toggle
   // We don't automatically set it based on timings anymore
@@ -346,7 +367,7 @@ export default function RestaurantStatus() {
           </button>
           <div className="flex-1">
             <h1 className="text-lg font-bold text-gray-900">Restaurant status</h1>
-            <p className="text-sm text-gray-500 mt-0.5">You are mapped to 1 restaurant</p>
+
           </div>
         </div>
       </div>

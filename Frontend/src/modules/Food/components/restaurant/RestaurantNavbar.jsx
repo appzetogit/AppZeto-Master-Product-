@@ -331,11 +331,7 @@ export default function RestaurantNavbar({
             <h1 className="text-[15px] font-bold text-gray-900 truncate">
               {loading ? "Loading..." : (restaurantName || "Restaurant")}
             </h1>
-            {companyName && !loading && (
-              <span className="text-[9px] text-gray-400 font-bold uppercase tracking-tight shrink-0">
-                {companyName}
-              </span>
-            )}
+
           </div>
           {!loading && location && location.trim() !== "" && (
             <div className="flex items-center gap-1 mt-0.5 opacity-80">

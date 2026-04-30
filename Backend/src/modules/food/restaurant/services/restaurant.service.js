@@ -1,4 +1,5 @@
 import { FoodRestaurant } from '../models/restaurant.model.js';
+import { FoodRestaurantOutletTimings } from '../models/outletTimings.model.js';
 import { uploadImageBuffer } from '../../../../services/cloudinary.service.js';
 import { ValidationError } from '../../../../core/auth/errors.js';
 import mongoose from 'mongoose';
@@ -407,6 +408,24 @@ export const registerRestaurant = async (payload, files) => {
             offer: offer || '',
             menuImages,
             ...images
+        });
+
+        const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+        const shortDaysMap = { Mon: "Monday", Tue: "Tuesday", Wed: "Wednesday", Thu: "Thursday", Fri: "Friday", Sat: "Saturday", Sun: "Sunday" };
+        const normalizedOpenDays = (openDays || []).map(d => shortDaysMap[d] || d);
+        const timingsArray = daysOfWeek.map(day => {
+            const isOpen = normalizedOpenDays.includes(day);
+            return {
+                day,
+                isOpen,
+                openingTime: normalizedOpeningTime || '',
+                closingTime: normalizedClosingTime || ''
+            };
+        });
+
+        await FoodRestaurantOutletTimings.create({
+            restaurantId: restaurant._id,
+            timings: timingsArray
         });
 
         try {

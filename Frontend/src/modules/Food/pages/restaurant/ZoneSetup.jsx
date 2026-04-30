@@ -2,9 +2,10 @@ import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { MapPin, Search, Save, Loader2, ArrowLeft } from "lucide-react"
 import RestaurantNavbar from "@food/components/restaurant/RestaurantNavbar"
-import { restaurantAPI } from "@food/api"
+import { restaurantAPI, zoneAPI } from "@food/api"
 import { getGoogleMapsApiKey } from "@food/utils/googleMapsApiKey"
 import { loadGoogleMaps as loadGoogleMapsSdk } from "@core/services/googleMapsLoader"
+import { clearAuthData } from "@food/utils/auth"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -56,6 +57,7 @@ export default function ZoneSetup() {
   const markerRef = useRef(null)
   const autocompleteInputRef = useRef(null)
   const autocompleteRef = useRef(null)
+  const zonesPolygonsRef = useRef([])
   
   const [googleMapsApiKey, setGoogleMapsApiKey] = useState("")
   const [mapLoading, setMapLoading] = useState(true)
@@ -64,9 +66,11 @@ export default function ZoneSetup() {
   const [locationSearch, setLocationSearch] = useState("")
   const [selectedLocation, setSelectedLocation] = useState(null)
   const [selectedAddress, setSelectedAddress] = useState("")
+  const [zones, setZones] = useState([])
 
   useEffect(() => {
     fetchRestaurantData()
+    fetchZones()
     loadGoogleMaps()
   }, [])
 
@@ -133,9 +137,45 @@ export default function ZoneSetup() {
       const data = response?.data?.data?.restaurant || response?.data?.restaurant
       if (data) {
         setRestaurantData(data)
+        // Set initial location from restaurant data
+        if (data.location?.latitude && data.location?.longitude) {
+          const lat = data.location.latitude
+          const lng = data.location.longitude
+          const address = data.location.formattedAddress || ""
+          setSelectedLocation({ lat, lng, address })
+          setSelectedAddress(address)
+          setLocationSearch(address)
+        }
       }
     } catch (error) {
       debugError("Error fetching restaurant data:", error)
+    }
+  }
+
+  const getAddressFromCoords = (lat, lng) => {
+    return new Promise((resolve) => {
+      if (!window.google || !window.google.maps || !window.google.maps.Geocoder) {
+        resolve(`${lat.toFixed(6)}, ${lng.toFixed(6)}`)
+        return
+      }
+      const geocoder = new window.google.maps.Geocoder()
+      geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+        if (status === "OK" && results[0]) {
+          resolve(results[0].formatted_address)
+        } else {
+          resolve(`${lat.toFixed(6)}, ${lng.toFixed(6)}`)
+        }
+      })
+    })
+  }
+
+  const fetchZones = async () => {
+    try {
+      const response = await zoneAPI.getPublicZones()
+      const list = response?.data?.data?.zones || response?.data?.zones || []
+      setZones(Array.isArray(list) ? list : [])
+    } catch (error) {
+      debugError("Error fetching zones:", error)
     }
   }
 
@@ -228,11 +268,13 @@ export default function ZoneSetup() {
       debugLog("? Map initialized successfully")
 
       // Add click listener to place marker
-      map.addListener('click', (event) => {
+      map.addListener('click', async (event) => {
         const lat = event.latLng.lat()
         const lng = event.latLng.lng()
-        // Maps geocode API disabled - use coordinates as address (no external API call)
-        const address = `${lat.toFixed(6)}, ${lng.toFixed(6)}`
+        
+        // Use geocoding to get address
+        const address = await getAddressFromCoords(lat, lng)
+        
         setLocationSearch(address)
         setSelectedAddress(address)
         setSelectedLocation({ lat, lng, address })
@@ -241,11 +283,79 @@ export default function ZoneSetup() {
 
       setMapLoading(false)
       debugLog("? Map loading complete")
+
+      // Draw zones if they are already loaded
+      if (zones.length > 0) {
+        drawZonesOnMap(google, map)
+      }
     } catch (error) {
       debugError("? Error in initializeMap:", error)
       setMapLoading(false)
       alert("Failed to initialize map. Please refresh the page.")
     }
+  }
+
+  // Effect to draw zones when map is ready and zones are loaded
+  useEffect(() => {
+    if (!mapLoading && mapInstanceRef.current && zones.length > 0 && window.google) {
+      drawZonesOnMap(window.google, mapInstanceRef.current)
+    }
+  }, [zones, mapLoading])
+
+  const drawZonesOnMap = (google, map) => {
+    if (!zones || zones.length === 0) return
+
+    // Clear previous polygons
+    zonesPolygonsRef.current.forEach(polygon => {
+      if (polygon) polygon.setMap(null)
+    })
+    zonesPolygonsRef.current = []
+
+    zones.forEach((zone) => {
+      if (!zone.coordinates || zone.coordinates.length < 3) return
+
+      // Convert coordinates to LatLng array
+      const path = zone.coordinates.map(coord => {
+        const lat = typeof coord === 'object' ? (coord.latitude || coord.lat) : null
+        const lng = typeof coord === 'object' ? (coord.longitude || coord.lng) : null
+        if (lat === null || lng === null) return null
+        return new google.maps.LatLng(lat, lng)
+      }).filter(Boolean)
+
+      if (path.length < 3) return
+
+      // Create polygon for zone
+      const polygon = new google.maps.Polygon({
+        paths: path,
+        strokeColor: "#3b82f6", // Blue color
+        strokeOpacity: 0.6,
+        strokeWeight: 2,
+        fillColor: "#3b82f6",
+        fillOpacity: 0.15,
+        editable: false,
+        draggable: false,
+        clickable: true,
+        zIndex: 1
+      })
+
+      polygon.setMap(map)
+      zonesPolygonsRef.current.push(polygon)
+
+      // Add info window on click
+      const infoWindow = new google.maps.InfoWindow({
+        content: `
+          <div style="padding: 8px;">
+            <strong style="display: block; margin-bottom: 4px; color: #1e3a8a;">${zone.name || zone.zoneName || 'Unnamed Zone'}</strong>
+            <span style="font-size: 11px; color: #6b7280;">Service Area</span>
+          </div>
+        `
+      })
+
+      polygon.addListener('click', (event) => {
+        infoWindow.setPosition(event.latLng)
+        infoWindow.open(map)
+      })
+    })
   }
 
   const updateMarker = (lat, lng, address) => {
@@ -280,11 +390,13 @@ export default function ZoneSetup() {
     })
 
     // Update location when marker is dragged
-    marker.addListener('dragend', (event) => {
+    marker.addListener('dragend', async (event) => {
       const newLat = event.latLng.lat()
       const newLng = event.latLng.lng()
-      // Maps geocode API disabled - use coordinates as address (no external API call)
-      const newAddress = `${newLat.toFixed(6)}, ${newLng.toFixed(6)}`
+      
+      // Use geocoding to get address
+      const newAddress = await getAddressFromCoords(newLat, newLng)
+      
       setLocationSearch(newAddress)
       setSelectedAddress(newAddress)
       setSelectedLocation({ lat: newLat, lng: newLng, address: newAddress })
@@ -321,30 +433,57 @@ export default function ZoneSetup() {
       return
     }
 
+    if (!window.confirm("Changing your location will put your restaurant in 'Pending' status for re-verification. You will be logged out and can only log in once admin approves your new location. Do you want to proceed?")) {
+      return
+    }
+
     try {
       setSaving(true)
       
       const { lat, lng, address } = selectedLocation
+
+      // Calculate current zone name if possible (optional enhancement)
+      const currentZone = zones.find(z => {
+        if (!window.google || !z.coordinates || z.coordinates.length < 3) return false
+        const path = z.coordinates.map(c => new window.google.maps.LatLng(c.latitude || c.lat, c.longitude || c.lng))
+        const polygon = new window.google.maps.Polygon({ paths: path })
+        return window.google.maps.geometry.poly.containsLocation(new window.google.maps.LatLng(lat, lng), polygon)
+      })
       
-      // Update restaurant location
-      const response = await restaurantAPI.updateProfile({
+      // Update restaurant location and trigger re-verification
+      const payload = {
         location: {
           ...(restaurantData?.location || {}),
           latitude: lat,
           longitude: lng,
           coordinates: [lng, lat], // GeoJSON format: [longitude, latitude]
           formattedAddress: address
-        }
-      })
+        },
+        // Meta data for admin review
+        reVerification: {
+          isZoneUpdate: true,
+          previousAddress: restaurantData?.location?.formattedAddress || "",
+          previousLocation: {
+            latitude: restaurantData?.location?.latitude,
+            longitude: restaurantData?.location?.longitude
+          },
+          previousZone: restaurantData?.zone || restaurantData?.zoneName || "",
+          updatedZone: currentZone?.name || currentZone?.zoneName || ""
+        },
+        status: "pending", // Force pending status for re-approval
+        isActive: false     // Deactivate until approval
+      }
 
-      if (response?.data?.data?.restaurant) {
-        setRestaurantData(response.data.data.restaurant)
-        alert("Location saved successfully!")
+      const response = await restaurantAPI.updateProfile(payload)
+
+      if (response?.data?.success) {
+        alert("Location update submitted! Your restaurant is now under re-verification. You will be logged out.")
         
-        // Refresh the page to update navbar
-        window.location.reload()
+        // Logout
+        clearAuthData("restaurant")
+        navigate("/food/restaurant")
       } else {
-        throw new Error("Failed to save location")
+        throw new Error("Failed to submit location update")
       }
     } catch (error) {
       debugError("Error saving location:", error)

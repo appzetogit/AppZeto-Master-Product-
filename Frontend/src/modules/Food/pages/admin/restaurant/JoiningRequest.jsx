@@ -580,11 +580,11 @@ export default function JoiningRequest() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          request.status === "Pending"
-                            ? "bg-blue-100 text-blue-700"
+                          request.status === "Pending" || request.status === "pending"
+                            ? (request?.reVerification?.isZoneUpdate ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700")
                             : "bg-red-100 text-red-700"
                         }`}>
-                          {request.status}
+                          {request?.reVerification?.isZoneUpdate ? "Re-verification" : request.status}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
@@ -871,9 +871,9 @@ export default function JoiningRequest() {
                           <span className="text-sm">{formatRestaurantId(r?.restaurantId || r?._id || "N/A")}</span>
                         </div>
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          approvalStatus === "approved" ? "bg-green-100 text-green-700" : approvalStatus === "rejected" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"
+                          approvalStatus === "approved" ? "bg-green-100 text-green-700" : (approvalStatus === "rejected" || approvalStatus === "Rejected") ? "bg-red-100 text-red-700" : (r?.reVerification?.isZoneUpdate ? "bg-purple-100 text-purple-700" : "bg-amber-100 text-amber-700")
                         }`}>
-                          {approvalStatus === "approved" ? "Approved" : approvalStatus === "rejected" ? "Rejected" : "Pending Approval"}
+                          {approvalStatus === "approved" ? "Approved" : (approvalStatus === "rejected" || approvalStatus === "Rejected") ? "Rejected" : (r?.reVerification?.isZoneUpdate ? "Re-verification" : "Pending Approval")}
                         </span>
                       </div>
                     </div>
@@ -910,24 +910,72 @@ export default function JoiningRequest() {
                       </div>
                     </div>
 
+                    {/* Zone Update Warning (if applicable) */}
+                    {r?.reVerification?.isZoneUpdate && (
+                      <div className="md:col-span-2">
+                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-2">
+                          <h4 className="text-sm font-bold text-purple-900 mb-1 flex items-center gap-2">
+                            <MapPin className="w-4 h-4" />
+                            Region/Zone Edit Request
+                          </h4>
+                          <p className="text-xs text-purple-800">
+                            The restaurant has updated their business location. Please review the changes below before approval.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Location & Contact */}
                     <div>
                       <h4 className="text-lg font-semibold text-slate-900 mb-4">Location & Contact</h4>
                       <div className="space-y-3">
-                        {(hasAddress || r?.zone) && (
+                        {(hasAddress || r?.zone || r?.reVerification) && (
                           <div className="flex items-start gap-3">
                             <MapPin className="w-5 h-5 text-slate-400 mt-0.5 shrink-0" />
-                            <div>
-                              <p className="text-xs text-slate-500">Address</p>
-                              <p className="text-sm font-medium text-slate-900">
-                                {addressParts.length > 0
-                                  ? [r.addressLine1, r.addressLine2, r.area, r.city, r.landmark].filter(Boolean).join(", ")
-                                  : r?.location?.addressLine1
-                                    ? [r.location.addressLine1, r.location.addressLine2, r.location.area, r.location.city].filter(Boolean).join(", ")
-                                    : r?.onboarding?.step1?.location
-                                      ? [r.onboarding.step1.location.addressLine1, r.onboarding.step1.location.addressLine2, r.onboarding.step1.location.area, r.onboarding.step1.location.city].filter(Boolean).join(", ")
-                                      : r?.zone || "—"}
-                              </p>
+                            <div className="flex-1">
+                              {r?.reVerification?.isZoneUpdate ? (
+                                <div className="space-y-4">
+                                  <div>
+                                    <p className="text-xs text-purple-600 font-bold uppercase tracking-wider mb-1">Updated Address</p>
+                                    <p className="text-sm font-medium text-slate-900 bg-purple-50 p-2 rounded border border-purple-100">
+                                      {r.location?.formattedAddress || "N/A"}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">Previous Address</p>
+                                    <p className="text-sm text-slate-600 line-through opacity-70">
+                                      {r.reVerification.previousAddress || "N/A"}
+                                    </p>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+                                    <div>
+                                      <p className="text-xs text-purple-600 font-bold uppercase tracking-wider mb-1">Updated Zone</p>
+                                      <p className="text-sm font-medium text-slate-900">
+                                        {r.reVerification.updatedZone || r.zone || "N/A"}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">Previous Zone</p>
+                                      <p className="text-sm text-slate-500 line-through opacity-70">
+                                        {r.reVerification.previousZone || "N/A"}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  <p className="text-xs text-slate-500">Address</p>
+                                  <p className="text-sm font-medium text-slate-900">
+                                    {addressParts.length > 0
+                                      ? [r.addressLine1, r.addressLine2, r.area, r.city, r.landmark].filter(Boolean).join(", ")
+                                      : r?.location?.addressLine1
+                                        ? [r.location.addressLine1, r.location.addressLine2, r.location.area, r.location.city].filter(Boolean).join(", ")
+                                        : r?.onboarding?.step1?.location
+                                          ? [r.onboarding.step1.location.addressLine1, r.onboarding.step1.location.addressLine2, r.onboarding.step1.location.area, r.onboarding.step1.location.city].filter(Boolean).join(", ")
+                                          : r?.zone || "—"}
+                                  </p>
+                                </>
+                              )}
                             </div>
                           </div>
                         )}

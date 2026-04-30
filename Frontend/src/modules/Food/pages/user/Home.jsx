@@ -86,6 +86,8 @@ import { useLocation } from "@food/hooks/useLocation";
 import { useZone } from "@food/hooks/useZone";
 
 import offerImage from "@food/assets/offerimage.png";
+import bannerEatingFood from "../../../../assets/eading_food_2_image-removebg-preview.png";
+import bannerEatingBoy from "../../../../assets/eating_boy_image-removebg-preview.png";
 import api, { publicGetOnce, restaurantAPI, adminAPI } from "@food/api";
 import { API_BASE_URL } from "@food/api/config";
 import OptimizedImage from "@food/components/OptimizedImage";
@@ -134,15 +136,15 @@ const getStoredDeliveryAddressMode = () => {
 };
 
 const defaultBannersImages = [
-  "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=1000&auto=format&fit=crop", 
-  "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?q=80&w=1000&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?q=80&w=1000&auto=format&fit=crop"
+  bannerEatingBoy, 
+  bannerEatingFood,
+  bannerEatingBoy
 ];
 
 const defaultBannersData = [
-  { isFallback: true, title: "Super Saver", subtitle: "66% OFF for 10 mins!", action: "Order Now" },
-  { isFallback: true, title: "Midnight Cravings", subtitle: "Free Delivery on Pizza", action: "Explore" },
-  { isFallback: true, title: "Biryani Festival", subtitle: "Flat ₹150 Off", action: "Claim Offer" }
+  { isFallback: true, title: "A SIX IS HIT! 🏏", subtitle: "66% OFF FOR 10 MIN!", action: "Order Now" },
+  { isFallback: true, title: "MATCH DAY SPECIAL", subtitle: "Free Delivery on Pizza", action: "Explore" },
+  { isFallback: true, title: "CRAVINGS SATISFIED", subtitle: "Flat ₹150 Off", action: "Claim Offer" }
 ];
 
 export default function Home() {
@@ -224,7 +226,14 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [activeTab]);
 
-  const activeBannerImages = useMemo(() => banners?.images?.length > 0 ? banners.images : defaultBannersImages, [banners?.images]);
+  const activeBannerImages = useMemo(() => {
+    // Override API images with the custom transparent PNGs requested by the user
+    if (banners?.data?.length > 0) {
+      return banners.data.map((_, i) => defaultBannersImages[i % defaultBannersImages.length]);
+    }
+    return defaultBannersImages;
+  }, [banners?.data]);
+  
   const activeBannerData = useMemo(() => banners?.data?.length > 0 ? banners.data : defaultBannersData, [banners?.data]);
 
   // Auto-slide banners
@@ -293,8 +302,8 @@ export default function Home() {
             headerVideoUrl={landing.videoUrl}
             quickThemeColor={quickThemeColor}
             bannerComponent={
-              <Suspense fallback={<HeroBannerSkeleton className="h-[160px] w-full" />}>
-                <div className="h-[160px] sm:h-44 md:h-52 lg:h-60 mt-2 relative z-10 w-full px-4">
+              <Suspense fallback={<HeroBannerSkeleton className="h-[130px] w-full" />}>
+                <div className="h-[130px] sm:h-36 md:h-44 mt-3 relative z-10 w-full">
                   <BannerSection 
                     showBannerSkeleton={banners.loading}
                     heroBannerImages={activeBannerImages}

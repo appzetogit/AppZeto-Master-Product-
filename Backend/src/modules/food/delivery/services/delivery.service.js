@@ -251,6 +251,8 @@ export const updateDeliveryPartnerBankDetails = async (userId, payload, files) =
 
     if (files?.upiQrCode?.[0]) {
         partner.upiQrCode = await uploadImageBuffer(files.upiQrCode[0].buffer, 'food/delivery/upi');
+    } else if (payload.removeUpiQrCode === 'true' || payload.removeUpiQrCode === true) {
+        partner.upiQrCode = null;
     }
 
     await partner.save();

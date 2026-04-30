@@ -225,7 +225,7 @@ export default function UpdateBankDetails() {
                 type="text"
                 inputMode="numeric"
                 value={form.accountNumber}
-                onChange={(e) => setForm((p) => ({ ...p, accountNumber: e.target.value.replace(/[^\d\s-]/g, "") }))}
+                onChange={(e) => setForm((p) => ({ ...p, accountNumber: e.target.value.replace(/\D/g, "").slice(0, 18) }))}
                 className={inputClass("accountNumber")}
                 placeholder="Enter account number"
               />
@@ -242,7 +242,7 @@ export default function UpdateBankDetails() {
                 type="text"
                 inputMode="numeric"
                 value={form.confirmAccountNumber}
-                onChange={(e) => setForm((p) => ({ ...p, confirmAccountNumber: e.target.value.replace(/[^\d\s-]/g, "") }))}
+                onChange={(e) => setForm((p) => ({ ...p, confirmAccountNumber: e.target.value.replace(/\D/g, "").slice(0, 18) }))}
                 className={inputClass("confirmAccountNumber")}
                 placeholder="Re-enter account number"
               />

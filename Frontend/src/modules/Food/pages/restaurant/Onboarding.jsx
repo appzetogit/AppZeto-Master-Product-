@@ -408,12 +408,15 @@ export default function RestaurantOnboarding() {
       await restaurantAPI.logout()
       clearModuleAuth("restaurant")
       clearAuthData()
-      localStorage.removeItem("restaurant_onboarding")
+      clearOnboardingFromLocalStorage()
+      clearOnboardingFileCache()
       window.dispatchEvent(new Event("restaurantAuthChanged"))
       navigate("/food/restaurant/login", { replace: true })
     } catch (error) {
       debugError("Logout failed:", error)
       clearModuleAuth("restaurant")
+      clearOnboardingFromLocalStorage()
+      clearOnboardingFileCache()
       navigate("/food/restaurant/login", { replace: true })
     } finally {
       setIsLoggingOut(false)
@@ -731,6 +734,18 @@ export default function RestaurantOnboarding() {
   useEffect(() => {
     syncOnboardingFileCache(step2, step3)
   }, [step2, step3])
+
+  // Clear onboarding data when user navigates away using browser back button
+  useEffect(() => {
+    const handlePopState = () => {
+      clearOnboardingFromLocalStorage()
+      clearOnboardingFileCache()
+    }
+    window.addEventListener("popstate", handlePopState)
+    return () => {
+      window.removeEventListener("popstate", handlePopState)
+    }
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -2364,7 +2379,11 @@ export default function RestaurantOnboarding() {
         <header className="px-4 py-4 sm:px-6 sm:py-5 bg-white flex items-center justify-between border-b">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => navigate("/food/restaurant/explore")}
+              onClick={() => {
+                clearOnboardingFromLocalStorage()
+                clearOnboardingFileCache()
+                navigate("/food/restaurant/explore")
+              }}
               className="p-1 hover:bg-gray-100 rounded-full transition-colors"
               aria-label="Close onboarding"
             >

@@ -88,12 +88,18 @@ export const ProfileBankV2 = () => {
                 <div key={key} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">{label}</label>
                    {isEditing ? (
-                      <input 
-                         type="text" 
-                         value={form[key]}
-                         onChange={(e) => setForm({...form, [key]: e.target.value})}
-                         className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm font-bold text-gray-950 focus:ring-2 focus:ring-orange-500/20"
-                      />
+                       <input 
+                          type="text" 
+                          value={form[key]}
+                          onChange={(e) => {
+                             let value = e.target.value;
+                             if (key === 'accountNumber') {
+                                value = value.replace(/\D/g, '').slice(0, 18);
+                             }
+                             setForm({...form, [key]: value});
+                          }}
+                          className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm font-bold text-gray-950 focus:ring-2 focus:ring-orange-500/20"
+                       />
                    ) : (
                       <p className="text-sm font-bold text-gray-950">{form[key] || "Not provided"}</p>
                    )}

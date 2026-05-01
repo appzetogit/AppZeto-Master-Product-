@@ -116,12 +116,14 @@ export default function FssaiUpdate() {
       })
 
       const result = response?.data?.data || response?.data
+      console.log("Update response result:", result)
 
-      if (result?.requireLogout) {
+      if (result?.requireLogout || result?.restaurant?.requireLogout) {
+        console.log("Triggering re-verification logout...")
         toast.success("FSSAI details updated. Account sent for re-verification.")
         setTimeout(() => {
-          clearModuleAuth()
-          window.location.href = "/food/restaurant/login"
+          clearModuleAuth("restaurant")
+          window.location.href = "/food/restaurant/pending-verification"
         }, 2000)
         return
       }

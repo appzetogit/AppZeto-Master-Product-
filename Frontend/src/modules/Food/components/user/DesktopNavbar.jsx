@@ -10,6 +10,7 @@ import { useLocationSelector, useSearchOverlay } from "./UserLayout"
 import { useProfile } from "@food/context/ProfileContext"
 import { FaLocationDot } from "react-icons/fa6"
 import { AnimatePresence, motion } from "framer-motion"
+import { useAuth } from "@core/context/AuthContext"
 
 import { getCachedSettings, loadBusinessSettings } from "@common/utils/businessSettings"
 const debugLog = (...args) => {}
@@ -19,6 +20,7 @@ const debugError = (...args) => {}
 
 export default function DesktopNavbar({ showLogo = true }) {
     const location = useLocation()
+    const { isAuthenticated } = useAuth()
     const navigate = useNavigate()
     const { location: userLocation, loading: locationLoading } = useLocationHook()
     const { getCartCount } = useCart()
@@ -393,7 +395,8 @@ export default function DesktopNavbar({ showLogo = true }) {
 
                             {/* Profile Tab */}
                             <Link
-                                to="/food/user/profile"
+                                to={isAuthenticated ? "/food/user/profile" : "/user/auth/login"}
+                                state={!isAuthenticated ? { redirectTo: "/food/user/profile" } : undefined}
                                 className={`flex flex-col items-center gap-1 px-2 py-1 transition-colors relative group ${isProfile
                                     ? "text-orange-600 dark:text-orange-500"
                                     : "text-gray-600 dark:text-gray-400 hover:text-orange-600 dark:hover:text-orange-500"

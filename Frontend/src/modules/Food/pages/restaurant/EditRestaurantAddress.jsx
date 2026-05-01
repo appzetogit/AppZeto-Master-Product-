@@ -2,13 +2,13 @@ import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import Lenis from "lenis"
-import { ArrowLeft, ChevronDown } from "lucide-react"
-import BottomPopup from "@delivery/components/BottomPopup"
+import { ArrowLeft, Loader2 } from "lucide-react"
 import { restaurantAPI, zoneAPI } from "@food/api"
 import { getGoogleMapsApiKey } from "@food/utils/googleMapsApiKey"
 import { loadGoogleMaps as loadGoogleMapsSdk } from "@core/services/googleMapsLoader"
 import { toast } from "react-hot-toast"
-import { useRef } from "react"
+import { useRef, useCallback } from "react"
+import { Search, MapPin, Save } from "lucide-react"
 
 const debugLog = (...args) => console.log(...args)
 const debugWarn = (...args) => console.warn(...args)
@@ -28,22 +28,31 @@ export default function EditRestaurantAddress() {
   const [restaurantName, setRestaurantName] = useState("")
   const [location, setLocation] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [showSelectOptionDialog, setShowSelectOptionDialog] = useState(false)
-  const [selectedOption, setSelectedOption] = useState("minor_correction") // "update_address" or "minor_correction"
   const [lat, setLat] = useState(DEFAULT_LAT)
   const [lng, setLng] = useState(DEFAULT_LNG)
+  const [addressParts, setAddressParts] = useState({})
+  const [locationSearch, setLocationSearch] = useState("")
   const [currentZone, setCurrentZone] = useState(null)
   const [mapLoading, setMapLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [restaurantData, setRestaurantData] = useState(null)
 
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const markerRef = useRef(null)
   const polygonRef = useRef(null)
+  const autocompleteInputRef = useRef(null)
+  const autocompleteRef = useRef(null)
   const isMapInitializedRef = useRef(false)
 
   // Format address from location object
   const formatAddress = (loc) => {
     if (!loc) return ""
+    
+    if (loc.formattedAddress && loc.formattedAddress.trim() !== "") {
+      return loc.formattedAddress.trim()
+    }
+    
     const parts = []
     if (loc.addressLine1) parts.push(loc.addressLine1.trim())
     if (loc.addressLine2) parts.push(loc.addressLine2.trim())
@@ -138,6 +147,81 @@ export default function EditRestaurantAddress() {
     initPage()
   }, [])
 
+  // Initialize Places Autocomplete when map is loaded
+  useEffect(() => {
+    if (!mapLoading && mapInstanceRef.current && autocompleteInputRef.current && window.google?.maps?.places && !autocompleteRef.current) {
+      const autocomplete = new window.google.maps.places.Autocomplete(autocompleteInputRef.current, {
+        componentRestrictions: { country: 'in' } // Restrict to India
+      })
+      
+      autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace()
+        if (place.geometry && place.geometry.location && mapInstanceRef.current) {
+          const location = place.geometry.location
+          const newLat = location.lat()
+          const newLng = location.lng()
+          
+          // Check if inside zone
+          if (polygonRef.current && !window.google.maps.geometry.poly.containsLocation(location, polygonRef.current)) {
+            toast.error("Address must be inside your assigned zone")
+            return
+          }
+
+          // Center map on selected location
+          mapInstanceRef.current.setCenter(location)
+          mapInstanceRef.current.setZoom(17)
+          
+          const formattedAddr = place.formatted_address || place.name || ""
+          setLocationSearch(formattedAddr)
+          setAddress(formattedAddr)
+          
+          // Extract address parts
+          const parts = extractAddressParts(place.address_components)
+          setAddressParts(parts)
+          
+          setLat(newLat)
+          setLng(newLng)
+          updateMarker(newLat, newLng, formattedAddr)
+        }
+      })
+      
+      autocompleteRef.current = autocomplete
+    }
+  }, [mapLoading])
+
+  const extractAddressParts = (components) => {
+    const parts = {
+      addressLine1: "",
+      area: "",
+      city: "",
+      state: "",
+      pincode: "",
+      landmark: ""
+    }
+    
+    if (!components) return parts
+
+    components.forEach(comp => {
+      const types = comp.types
+      if (types.includes("premise") || types.includes("street_number") || types.includes("route") || types.includes("sublocality_level_3")) {
+        parts.addressLine1 += (parts.addressLine1 ? ", " : "") + comp.long_name
+      }
+      if (types.includes("sublocality_level_1") || types.includes("sublocality_level_2") || types.includes("neighborhood")) {
+        parts.area = comp.long_name
+      }
+      if (types.includes("locality")) {
+        parts.city = comp.long_name
+      }
+      if (types.includes("administrative_area_level_1")) {
+        parts.state = comp.long_name
+      }
+      if (types.includes("postal_code")) {
+        parts.pincode = comp.long_name
+      }
+    })
+    return parts
+  }
+
   const initializeMap = (google, zone, startLat, startLng) => {
     if (isMapInitializedRef.current || !mapRef.current) return
     isMapInitializedRef.current = true
@@ -180,7 +264,7 @@ export default function EditRestaurantAddress() {
 
         // Only allow clicks inside polygon to set marker
         polygon.addListener('click', (event) => {
-          updateMarker(event.latLng.lat(), event.latLng.lng())
+          handleLocationSelect(event.latLng.lat(), event.latLng.lng())
         })
 
         // Adjust map bounds to show polygon
@@ -198,15 +282,9 @@ export default function EditRestaurantAddress() {
     }
   }
 
-  const updateMarker = (newLat, newLng) => {
+  const updateMarker = (newLat, newLng, addr) => {
     const google = window.google
     if (!google || !mapInstanceRef.current) return
-
-    // Validation: Check if point is inside currentZone polygon
-    if (polygonRef.current && !google.maps.geometry.poly.containsLocation(new google.maps.LatLng(newLat, newLng), polygonRef.current)) {
-      toast.error("Address must be inside your assigned zone")
-      return
-    }
 
     if (markerRef.current) {
       markerRef.current.setPosition({ lat: newLat, lng: newLng })
@@ -219,38 +297,61 @@ export default function EditRestaurantAddress() {
       })
 
       markerRef.current.addListener('dragend', (event) => {
-        const dragLat = event.latLng.lat()
-        const dragLng = event.latLng.lng()
-        
-        // Validate drag position
-        if (polygonRef.current && !google.maps.geometry.poly.containsLocation(new google.maps.LatLng(dragLat, dragLng), polygonRef.current)) {
-          toast.error("Address must be inside your assigned zone")
-          // Snap back to previous position
-          markerRef.current.setPosition({ lat, lng })
-        } else {
-          setLat(dragLat)
-          setLng(dragLng)
-          getAddressFromCoords(dragLat, dragLng)
-        }
+        handleLocationSelect(event.latLng.lat(), event.latLng.lng())
       })
     }
 
     setLat(newLat)
     setLng(newLng)
-    getAddressFromCoords(newLat, newLng)
+  }
+
+  const handleLocationSelect = async (newLat, newLng) => {
+    const google = window.google
+    if (!google) return
+
+    // Validation: Check if point is inside currentZone polygon
+    if (polygonRef.current && !google.maps.geometry.poly.containsLocation(new google.maps.LatLng(newLat, newLng), polygonRef.current)) {
+      toast.error("Address must be inside your assigned zone")
+      // Snap back marker if it exists
+      if (markerRef.current) {
+        markerRef.current.setPosition({ lat, lng })
+      }
+      return
+    }
+
+    setLat(newLat)
+    setLng(newLng)
+    if (markerRef.current) {
+      markerRef.current.setPosition({ lat: newLat, lng: newLng })
+    }
+    
+    await getAddressFromCoords(newLat, newLng)
   }
 
   const getAddressFromCoords = (lat, lng) => {
-    if (!window.google?.maps?.Geocoder) return
-    const geocoder = new window.google.maps.Geocoder()
-    geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-      if (status === "OK" && results[0]) {
-        setAddress(results[0].formatted_address)
+    return new Promise((resolve) => {
+      if (!window.google?.maps?.Geocoder) {
+        resolve()
+        return
       }
+      const geocoder = new window.google.maps.Geocoder()
+      geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+        if (status === "OK" && results[0]) {
+          const formatted = results[0].formatted_address
+          setAddress(formatted)
+          setLocationSearch(formatted)
+          
+          const parts = extractAddressParts(results[0].address_components)
+          setAddressParts(parts)
+          resolve(formatted)
+        } else {
+          resolve()
+        }
+      })
     })
   }
 
-  const [restaurantData, setRestaurantData] = useState(null)
+
 
   // Lenis smooth scrolling
   useEffect(() => {
@@ -282,60 +383,62 @@ export default function EditRestaurantAddress() {
   }
 
   // Handle Update button click
-  const handleUpdateClick = () => {
-    setShowSelectOptionDialog(true)
-  }
-
-  // Handle Proceed to update
-  const handleProceedUpdate = async () => {
+  const handleUpdateClick = async () => {
     try {
-      // For now, we'll update the location in the database
-      // In a real scenario, you might want to handle FSSAI update flow separately
-      if (selectedOption === "update_address") {
-        // For major address update, you might want to navigate to a form
-        // For now, we'll just show a message
-        alert("For major address updates, FSSAI verification may be required. Please contact support.")
-        setShowSelectOptionDialog(false)
-        return
-      } else {
-        // Minor correction - update location coordinates
-        // Fetch live address from coordinates using Google Maps API
-        try {
-          let formattedAddress = location?.formattedAddress || ""
-          // Google Geocoding disabled - new backend in progress. Use existing or coords.
-          if (lat && lng && !formattedAddress) {
-            formattedAddress = `${lat.toFixed(6)}, ${lng.toFixed(6)}`
-          }
+      setSaving(true)
+      
+      const updatedLocation = {
+        ...(restaurantData?.location || {}),
+        type: "Point",
+        latitude: lat,
+        longitude: lng,
+        coordinates: [lng, lat],
+        formattedAddress: address,
+        address: address,
+        addressLine1: addressParts.addressLine1 || address.split(',')[0] || "",
+        area: addressParts.area || "",
+        city: addressParts.city || "",
+        state: addressParts.state || "",
+        pincode: addressParts.pincode || ""
+      }
 
-          // Update location with coordinates array and formattedAddress
-          const updatedLocation = {
-            ...location,
-            latitude: lat,
-            longitude: lng,
-            coordinates: [lng, lat], // GeoJSON format: [longitude, latitude]
-            formattedAddress: formattedAddress || location?.formattedAddress || ""
-          }
-          
-          const response = await restaurantAPI.updateProfile({ location: updatedLocation })
-          
-          if (response?.data?.data?.restaurant) {
-            // Update local state
-            setLocation(updatedLocation)
-            // Dispatch event to notify other components
-            window.dispatchEvent(new Event("addressUpdated"))
-            setShowSelectOptionDialog(false)
-            goBack()
-          } else {
-            throw new Error("Invalid response from server")
-          }
-        } catch (updateError) {
-          debugError("Error updating address:", updateError)
-          alert(`Failed to update address: ${updateError.response?.data?.message || updateError.message || "Please try again."}`)
-        }
+      const payload = {
+        addressLine1: addressParts.addressLine1 || address.split(',')[0] || "",
+        area: addressParts.area || "",
+        city: addressParts.city || "",
+        state: addressParts.state || "",
+        pincode: addressParts.pincode || "",
+        formattedAddress: address,
+        zoneId: currentZone?._id || currentZone?.id || null,
+        location: updatedLocation,
+      }
+
+      const response = await restaurantAPI.updateProfile(payload)
+      debugLog("Update response:", response)
+      
+      const isSuccess = response?.data?.status === "success" || 
+                       response?.data?.success === true || 
+                       response?.data?.data?.restaurant
+      
+      if (isSuccess) {
+        toast.success("Location updated successfully!")
+        
+        // Dispatch event to notify other components
+        window.dispatchEvent(new Event("addressUpdated"))
+        
+        // Short delay to show toast before navigation
+        setTimeout(() => {
+          navigate("/food/restaurant/outlet-info", { replace: true })
+        }, 800)
+      } else {
+        throw new Error(response?.data?.message || "Invalid response from server")
       }
     } catch (error) {
       debugError("Error updating address:", error)
-      alert(`Failed to update address: ${error.response?.data?.message || error.message || "Please try again."}`)
+      toast.error(error.response?.data?.message || error.message || "Failed to update address.")
+    } finally {
+      setSaving(false)
+      setLoading(false)
     }
   }
 
@@ -372,6 +475,21 @@ export default function EditRestaurantAddress() {
 
       {/* Map Section - Takes remaining space */}
       <div className="flex-1 relative overflow-hidden bg-gray-50 min-h-[400px]">
+        {/* Search Bar - Absolute positioned on map */}
+        <div className="absolute top-4 left-4 right-4 z-10 flex gap-2">
+          <div className="flex-1 relative shadow-lg">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              ref={autocompleteInputRef}
+              type="text"
+              value={locationSearch}
+              onChange={(e) => setLocationSearch(e.target.value)}
+              placeholder="Search for your outlet location..."
+              className="w-full pl-10 pr-4 py-2.5 bg-white border-none rounded-lg text-sm shadow-md focus:ring-2 focus:ring-black outline-none"
+            />
+          </div>
+        </div>
+
         {/* Google Maps Div */}
         <div 
           ref={mapRef}
@@ -382,20 +500,23 @@ export default function EditRestaurantAddress() {
         {mapLoading && (
           <div className="absolute inset-0 bg-gray-100 flex items-center justify-center z-[100]">
             <div className="flex flex-col items-center">
-              <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-2"></div>
+              <Loader2 className="w-8 h-8 text-black animate-spin mb-2" />
               <p className="text-sm text-gray-500 font-medium">Initializing Map...</p>
             </div>
           </div>
         )}
         
         {/* Address Details Section - Overlays map at bottom */}
-        <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl z-20 px-4 pt-6">
-          <h2 className="text-xl font-bold text-gray-900 text-center mb-3">Outlet address</h2>
+        <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl z-20 px-4 pt-6 shadow-[0_-4px_20px_rgba(0,0,0,0.1)]">
+          <h2 className="text-lg font-bold text-gray-900 text-center mb-3 flex items-center justify-center gap-2">
+            <MapPin className="w-5 h-5 text-red-500" />
+            Outlet address
+          </h2>
           
           {/* Informational Banner */}
-          <div className="bg-blue-100 rounded-lg px-4 py-3 mb-4">
-            <p className="text-sm text-gray-900">
-              Customers and Appzeto delivery partners will use this to locate your outlet.
+          <div className="bg-blue-50 border border-blue-100 rounded-lg px-4 py-3 mb-4">
+            <p className="text-xs text-blue-800 leading-tight">
+              Customers and delivery partners will use this pin to locate your outlet. Please ensure it's accurate.
             </p>
           </div>
 
@@ -408,85 +529,35 @@ export default function EditRestaurantAddress() {
           <div className="pb-4">
             <button
               onClick={handleUpdateClick}
-              className="w-full bg-black text-white font-semibold py-4 text-base rounded-lg"
+              disabled={loading || saving}
+              className={`w-full bg-black text-white font-semibold py-4 text-base rounded-lg flex items-center justify-center gap-2 ${loading || saving ? "opacity-70 cursor-not-allowed" : ""}`}
             >
-              Update
+              {(loading || saving) ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-5 h-5" />
+                  <span>Update Location</span>
+                </>
+              )}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Select Option Bottom Popup */}
-      <BottomPopup
-        isOpen={showSelectOptionDialog}
-        onClose={() => setShowSelectOptionDialog(false)}
-        title="Select an option"
-        maxHeight="auto"
-      >
-        <div className=" space-y-0">
-          {/* Option 1: Update outlet address */}
-          <button
-            onClick={() => setSelectedOption("update_address")}
-            className="w-full flex items-start justify-between py-4 border-b border-dashed border-gray-300"
-          >
-            <div className="flex-1 text-left">
-              <p className="text-base font-semibold text-gray-900 mb-1">
-                Update outlet address (FSSAI required)
-              </p>
-              <p className="text-sm text-gray-500">{address}</p>
-            </div>
-            <div className="ml-4 shrink-0">
-              <div
-                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                  selectedOption === "update_address"
-                    ? "border-black bg-black"
-                    : "border-gray-300"
-                }`}
-              >
-                {selectedOption === "update_address" && (
-                  <div className="w-2 h-2 rounded-full bg-white"></div>
-                )}
-              </div>
-            </div>
-          </button>
-
-          {/* Option 2: Minor correction */}
-          <button
-            onClick={() => setSelectedOption("minor_correction")}
-            className="w-full flex items-start justify-between py-4"
-          >
-            <div className="flex-1 text-left">
-              <p className="text-base font-semibold text-gray-900 mb-1">
-                Make a minor correction to the location pin
-              </p>
-              <p className="text-sm text-gray-500">
-                If location pin on the map is slightly misplaced
-              </p>
-            </div>
-            <div className="ml-4 shrink-0">
-              <div
-                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                  selectedOption === "minor_correction"
-                    ? "border-black bg-black"
-                    : "border-gray-300"
-                }`}
-              >
-                {selectedOption === "minor_correction" && (
-                  <div className="w-2 h-2 rounded-full bg-white"></div>
-                )}
-              </div>
-            </div>
-          </button>
-
-          {/* Proceed Button */}
-          <button
-            onClick={handleProceedUpdate}
-            className="w-full bg-black text-white font-semibold py-4 rounded-lg mt-6"
-          >
-            Proceed to update
-          </button>
+      {/* Loading Overlay */}
+      {saving && (
+        <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center backdrop-blur-sm">
+          <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center">
+            <Loader2 className="w-12 h-12 text-black animate-spin mb-4" />
+            <p className="text-gray-900 font-bold text-lg">Updating Location...</p>
+            <p className="text-gray-500 text-sm">Please wait while we update your details</p>
+          </div>
         </div>
-      </BottomPopup>
+      )}
     </div>
   )
 }

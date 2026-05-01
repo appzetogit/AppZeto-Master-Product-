@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axiosInstance from '@core/api/axios';
 import { getWithDedupe } from '@core/api/dedupe';
+import { isTokenExpired } from '@core/utils/token';
 
 const AuthContext = createContext(undefined);
 
@@ -66,7 +67,7 @@ export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const token = authData[currentRole];
     const [isLoading, setIsLoading] = useState(Boolean(authData[currentRole]));
-    const isAuthenticated = !!token;
+    const isAuthenticated = !!token && !isTokenExpired(token);
 
     // Fetch user profile on mount or token change
     useEffect(() => {

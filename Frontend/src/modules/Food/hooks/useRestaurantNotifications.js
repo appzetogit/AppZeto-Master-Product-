@@ -647,6 +647,11 @@ export const useRestaurantNotifications = () => {
       debugLog('?? Admin broadcast received:', payload);
       dispatchNotificationInboxRefresh();
     });
+    
+    socketRef.current.on('restaurant_notification', (payload) => {
+      debugLog('?? Restaurant notification received:', payload);
+      dispatchNotificationInboxRefresh();
+    });
 
     // Load notification sound
     audioRef.current = new Audio(resolveAudioSource(alertSound));

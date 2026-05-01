@@ -60,7 +60,7 @@ const emitDiningRealtimeAlert = (ownerType, ownerId, payload = {}) => {
     }
 
     if (ownerType === 'RESTAURANT') {
-        io.to(rooms.restaurant(ownerId)).emit('admin_notification', payload);
+        io.to(rooms.restaurant(ownerId)).emit('restaurant_notification', payload);
     }
 };
 

@@ -120,6 +120,14 @@ export const authAPI = {
         : null);
     return authService.logout(token, fcmToken, platform);
   },
+  logoutAll: (refreshToken, fcmToken = null, platform = "web") => {
+    const token =
+      refreshToken ||
+      (typeof localStorage !== "undefined"
+        ? localStorage.getItem("user_refreshToken")
+        : null);
+    return authService.logoutAll(token, fcmToken, platform);
+  },
 };
 
 export const supportAPI = {
@@ -210,6 +218,15 @@ export const adminAPI = {
         : null);
     const fcmToken = typeof localStorage !== "undefined" ? localStorage.getItem("fcm_web_registered_token_admin") : null;
     return authService.logout(token, fcmToken, "web");
+  },
+  logoutAll: (refreshToken) => {
+    const token =
+      refreshToken ||
+      (typeof localStorage !== "undefined"
+        ? localStorage.getItem("admin_refreshToken")
+        : null);
+    const fcmToken = typeof localStorage !== "undefined" ? localStorage.getItem("fcm_web_registered_token_admin") : null;
+    return authService.logoutAll(token, fcmToken, "web");
   },
   // Restaurant approvals and join requests
   getPendingRestaurants: () =>
@@ -1301,6 +1318,18 @@ export const restaurantAPI = {
         : null);
     const fcmToken = typeof localStorage !== "undefined" ? localStorage.getItem("fcm_web_registered_token_restaurant") : null;
     return authService.logout(token, fcmToken, "web");
+  },
+  logoutAll: (refreshToken) => {
+    restaurantCurrentInFlight = null;
+    restaurantCurrentCached = null;
+    restaurantCurrentCacheTime = 0;
+    const token =
+      refreshToken ||
+      (typeof localStorage !== "undefined"
+        ? localStorage.getItem("restaurant_refreshToken")
+        : null);
+    const fcmToken = typeof localStorage !== "undefined" ? localStorage.getItem("fcm_web_registered_token_restaurant") : null;
+    return authService.logoutAll(token, fcmToken, "web");
   },
   /** Backend has no email/password login; use phone OTP only. */
   login: (_email, _password) =>

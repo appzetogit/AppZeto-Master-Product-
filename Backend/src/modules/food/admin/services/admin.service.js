@@ -3303,10 +3303,12 @@ export async function approveRestaurant(id) {
         {
             $set: {
                 status: 'approved',
+                isActive: true,
                 approvedAt: new Date(),
                 rejectedAt: undefined,
                 rejectionReason: undefined
-            }
+            },
+            $unset: { reVerification: "" }
         },
         { new: true, runValidators: false }
     ).lean();

@@ -553,10 +553,10 @@ export default function ExploreMore() {
     try {
       // Call backend logout API to invalidate refresh token
       try {
-        await restaurantAPI.logout()
+        await restaurantAPI.logoutAll()
       } catch (apiError) {
         // Continue with logout even if API call fails (network issues, etc.)
-        debugWarn("Logout API call failed, continuing with local cleanup:", apiError)
+        debugWarn("Logout All API call failed, continuing with local cleanup:", apiError)
       }
 
       // Sign out from Firebase if restaurant logged in via Google

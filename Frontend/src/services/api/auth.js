@@ -15,6 +15,7 @@ const AUTH = {
   DELIVERY_VERIFY_OTP: "/food/auth/delivery/verify-otp",
   REFRESH_TOKEN: "/food/auth/refresh-token",
   LOGOUT: "/food/auth/logout",
+  LOGOUT_ALL: "/food/auth/logout-all",
   ME: "/food/auth/me",
 };
 
@@ -154,6 +155,24 @@ export function logout(refreshToken, fcmToken = null, platform = "web") {
   }
 
   return apiClient.post(AUTH.LOGOUT, payload);
+}
+
+/**
+ * Logout from all devices (invalidate all refresh tokens for this user).
+ * @param {string} refreshToken
+ * @param {string} fcmToken
+ * @param {string} platform
+ */
+export function logoutAll(refreshToken, fcmToken = null, platform = "web") {
+  if (!refreshToken) return Promise.resolve({ data: { success: true } });
+
+  const payload = { refreshToken };
+  if (fcmToken) {
+    payload.fcmToken = fcmToken;
+    payload.platform = platform;
+  }
+
+  return apiClient.post(AUTH.LOGOUT_ALL, payload);
 }
 
 /**

@@ -11,7 +11,7 @@ import { FoodReferralSettings } from "../../modules/food/admin/models/referralSe
 import { FoodReferralLog } from "../../modules/food/admin/models/referralLog.model.js";
 import { FoodUserWallet } from "../../modules/food/user/models/userWallet.model.js";
 import { createOrUpdateOtp, verifyOtp } from "../otp/otp.service.js";
-import { signAccessToken, signRefreshToken } from "./token.util.js";
+import { signAccessToken, signRefreshToken, verifyRefreshToken } from "./token.util.js";
 import { FoodRefreshToken } from "../refreshTokens/refreshToken.model.js";
 import { ValidationError, AuthError } from "./errors.js";
 import { config } from "../../config/env.js";
@@ -602,6 +602,52 @@ export const logout = async (refreshToken, fcmToken, platform) => {
   // 2. Invalidate the refresh token (standard logout procedure)
   const deleted = await FoodRefreshToken.deleteOne({ token: refreshToken });
   return { invalidated: deleted.deletedCount > 0 };
+};
+
+export const logoutAll = async (refreshToken, fcmToken, platform) => {
+  if (!refreshToken) {
+    throw new ValidationError("Refresh token is required");
+  }
+
+  // 1. Identify the user from the refresh token
+  let userId;
+  try {
+    const decoded = verifyRefreshToken(refreshToken);
+    userId = decoded.userId;
+  } catch (err) {
+    // If token is invalid or expired, we might still want to try finding it in DB to get the userId
+    const storedToken = await FoodRefreshToken.findOne({ token: refreshToken }).select('userId').lean();
+    if (storedToken) {
+      userId = storedToken.userId;
+    }
+  }
+
+  if (!userId) {
+    // If we still can't find the userId, just perform a normal logout (cleanup FCM + current token)
+    return logout(refreshToken, fcmToken, platform);
+  }
+
+  // 2. Cleanup FCM token globally if provided
+  if (fcmToken) {
+    const field = platform === "mobile" ? "fcmTokenMobile" : "fcmTokens";
+    const models = [FoodUser, FoodRestaurant, FoodDeliveryPartner, FoodAdmin];
+    try {
+      await Promise.all(
+        models.map((model) =>
+          model.updateMany(
+            { [field]: fcmToken },
+            { $pull: { [field]: fcmToken } },
+          ),
+        ),
+      );
+    } catch (err) {
+      logger.warn({ err }, "Failed to remove FCM token during logoutAll");
+    }
+  }
+
+  // 3. Delete ALL refresh tokens for this user
+  const deleted = await FoodRefreshToken.deleteMany({ userId });
+  return { invalidatedCount: deleted.deletedCount, success: true };
 };
 
 export const getProfile = async (userId, role) => {

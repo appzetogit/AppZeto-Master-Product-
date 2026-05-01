@@ -921,6 +921,12 @@ export default function JoiningRequest() {
                           <p className="text-xs text-purple-800">
                             The restaurant has updated their business location. Please review the changes below before approval.
                           </p>
+                          {r.reVerification.reVerificationReason && (
+                            <div className="mt-2 pt-2 border-t border-purple-200">
+                              <p className="text-xs font-bold text-purple-900">Reason for Re-verification:</p>
+                              <p className="text-xs text-purple-800">{r.reVerification.reVerificationReason}</p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}

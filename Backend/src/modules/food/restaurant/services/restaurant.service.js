@@ -848,6 +848,24 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
         update.fssaiImage = toUrl(body.fssaiImage) || '';
     }
 
+    if (body.reVerification !== undefined) {
+        update.reVerification = {
+            isZoneUpdate: body.reVerification.isZoneUpdate === true,
+            previousAddress: String(body.reVerification.previousAddress || '').trim(),
+            previousLocation: {
+                latitude: toFiniteNumber(body.reVerification.previousLocation?.latitude),
+                longitude: toFiniteNumber(body.reVerification.previousLocation?.longitude)
+            },
+            previousZoneId: body.reVerification.previousZoneId && mongoose.Types.ObjectId.isValid(body.reVerification.previousZoneId)
+                ? new mongoose.Types.ObjectId(body.reVerification.previousZoneId)
+                : undefined,
+            previousZone: String(body.reVerification.previousZone || '').trim(),
+            updatedZone: String(body.reVerification.updatedZone || '').trim(),
+            reVerificationReason: String(body.reVerification.reVerificationReason || 'Zone Update').trim()
+        };
+    }
+
+
     if (!Object.keys(update).length) {
         return getCurrentRestaurantProfile(restaurantId);
     }
@@ -912,7 +930,8 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
                     'upiQrImage',
                     'estimatedDeliveryTime',
                     'estimatedDeliveryTimeMinutes',
-                    'zoneId'
+                    'zoneId',
+                    'reVerification'
                 ].join(' ')
             }
         ).lean();

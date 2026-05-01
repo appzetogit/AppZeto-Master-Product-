@@ -253,6 +253,18 @@ const restaurantSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    reVerification: {
+      isZoneUpdate: { type: Boolean, default: false },
+      previousAddress: { type: String },
+      previousLocation: {
+        latitude: { type: Number },
+        longitude: { type: Number }
+      },
+      previousZoneId: { type: mongoose.Schema.Types.ObjectId, ref: 'FoodZone' },
+      previousZone: { type: String },
+      updatedZone: { type: String },
+      reVerificationReason: { type: String, trim: true }
+    },
   },
   {
     collection: 'food_restaurants',

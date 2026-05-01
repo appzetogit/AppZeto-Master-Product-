@@ -150,9 +150,9 @@ export default function RestaurantProfile({ isOpen, onClose }) {
 
     try {
       try {
-        await restaurantAPI.logout()
+        await restaurantAPI.logoutAll()
       } catch (apiError) {
-        debugWarn("Logout API call failed, continuing with local cleanup:", apiError)
+        debugWarn("Logout All API call failed, continuing with local cleanup:", apiError)
       }
 
       try {

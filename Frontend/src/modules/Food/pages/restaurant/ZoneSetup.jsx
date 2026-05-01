@@ -529,7 +529,10 @@ export default function ZoneSetup() {
           },
           previousZoneId: restaurantData?.zoneId || null,
           previousZone: restaurantData?.zone || restaurantData?.zoneName || "",
-          updatedZone: currentZone?.name || currentZone?.zoneName || ""
+          updatedZone: currentZone?.name || currentZone?.zoneName || "",
+          reVerificationReason: (currentZone?.name || currentZone?.zoneName) !== (restaurantData?.zone || restaurantData?.zoneName) 
+            ? "Zone and Address Update" 
+            : "Location Address Update"
         },
         status: "pending", // Force pending status for re-approval
         isActive: false,     // Deactivate until approval
@@ -709,10 +712,20 @@ export default function ZoneSetup() {
                     <div className="flex flex-col gap-3">
                       <button
                         onClick={proceedSave}
-                        className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg shadow-red-200 transition-all flex items-center justify-center gap-2"
+                        disabled={saving}
+                        className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg shadow-red-200 transition-all flex items-center justify-center gap-2 disabled:bg-gray-400 disabled:shadow-none disabled:cursor-not-allowed"
                       >
-                        <Save className="w-5 h-5" />
-                        Confirm & Update Location
+                        {saving ? (
+                          <>
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            <span>Updating...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-5 h-5" />
+                            <span>Confirm & Update Location</span>
+                          </>
+                        )}
                       </button>
                       <button
                         onClick={() => setShowConfirmModal(false)}
@@ -741,8 +754,13 @@ export default function ZoneSetup() {
                     </p>
                     <button
                       onClick={() => {
-                        clearAuthData("restaurant")
-                        navigate("/food/restaurant")
+                        const phone = restaurantData?.ownerPhone || "";
+                        navigate("/food/restaurant/pending-verification", { 
+                          replace: true,
+                          state: { phone } 
+                        });
+                        // Short delay to ensure navigation is initiated before clearing auth
+                        setTimeout(() => clearAuthData("restaurant"), 100);
                       }}
                       className="w-full py-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-black transition-all shadow-xl"
                     >

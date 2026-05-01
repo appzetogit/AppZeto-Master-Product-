@@ -10,6 +10,7 @@ import {
   requestHotelPartnerOtp,
   verifyHotelPartnerOtpAndLogin,
   logout,
+  logoutAll,
   getProfile,
   updateAdminProfile,
   changeAdminPassword,
@@ -160,6 +161,21 @@ export const logoutController = async (req, res, next) => {
       res,
       200,
       result.invalidated ? "Logged out successfully" : "Token already invalid",
+      result,
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const logoutAllController = async (req, res, next) => {
+  try {
+    const { refreshToken, fcmToken, platform } = validateLogoutDto(req.body);
+    const result = await logoutAll(refreshToken, fcmToken, platform);
+    return sendResponse(
+      res,
+      200,
+      "Logged out from all devices successfully",
       result,
     );
   } catch (error) {

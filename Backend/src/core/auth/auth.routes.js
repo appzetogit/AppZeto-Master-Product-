@@ -11,6 +11,7 @@ import {
     requestHotelPartnerOtpController,
     verifyHotelPartnerOtpController,
     logoutController,
+    logoutAllController,
     getMeController,
     updateAdminProfileController,
     changeAdminPasswordController,
@@ -56,6 +57,7 @@ router.post('/refresh-token', refreshTokenController);
 
 // Logout (invalidates refresh token)
 router.post('/logout', logoutController);
+router.post('/logout-all', logoutAllController);
 
 // Authenticated user profile (requires Bearer token)
 router.get('/me', authMiddleware, getMeController);

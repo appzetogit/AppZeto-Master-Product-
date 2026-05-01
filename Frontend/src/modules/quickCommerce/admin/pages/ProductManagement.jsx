@@ -27,6 +27,7 @@ import Modal from '@shared/components/ui/Modal';
 import Pagination from '@shared/components/ui/Pagination';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { convertToWebP } from '@/shared/utils/imageUploadUtils';
 
 const ProductManagement = () => {
     const [products, setProducts] = useState([]);
@@ -194,22 +195,29 @@ const ProductManagement = () => {
         setImageFiles([...imageFiles, ...files]);
     };
 
-    const handleImageUpload = (e, type) => {
+    const handleImageUpload = async (e, type) => {
         if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                if (type === 'main') {
-                    setFormData({ ...formData, mainImage: reader.result, mainImageFile: file });
-                } else {
-                    setFormData({
-                        ...formData,
-                        galleryImages: [...formData.galleryImages, reader.result],
-                        galleryFiles: [...(formData.galleryFiles || []), file]
-                    });
-                }
-            };
-            reader.readAsDataURL(file);
+            try {
+                const originalFile = e.target.files[0];
+                const webpFile = await convertToWebP(originalFile);
+                
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    if (type === 'main') {
+                        setFormData({ ...formData, mainImage: reader.result, mainImageFile: webpFile });
+                    } else {
+                        setFormData({
+                            ...formData,
+                            galleryImages: [...formData.galleryImages, reader.result],
+                            galleryFiles: [...(formData.galleryFiles || []), webpFile]
+                        });
+                    }
+                };
+                reader.readAsDataURL(webpFile);
+            } catch (error) {
+                console.error("WebP conversion failed:", error);
+                toast.error("Failed to process image");
+            }
         }
     };
 

@@ -8,7 +8,8 @@ import foodPattern from "@food/assets/food_pattern_background.png";
 const CategoryRail = memo(({ 
   displayCategories, 
   showCategorySkeleton,
-  navigate
+  navigate,
+  backendOrigin = ""
 }) => {
   return (
     <section className="px-4 py-4 space-y-4">
@@ -43,6 +44,7 @@ const CategoryRail = memo(({
                 src={category.image}
                 alt={category.name}
                 className="w-full h-full object-cover"
+                backendOrigin={backendOrigin}
               />
             </div>
             <span className="text-xs font-semibold text-gray-600 truncate w-full text-center">

@@ -71,3 +71,20 @@ export const optimizeCloudinaryUrl = (url, options = {}) => {
  * Specifically ensures webp format for a Cloudinary URL.
  */
 export const ensureWebp = (url) => optimizeCloudinaryUrl(url, { format: "webp" });
+
+/**
+ * Generates a srcSet for Cloudinary images.
+ * @param {string} url - Original Cloudinary URL.
+ * @param {number[]} widths - Array of widths.
+ * @returns {string} - srcSet string.
+ */
+export const getCloudinarySrcSet = (url, widths = [200, 400, 600, 800, 1000]) => {
+  if (!url || !/res\.cloudinary\.com/i.test(url)) return null;
+
+  return widths
+    .map((w) => {
+      const optimized = optimizeCloudinaryUrl(url, { width: w, crop: "scale", format: "webp", quality: "auto" });
+      return `${optimized} ${w}w`;
+    })
+    .join(", ");
+};

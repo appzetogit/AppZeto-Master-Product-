@@ -27,6 +27,7 @@ const TypewriterText = ({ text, isActive, delay = 0 }) => {
     </span>
   );
 };
+import OptimizedImage from "@food/components/OptimizedImage";
 
 const BannerSection = memo(({
   showBannerSkeleton,
@@ -41,7 +42,8 @@ const BannerSection = memo(({
   handleMouseDown,
   handleMouseMove,
   handleMouseUp,
-  navigate
+  navigate,
+  backendOrigin = ""
 }) => {
   if (showBannerSkeleton) {
     return (
@@ -69,13 +71,13 @@ const BannerSection = memo(({
       >
         <div className="absolute inset-0 z-0">
           <div className="absolute inset-0 z-10 pointer-events-none overflow-hidden">
-            <motion.div 
-              animate={{ 
+            <motion.div
+              animate={{
                 x: ['-200%', '200%'],
               }}
-              transition={{ 
-                duration: 2.5, 
-                repeat: Infinity, 
+              transition={{
+                duration: 2.5,
+                repeat: Infinity,
                 repeatDelay: 5,
                 ease: "easeInOut"
               }}
@@ -148,6 +150,14 @@ const BannerSection = memo(({
                        <img src={image} className="max-h-full w-auto object-contain object-bottom drop-shadow-2xl translate-y-2 sm:translate-y-4 translate-x-2 sm:translate-x-4" alt="Banner Graphic" />
                     </motion.div>
                   </div>
+                  <OptimizedImage
+                    src={image}
+                    alt={`Hero Banner ${index + 1}`}
+                    className="h-full w-full object-cover"
+                    priority={index === currentBannerIndex}
+                    backendOrigin={backendOrigin}
+                    draggable={false}
+                  />
                 )}
               </div>
             );
@@ -173,9 +183,8 @@ const BannerSection = memo(({
           {heroBannerImages.map((_, index) => (
             <div
               key={index}
-              className={`h-1 rounded-full transition-all duration-300 ${
-                currentBannerIndex === index ? "bg-white/80 w-4" : "bg-white/30 w-1"
-              }`}
+              className={`h-1 rounded-full transition-all duration-300 ${currentBannerIndex === index ? "bg-white/80 w-4" : "bg-white/30 w-1"
+                }`}
             />
           ))}
         </div>

@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { adminAPI } from "@/services/api";
 import { setCachedSettings } from "@/modules/common/utils/businessSettings";
 import { cn } from "@/lib/utils";
+import { compressImage } from "@/shared/utils/imageCompression";
 
 const SectionCard = ({ title, children, id }) => (
   <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-8" id={id}>
@@ -178,11 +179,12 @@ const GlobalApplicationSettings = () => {
     }
   };
 
-  const handleLogoUpload = (file) => {
-    setLogoFile(file);
+  const handleLogoUpload = async (file) => {
+    const compressed = await compressImage(file);
+    setLogoFile(compressed);
     const reader = new FileReader();
     reader.onload = () => setLogoPreview(String(reader.result || ''));
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(compressed);
   };
 
   const handleFaviconUpload = (file) => {

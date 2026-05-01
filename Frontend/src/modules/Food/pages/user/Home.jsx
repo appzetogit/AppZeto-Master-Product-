@@ -68,9 +68,9 @@ import {
   useLocationSelector,
 } from "@food/components/user/UserLayout";
 
-const debugLog = (...args) => {};
-const debugWarn = (...args) => {};
-const debugError = (...args) => {};
+const debugLog = (...args) => { };
+const debugWarn = (...args) => { };
+const debugError = (...args) => { };
 
 // Import shared food images - prevents duplication
 import { foodImages } from "@food/constants/images";
@@ -136,7 +136,7 @@ const getStoredDeliveryAddressMode = () => {
 };
 
 const defaultBannersImages = [
-  bannerEatingBoy, 
+  bannerEatingBoy,
   bannerEatingFood,
   bannerEatingBoy
 ];
@@ -161,7 +161,7 @@ export default function Home() {
     () => cart.some((item) => (item?.orderType || "food") !== "quick"),
     [cart],
   );
-  
+
   const [prevVegMode, setPrevVegMode] = useState(vegMode);
   const [showVegModePopup, setShowVegModePopup] = useState(false);
   const [showSwitchOffPopup, setShowSwitchOffPopup] = useState(false);
@@ -233,7 +233,7 @@ export default function Home() {
     }
     return defaultBannersImages;
   }, [banners?.data]);
-  
+
   const activeBannerData = useMemo(() => banners?.data?.length > 0 ? banners.data : defaultBannersData, [banners?.data]);
 
   // Auto-slide banners
@@ -284,11 +284,11 @@ export default function Home() {
       <div className="md:hidden relative overflow-x-clip z-[50]">
         {!state.isBootstrapped ? (
           <div className="px-4 pt-6 pb-4">
-             <div className="h-10 w-48 bg-slate-100 animate-pulse rounded-xl mb-6" />
-             <div className="h-14 w-full bg-slate-100 animate-pulse rounded-2xl" />
+            <div className="h-10 w-48 bg-slate-100 animate-pulse rounded-xl mb-6" />
+            <div className="h-14 w-full bg-slate-100 animate-pulse rounded-2xl" />
           </div>
         ) : (
-          <HomeHeader 
+          <HomeHeader
             activeTab={activeTab}
             setActiveTab={handleTabChange}
             location={location}
@@ -304,7 +304,7 @@ export default function Home() {
             bannerComponent={
               <Suspense fallback={<HeroBannerSkeleton className="h-[130px] w-full" />}>
                 <div className="h-[130px] sm:h-36 md:h-44 mt-3 relative z-10 w-full">
-                  <BannerSection 
+                  <BannerSection
                     showBannerSkeleton={banners.loading}
                     heroBannerImages={activeBannerImages}
                     heroBannersData={activeBannerData}
@@ -331,11 +331,12 @@ export default function Home() {
             className="bg-white dark:bg-[#0a0a0a]"
           >
             <Suspense fallback={<CategoryChipRowSkeleton className="py-1" />}>
-              <CategoryRail 
+              <CategoryRail
                 displayCategories={categories.display}
                 showCategorySkeleton={categories.loading}
                 navigate={navigate}
                 setShowAllCategoriesModal={setShowAllCategoriesModal}
+                backendOrigin={BACKEND_ORIGIN}
               />
             </Suspense>
 
@@ -344,25 +345,42 @@ export default function Home() {
             </Suspense>
 
 
+            <Suspense fallback={<HeroBannerSkeleton className="h-full w-full px-4 mt-3" />}>
+              <section className="content-auto px-4 pt-3 sm:pt-4 lg:pt-5">
+                <div className="overflow-hidden rounded-[22px] border border-slate-100 bg-white shadow-[0_18px_40px_-24px_rgba(15,23,42,0.3)] h-48 sm:h-56 md:h-64 lg:h-72">
+                  <BannerSection
+                    showBannerSkeleton={banners.loading}
+                    heroBannerImages={banners.images}
+                    heroBannersData={banners.data}
+                    currentBannerIndex={currentBannerIndex}
+                    setCurrentBannerIndex={setCurrentBannerIndex}
+                    heroShellRef={heroShellRef}
+                    navigate={navigate}
+                    backendOrigin={BACKEND_ORIGIN}
+                  />
+                </div>
+              </section>
+            </Suspense>
 
             <Suspense fallback={null}>
-               <SortFilterSection 
+              <SortFilterSection
                 activeFilters={state.activeFilters}
                 toggleFilter={actions.toggleFilter}
-                setIsFilterOpen={(val) => {}} // Hook handles internal apply
+                setIsFilterOpen={(val) => { }} // Hook handles internal apply
               />
             </Suspense>
 
             <Suspense fallback={null}>
-              <ExploreMoreSection 
+              <ExploreMoreSection
                 exploreMoreHeading={landing.heading}
                 showExploreSkeleton={landing.loading}
                 finalExploreItems={landing.exploreMore}
+                backendOrigin={BACKEND_ORIGIN}
               />
             </Suspense>
 
             <Suspense fallback={<RestaurantGridSkeleton count={3} />}>
-              <RestaurantGrid 
+              <RestaurantGrid
                 filteredRestaurants={restaurants.visible}
                 visibleRestaurants={restaurants.visible}
                 showRestaurantSkeleton={restaurants.loading}
@@ -400,11 +418,11 @@ export default function Home() {
                   <QuickCartAnimationProvider>
                     <QuickProductDetailProvider>
                       <Suspense fallback={<div className="h-screen w-full bg-white dark:bg-[#0a0a0a]" />}>
-                         <QuickCommerceHomePage 
+                        <QuickCommerceHomePage
                           embedded
                           onThemeChange={({ color }) => color && setQuickThemeColor(color)}
                           embeddedHeaderColor={quickThemeColor}
-                         />
+                        />
                       </Suspense>
                     </QuickProductDetailProvider>
                   </QuickCartAnimationProvider>
@@ -442,7 +460,7 @@ export default function Home() {
               {categories.display.map(cat => (
                 <Link key={cat.id} to={`/user/category/${cat.slug}`} className="flex flex-col items-center gap-2" onClick={() => setShowAllCategoriesModal(false)}>
                   <div className="w-20 h-20 rounded-full overflow-hidden shadow-sm bg-gray-50">
-                    <OptimizedImage src={cat.image} className="w-full h-full object-cover" />
+                    <OptimizedImage src={cat.image} className="w-full h-full object-cover" backendOrigin={BACKEND_ORIGIN} />
                   </div>
                   <span className="text-xs font-semibold text-center">{cat.name}</span>
                 </Link>
@@ -452,7 +470,7 @@ export default function Home() {
           </div>
         )}
       </AnimatePresence>
-      
+
       {hasFoodCartItems && <Suspense fallback={null}><MiniCart /></Suspense>}
       <Suspense fallback={null}><OrderTrackingCard hasBottomNav /></Suspense>
     </div>

@@ -7,7 +7,7 @@ import RestaurantNavbar from "@food/components/restaurant/RestaurantNavbar"
 import { restaurantAPI, zoneAPI } from "@food/api"
 import { getGoogleMapsApiKey } from "@food/utils/googleMapsApiKey"
 import { loadGoogleMaps as loadGoogleMapsSdk } from "@core/services/googleMapsLoader"
-import { clearAuthData } from "@food/utils/auth"
+import { clearModuleAuth } from "@food/utils/auth"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -568,7 +568,7 @@ export default function ZoneSetup() {
         // Delay logout slightly to let user see the toast
         const phone = restaurantData?.ownerPhone || ""
         setTimeout(() => {
-          clearAuthData("restaurant")
+          clearModuleAuth("restaurant")
           navigate("/food/restaurant/pending-verification", { 
             replace: true,
             state: { phone } 

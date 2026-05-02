@@ -170,7 +170,9 @@ const buildMessagePayload = (payload = {}, token) => {
             channel_id: 'default',
             sound: 'default',
             default_vibrate_timings: true,
-            default_light_settings: true
+            default_light_settings: true,
+            click_action: 'FLUTTER_NOTIFICATION_CLICK',
+            actions: [] 
         }
     };
 

@@ -1,5 +1,6 @@
 import { useCallback } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
+import { isModuleAuthenticated } from "@food/utils/auth"
 
 const toFoodPath = (value) => {
   if (typeof value !== "string") return null
@@ -47,6 +48,9 @@ const resolveBackPath = ({ pathname, search, state }) => {
       normalizedPath,
     )
   ) {
+    if (!isModuleAuthenticated("user")) {
+      return "/user/auth/login"
+    }
     return explicitBackPath || "/food/user/profile"
   }
 

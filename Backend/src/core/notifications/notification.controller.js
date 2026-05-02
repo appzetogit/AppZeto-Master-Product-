@@ -13,7 +13,8 @@ export const getInboxController = async (req, res) => {
         const data = await getInboxNotifications({
             ...owner,
             page: req.query?.page,
-            limit: req.query?.limit
+            limit: req.query?.limit,
+            contextModule: req.query?.contextModule || req.headers['x-context-module']
         });
         return sendResponse(res, 200, 'Notifications fetched successfully', data);
     } catch (error) {

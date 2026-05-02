@@ -22,12 +22,9 @@ const apiClient = axios.create({
 });
 
 function getModuleFromUrl(url = "") {
-  const u = typeof url === "string" ? url : (url?.url || "");
-  if (!u) return "user";
+  const normalized = (typeof url === "string" ? url : (url?.url || "")).toLowerCase();
   
-  const normalized = u.toLowerCase();
-  
-  // Admin detection
+  // 1. Admin detection (Priority)
   if (
     normalized.includes("/admin/") || 
     normalized.includes("/food/admin/") || 
@@ -35,27 +32,29 @@ function getModuleFromUrl(url = "") {
     normalized.includes("/auth/admin") || 
     normalized.includes("admin/login")
   ) return "admin";
-  
-  // Delivery detection - Catch all delivery-specific functional and auth routes
+
+  // 2. Special case: /food/restaurants (plural) is a public endpoint
+  // BUT only if it's not a restaurant owner's specific route
+  if (normalized.includes("/food/restaurants") && !normalized.includes("/food/restaurant/")) {
+    return "user";
+  }
+
+  // 3. Restaurant detection
   if (
-    normalized.includes("/food/delivery") || 
-    normalized.includes("/auth/delivery") || 
-    normalized.includes("/delivery/")
-  ) return "delivery";
-  
-  // Restaurant detection - Catch all restaurant-specific functional and auth routes
-  if (
-    normalized.includes("/food/restaurant/") || 
-    normalized.includes("/auth/restaurant") || 
-    normalized.includes("/restaurant/")
+    normalized.includes("/restaurant/") || 
+    normalized.includes("/food/restaurant") ||
+    normalized.includes("/auth/restaurant")
   ) {
-    // Exception: /food/restaurants (plural) is usually a public user app route
-    if (normalized.includes("/food/restaurants") && !normalized.includes("/food/restaurant/")) {
-       return "user";
-    }
     return "restaurant";
   }
   
+  // 4. Delivery detection
+  if (
+    normalized.includes("/delivery/") || 
+    normalized.includes("/food/delivery") ||
+    normalized.includes("/auth/delivery")
+  ) return "delivery";
+
   return "user";
 }
 
@@ -154,6 +153,12 @@ apiClient.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // Attach context module as header for backend scoping (e.g. notifications)
+    if (config.contextModule) {
+      config.headers['x-context-module'] = config.contextModule;
+    }
+
     return config;
   },
   (err) => Promise.reject(err)

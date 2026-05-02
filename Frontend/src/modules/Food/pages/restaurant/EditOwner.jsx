@@ -129,9 +129,15 @@ export default function EditOwner() {
   }, [formData.name, formData.email, ownerData.name, ownerData.email, profileImageFile])
 
   const handleInputChange = (field, value) => {
+    let sanitizedValue = value
+    if (field === 'name') {
+      // Allow only letters and spaces
+      sanitizedValue = value.replace(/[^A-Za-z\s]/g, '')
+    }
+    
     setFormData(prev => ({
       ...prev,
-      [field]: value
+      [field]: sanitizedValue
     }))
   }
 
@@ -171,6 +177,24 @@ export default function EditOwner() {
     try {
       setSaving(true)
 
+      // Validate inputs
+      const nameRegex = /^[A-Za-z\s]+$/
+      if (!nameRegex.test(formData.name.trim())) {
+        toast.error("Name should only contain letters and spaces")
+        setSaving(false)
+        return
+      }
+
+      // Email validation (stricter regex)
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,5}$/
+      const emailToValidate = formData.email ? String(formData.email).trim() : ""
+      
+      if (emailToValidate && !emailRegex.test(emailToValidate)) {
+        toast.error("Invalid email format (e.g. name@gmail.com)")
+        setSaving(false)
+        return
+      }
+
       // First, upload profile image if changed
       if (profileImageFile) {
         try {
@@ -181,7 +205,7 @@ export default function EditOwner() {
           }
         } catch (error) {
           debugError("Error uploading profile image:", error)
-          alert("Failed to upload profile image. Please try again.")
+          toast.error("Failed to upload profile image. Please try again.")
           setSaving(false)
           return
         }
@@ -393,7 +417,7 @@ export default function EditOwner() {
               className="flex items-center gap-2 text-red-600 hover:text-red-700 transition-colors"
             >
               <Trash2 className="w-5 h-5" />
-              <span className="text-sm font-normal">Delete your Zomato account</span>
+              <span className="text-sm font-normal">Delete your Appzeto account</span>
             </button>
           </div>
         </div>
@@ -406,12 +430,12 @@ export default function EditOwner() {
                 <span className="text-2xl leading-none text-red-600">!</span>
               </div>
               <DialogTitle className="text-base font-semibold text-gray-900 text-center">
-                You are about to delete your Zomato account
+                You are about to delete your Appzeto account
               </DialogTitle>
-              <DialogHeader className="mt-2 text-sm text-gray-600">
+              <DialogDescription className="mt-2 text-sm text-gray-600 text-center">
                 All information associated with your account will be deleted, and you will lose access to your restaurant permanently.
                 This information cannot be recovered once the account is deleted. Are you sure you want to proceed?
-              </DialogHeader>
+              </DialogDescription>
             </DialogHeader>
             <DialogFooter className="flex flex-col gap-2 sm:flex-col">
               <Button

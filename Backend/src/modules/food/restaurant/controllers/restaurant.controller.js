@@ -11,7 +11,8 @@ import {
     uploadRestaurantCoverImages,
     uploadRestaurantMenuImages,
     listPublicOffers,
-    getRestaurantComplaints
+    getRestaurantComplaints,
+    deleteRestaurantAccount
 } from '../services/restaurant.service.js';
 import { validateRestaurantRegisterDto } from '../validators/restaurant.validator.js';
 import { sendResponse } from '../../../../utils/response.js';
@@ -140,6 +141,16 @@ export const getRestaurantComplaintsController = async (req, res, next) => {
         const restaurantId = req.user?.userId;
         const data = await getRestaurantComplaints(restaurantId, req.query || {});
         return sendResponse(res, 200, 'Complaints fetched successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const deleteRestaurantAccountController = async (req, res, next) => {
+    try {
+        const restaurantId = req.user?.userId;
+        const result = await deleteRestaurantAccount(restaurantId);
+        return sendResponse(res, 200, 'Account deleted successfully', result);
     } catch (error) {
         next(error);
     }

@@ -1030,6 +1030,11 @@ export const restaurantAPI = {
       contextModule: "restaurant",
     });
   },
+  /** Delete current restaurant account. */
+  deleteAccount: () =>
+    apiClient.delete("/food/restaurant/delete-account", {
+      contextModule: "restaurant",
+    }),
   /** Public Offers for users (global/selected restaurant) */
   getPublicOffers: () => apiClient.get("/food/restaurant/offers"),
   /** Backward-compat helper used by Cart: returns coupons array for an item by adapting public offers */

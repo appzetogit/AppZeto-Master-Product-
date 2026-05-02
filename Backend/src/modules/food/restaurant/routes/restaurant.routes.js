@@ -13,7 +13,8 @@ import {
     uploadRestaurantMenuImageController,
     uploadRestaurantCoverImagesController,
     uploadRestaurantMenuImagesController,
-    getRestaurantComplaintsController
+    getRestaurantComplaintsController,
+    deleteRestaurantAccountController
 } from '../controllers/restaurant.controller.js';
 import {
     createRestaurantSupportTicketController,
@@ -193,6 +194,8 @@ router.post('/orders/:orderId/resend-notification', authMiddleware, requireResta
 router.get('/complaints', authMiddleware, requireRestaurant, getRestaurantComplaintsController);
 router.post('/support/tickets', authMiddleware, requireRestaurant, createRestaurantSupportTicketController);
 router.get('/support/tickets', authMiddleware, requireRestaurant, listRestaurantSupportTicketsController);
+
+router.delete('/delete-account', authMiddleware, requireRestaurant, deleteRestaurantAccountController);
 
 export default router;
 

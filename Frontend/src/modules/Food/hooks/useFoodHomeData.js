@@ -318,7 +318,9 @@ export const useFoodHomeData = ({
 
   // --- Memoized Derived Data ---
   const filteredRestaurants = useMemo(() => {
-    let filtered = [...deferredRestaurants].filter(r => !vegMode || r.pureVegRestaurant);
+    // If vegMode is 'pure', only show 100% vegetarian restaurants.
+    // If vegMode is 'all' or false, show all restaurants (dish level filtering handles 'all' mode).
+    let filtered = [...deferredRestaurants].filter(r => vegMode !== "pure" || r.pureVegRestaurant);
     
     // Strictly filter by availability (only show open restaurants)
     filtered = filtered.filter(r => {

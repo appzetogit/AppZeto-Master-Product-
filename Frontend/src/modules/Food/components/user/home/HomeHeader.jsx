@@ -503,7 +503,10 @@ export default function HomeHeader({
 
           {isFood ? (
             <div className="px-2 flex flex-col items-center justify-center min-w-[64px]">
-              <span className="text-[9px] font-black tracking-[0.5px] text-black mb-1">VEG</span>
+              <div className="flex flex-col items-center mb-1">
+                <span className="text-[9px] font-black tracking-[0.5px] text-black dark:text-white leading-none">VEG</span>
+                <span className="text-[7px] font-black tracking-[0.5px] text-black/60 dark:text-white/60 leading-none mt-0.5">MODE</span>
+              </div>
               <div className="scale-[0.80]">
                 <Switch
                   checked={vegMode}

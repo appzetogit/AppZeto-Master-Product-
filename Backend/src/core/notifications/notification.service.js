@@ -116,8 +116,8 @@ export const createInboxNotifications = async ({ notifications = [] } = {}) => {
     return [];
 };
 
-export const getInboxNotifications = async ({ ownerType, ownerId, page = 1, limit = 20 } = {}) => {
-    const normalizedOwnerType = normalizeOwnerType(ownerType);
+export const getInboxNotifications = async ({ ownerType, ownerId, page = 1, limit = 20, contextModule } = {}) => {
+    const normalizedOwnerType = normalizeOwnerType(contextModule || ownerType);
     const normalizedOwnerId = ensureObjectId(ownerId, 'ownerId');
     const { skip, ...meta } = normalizePagination({ page, limit });
 

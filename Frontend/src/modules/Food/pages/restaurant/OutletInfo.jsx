@@ -58,6 +58,8 @@ export default function OutletInfo() {
   const [coverImages, setCoverImages] = useState([])
   const [showEditNameDialog, setShowEditNameDialog] = useState(false)
   const [editNameValue, setEditNameValue] = useState("")
+  const [showEditPhoneDialog, setShowEditPhoneDialog] = useState(false)
+  const [editPhoneValue, setEditPhoneValue] = useState("")
   const [restaurantId, setRestaurantId] = useState("")
   const [restaurantMongoId, setRestaurantMongoId] = useState("")
   const [uploadingImage, setUploadingImage] = useState(false)
@@ -396,6 +398,32 @@ export default function OutletInfo() {
     }
   }
 
+  // Handle edit phone dialog
+  const handleOpenPhoneDialog = () => {
+    setEditPhoneValue(primaryPhone)
+    setShowEditPhoneDialog(true)
+  }
+
+  const handleSavePhone = async () => {
+    const newPhone = editPhoneValue.trim()
+    if (!newPhone) return
+    
+    // Basic validation: Check if 10 digits
+    if (!/^\d{10}$/.test(newPhone)) {
+      toast.error("Please enter a valid 10-digit phone number")
+      return
+    }
+
+    try {
+      await restaurantAPI.updateProfile({ primaryContactNumber: newPhone })
+      setPrimaryPhone(newPhone)
+      setShowEditPhoneDialog(false)
+      toast.success("Phone number updated successfully")
+    } catch (error) {
+      toast.error("Failed to update phone number")
+    }
+  }
+
   return (
     <>
       <div className="min-h-screen bg-white overflow-x-hidden">
@@ -573,9 +601,9 @@ export default function OutletInfo() {
               <div className="p-4 flex justify-between items-center">
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-gray-400 font-medium mb-1">Primary Phone</p>
-                  <p className="text-sm font-bold text-gray-800">{restaurantData?.primaryContactNumber || restaurantData?.ownerPhone || "Not provided"}</p>
+                  <p className="text-sm font-bold text-gray-800">{primaryPhone || "Not provided"}</p>
                 </div>
-                <button onClick={() => navigate("/food/restaurant/phone")} className="p-2 hover:bg-gray-50 rounded-full transition-colors">
+                <button onClick={handleOpenPhoneDialog} className="p-2 hover:bg-gray-50 rounded-full transition-colors">
                   <Pencil className="w-4 h-4 text-blue-600" />
                 </button>
               </div>
@@ -697,6 +725,34 @@ export default function OutletInfo() {
           <DialogFooter className="p-4 bg-gray-50 flex flex-row gap-3">
             <Button variant="outline" onClick={() => setShowEditNameDialog(false)}>Cancel</Button>
             <Button onClick={handleSaveName} disabled={!editNameValue.trim()} className="bg-blue-600 text-white">Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showEditPhoneDialog} onOpenChange={setShowEditPhoneDialog}>
+        <DialogContent className="sm:max-w-md p-0 overflow-hidden rounded-xl w-[90%]">
+          <DialogHeader className="p-4 border-b border-gray-100">
+            <DialogTitle className="text-lg font-bold">Edit primary phone</DialogTitle>
+          </DialogHeader>
+          <div className="p-4">
+            <Input 
+              value={editPhoneValue} 
+              onChange={(e) => setEditPhoneValue(e.target.value.replace(/\D/g, '').slice(0, 10))} 
+              placeholder="Enter 10-digit phone number" 
+              className="w-full"
+              type="tel"
+              maxLength={10}
+            />
+          </div>
+          <DialogFooter className="p-4 bg-gray-50 flex flex-row gap-3">
+            <Button variant="outline" onClick={() => setShowEditPhoneDialog(false)}>Cancel</Button>
+            <Button 
+              onClick={handleSavePhone} 
+              disabled={!editPhoneValue.trim() || editPhoneValue.length !== 10} 
+              className="bg-blue-600 text-white"
+            >
+              Save
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

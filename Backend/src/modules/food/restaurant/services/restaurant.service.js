@@ -614,9 +614,9 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
     if (body.ownerEmail !== undefined) {
         const ownerEmail = String(body.ownerEmail || '').trim().toLowerCase();
         if (ownerEmail) {
-            const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,5}$/;
             if (!EMAIL_REGEX.test(ownerEmail)) {
-                throw new ValidationError('Owner email is invalid');
+                throw new ValidationError('Invalid email format (e.g. name@gmail.com)');
             }
             if (ownerEmail.length > 254) {
                 throw new ValidationError('Owner email is too long');
@@ -866,17 +866,33 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
 
     // FSSAI Re-verification Flow
     let fssaiChanged = false;
-    if (body.fssaiNumber !== undefined && String(body.fssaiNumber || '').trim() !== String(currentRestaurant.fssaiNumber || '').trim()) {
+    const incomingFssaiNumber = body.fssaiNumber !== undefined ? String(body.fssaiNumber || '').trim() : null;
+    const incomingFssaiImage = body.fssaiImage !== undefined ? toUrl(body.fssaiImage) : null;
+    
+    const currentFssaiNumber = String(currentRestaurant.fssaiNumber || '').trim();
+    const currentFssaiImage = toUrl(currentRestaurant.fssaiImage) || '';
+
+    if (incomingFssaiNumber !== null && incomingFssaiNumber !== currentFssaiNumber) {
         fssaiChanged = true;
     }
-    if (body.fssaiImage !== undefined && String(body.fssaiImage || '').trim() !== String(currentRestaurant.fssaiImage || '').trim()) {
+    if (incomingFssaiImage !== null && incomingFssaiImage !== currentFssaiImage) {
         fssaiChanged = true;
+    }
+    
+    // Check for expiry date change
+    if (body.fssaiExpiry !== undefined) {
+        const incomingExpiry = String(body.fssaiExpiry || '').trim();
+        const currentExpiry = currentRestaurant.fssaiExpiry ? new Date(currentRestaurant.fssaiExpiry).toISOString().split('T')[0] : '';
+        if (incomingExpiry && incomingExpiry !== currentExpiry) {
+            fssaiChanged = true;
+        }
     }
 
     if (fssaiChanged) {
         update.status = 'pending';
         update.reVerification = {
-            ...currentRestaurant.reVerification,
+            ...(currentRestaurant.reVerification || {}),
+            isZoneUpdate: false, // It's an FSSAI update, not a zone update
             reVerificationReason: 'FSSAI License Update'
         };
     }
@@ -1455,8 +1471,60 @@ export const listPublicOffers = async () => {
 };
 
 /**
+ * Delete a restaurant account and its associated data.
+ */
+export const deleteRestaurantAccount = async (restaurantId) => {
+    if (!restaurantId) {
+        throw new ValidationError('Invalid restaurant id');
+    }
+
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const restaurant = await FoodRestaurant.findById(restaurantId).session(session);
+        if (!restaurant) {
+            throw new ValidationError('Restaurant not found');
+        }
+
+        const restaurantName = restaurant.restaurantName;
+
+        // Delete associated data
+        await FoodRestaurantOutletTimings.deleteMany({ restaurantId }).session(session);
+        // Note: You might want to delete foods, categories, etc. as well depending on business rules.
+        // For now, we'll stick to the core profile and timings.
+        
+        await FoodRestaurant.findByIdAndDelete(restaurantId).session(session);
+
+        await session.commitTransaction();
+
+        // Notify admins about the deletion
+        try {
+            const { notifyAdminsSafely } = await import('../../../../core/notifications/firebase.service.js');
+            void notifyAdminsSafely({
+                title: 'Restaurant Account Deleted 🗑️',
+                body: `The restaurant "${restaurantName}" has deleted its account.`,
+                data: {
+                    type: 'account_deleted',
+                    subType: 'restaurant',
+                    id: String(restaurantId)
+                }
+            });
+        } catch (e) {
+            console.error('Failed to notify admins of restaurant account deletion:', e);
+        }
+
+        return { success: true, message: 'Account deleted successfully' };
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
+};
+
+/**
  * List complaints for a restaurant.
- * Calls adminService.getRestaurantComplaints with fixed restaurantId.
  */
 export const getRestaurantComplaints = async (restaurantId, query = {}) => {
     const { getRestaurantComplaints: getComplaintsInternal } = await import('../../admin/services/admin.service.js');

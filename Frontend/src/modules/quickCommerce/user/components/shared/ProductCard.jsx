@@ -184,64 +184,77 @@ const ProductCard = React.memo(
               />
             </div>
           </div>
-
-          {/* Content Section */}
-          <div className="flex flex-col flex-1 px-3 py-2 md:px-4 md:py-3 space-y-2 md:space-y-3 bg-white">
-            <div className="space-y-1">
-              <div className="flex items-center gap-1.5 text-[9px] md:text-[10px] text-slate-500 font-bold uppercase tracking-widest">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span>{product.deliveryTime || "10 MINS"}</span>
-              </div>
-              <h3 className="text-[12px] md:text-[14px] font-bold text-slate-900 line-clamp-2 leading-tight min-h-[32px] md:min-h-[40px]">
-                {product.name}
-              </h3>
-              <p className="text-[10px] md:text-[12px] text-slate-500 font-medium">
-                {product.weight || "1 unit"}
-              </p>
-            </div>
-
-            <div className="mt-auto flex items-center justify-between gap-2 pt-1 border-t border-slate-50">
-              <div className="flex flex-col">
-                <span className="text-[14px] md:text-[16px] font-black text-slate-900">
-                  ₹{Number(product.price || 0).toLocaleString()}
-                </span>
-                {product.originalPrice > product.price && (
-                  <span className="text-[10px] md:text-[11px] text-slate-400 line-through font-medium">
-                    ₹{Number(product.originalPrice || 0).toLocaleString()}
-                  </span>
-                )}
-              </div>
-
-              {quantity > 0 ? (
-                <div className="flex items-center bg-[#0c831f] text-white rounded-lg md:rounded-xl shadow-lg shadow-emerald-900/10 h-8 md:h-10 overflow-hidden ring-1 ring-[#0c831f]/20">
-                  <button
-                    onClick={handleDecrement}
-                    className="w-8 md:w-10 h-full hover:bg-black/10 transition-colors flex items-center justify-center border-r border-white/10">
-                    <Minus size={14} strokeWidth={3} />
-                  </button>
-                  <span className="text-[12px] md:text-[14px] font-black min-w-[20px] md:min-w-[24px] text-center px-1">
-                    {quantity}
-                  </span>
-                  <button
-                    onClick={handleIncrement}
-                    className="w-8 md:w-10 h-full hover:bg-black/10 transition-colors flex items-center justify-center border-l border-white/10">
-                    <Plus size={14} strokeWidth={3} />
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={handleAddToCart}
-                  className={cn(
-                    "w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-gradient-to-br from-white to-slate-50 border-2 border-[#0c831f] text-[#0c831f] rounded-lg md:rounded-xl shadow-sm transition-all duration-300 active:scale-95",
-                    "hover:from-[#0c831f] hover:to-[#0a7019] hover:text-white hover:border-[#0c831f]"
-                  )}>
-                  <Plus size={18} strokeWidth={3} />
-                </button>
-              )}
-            </div>
-          </div>
+          src={
+            resolveQuickImageUrl(product.image || product.mainImage) ||
+            product.image ||
+            product.mainImage
+          }
+          srcSet={getCloudinarySrcSet(product.image || product.mainImage)}
+          sizes="(max-width: 768px) 150px, (max-width: 1024px) 200px, 250px"
+          alt={product.name}
+          className="w-full h-full object-contain mix-blend-multiply transition-opacity duration-300"
+          loading="lazy"
+              />
         </div>
-      </motion.div>
+      </div>
+
+          {/* Content Section */ }
+    <div className="flex flex-col flex-1 px-3 py-2 md:px-4 md:py-3 space-y-2 md:space-y-3 bg-white">
+      <div className="space-y-1">
+        <div className="flex items-center gap-1.5 text-[9px] md:text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span>{product.deliveryTime || "10 MINS"}</span>
+        </div>
+        <h3 className="text-[12px] md:text-[14px] font-bold text-slate-900 line-clamp-2 leading-tight min-h-[32px] md:min-h-[40px]">
+          {product.name}
+        </h3>
+        <p className="text-[10px] md:text-[12px] text-slate-500 font-medium">
+          {product.weight || "1 unit"}
+        </p>
+      </div>
+
+      <div className="mt-auto flex items-center justify-between gap-2 pt-1 border-t border-slate-50">
+        <div className="flex flex-col">
+          <span className="text-[14px] md:text-[16px] font-black text-slate-900">
+            ₹{Number(product.price || 0).toLocaleString()}
+          </span>
+          {product.originalPrice > product.price && (
+            <span className="text-[10px] md:text-[11px] text-slate-400 line-through font-medium">
+              ₹{Number(product.originalPrice || 0).toLocaleString()}
+            </span>
+          )}
+        </div>
+
+        {quantity > 0 ? (
+          <div className="flex items-center bg-[#0c831f] text-white rounded-lg md:rounded-xl shadow-lg shadow-emerald-900/10 h-8 md:h-10 overflow-hidden ring-1 ring-[#0c831f]/20">
+            <button
+              onClick={handleDecrement}
+              className="w-8 md:w-10 h-full hover:bg-black/10 transition-colors flex items-center justify-center border-r border-white/10">
+              <Minus size={14} strokeWidth={3} />
+            </button>
+            <span className="text-[12px] md:text-[14px] font-black min-w-[20px] md:min-w-[24px] text-center px-1">
+              {quantity}
+            </span>
+            <button
+              onClick={handleIncrement}
+              className="w-8 md:w-10 h-full hover:bg-black/10 transition-colors flex items-center justify-center border-l border-white/10">
+              <Plus size={14} strokeWidth={3} />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={handleAddToCart}
+            className={cn(
+              "w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-gradient-to-br from-white to-slate-50 border-2 border-[#0c831f] text-[#0c831f] rounded-lg md:rounded-xl shadow-sm transition-all duration-300 active:scale-95",
+              "hover:from-[#0c831f] hover:to-[#0a7019] hover:text-white hover:border-[#0c831f]"
+            )}>
+            <Plus size={18} strokeWidth={3} />
+          </button>
+        )}
+      </div>
+    </div>
+        </div >
+      </motion.div >
     );
   },
 );

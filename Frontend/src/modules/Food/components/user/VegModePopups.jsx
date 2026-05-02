@@ -10,6 +10,18 @@ const VegModePopups = ({
   onCloseSwitchOffPopup,
   onConfirmSwitchOff 
 }) => {
+  // Prevent body scroll when popups are open
+  React.useEffect(() => {
+    if (showVegModePopup || showSwitchOffPopup) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [showVegModePopup, showSwitchOffPopup]);
+
   return (
     <>
       {/* Pure Veg Mode Confirmation Overlay */}
@@ -40,14 +52,22 @@ const VegModePopups = ({
                   </div>
                   <h3 className="text-2xl font-black text-gray-900 dark:text-white mb-3">Pure Veg Mode</h3>
                   <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed mb-8">
-                    We've filtered your feed to show only 100% vegetarian restaurants. Enjoy your meat-free browsing!
+                    Choose how you'd like to filter your food.
                   </p>
-                  <button
-                    onClick={onCloseVegPopup}
-                    className="w-full py-4 bg-green-600 hover:bg-green-700 text-white font-bold rounded-2xl shadow-lg shadow-green-500/25 transition-all duration-300 transform active:scale-95"
-                  >
-                    Great, thanks!
-                  </button>
+                  <div className="flex flex-col gap-4">
+                    <button
+                      onClick={() => onCloseVegPopup("pure")}
+                      className="w-full h-auto py-4 px-6 bg-green-600 hover:bg-green-700 text-white font-bold rounded-2xl shadow-lg shadow-green-500/25 transition-all duration-300 transform active:scale-95 whitespace-normal text-sm leading-tight"
+                    >
+                      Veg from pure veg restaurants only
+                    </button>
+                    <button
+                      onClick={() => onCloseVegPopup("all")}
+                      className="w-full h-auto py-4 px-6 border-2 border-green-600 text-green-600 hover:bg-green-50 font-bold rounded-2xl transition-all duration-300 transform active:scale-95 whitespace-normal text-sm leading-tight"
+                    >
+                      Veg from all restaurants
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             </div>

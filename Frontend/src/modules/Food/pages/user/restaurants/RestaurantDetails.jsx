@@ -1660,7 +1660,7 @@ function RestaurantDetailsContent() {
 
       // VegMode filter - when vegMode is ON, show only Veg items
       // When vegMode is false/null/undefined, show all items (Veg and Non-Veg)
-      if (vegMode === true) {
+      if (vegMode) {
         if (item.foodType !== "Veg") return false
       }
 
@@ -1819,7 +1819,7 @@ function RestaurantDetailsContent() {
   const hasActiveMenuFilters = Boolean(
     showOnlyUnder250 ||
     searchQuery.trim() ||
-    vegMode === true ||
+    !!vegMode ||
     filters.sortBy ||
     filters.vegNonVeg ||
     filters.highlyReordered ||

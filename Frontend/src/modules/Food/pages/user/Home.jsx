@@ -101,6 +101,7 @@ import { CartProvider as QuickCartProvider } from "../../../quickCommerce/user/c
 import { prefetchQuickHomeBootstrap } from "../../../quickCommerce/user/services/customerApi";
 import PromoRow from "@food/components/user/home/PromoRow";
 import { optimizeCloudinaryUrl } from "../../../../shared/utils/cloudinaryUtils";
+import VegModePopups from "@food/components/user/VegModePopups";
 
 import * as imgUtils from "@food/utils/imageUtils";
 import { useFoodHomeData } from "@food/hooks/useFoodHomeData";
@@ -244,6 +245,18 @@ export default function Home() {
     }, HERO_BANNER_AUTO_SLIDE_MS);
     return () => clearInterval(interval);
   }, [activeBannerImages.length]);
+
+  // Prevent body scroll when popups are open
+  useEffect(() => {
+    if (showVegModePopup || showSwitchOffPopup || showAllCategoriesModal) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [showVegModePopup, showSwitchOffPopup, showAllCategoriesModal]);
 
   // Sync activeTab with URL
   useEffect(() => {
@@ -415,23 +428,26 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      {/* Popups & Overlays remain for UX */}
-      <AnimatePresence>
-        {showVegModePopup && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-6">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => setShowVegModePopup(false)} />
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="relative bg-white dark:bg-[#1a1a1a] rounded-[32px] p-8 w-full max-w-sm text-center shadow-2xl">
-              <Leaf className="w-12 h-12 text-green-600 mx-auto mb-4" />
-              <h3 className="text-xl font-bold mb-2">Enable Veg Mode?</h3>
-              <p className="text-gray-500 mb-6 text-sm">We'll show only 100% vegetarian options.</p>
-              <div className="flex flex-col gap-2">
-                <Button onClick={() => { setShowVegModePopup(false); setVegModeContext(true); }} className="bg-green-600">Yes, Show Veg Only</Button>
-                <Button variant="ghost" onClick={() => setShowVegModePopup(false)}>No, Show Everything</Button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* Veg Mode Popups (Enable / Switch Off) */}
+      <VegModePopups
+        showVegModePopup={showVegModePopup}
+        showSwitchOffPopup={showSwitchOffPopup}
+        onCloseVegPopup={(level) => {
+          setShowVegModePopup(false);
+          if (level) {
+            setVegModeContext(level);
+          }
+        }}
+        onCloseSwitchOffPopup={() => {
+          setShowSwitchOffPopup(false);
+          isHandlingSwitchOff.current = false;
+        }}
+        onConfirmSwitchOff={() => {
+          setVegModeContext(false);
+          setShowSwitchOffPopup(false);
+          isHandlingSwitchOff.current = false;
+        }}
+      />
 
       {/* Category Modal */}
       <AnimatePresence>

@@ -95,8 +95,10 @@ export function ProfileProvider({ children }) {
   const [vegMode, setVegMode] = useState(() => {
     if (!hasUserSession) return false
     const saved = localStorage.getItem("userVegMode")
-    // Default to false (OFF) if not set
-    return saved !== null ? saved === "true" : false
+    // Support new string values 'pure', 'all' or legacy boolean
+    if (saved === "pure" || saved === "all") return saved
+    if (saved === "true") return "pure" // Legacy migration
+    return false
   })
 
   // Helper to check if authenticated

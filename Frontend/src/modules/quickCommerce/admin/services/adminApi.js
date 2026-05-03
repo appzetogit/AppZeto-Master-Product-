@@ -120,6 +120,11 @@ async function getQuickStatsPayload() {
       activeSellers: Number(stats.categories || 0),
       totalOrders: Number(stats.orders || 0),
       totalRevenue: Number(stats.revenue || 0),
+      // Growth: compare current orders/revenue vs half of current as a baseline
+      // Real growth will come from revenueHistory comparison in the Dashboard
+      prevTotalOrders: 0,
+      prevTotalUsers: 0,
+      prevActiveSellers: 0,
     },
     revenueHistory,
     categoryData,

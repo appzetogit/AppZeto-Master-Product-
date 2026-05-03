@@ -14,6 +14,7 @@ import {
   HiOutlineTrash,
   HiOutlinePlus,
   HiOutlineSquaresPlus,
+  HiOutlineCurrencyRupee,
 } from "react-icons/hi2";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -25,6 +26,7 @@ const AddProduct = () => {
   const navigate = useNavigate();
   const [modalTab, setModalTab] = useState("general");
   const [isSaving, setIsSaving] = useState(false);
+  const mainImageInputRef = React.useRef(null);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -91,8 +93,31 @@ const AddProduct = () => {
     }
 
     const firstVariant = formData.variants[0] || {};
-    if (!firstVariant.price || !firstVariant.stock) {
-      toast.error("Main variant must have price and stock");
+    const effectivePrice = firstVariant.price || formData.price;
+    const effectiveStock = firstVariant.stock || formData.stock;
+
+    if (!effectivePrice || !effectiveStock) {
+      toast.error("Please fill in Price and Stock in the Pricing & Stock tab");
+      return;
+    }
+
+    if (formData.salePrice && Number(formData.salePrice) < 1) {
+      toast.error("Discounted price must be at least 1");
+      return;
+    }
+
+    if (formData.stock && Number(formData.stock) < 1) {
+      toast.error("Stock must be at least 1");
+      return;
+    }
+
+    if (formData.variants.some((v) => v.salePrice && Number(v.salePrice) < 1)) {
+      toast.error("Sale price must be at least 1");
+      return;
+    }
+
+    if (formData.variants.some((v) => v.stock && Number(v.stock) < 1)) {
+      toast.error("Stock must be at least 1");
       return;
     }
 
@@ -109,10 +134,11 @@ const AddProduct = () => {
       data.append("weight", formData.weight);
       data.append("status", formData.status);
 
-      // Map top-level price/stock from first variant for indexing/listing
-      data.append("price", firstVariant.price);
-      data.append("salePrice", firstVariant.salePrice || 0);
-      data.append("stock", firstVariant.stock);
+      // Map top-level price/stock — prefer pricing tab values, fallback to first variant
+      data.append("price", formData.price || firstVariant.price);
+      data.append("salePrice", formData.salePrice || firstVariant.salePrice || 0);
+      data.append("stock", formData.stock || firstVariant.stock);
+      data.append("lowStockAlert", formData.lowStockAlert || 5);
 
       // Category IDs
       data.append("headerId", formData.header);
@@ -205,6 +231,7 @@ const AddProduct = () => {
         <div className="md:w-64 bg-slate-50/50 border-r border-slate-100 p-4 space-y-1 overflow-y-auto">
           {[
             { id: "general", label: "General Info", icon: HiOutlineTag },
+            { id: "pricing", label: "Pricing & Stock", icon: HiOutlineCurrencyRupee },
             { id: "variants", label: "Item Variants", icon: HiOutlineSwatch },
             { id: "category", label: "Groups", icon: HiOutlineFolderOpen },
             { id: "media", label: "Photos", icon: HiOutlinePhoto },
@@ -293,11 +320,70 @@ const AddProduct = () => {
                   </label>
                   <input
                     value={formData.sku}
-                    onChange={(e) =>
-                      setFormData({ ...formData, sku: e.target.value })
-                    }
-                    className="w-full px-4 py-2.5 bg-slate-100 border-none rounded-md text-sm font-mono font-bold outline-none ring-primary/5 focus:ring-2 transition-all"
+                    readOnly
+                    className="w-full px-4 py-2.5 bg-slate-100 border-none rounded-md text-sm font-mono font-bold outline-none text-slate-400 cursor-not-allowed"
                     placeholder="AUTO-GENERATED"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {modalTab === "pricing" && (
+            <div className="space-y-8 animate-in fade-in slide-in-from-right-2 duration-300">
+              <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-1.5 flex flex-col">
+                  <label className="text-[10px] sm:text-xs font-bold text-slate-600 uppercase tracking-widest ml-1">
+                    Price (₹)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={formData.price}
+                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                    placeholder="e.g. 500"
+                    className="w-full px-4 py-3 bg-white shadow-sm ring-1 ring-slate-200 border-none rounded-xl text-lg font-bold outline-none focus:ring-2 focus:ring-primary/10"
+                  />
+                </div>
+                <div className="space-y-1.5 flex flex-col">
+                  <label className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest ml-1">
+                    Discounted Price (₹)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={formData.salePrice}
+                    onChange={(e) => setFormData({ ...formData, salePrice: e.target.value })}
+                    placeholder="e.g. 450"
+                    className="w-full px-4 py-3 bg-emerald-50/50 shadow-sm ring-1 ring-emerald-100 border-none rounded-xl text-lg font-bold text-emerald-700 outline-none focus:ring-2 focus:ring-emerald-200"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-1.5 flex flex-col">
+                  <label className="text-[10px] sm:text-xs font-bold text-slate-600 uppercase tracking-widest ml-1">
+                    How many in stock
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={formData.stock}
+                    onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
+                    placeholder="e.g. 10"
+                    className="w-full px-4 py-2.5 bg-slate-100 border-none rounded-xl text-sm font-bold outline-none ring-primary/5 focus:ring-2"
+                  />
+                </div>
+                <div className="space-y-1.5 flex flex-col">
+                  <label className="text-[9px] font-bold text-rose-500 uppercase tracking-widest ml-1">
+                    Alert me when stock is below
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={formData.lowStockAlert}
+                    onChange={(e) => setFormData({ ...formData, lowStockAlert: e.target.value })}
+                    className="w-full px-4 py-2.5 bg-rose-50/30 border-none rounded-xl text-sm font-bold text-rose-600 outline-none ring-rose-100 focus:ring-2"
                   />
                 </div>
               </div>
@@ -380,6 +466,7 @@ const AddProduct = () => {
                       </label>
                       <input
                         type="number"
+                        min="1"
                         value={variant.salePrice}
                         onChange={(e) => {
                           const newVariants = [...formData.variants];
@@ -387,8 +474,11 @@ const AddProduct = () => {
                           setFormData({ ...formData, variants: newVariants });
                         }}
                         placeholder="450"
-                        className="w-full px-3 py-2 bg-emerald-50 ring-1 ring-emerald-100 border-none rounded-xl text-xs font-bold text-emerald-700 outline-none focus:ring-2 focus:ring-emerald-200"
+                        className={`w-full px-3 py-2 border-none rounded-xl text-xs font-bold outline-none focus:ring-2 ${variant.salePrice && Number(variant.salePrice) < 1 ? "bg-red-50 ring-1 ring-red-300 text-red-600 focus:ring-red-300" : "bg-emerald-50 ring-1 ring-emerald-100 text-emerald-700 focus:ring-emerald-200"}`}
                       />
+                      {variant.salePrice && Number(variant.salePrice) < 1 && (
+                        <p className="text-[9px] font-semibold text-red-500 ml-1">Min value is 1</p>
+                      )}
                     </div>
                     <div className="col-span-6 md:col-span-2 space-y-1">
                       <label className="text-xs font-bold text-slate-600 uppercase tracking-widest ml-1">
@@ -396,6 +486,7 @@ const AddProduct = () => {
                       </label>
                       <input
                         type="number"
+                        min="1"
                         value={variant.stock}
                         onChange={(e) => {
                           const newVariants = [...formData.variants];
@@ -403,8 +494,11 @@ const AddProduct = () => {
                           setFormData({ ...formData, variants: newVariants });
                         }}
                         placeholder="10"
-                        className="w-full px-3 py-2 bg-white ring-1 ring-slate-200 border-none rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-primary/10"
+                        className={`w-full px-3 py-2 border-none rounded-xl text-xs font-bold outline-none focus:ring-2 ${variant.stock && Number(variant.stock) < 1 ? "bg-red-50 ring-1 ring-red-300 text-red-600 focus:ring-red-300" : "bg-white ring-1 ring-slate-200 focus:ring-primary/10"}`}
                       />
+                      {variant.stock && Number(variant.stock) < 1 && (
+                        <p className="text-[9px] font-semibold text-red-500 ml-1">Min value is 1</p>
+                      )}
                     </div>
                     <div className="col-span-5 md:col-span-2 space-y-1">
                       <label className="text-xs font-bold text-slate-600 uppercase tracking-widest ml-1">
@@ -412,13 +506,9 @@ const AddProduct = () => {
                       </label>
                       <input
                         value={variant.sku}
-                        onChange={(e) => {
-                          const newVariants = [...formData.variants];
-                          newVariants[index].sku = e.target.value;
-                          setFormData({ ...formData, variants: newVariants });
-                        }}
-                        placeholder="SKU-001"
-                        className="w-full px-3 py-2 bg-white ring-1 ring-slate-200 border-none rounded-xl text-xs font-mono font-bold outline-none focus:ring-2 focus:ring-primary/10"
+                        readOnly
+                        placeholder="AUTO-GENERATED"
+                        className="w-full px-3 py-2 bg-slate-100 ring-1 ring-slate-200 border-none rounded-xl text-xs font-mono font-bold text-slate-400 cursor-not-allowed outline-none"
                       />
                     </div>
                     <div className="col-span-1 flex justify-end pb-1">
@@ -521,7 +611,9 @@ const AddProduct = () => {
                 <div className="flex flex-col md:flex-row items-start gap-6">
                   <div className="w-48 aspect-square rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 flex flex-col items-center justify-center group hover:border-primary hover:bg-primary/5 transition-all cursor-pointer overflow-hidden relative">
                     <input
+                      ref={mainImageInputRef}
                       type="file"
+                      accept="image/*"
                       className="absolute inset-0 opacity-0 cursor-pointer z-10"
                       onChange={(e) => handleImageUpload(e, "main")}
                     />
@@ -547,7 +639,10 @@ const AddProduct = () => {
                       We show this image on the search page and the main
                       store listing. Make sure it is clear and bright.
                     </p>
-                    <button className="text-[10px] font-black text-primary uppercase tracking-wider hover:underline">
+                    <button
+                      type="button"
+                      onClick={() => mainImageInputRef.current?.click()}
+                      className="text-[10px] font-black text-primary uppercase tracking-wider hover:underline">
                       Pick from Library
                     </button>
                   </div>

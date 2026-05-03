@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Card from '@shared/components/ui/Card';
 import PageHeader from '@shared/components/ui/PageHeader';
 import StatCard from '@shared/components/ui/StatCard';
@@ -30,6 +31,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 const AdminDashboard = () => {
+    const navigate = useNavigate();
     const [statsData, setStatsData] = useState(null);
     const [loading, setLoading] = useState(true);
 
@@ -60,6 +62,24 @@ const AdminDashboard = () => {
     }
 
     const overview = statsData?.overview || {};
+    const chartData = statsData?.revenueHistory || [];
+
+    // Calculate dynamic growth percentages
+    const calcGrowth = (current, previous) => {
+        if (!previous || previous === 0) return current > 0 ? '+100%' : '0%';
+        const pct = ((current - previous) / previous) * 100;
+        return `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
+    };
+
+    // Use last 2 months of revenue history for revenue growth
+    const currentMonthRevenue = chartData.length >= 1 ? (chartData[chartData.length - 1]?.revenue || 0) : 0;
+    const prevMonthRevenue = chartData.length >= 2 ? (chartData[chartData.length - 2]?.revenue || 0) : 0;
+    const revenueGrowth = calcGrowth(currentMonthRevenue, prevMonthRevenue);
+
+    // For other metrics, use overview growth fields if available, else compute from revenueHistory trend
+    const usersGrowth = overview.usersGrowth || overview.usersTrend || calcGrowth(overview.totalUsers, overview.prevTotalUsers) || '+0%';
+    const sellersGrowth = overview.sellersGrowth || overview.sellersTrend || calcGrowth(overview.activeSellers, overview.prevActiveSellers) || '+0%';
+    const ordersGrowth = overview.ordersGrowth || overview.ordersTrend || calcGrowth(overview.totalOrders, overview.prevTotalOrders) || '+0%';
 
     const stats = [
         {
@@ -68,7 +88,7 @@ const AdminDashboard = () => {
             icon: Users,
             color: 'text-blue-600',
             bg: 'bg-blue-50',
-            trend: '+12.5%',
+            trend: usersGrowth,
             description: 'Active this month'
         },
         {
@@ -77,7 +97,7 @@ const AdminDashboard = () => {
             icon: Store,
             color: 'text-purple-600',
             bg: 'bg-purple-50',
-            trend: '+5.2%',
+            trend: sellersGrowth,
             description: 'Verified stores'
         },
         {
@@ -86,7 +106,7 @@ const AdminDashboard = () => {
             icon: Truck,
             color: 'text-orange-600',
             bg: 'bg-orange-50',
-            trend: '+18.4%',
+            trend: ordersGrowth,
             description: 'Last 30 days'
         },
         {
@@ -95,15 +115,97 @@ const AdminDashboard = () => {
             icon: BarChart3,
             color: 'text-emerald-600',
             bg: 'bg-emerald-50',
-            trend: '+8.2%',
+            trend: revenueGrowth,
             description: 'Net earnings'
         },
     ];
 
-    const chartData = statsData?.revenueHistory || [];
     const categoryData = statsData?.categoryData || [];
     const recentOrders = statsData?.recentOrders || [];
     const topProducts = statsData?.topProducts || [];
+
+    const handleDownloadReport = () => {
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('en-IN');
+        const timeStr = now.toLocaleTimeString('en-IN');
+
+        const rows = [];
+
+        // Header
+        rows.push(['QUICK COMMERCE DASHBOARD REPORT']);
+        rows.push([`Generated on: ${dateStr} ${timeStr}`]);
+        rows.push([]);
+
+        // Overview Stats
+        rows.push(['OVERVIEW']);
+        rows.push(['Metric', 'Value']);
+        rows.push(['Total Users', overview.totalUsers || 0]);
+        rows.push(['Active Sellers', overview.activeSellers || 0]);
+        rows.push(['Total Orders', overview.totalOrders || 0]);
+        rows.push(['Total Revenue (₹)', overview.totalRevenue || 0]);
+        rows.push([]);
+
+        // Recent Orders
+        if (recentOrders.length > 0) {
+            rows.push(['RECENT ORDERS']);
+            rows.push(['Order ID', 'Customer', 'Status', 'Amount (₹)', 'Time']);
+            recentOrders.forEach((order) => {
+                rows.push([
+                    order.orderId || order.id || '',
+                    order.customer || order.customerName || 'Guest',
+                    order.status || '',
+                    order.amount || order.total || 0,
+                    order.time || order.createdAt || '',
+                ]);
+            });
+            rows.push([]);
+        }
+
+        // Revenue History
+        if (chartData.length > 0) {
+            rows.push(['MONTHLY REVENUE TRENDS']);
+            rows.push(['Month', 'Revenue (₹)']);
+            chartData.forEach((item) => {
+                rows.push([item.month || item.name || '', item.revenue || item.value || 0]);
+            });
+            rows.push([]);
+        }
+
+        // Top Categories
+        if (categoryData.length > 0) {
+            rows.push(['TOP CATEGORIES']);
+            rows.push(['Category', 'Value (%)']);
+            categoryData.forEach((item) => {
+                rows.push([item.name || '', item.value || 0]);
+            });
+            rows.push([]);
+        }
+
+        // Top Products
+        if (topProducts.length > 0) {
+            rows.push(['TOP PRODUCTS']);
+            rows.push(['Product', 'Sales', 'Revenue (₹)']);
+            topProducts.forEach((item) => {
+                rows.push([item.name || '', item.sales || 0, item.revenue || 0]);
+            });
+        }
+
+        // Convert to CSV
+        const csvContent = rows
+            .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+            .join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `dashboard-report-${now.toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        toast.success('Report downloaded successfully');
+    };
 
     return (
         <div className="ds-section-spacing">
@@ -115,7 +217,7 @@ const AdminDashboard = () => {
                         <Badge variant="outline" className="ds-badge ds-badge-gray">
                             Last Update: Today, 12:45 PM
                         </Badge>
-                        <button className="ds-btn ds-btn-md bg-primary text-white shadow-lg shadow-primary/20 hover:scale-105 active:scale-95">
+                        <button onClick={handleDownloadReport} className="ds-btn ds-btn-md bg-primary text-white shadow-lg shadow-primary/20 hover:scale-105 active:scale-95">
                             Download Report
                         </button>
                     </>
@@ -283,7 +385,9 @@ const AdminDashboard = () => {
                                 </tbody>
                             </table>
                         </div>
-                        <button className="w-full mt-6 py-3 rounded-xl bg-gray-50 text-xs font-bold text-gray-500 hover:bg-primary hover:text-white transition-all">
+                        <button
+                            onClick={() => navigate('/admin/quick-commerce/orders/all')}
+                            className="w-full mt-6 py-3 rounded-xl bg-gray-50 text-xs font-bold text-gray-500 hover:bg-primary hover:text-white transition-all">
                             VIEW ALL ORDERS
                         </button>
                     </Card>
@@ -317,7 +421,7 @@ const AdminDashboard = () => {
                                 <div className="py-12 text-center text-slate-300 italic text-xs">No sales data yet</div>
                             )}
                         </div>
-                        <button className="w-full mt-6 py-3 border-2 border-dashed border-gray-100 rounded-xl text-xs font-bold text-gray-400 hover:border-primary hover:text-primary transition-all">
+                        <button onClick={() => navigate('/admin/quick-commerce/products')} className="w-full mt-6 py-3 border-2 border-dashed border-gray-100 rounded-xl text-xs font-bold text-gray-400 hover:border-primary hover:text-primary transition-all">
                             VIEW ALL PRODUCTS
                         </button>
                     </Card>

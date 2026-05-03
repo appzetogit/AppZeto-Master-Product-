@@ -168,8 +168,8 @@ const SectionRenderer = ({ sections = [], productsById = {}, categoriesById = {}
             ...p,
             id: p._id || p.id,
             image: resolveQuickImageUrl(p.mainImage || p.image || "https://images.unsplash.com/photo-1550989460-0adf9ea622e2"),
-            price: p.salePrice || p.price,
-            originalPrice: p.mrp || p.price
+            price: Number(p.price || p.salePrice || 0),
+            originalPrice: Number(p.originalPrice || p.mrp || p.price || p.salePrice || 0)
           }));
 
           if (!allProducts.length) return null;

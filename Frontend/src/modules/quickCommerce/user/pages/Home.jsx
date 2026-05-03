@@ -79,8 +79,8 @@ import {
 } from "../utils/routes";
 
 const DEFAULT_CATEGORY_THEME = {
-  gradient: "linear-gradient(to bottom, #25D366, #4ADE80)",
-  shadow: "shadow-green-500/20",
+  gradient: "linear-gradient(to bottom, #F7C332, #F7E08F)",
+  shadow: "shadow-yellow-500/20",
   accent: "text-[#1A1A1A]",
 };
 
@@ -177,12 +177,12 @@ const ALL_CATEGORY = {
   name: "All",
   icon: HomeIcon,
   theme: DEFAULT_CATEGORY_THEME,
-  headerColor: "#065f46",
+  headerColor: "#ffdb3a",
   banner: {
     title: "HOUSEFULL",
     subtitle: "SALE",
     floatingElements: "sparkles",
-    textColor: "text-white",
+    textColor: "text-black",
   },
 };
 
@@ -196,7 +196,7 @@ const categories = [
       title: "HOUSEFULL",
       subtitle: "SALE",
       floatingElements: "sparkles",
-      textColor: "text-white",
+      textColor: "text-black",
     },
   },
   {

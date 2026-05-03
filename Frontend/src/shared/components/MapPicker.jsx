@@ -10,7 +10,6 @@ import {
 import { Search, MapPin, Navigation, Loader2 } from "lucide-react";
 import Modal from "./ui/Modal";
 import Button from "./ui/Button";
-import Input from "./ui/Input";
 
 const libraries = ["places"];
 const mapContainerStyle = {
@@ -125,9 +124,15 @@ const MapPicker = ({
           lat: place.geometry.location.lat(),
           lng: place.geometry.location.lng(),
         };
-        setCenter(newPos);
         setMarker(newPos);
         setAddress(place.formatted_address || "");
+        // Pan and zoom the map imperatively
+        if (mapRef.current) {
+          mapRef.current.panTo(newPos);
+          mapRef.current.setZoom(16);
+        } else {
+          setCenter(newPos);
+        }
       }
     }
   };
@@ -145,10 +150,15 @@ const MapPicker = ({
           lat: position.coords.latitude,
           lng: position.coords.longitude,
         };
-        setCenter(newPos);
         setMarker(newPos);
         setAddress("");
         setIsFetchingLocation(false);
+        if (mapRef.current) {
+          mapRef.current.panTo(newPos);
+          mapRef.current.setZoom(16);
+        } else {
+          setCenter(newPos);
+        }
       },
       () => {
         setIsFetchingLocation(false);
@@ -219,7 +229,9 @@ const MapPicker = ({
         <div className="flex justify-between w-full items-center">
           <div className="text-sm text-gray-500">
             {marker
-              ? `${marker.lat.toFixed(4)}, ${marker.lng.toFixed(4)}`
+              ? address
+                ? <span className="font-medium text-slate-700 truncate max-w-xs block">{address}</span>
+                : `${marker.lat.toFixed(4)}, ${marker.lng.toFixed(4)}`
               : "No location selected"}
           </div>
           <div className="flex gap-2">
@@ -247,10 +259,11 @@ const MapPicker = ({
                   fields: ["geometry", "formatted_address"],
                 }}>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <Input
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                  <input
+                    type="text"
                     placeholder="Search for your shop area..."
-                    className="pl-10"
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm font-medium outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   />
                 </div>
               </Autocomplete>

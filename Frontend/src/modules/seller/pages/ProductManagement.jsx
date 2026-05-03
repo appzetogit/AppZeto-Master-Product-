@@ -115,6 +115,23 @@ const ProductManagement = () => {
   const [editingItem, setEditingItem] = useState(null);
   const [modalTab, setModalTab] = useState("general");
 
+  // Lock body scroll when any modal is open
+  useEffect(() => {
+    const anyOpen = isProductModalOpen || isDeleteModalOpen || isVariantsViewModalOpen;
+    if (anyOpen) {
+      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+      document.body.style.overflow = "hidden";
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    } else {
+      document.body.style.overflow = "";
+      document.body.style.paddingRight = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+      document.body.style.paddingRight = "";
+    };
+  }, [isProductModalOpen, isDeleteModalOpen, isVariantsViewModalOpen]);
+
   // Close filter dropdown on outside click
   React.useEffect(() => {
     if (!isFilterOpen) return;
@@ -705,8 +722,12 @@ const ProductManagement = () => {
               </p>
               <input
                 type="number"
+                min="0"
                 value={priceMin}
-                onChange={(e) => setPriceMin(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === "" || Number(val) >= 0) setPriceMin(val);
+                }}
                 placeholder="e.g. 100"
                 className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 focus:ring-2 focus:ring-primary/10 outline-none bg-white"
               />
@@ -717,8 +738,12 @@ const ProductManagement = () => {
               </p>
               <input
                 type="number"
+                min="1"
                 value={priceMax}
-                onChange={(e) => setPriceMax(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === "" || Number(val) >= 1) setPriceMax(val);
+                }}
                 placeholder="e.g. 1000"
                 className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 focus:ring-2 focus:ring-primary/10 outline-none bg-white"
               />

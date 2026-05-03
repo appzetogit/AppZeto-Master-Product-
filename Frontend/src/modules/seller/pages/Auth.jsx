@@ -149,8 +149,6 @@ export default function SellerAuth() {
 
           <div className="space-y-3 text-sm font-semibold text-white/85">
             <div className="rounded-2xl bg-white/10 px-4 py-3">Fast OTP login for store owners</div>
-            <div className="rounded-2xl bg-white/10 px-4 py-3">Opens the existing restaurant partner dashboard</div>
-            <div className="rounded-2xl bg-white/10 px-4 py-3">Seller URL alias: `/seller/*`</div>
           </div>
         </div>
 

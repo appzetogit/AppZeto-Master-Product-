@@ -254,7 +254,7 @@ const ProductDetailSheet = () => {
                                         </motion.button>
 
                                         {/* Discount Badge (center) */}
-                                        {(selectedProduct.originalPrice > selectedProduct.price) && (
+                                        {(selectedProduct.originalPrice > selectedProduct.price && selectedProduct.originalPrice > 0) && (
                                             <motion.div
                                                 initial={{ scale: 0, rotate: -10 }}
                                                 animate={{ scale: 1, rotate: 0 }}
@@ -417,15 +417,19 @@ const ProductDetailSheet = () => {
                                                 <div className="flex flex-col gap-1">
                                                     <div className="flex items-baseline gap-2">
                                                         <span className="text-[28px] lg:text-[32px] font-[800] text-[#0c831f] tracking-tight leading-none">
-                                                            ₹{selectedProduct.price}
+                                                            ₹{selectedVariant ? (selectedVariant.salePrice || selectedVariant.price) : selectedProduct.price}
                                                         </span>
-                                                        {selectedProduct.originalPrice > selectedProduct.price && (
-                                                            <span className="text-[14px] text-gray-400 line-through font-[600]">₹{selectedProduct.originalPrice}</span>
+                                                        {(selectedVariant ? (selectedVariant.price > selectedVariant.salePrice && selectedVariant.salePrice > 0) : (selectedProduct.originalPrice > selectedProduct.price)) && (
+                                                            <span className="text-[14px] text-gray-400 line-through font-[600]">
+                                                                ₹{selectedVariant ? selectedVariant.price : selectedProduct.originalPrice}
+                                                            </span>
                                                         )}
                                                     </div>
-                                                    {selectedProduct.originalPrice > selectedProduct.price && (
+                                                    {(selectedVariant ? (selectedVariant.price > selectedVariant.salePrice && selectedVariant.salePrice > 0) : (selectedProduct.originalPrice > selectedProduct.price)) && (
                                                         <span className="inline-flex w-fit items-center text-[10px] font-[800] text-red-600 bg-red-50 border border-red-100 px-2 py-0.5 rounded-md uppercase tracking-wide">
-                                                            {Math.round(((selectedProduct.originalPrice - selectedProduct.price) / selectedProduct.originalPrice) * 100)}% off
+                                                            {selectedVariant 
+                                                                ? Math.round(((selectedVariant.price - selectedVariant.salePrice) / selectedVariant.price) * 100)
+                                                                : Math.round(((selectedProduct.originalPrice - selectedProduct.price) / selectedProduct.originalPrice) * 100)}% off
                                                         </span>
                                                     )}
                                                 </div>

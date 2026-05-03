@@ -265,6 +265,61 @@ export default function SellerOnboarding() {
       return;
     }
 
+    if (form.email && !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(form.email)) {
+      toast.error("Enter a valid email address (e.g. name@gmail.com)");
+      return;
+    }
+
+    if (form.supportEmail && !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(form.supportEmail)) {
+      toast.error("Enter a valid support email address (e.g. support@example.com)");
+      return;
+    }
+
+    if (form.panNumber && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(form.panNumber)) {
+      toast.error("Invalid PAN format. Must be 5 letters, 4 digits, 1 letter (e.g. ABCDE1234F)");
+      return;
+    }
+
+    if (form.gstNumber && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(form.gstNumber)) {
+      toast.error("Invalid GST format. Must be 15 characters (e.g. 22ABCDE1234F1Z5)");
+      return;
+    }
+
+    if (form.fssaiExpiry && form.fssaiExpiry < new Date().toISOString().split("T")[0]) {
+      toast.error("FSSAI expiry date cannot be a past date");
+      return;
+    }
+
+    if (form.shopLicenseNumber && !/^[A-Za-z0-9\/\-]{5,20}$/.test(form.shopLicenseNumber)) {
+      toast.error("Shop license number must be 5–20 characters (letters, numbers, / and - only)");
+      return;
+    }
+
+    if (form.shopLicenseExpiry && form.shopLicenseExpiry < new Date().toISOString().split("T")[0]) {
+      toast.error("Shop license expiry date cannot be a past date");
+      return;
+    }
+
+    if (form.accountNumber && !/^\d{6,20}$/.test(form.accountNumber)) {
+      toast.error("Account number must be 6–20 digits (numbers only)");
+      return;
+    }
+
+    if (form.ifscCode && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(form.ifscCode)) {
+      toast.error("Invalid IFSC code. Format: 4 letters + 0 + 6 alphanumeric (e.g. ABCD0EF1234)");
+      return;
+    }
+
+    if (form.upiId && !/^[a-zA-Z0-9._-]+@[a-zA-Z0-9]+$/.test(form.upiId)) {
+      toast.error("Invalid UPI ID. Format: username@bankhandle (e.g. name@okhdfcbank)");
+      return;
+    }
+
+    if (form.alternatePhone && form.alternatePhone === form.phone) {
+      toast.error("Alternate phone number cannot be the same as primary phone number");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const payload = new FormData();
@@ -394,11 +449,35 @@ export default function SellerOnboarding() {
                 </div>
               </div>
               <div className="grid gap-4 md:grid-cols-2">
-                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="Seller name" value={form.name} onChange={(e) => updateField("name", e.target.value)} />
-                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="Shop name" value={form.shopName} onChange={(e) => updateField("shopName", e.target.value)} />
-                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="Email" type="email" value={form.email} onChange={(e) => updateField("email", e.target.value)} />
-                <input className="rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 font-semibold text-slate-500 outline-none" placeholder="Primary phone" value={form.phone} readOnly title="Linked from the seller OTP login" />
-                <select className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" value={form.businessType} onChange={(e) => updateField("businessType", e.target.value)}>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-slate-500">Seller name <span className="text-red-500">*</span></label>
+                  <input required className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="Seller name" value={form.name} onChange={(e) => updateField("name", e.target.value.replace(/[^a-zA-Z\s]/g, ""))} />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-slate-500">Shop name <span className="text-red-500">*</span></label>
+                  <input required className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="Shop name" value={form.shopName} onChange={(e) => updateField("shopName", e.target.value.replace(/[^a-zA-Z\s]/g, ""))} />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-slate-500">Email <span className="text-red-500">*</span></label>
+                  <input
+                    required
+                    className={`rounded-2xl border px-4 py-3 font-semibold outline-none focus:border-slate-900 ${form.email && !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(form.email) ? "border-red-400 bg-red-50" : "border-slate-200"}`}
+                    placeholder="Email (e.g. name@domain.com)"
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => updateField("email", e.target.value)}
+                  />
+                  {form.email && !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(form.email) && (
+                    <p className="text-xs font-semibold text-red-500 px-1">Enter a valid email address (e.g. name@domain.com)</p>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-slate-500">Primary phone <span className="text-red-500">*</span></label>
+                  <input className="rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 font-semibold text-slate-500 outline-none" placeholder="Primary phone" value={form.phone} readOnly title="Linked from the seller OTP login" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-slate-500">Business type <span className="text-red-500">*</span></label>
+                  <select required className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" value={form.businessType} onChange={(e) => updateField("businessType", e.target.value)}>
                   <option value="">Select business type</option>
                   {businessTypes.map((item) => (
                     <option key={item} value={item}>
@@ -406,8 +485,24 @@ export default function SellerOnboarding() {
                     </option>
                   ))}
                 </select>
-                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="Alternate phone" value={form.alternatePhone} onChange={(e) => updateField("alternatePhone", e.target.value.replace(/\D/g, "").slice(0, 10))} />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-slate-500">Alternate phone <span className="text-red-500">*</span></label>
+                  <input
+                    required
+                    className={`rounded-2xl border px-4 py-3 font-semibold outline-none focus:border-slate-900 ${form.alternatePhone && form.alternatePhone === form.phone ? "border-red-400 bg-red-50" : "border-slate-200"}`}
+                    placeholder="Alternate phone"
+                    value={form.alternatePhone}
+                    onChange={(e) => updateField("alternatePhone", e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  />
+                  {form.alternatePhone && form.alternatePhone === form.phone && (
+                    <p className="text-xs font-semibold text-red-500 px-1">Alternate number cannot be same as primary number</p>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-slate-500">Service zone <span className="text-red-500">*</span></label>
                 <select
+                  required
                   className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900"
                   value={`${form.zoneSource}:${form.zoneId}`}
                   onChange={(e) => {
@@ -433,7 +528,21 @@ export default function SellerOnboarding() {
                     );
                   })}
                 </select>
-                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900 md:col-span-2" placeholder="Support email" value={form.supportEmail} onChange={(e) => updateField("supportEmail", e.target.value)} />
+                </div>
+                <div className="flex flex-col gap-1 md:col-span-2">
+                  <label className="text-xs font-bold text-slate-500">Support email <span className="text-red-500">*</span></label>
+                  <input
+                    required
+                    className={`rounded-2xl border px-4 py-3 font-semibold outline-none focus:border-slate-900 ${form.supportEmail && !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(form.supportEmail) ? "border-red-400 bg-red-50" : "border-slate-200"}`}
+                    placeholder="Support email (e.g. support@example.com)"
+                    type="email"
+                    value={form.supportEmail}
+                    onChange={(e) => updateField("supportEmail", e.target.value)}
+                  />
+                  {form.supportEmail && !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(form.supportEmail) && (
+                    <p className="text-xs font-semibold text-red-500 px-1">Enter a valid email address (e.g. support@example.com)</p>
+                  )}
+                </div>
                 {selectedZone ? (
                   <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 md:col-span-2">
                     <p className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-600">Selected zone</p>
@@ -543,20 +652,85 @@ export default function SellerOnboarding() {
                 Banking and UPI
               </h2>
               <div className="grid gap-4 md:grid-cols-2">
-                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="Bank name" value={form.bankName} onChange={(e) => updateField("bankName", e.target.value)} />
-                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="Account holder name" value={form.accountHolderName} onChange={(e) => updateField("accountHolderName", e.target.value)} />
-                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="Account number" value={form.accountNumber} onChange={(e) => updateField("accountNumber", e.target.value)} />
-                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold uppercase outline-none focus:border-slate-900" placeholder="IFSC code" value={form.ifscCode} onChange={(e) => updateField("ifscCode", e.target.value.toUpperCase())} />
-                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="Account type" value={form.accountType} onChange={(e) => updateField("accountType", e.target.value)} />
-                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="UPI ID" value={form.upiId} onChange={(e) => updateField("upiId", e.target.value)} />
-                <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-700 md:col-span-2">
-                  <span>{qrFile?.name || "Upload UPI QR image"}</span>
-                  <span className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] text-white">
-                    <Upload className="h-3.5 w-3.5" />
-                    Choose
-                  </span>
-                  <input type="file" accept="image/*" className="hidden" onChange={(e) => setQrFile(e.target.files?.[0] || null)} />
-                </label>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-slate-500">Bank name <span className="text-red-500">*</span></label>
+                  <input required className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="Bank name" value={form.bankName} onChange={(e) => updateField("bankName", e.target.value.replace(/[^a-zA-Z\s]/g, ""))} />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-slate-500">Account holder name <span className="text-red-500">*</span></label>
+                  <input required className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="Account holder name" value={form.accountHolderName} onChange={(e) => updateField("accountHolderName", e.target.value.replace(/[^a-zA-Z\s]/g, ""))} />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-slate-500">Account number <span className="text-red-500">*</span></label>
+                  <input
+                    required
+                    className={`rounded-2xl border px-4 py-3 font-semibold outline-none focus:border-slate-900 ${form.accountNumber && !/^\d{6,20}$/.test(form.accountNumber) ? "border-red-400 bg-red-50" : "border-slate-200"}`}
+                    placeholder="Account number (6–20 digits)"
+                    value={form.accountNumber}
+                    maxLength={20}
+                    onChange={(e) => updateField("accountNumber", e.target.value.replace(/\D/g, "").slice(0, 20))}
+                  />
+                  {form.accountNumber && !/^\d{6,20}$/.test(form.accountNumber) && (
+                    <p className="text-xs font-semibold text-red-500 px-1">Account number must be 6–20 digits (numbers only)</p>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-slate-500">IFSC code <span className="text-red-500">*</span></label>
+                  <input
+                    required
+                    className={`rounded-2xl border px-4 py-3 font-semibold uppercase outline-none focus:border-slate-900 ${form.ifscCode && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(form.ifscCode) ? "border-red-400 bg-red-50" : "border-slate-200"}`}
+                    placeholder="IFSC code (e.g. ABCD0EF1234)"
+                    value={form.ifscCode}
+                    maxLength={11}
+                    onChange={(e) => updateField("ifscCode", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11))}
+                  />
+                  {form.ifscCode && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(form.ifscCode) && (
+                    <p className="text-xs font-semibold text-red-500 px-1">Invalid IFSC: 4 letters + 0 + 6 alphanumeric (e.g. ABCD0EF1234)</p>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-slate-500">Account type <span className="text-red-500">*</span></label>
+                <select
+                  required
+                  className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900"
+                  value={form.accountType}
+                  onChange={(e) => updateField("accountType", e.target.value)}
+                >
+                  <option value="">Select account type</option>
+                  <option value="Savings">Savings Account</option>
+                  <option value="Current">Current Account</option>
+                  <option value="Salary">Salary Account</option>
+                  <option value="Fixed Deposit">Fixed Deposit Account</option>
+                  <option value="Recurring Deposit">Recurring Deposit Account</option>
+                  <option value="NRI">NRI Account (NRE/NRO)</option>
+                  <option value="Jan Dhan">Jan Dhan Account</option>
+                  <option value="BSBDA">Basic Savings Bank Deposit (BSBDA)</option>
+                </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-slate-500">UPI ID <span className="text-red-500">*</span></label>
+                  <input
+                    required
+                    className={`rounded-2xl border px-4 py-3 font-semibold outline-none focus:border-slate-900 ${form.upiId && !/^[a-zA-Z0-9._-]+@[a-zA-Z0-9]+$/.test(form.upiId) ? "border-red-400 bg-red-50" : "border-slate-200"}`}
+                    placeholder="UPI ID (e.g. name@okhdfcbank)"
+                    value={form.upiId}
+                    onChange={(e) => updateField("upiId", e.target.value)}
+                  />
+                  {form.upiId && !/^[a-zA-Z0-9._-]+@[a-zA-Z0-9]+$/.test(form.upiId) && (
+                    <p className="text-xs font-semibold text-red-500 px-1">Invalid UPI ID. Format: username@bankhandle (e.g. name@okhdfcbank)</p>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1 md:col-span-2">
+                  <label className="text-xs font-bold text-slate-500">UPI QR image <span className="text-red-500">*</span></label>
+                  <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-700">
+                    <span>{qrFile?.name || "Upload UPI QR image"}</span>
+                    <span className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] text-white">
+                      <Upload className="h-3.5 w-3.5" />
+                      Choose
+                    </span>
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => setQrFile(e.target.files?.[0] || null)} />
+                  </label>
+                </div>
               </div>
             </section>
 
@@ -565,25 +739,109 @@ export default function SellerOnboarding() {
                 Compliance and license
               </h2>
               <div className="grid gap-4 md:grid-cols-2">
-                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold uppercase outline-none focus:border-slate-900" placeholder="PAN number" value={form.panNumber} onChange={(e) => updateField("panNumber", e.target.value.toUpperCase())} />
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-slate-500">PAN number <span className="text-red-500">*</span></label>
+                  <input
+                    required
+                    className={`rounded-2xl border px-4 py-3 font-semibold uppercase outline-none focus:border-slate-900 ${form.panNumber && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(form.panNumber) ? "border-red-400 bg-red-50" : "border-slate-200"}`}
+                    placeholder="PAN number (e.g. ABCDE1234F)"
+                    value={form.panNumber}
+                    maxLength={10}
+                    onChange={(e) => updateField("panNumber", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10))}
+                  />
+                  {form.panNumber && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(form.panNumber) && (
+                    <p className="text-xs font-semibold text-red-500 px-1">Invalid PAN format. Must be 5 letters, 4 digits, 1 letter (e.g. ABCDE1234F)</p>
+                  )}
+                </div>
                 <label className="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 font-semibold text-slate-700">
                   <input type="checkbox" checked={form.gstRegistered} onChange={(e) => updateField("gstRegistered", e.target.checked)} />
                   GST registered
                 </label>
-                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold uppercase outline-none focus:border-slate-900" placeholder="GST number" value={form.gstNumber} onChange={(e) => updateField("gstNumber", e.target.value.toUpperCase())} />
-                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="GST legal name" value={form.gstLegalName} onChange={(e) => updateField("gstLegalName", e.target.value)} />
-                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="FSSAI number" value={form.fssaiNumber} onChange={(e) => updateField("fssaiNumber", e.target.value)} />
-                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" type="date" value={form.fssaiExpiry} onChange={(e) => updateField("fssaiExpiry", e.target.value)} />
-                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="Shop license number" value={form.shopLicenseNumber} onChange={(e) => updateField("shopLicenseNumber", e.target.value)} />
-                <input className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" type="date" value={form.shopLicenseExpiry} onChange={(e) => updateField("shopLicenseExpiry", e.target.value)} />
-                <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-700 md:col-span-2">
-                  <span>{licenseFile?.name || "Upload shop license image"}</span>
-                  <span className="inline-flex items-center gap-2 rounded-full bg-amber-500 px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] text-white">
-                    <Upload className="h-3.5 w-3.5" />
-                    Choose
-                  </span>
-                  <input type="file" accept="image/*" className="hidden" onChange={(e) => setLicenseFile(e.target.files?.[0] || null)} />
-                </label>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-slate-500">GST number <span className="text-red-500">*</span></label>
+                  <input
+                    required
+                    className={`rounded-2xl border px-4 py-3 font-semibold uppercase outline-none focus:border-slate-900 ${form.gstNumber && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(form.gstNumber) ? "border-red-400 bg-red-50" : "border-slate-200"}`}
+                    placeholder="GST number (e.g. 22ABCDE1234F1Z5)"
+                    value={form.gstNumber}
+                    maxLength={15}
+                    onChange={(e) => updateField("gstNumber", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 15))}
+                  />
+                  {form.gstNumber && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(form.gstNumber) && (
+                    <p className="text-xs font-semibold text-red-500 px-1">Invalid GST format. Must be 15 chars: 2 digits + PAN (10) + entity + Z + check (e.g. 22ABCDE1234F1Z5)</p>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-slate-500">GST legal name <span className="text-red-500">*</span></label>
+                  <input required className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-slate-900" placeholder="GST legal name" value={form.gstLegalName} onChange={(e) => updateField("gstLegalName", e.target.value.replace(/[^a-zA-Z\s]/g, ""))} />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-slate-500">FSSAI number <span className="text-red-500">*</span></label>
+                  <input
+                    required
+                    className={`rounded-2xl border px-4 py-3 font-semibold outline-none focus:border-slate-900 ${form.fssaiNumber && !/^\d{14}$/.test(form.fssaiNumber) ? "border-red-400 bg-red-50" : "border-slate-200"}`}
+                    placeholder="FSSAI number (14 digits)"
+                    value={form.fssaiNumber}
+                    maxLength={14}
+                    onChange={(e) => updateField("fssaiNumber", e.target.value.replace(/\D/g, "").slice(0, 14))}
+                  />
+                  {form.fssaiNumber && !/^\d{14}$/.test(form.fssaiNumber) && (
+                    <p className="text-xs font-semibold text-red-500 px-1">FSSAI number must be exactly 14 digits (numbers only)</p>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-slate-500">FSSAI expiry date <span className="text-red-500">*</span></label>
+                  <input
+                    required
+                    className={`rounded-2xl border px-4 py-3 font-semibold outline-none focus:border-slate-900 ${form.fssaiExpiry && form.fssaiExpiry < new Date().toISOString().split("T")[0] ? "border-red-400 bg-red-50" : "border-slate-200"}`}
+                    type="date"
+                    value={form.fssaiExpiry}
+                    min={new Date().toISOString().split("T")[0]}
+                    onChange={(e) => updateField("fssaiExpiry", e.target.value)}
+                  />
+                  {form.fssaiExpiry && form.fssaiExpiry < new Date().toISOString().split("T")[0] && (
+                    <p className="text-xs font-semibold text-red-500 px-1">FSSAI expiry date cannot be a past date</p>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-slate-500">Shop license number <span className="text-red-500">*</span></label>
+                  <input
+                    required
+                    className={`rounded-2xl border px-4 py-3 font-semibold outline-none focus:border-slate-900 ${form.shopLicenseNumber && !/^[A-Za-z0-9\/\-]{5,20}$/.test(form.shopLicenseNumber) ? "border-red-400 bg-red-50" : "border-slate-200"}`}
+                    placeholder="Shop license number (e.g. MH/2023/12345)"
+                    value={form.shopLicenseNumber}
+                    maxLength={20}
+                    onChange={(e) => updateField("shopLicenseNumber", e.target.value.replace(/[^A-Za-z0-9\/\-]/g, "").slice(0, 20))}
+                  />
+                  {form.shopLicenseNumber && !/^[A-Za-z0-9\/\-]{5,20}$/.test(form.shopLicenseNumber) && (
+                    <p className="text-xs font-semibold text-red-500 px-1">License number must be 5–20 characters (letters, numbers, / and - only)</p>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-slate-500">Shop license expiry date <span className="text-red-500">*</span></label>
+                  <input
+                    required
+                    className={`rounded-2xl border px-4 py-3 font-semibold outline-none focus:border-slate-900 ${form.shopLicenseExpiry && form.shopLicenseExpiry < new Date().toISOString().split("T")[0] ? "border-red-400 bg-red-50" : "border-slate-200"}`}
+                    type="date"
+                    value={form.shopLicenseExpiry}
+                    min={new Date().toISOString().split("T")[0]}
+                    onChange={(e) => updateField("shopLicenseExpiry", e.target.value)}
+                  />
+                  {form.shopLicenseExpiry && form.shopLicenseExpiry < new Date().toISOString().split("T")[0] && (
+                    <p className="text-xs font-semibold text-red-500 px-1">Shop license expiry date cannot be a past date</p>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1 md:col-span-2">
+                  <label className="text-xs font-bold text-slate-500">Shop license image <span className="text-red-500">*</span></label>
+                  <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-700">
+                    <span>{licenseFile?.name || "Upload shop license image"}</span>
+                    <span className="inline-flex items-center gap-2 rounded-full bg-amber-500 px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] text-white">
+                      <Upload className="h-3.5 w-3.5" />
+                      Choose
+                    </span>
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => setLicenseFile(e.target.files?.[0] || null)} />
+                  </label>
+                </div>
               </div>
             </section>
 

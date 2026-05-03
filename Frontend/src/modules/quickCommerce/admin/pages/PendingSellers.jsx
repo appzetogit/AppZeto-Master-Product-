@@ -179,7 +179,7 @@ const PendingSellers = () => {
                 <th className="ds-table-header-cell px-6">Seller</th>
                 <th className="ds-table-header-cell px-6">Documents</th>
                 <th className="ds-table-header-cell px-6">Applied on</th>
-                <th className="ds-table-header-cell px-6 text-right">Actions</th>
+                <th className="ds-table-header-cell px-6">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -211,7 +211,7 @@ const PendingSellers = () => {
                         <span className="text-[9px] font-medium text-slate-400">{seller.category || 'General'} partner</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-6 py-4">
                       <button
                         type="button"
                         onClick={() => { setViewingSeller(seller); setIsReviewModalOpen(true); }}
@@ -278,26 +278,70 @@ const PendingSellers = () => {
                         <p className="mt-2 text-sm font-medium text-slate-500">Review the submitted business, banking, and compliance details before approval.</p>
                       </div>
 
-                      <div className="grid gap-4 md:grid-cols-2">
-                        {[
-                          ['Owner', viewingSeller.ownerName],
-                          ['Business type', viewingSeller.shopInfo?.businessType],
-                          ['Opening hours', viewingSeller.shopInfo?.openingHours],
-                          ['Service radius', viewingSeller.serviceRadius ? `${viewingSeller.serviceRadius} km` : 'N/A'],
-                          ['Bank', viewingSeller.bankInfo?.bankName],
-                          ['UPI', viewingSeller.bankInfo?.upiId],
-                          ['Account number', viewingSeller.bankInfo?.accountNumber],
-                          ['IFSC', viewingSeller.bankInfo?.ifscCode],
-                          ['PAN', viewingSeller.documents?.panNumber],
-                          ['GST', viewingSeller.documents?.gstNumber],
-                          ['FSSAI', viewingSeller.documents?.fssaiNumber],
-                          ['Shop license', viewingSeller.documents?.shopLicenseNumber],
-                        ].map(([label, value]) => (
-                          <div key={label} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">{label}</p>
-                            <p className="mt-2 text-sm font-bold text-slate-800">{value || 'Not provided'}</p>
+                      <div className="space-y-6">
+                        {/* Store Identity */}
+                        <div>
+                          <h5 className="text-xs font-black uppercase tracking-[0.22em] text-primary mb-3">Store Identity</h5>
+                          <div className="grid gap-3 md:grid-cols-2">
+                            {[
+                              ['Owner name', viewingSeller.ownerName],
+                              ['Business type', viewingSeller.shopInfo?.businessType],
+                              ['Alternate phone', viewingSeller.shopInfo?.alternatePhone],
+                              ['Support email', viewingSeller.shopInfo?.supportEmail],
+                              ['Opening hours', viewingSeller.shopInfo?.openingHours || viewingSeller.openingHours || 'Not set'],
+                              ['Service zone', viewingSeller.shopInfo?.zoneName],
+                              ['Service radius', viewingSeller.serviceRadius ? `${viewingSeller.serviceRadius} km` : 'N/A'],
+                              ['Address', viewingSeller.location],
+                            ].map(([label, value]) => (
+                              <div key={label} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">{label}</p>
+                                <p className="mt-1.5 text-sm font-bold text-slate-800 break-words">{value || 'Not provided'}</p>
+                              </div>
+                            ))}
                           </div>
-                        ))}
+                        </div>
+
+                        {/* Banking & UPI */}
+                        <div>
+                          <h5 className="text-xs font-black uppercase tracking-[0.22em] text-primary mb-3">Banking & UPI</h5>
+                          <div className="grid gap-3 md:grid-cols-2">
+                            {[
+                              ['Bank name', viewingSeller.bankInfo?.bankName],
+                              ['Account holder', viewingSeller.bankInfo?.accountHolderName],
+                              ['Account number', viewingSeller.bankInfo?.accountNumber],
+                              ['IFSC code', viewingSeller.bankInfo?.ifscCode],
+                              ['Account type', viewingSeller.bankInfo?.accountType],
+                              ['UPI ID', viewingSeller.bankInfo?.upiId],
+                            ].map(([label, value]) => (
+                              <div key={label} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">{label}</p>
+                                <p className="mt-1.5 text-sm font-bold text-slate-800 break-words">{value || 'Not provided'}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Compliance */}
+                        <div>
+                          <h5 className="text-xs font-black uppercase tracking-[0.22em] text-primary mb-3">Compliance & Licenses</h5>
+                          <div className="grid gap-3 md:grid-cols-2">
+                            {[
+                              ['PAN number', viewingSeller.documents?.panNumber],
+                              ['GST registered', viewingSeller.documents?.gstRegistered ? 'Yes' : 'No'],
+                              ['GST number', viewingSeller.documents?.gstNumber],
+                              ['GST legal name', viewingSeller.documents?.gstLegalName],
+                              ['FSSAI number', viewingSeller.documents?.fssaiNumber],
+                              ['FSSAI expiry', viewingSeller.documents?.fssaiExpiry ? new Date(viewingSeller.documents.fssaiExpiry).toLocaleDateString('en-IN') : null],
+                              ['Shop license no.', viewingSeller.documents?.shopLicenseNumber],
+                              ['License expiry', viewingSeller.documents?.shopLicenseExpiry ? new Date(viewingSeller.documents.shopLicenseExpiry).toLocaleDateString('en-IN') : null],
+                            ].map(([label, value]) => (
+                              <div key={label} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">{label}</p>
+                                <p className="mt-1.5 text-sm font-bold text-slate-800 break-words">{value || 'Not provided'}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       </div>
 
                       {(viewingSeller.bankInfo?.upiQrImage || viewingSeller.documents?.shopLicenseImage) && (

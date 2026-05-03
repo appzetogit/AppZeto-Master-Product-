@@ -65,7 +65,9 @@ export default function AdminLayout() {
 
         {/* Page Content */}
         <main className="flex-1 min-h-0 w-full max-w-full overflow-x-hidden overflow-y-auto bg-neutral-100">
-          <Outlet />
+          <div style={{ marginLeft: '20px', padding: '20px 20px 48px 0px' }}>
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

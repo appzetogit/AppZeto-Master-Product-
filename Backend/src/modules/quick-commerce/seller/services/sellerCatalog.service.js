@@ -79,14 +79,16 @@ const walkSeed = async (nodes, parentId = null, depth = 0, parentKey = "") => {
     const doc = await QuickCategory.findOneAndUpdate(
       { slug: node.slug, parentId },
       {
+        $set: {
+          isActive: true,
+          status: "active",
+        },
         $setOnInsert: {
           name: node.name,
           slug: node.slug,
           parentId,
           type,
           sortOrder: index,
-          status: "active",
-          isActive: true,
         },
       },
       { upsert: true, new: true },
@@ -106,7 +108,7 @@ export const ensureSellerCategoriesSeeded = async () => {
 
 export const buildSellerCategoryTree = async () => {
   await ensureSellerCategoriesSeeded();
-  const docs = await QuickCategory.find({ isActive: true })
+  const docs = await QuickCategory.find({ isActive: { $ne: false } })
     .sort({ sortOrder: 1, name: 1 })
     .lean();
 
@@ -131,7 +133,7 @@ export const buildSellerCategoryTree = async () => {
 
 export const getDefaultSellerCategoryPath = async () => {
   await ensureSellerCategoriesSeeded();
-  const header = await QuickCategory.findOne({ type: "header", isActive: true })
+  const header = await QuickCategory.findOne({ type: "header", isActive: { $ne: false } })
     .sort({ sortOrder: 1, createdAt: 1 })
     .lean();
   if (!header) return null;
@@ -139,7 +141,7 @@ export const getDefaultSellerCategoryPath = async () => {
   const category = await QuickCategory.findOne({
     parentId: header._id,
     type: "category",
-    isActive: true,
+    isActive: { $ne: false },
   })
     .sort({ sortOrder: 1, createdAt: 1 })
     .lean();
@@ -148,7 +150,7 @@ export const getDefaultSellerCategoryPath = async () => {
     ? await QuickCategory.findOne({
         parentId: category._id,
         type: "subcategory",
-        isActive: true,
+        isActive: { $ne: false },
       })
         .sort({ sortOrder: 1, createdAt: 1 })
         .lean()
@@ -188,7 +190,7 @@ export const resolveSellerCategoryIds = async ({
           ? await QuickCategory.findOne({
               _id: selectedSubcategory.parentId,
               type: "category",
-              isActive: true,
+              isActive: { $ne: false },
             }).lean()
           : null;
 
@@ -199,7 +201,7 @@ export const resolveSellerCategoryIds = async ({
           ? await QuickCategory.findOne({
               _id: category.parentId,
               type: "header",
-              isActive: true,
+              isActive: { $ne: false },
             }).lean()
           : null;
 

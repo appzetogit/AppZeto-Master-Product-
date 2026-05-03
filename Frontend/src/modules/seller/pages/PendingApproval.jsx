@@ -15,9 +15,11 @@ export default function SellerPendingApproval() {
 
   const loadProfile = async (silent = false) => {
     if (!silent) setIsLoading(true);
+    setIsRefreshing(true);
     const sellerToken = localStorage.getItem("auth_seller");
     if (!sellerToken) {
       setIsLoading(false);
+      setIsRefreshing(false);
       navigate("/seller/auth", { replace: true });
       return;
     }
@@ -26,7 +28,15 @@ export default function SellerPendingApproval() {
       const response = await sellerApi.getProfile();
       const data = response?.data?.result || {};
       setProfile(data);
-      if (data.approved !== false && data.approvalStatus === "approved") {
+
+      const isApproved =
+        data.approved !== false &&
+        (!data.approvalStatus || data.approvalStatus === "approved");
+
+      if (isApproved) {
+        // Sync auth context so route guard also sees the updated user
+        await refreshUser();
+        toast.success("Your seller account has been approved!");
         navigate("/seller", { replace: true });
       }
     } catch (error) {
@@ -142,15 +152,12 @@ export default function SellerPendingApproval() {
               )}
               <button
                 type="button"
-                onClick={() => {
-                  setIsRefreshing(true);
-                  loadProfile(true);
-                }}
+                onClick={() => loadProfile(true)}
                 disabled={isRefreshing}
                 className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-black uppercase tracking-[0.18em] text-white transition hover:bg-black disabled:opacity-70"
               >
                 <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-                Refresh status
+                {isRefreshing ? "Checking..." : "Refresh status"}
               </button>
             </div>
           </div>

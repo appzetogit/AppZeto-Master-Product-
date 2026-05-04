@@ -1,5 +1,7 @@
 import { QuickCategory } from '../models/category.model.js';
 import { QuickProduct } from '../models/product.model.js';
+import { QuickReview } from '../models/review.model.js';
+import { FoodUser } from '../../../core/users/user.model.js';
 import { Seller } from '../seller/models/seller.model.js';
 import { ensureQuickCommerceSeedData } from '../services/seed.service.js';
 import {
@@ -309,17 +311,78 @@ export const getProductById = async (req, res) => {
 
 export const getProductReviews = async (req, res) => {
   setNoCache(res);
-  await ensureQuickCommerceSeedData();
+  const { productId } = req.params;
 
-  const product = await QuickProduct.findOne({ _id: req.params.productId, ...publicProductFilter }).lean();
+  try {
+    const reviews = await QuickReview.find({
+      productId,
+      status: 'approved',
+    }).populate('userId', 'name profileImage').sort({ createdAt: -1 }).lean();
 
-  if (!product) {
-    return res.status(404).json({ success: false, message: 'Product not found' });
+    return res.json({
+      success: true,
+      results: reviews,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch reviews',
+    });
+  }
+};
+
+export const submitProductReview = async (req, res) => {
+  const { productId, rating, comment } = req.body;
+  const userId = req.user?.userId;
+
+  if (!userId) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required to submit a review',
+    });
   }
 
-  return res.json({
-    success: true,
-    results: [],
-  });
+  if (!productId || !rating || !comment) {
+    return res.status(400).json({
+      success: false,
+      message: 'Product ID, rating, and comment are required',
+    });
+  }
+
+  try {
+    const [product, user] = await Promise.all([
+      QuickProduct.findById(productId),
+      FoodUser.findById(userId).select('name profileImage'),
+    ]);
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found',
+      });
+    }
+
+    const review = await QuickReview.create({
+      productId,
+      userId,
+      userName: user?.name || 'Customer',
+      userAvatar: user?.profileImage || '',
+      rating: Number(rating),
+      comment: String(comment).trim(),
+      status: 'approved', // Auto-approving for now as per simple implementation, or can be 'pending'
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Review submitted successfully',
+      result: review,
+    });
+  } catch (error) {
+    console.error('Error submitting review:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to submit review',
+    });
+  }
 };
 

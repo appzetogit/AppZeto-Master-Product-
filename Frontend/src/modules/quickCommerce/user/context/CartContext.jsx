@@ -116,14 +116,59 @@ const normalizeQuickProductForSharedCart = (product) => {
   };
 };
 
+const shrinkCartItem = (item) => {
+  if (!item) return null;
+  // Only keep essential fields to minimize localStorage footprint and avoid QuotaExceededError
+  return {
+    id: item.id || item._id,
+    _id: item._id || item.id,
+    productId: item.productId || item.id || item._id,
+    name: item.name,
+    price: Number(item.price || 0),
+    salePrice: Number(item.salePrice || 0),
+    mrp: Number(item.mrp || 0),
+    originalPrice: Number(item.originalPrice || 0),
+    quantity: Number(item.quantity || 0),
+    image: item.image,
+    mainImage: item.mainImage,
+    weight: item.weight,
+    unit: item.unit,
+    quickStoreId: item.quickStoreId,
+    quickStoreName: item.quickStoreName,
+    orderType: "quick",
+    type: "quick",
+  };
+};
+
 const persistQuickCartSnapshot = (items) => {
   try {
     if (Array.isArray(items) && items.length > 0) {
-      localStorage.setItem(QUICK_CART_STORAGE_KEY, JSON.stringify(items));
+      const shrunkItems = items.map(shrinkCartItem).filter(Boolean);
+      localStorage.setItem(QUICK_CART_STORAGE_KEY, JSON.stringify(shrunkItems));
     } else {
       localStorage.removeItem(QUICK_CART_STORAGE_KEY);
     }
   } catch (error) {
+    if (error.name === "QuotaExceededError") {
+      console.warn("Storage quota exceeded. Attempting to clear space...");
+      try {
+        // Fallback: remove non-essential keys if needed, or just clear this specific key
+        // For now, we've shrunk the items, if it still fails, it's a very large cart
+        // or other data is hogging space.
+        const legacyKeys = [
+          "cart",
+          "recent_searches",
+          "search_history",
+          "appzeto_recent_searches",
+          "user_recent_searches_v1",
+        ];
+        legacyKeys.forEach(key => {
+            if (key !== QUICK_CART_STORAGE_KEY) localStorage.removeItem(key);
+        });
+      } catch (e) {
+        console.error("Critical storage failure", e);
+      }
+    }
     console.error("Failed to persist quick cart snapshot", error);
   }
 };

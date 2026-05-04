@@ -62,7 +62,7 @@ const MiniCart = ({
                         exit={{ y: 50, opacity: 0, scale: 0.9 }}
                         className={cn(
                             "pointer-events-auto",
-                            isBottomRight ? "w-[172px]" : "w-full max-w-[180px]",
+                            isBottomRight ? "w-[160px]" : "w-full max-w-[170px]",
                         )}
                     >
                         <Link
@@ -71,8 +71,8 @@ const MiniCart = ({
                                 backgroundColor: "var(--customer-mini-cart-color, #1d7440)",
                             }}
                             className={cn(
-                                "flex items-center gap-3 text-white rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.3)] hover:scale-[1.05] active:scale-95 transition-all group border border-white/20 relative overflow-hidden",
-                                isBottomRight ? "py-2 px-3.5" : "py-2 px-3",
+                                "flex items-center gap-2 text-white rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.3)] hover:scale-[1.05] active:scale-95 transition-all group border border-white/20 relative overflow-hidden",
+                                isBottomRight ? "py-1.5 px-3" : "py-1.5 px-2.5",
                             )}
                         >
                             <div className="absolute inset-0 overflow-hidden rounded-full pointer-events-none">
@@ -81,8 +81,8 @@ const MiniCart = ({
 
                             {/* Item Image */}
                             <div className={cn(
-                                "rounded-full bg-white flex items-center justify-center flex-shrink-0 shadow-sm overflow-hidden border border-white/20",
-                                isBottomRight ? "h-9 w-9" : "h-9 w-9",
+                                "h-8 w-8 rounded-full bg-white flex items-center justify-center flex-shrink-0 shadow-sm overflow-hidden border border-white/20",
+                                isBottomRight ? "h-8 w-8" : "h-8 w-8",
                             )}>
                                 {cart[0]?.image || cart[0]?.imageUrl || cart[0]?.mainImage ? (
                                     <img 
@@ -96,7 +96,7 @@ const MiniCart = ({
                                         loop
                                         className={cn(
                                             "pointer-events-none scale-[1.4]",
-                                            isBottomRight ? "h-9 w-9" : "h-9 w-9",
+                                            isBottomRight ? "h-8 w-8" : "h-8 w-8",
                                         )}
                                     />
                                 )}
@@ -105,21 +105,21 @@ const MiniCart = ({
                             {/* Text Section */}
                             <div className="flex-1 flex flex-col justify-center min-w-0">
                                 <h4 className={cn(
-                                    "font-black leading-tight truncate uppercase tracking-tight",
-                                    isBottomRight ? "text-[14px]" : "text-[14px]",
+                                    "font-black leading-tight truncate uppercase tracking-tighter",
+                                    isBottomRight ? "text-[13px]" : "text-[13px]",
                                 )}>View cart</h4>
                                 <p className={cn(
                                     "opacity-90 font-bold leading-tight",
-                                    isBottomRight ? "text-[10px]" : "text-[10px]",
+                                    isBottomRight ? "text-[9px]" : "text-[9px]",
                                 )}>{cartCount} {cartCount === 1 ? 'item' : 'items'}</p>
                             </div>
 
                             {/* Arrow Icon in circle */}
                             <div className={cn(
-                                "rounded-full bg-white/20 flex items-center justify-center flex-shrink-0",
-                                isBottomRight ? "h-7 w-7" : "h-7 w-7",
+                                "rounded-full bg-white/25 flex items-center justify-center flex-shrink-0",
+                                isBottomRight ? "h-6 w-6" : "h-6 w-6",
                             )}>
-                                <ChevronRight size={18} strokeWidth={3} className="text-white" />
+                                <ChevronRight size={16} strokeWidth={3} className="text-white" />
                             </div>
                         </Link>
                     </motion.div>

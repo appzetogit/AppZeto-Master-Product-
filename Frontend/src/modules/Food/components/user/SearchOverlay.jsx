@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
-import { X, Search, Clock, Loader2 } from "lucide-react"
+import { X, Search, Clock, Loader2, Mic } from "lucide-react"
 import { Button } from "@food/components/ui/button"
 import { Input } from "@food/components/ui/input"
 import { restaurantAPI } from "@food/api"
@@ -14,6 +14,7 @@ export default function SearchOverlay({ isOpen, onClose, searchValue, onSearchCh
   const [filteredFoods, setFilteredFoods] = useState([])
   const [recentSuggestions, setRecentSuggestions] = useState([])
   const [loadingFoods, setLoadingFoods] = useState(false)
+  const [isListening, setIsListening] = useState(false)
 
   useEffect(() => {
     if (isOpen && inputRef.current) {
@@ -145,6 +146,27 @@ export default function SearchOverlay({ isOpen, onClose, searchValue, onSearchCh
     onSearchChange("")
   }
 
+  const handleVoiceSearch = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Voice search is not supported in this browser.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-IN';
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => setIsListening(false);
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      if (transcript) {
+        onSearchChange(transcript);
+        saveRecentSearch(transcript);
+      }
+    };
+    recognition.start();
+  };
+
   if (!isOpen) return null
 
   return (
@@ -165,8 +187,15 @@ export default function SearchOverlay({ isOpen, onClose, searchValue, onSearchCh
                 value={searchValue}
                 onChange={(e) => onSearchChange(e.target.value)}
                 placeholder="Search for food, restaurants..."
-                className="pl-12 pr-4 h-12 w-full bg-white dark:bg-[#1a1a1a] border-gray-100 dark:border-gray-800 focus:border-primary-orange dark:focus:border-primary-orange rounded-full text-lg dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400"
+                className="pl-12 pr-12 h-12 w-full bg-white dark:bg-[#1a1a1a] border-gray-100 dark:border-gray-800 focus:border-primary-orange dark:focus:border-primary-orange rounded-full text-lg dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400"
               />
+              <button
+                type="button"
+                onClick={handleVoiceSearch}
+                className={`absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full transition-all ${isListening ? 'text-primary-orange scale-110 animate-pulse' : 'text-gray-400 hover:text-gray-600'}`}
+              >
+                <Mic className="h-5 w-5" />
+              </button>
             </div>
             <Button
               type="button"

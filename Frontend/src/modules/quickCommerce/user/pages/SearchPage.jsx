@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation as useRouterLocation } from 'react-router-dom';
-import { Search, ArrowLeft, X, ChevronRight, History } from 'lucide-react';
+import { Search, ArrowLeft, X, ChevronRight, History, Mic } from 'lucide-react';
 import { customerApi } from '../services/customerApi';
 import ProductCard from '../components/shared/ProductCard';
 import { useProductDetail } from '../context/ProductDetailContext';
@@ -22,6 +22,7 @@ const SearchPage = () => {
     const [query, setQuery] = useState(initialQuery);
     const [allProducts, setAllProducts] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [isListening, setIsListening] = useState(false);
     const trimmedQuery = query.trim();
 
     // Manage Recent Searches with LocalStorage
@@ -186,6 +187,27 @@ const SearchPage = () => {
         setQuery('');
     };
 
+    const handleVoiceSearch = () => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert("Voice search is not supported in this browser.");
+            return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'en-IN';
+        recognition.onstart = () => setIsListening(true);
+        recognition.onend = () => setIsListening(false);
+        recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            if (transcript) {
+                setQuery(transcript);
+                saveSearch(transcript);
+            }
+        };
+        recognition.start();
+    };
+
     return (
         <div className="min-h-screen bg-white font-outfit">
             {/* Search Input */}
@@ -217,11 +239,20 @@ const SearchPage = () => {
                         {query && (
                             <button
                                 onClick={handleClear}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 bg-slate-200 rounded-full"
+                                className="absolute right-10 top-1/2 -translate-y-1/2 p-1 bg-slate-200 rounded-full"
                             >
                                 <X size={14} className="text-slate-600" />
                             </button>
                         )}
+                        <button
+                            onClick={handleVoiceSearch}
+                            className={cn(
+                                "absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full transition-all",
+                                isListening ? "bg-[var(--primary)] text-white scale-110 animate-pulse" : "text-slate-400 hover:bg-slate-100"
+                            )}
+                        >
+                            <Mic size={20} className={isListening ? "text-white" : "text-slate-400"} />
+                        </button>
                     </div>
                 </div>
             </div>

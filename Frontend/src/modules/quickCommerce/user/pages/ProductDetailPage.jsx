@@ -576,19 +576,19 @@ const ProductDetailPage = () => {
                     <div className="mb-4 flex items-start justify-between">
                       <div className="flex items-center gap-4">
                         <div className="ds-h2 flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-slate-50 text-slate-400">
-                          {review.userId?.image ? (
+                          {(review.userId?.profileImage || review.userId?.image || review.userAvatar) ? (
                             <img
-                              src={resolveQuickImageUrl(review.userId.image) || review.userId.image}
-                              alt={review.userId?.name || "Reviewer"}
+                              src={resolveQuickImageUrl(review.userId?.profileImage || review.userId?.image || review.userAvatar)}
+                              alt={review.userId?.name || review.userName || "Reviewer"}
                               className="h-full w-full object-cover"
                             />
                           ) : (
-                            review.userId?.name?.[0] || "?"
+                            (review.userId?.name || review.userName || "?")[0]
                           )}
                         </div>
                         <div>
                           <h4 className="font-black text-slate-800">
-                            {review.userId?.name || "Anonymous"}
+                            {review.userId?.name || review.userName || "Anonymous"}
                           </h4>
                           <div className="flex items-center gap-1">
                             {[...Array(5)].map((_, index) => (

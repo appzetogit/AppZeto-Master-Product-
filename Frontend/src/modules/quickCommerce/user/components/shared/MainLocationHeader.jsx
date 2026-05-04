@@ -166,7 +166,7 @@ function CategoryNavColumn({
           <img
             src={cat.icon}
             alt={cat.name}
-            className="h-5 w-5 object-contain md:h-6 md:w-6"
+            className="h-4 w-4 object-contain md:h-5 md:w-5"
             style={{ opacity: isActive ? 1 : 0.92 }}
           />
         )}
@@ -430,7 +430,7 @@ const MainLocationHeader = ({
             backgroundImage: headerGradient,
           }}
           className={cn(
-            "px-4 overflow-hidden transition-all duration-300",
+            "px-4 transition-all duration-300",
             embedded
               ? "border-b border-black/5 shadow-[0_10px_24px_rgba(15,23,42,0.10)] backdrop-blur-xl"
               : "sticky top-0 shadow-[0_4px_20px_rgba(0,0,0,0.15)]",
@@ -503,27 +503,9 @@ const MainLocationHeader = ({
                 </div>
               </div>
 
-              {/* Center Section: Search Bar */}
-              <div className="flex-1 max-w-[450px] lg:max-w-2xl px-6">
-                <div className="flex items-center gap-3">
-                  <motion.div
-                    onClick={handleSearchClick}
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.99 }}
-                    style={{ backgroundColor: searchBarBg }}
-                    className="rounded-full px-4 h-11 shadow-md flex items-center border border-white/50 transition-all duration-200 focus-within:ring-2 focus-within:ring-emerald-400/60 cursor-pointer flex-1">
-                    <SearchIcon sx={{ color: "#000000", fontSize: 20 }} />
-                    <input
-                      type="text"
-                      placeholder={searchPlaceholder || "Search Products..."}
-                      readOnly
-                      className="flex-1 bg-transparent border-none outline-none pl-2 text-slate-800 font-semibold placeholder:text-slate-300 text-[15px] cursor-pointer"
-                    />
-                    <div className="flex items-center gap-2 border-l border-slate-100 pl-3">
-                      <MicIcon sx={{ color: "#000000", fontSize: 20 }} />
-                    </div>
-                  </motion.div>
-
+              {/* Center Section: Empty (Search moved to categories) */}
+              <div className="flex-1 px-6">
+                <div className="flex items-center justify-end gap-3">
                   <motion.button
                     initial={{ opacity: 0, scale: 0.9, y: -8 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -622,70 +604,51 @@ const MainLocationHeader = ({
             </motion.div>
           </div>}
 
-          {/* Search Bar (MOBILE ONLY) */}
-          {showSearchBar && <div className="relative z-10 mt-0 flex items-center gap-2.5 md:hidden">
-            <motion.div
-              onClick={handleSearchClick}
-              whileTap={{ scale: 0.98 }}
-              style={{ backgroundColor: searchBarBg }}
-              className="flex-1 rounded-[14px] px-3 h-11 shadow-[0_12px_30px_rgba(15,23,42,0.12)] flex items-center border border-white/55 transition-all duration-200 focus-within:ring-2 focus-within:ring-emerald-400/60 cursor-pointer">
-              <SearchIcon sx={{ color: "#000000", fontSize: 18 }} />
-              <input
-                type="text"
-                placeholder={searchPlaceholder || "Search Products..."}
-                readOnly
-                className="flex-1 bg-transparent border-none outline-none pl-2 text-slate-800 font-semibold placeholder:text-slate-300 text-[14px] cursor-pointer"
-              />
-              <div className="flex items-center gap-2 border-l border-slate-100 pl-2.5">
-                <MicIcon sx={{ color: "#000000", fontSize: 18 }} />
-              </div>
-            </motion.div>
+          {/* Top Search removed from here and moved to categories section below */}
 
-            <motion.button
-              initial={{ opacity: 0, scale: 0.9, y: -8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.15, ease: "easeOut" }}
-              style={{
-                opacity: cartOpacity,
-                scale: cartScale,
-                display: displayCart,
-              }}
-              type="button"
-              aria-label="Open cart"
-              onClick={() => navigate(cartPath)}
-              className="group relative h-11 w-11 shrink-0 overflow-hidden rounded-[14px] border border-white/55 bg-white/28 shadow-[0_12px_28px_rgba(15,23,42,0.14)] backdrop-blur-xl transition-all duration-300 hover:bg-white/42">
-              <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-black/5 pointer-events-none" />
-              <Lottie
-                animationData={shoppingCartAnimation}
-                loop
-                className="pointer-events-none absolute inset-0 scale-[1.22] drop-shadow-[0_8px_18px_rgba(0,0,0,0.14)] transition-transform duration-300 group-hover:scale-[1.28]"
-              />
-            </motion.button>
-          </div>}
-
-          {/* Categories Navigation - Smooth Collapse */}
           {showCategories && categories.length > 0 && (
-            <motion.div
-              layout
-              transition={{
-                layout: {
-                  type: "spring",
-                  stiffness: 420,
-                  damping: 34,
-                  mass: 0.6,
-                },
-              }}
-              style={{
-                height: navHeight,
-                opacity: navOpacity,
-                marginTop: categorySpacing,
-                display: displayNav,
-                overflowY: "hidden",
-              }}
-              className={cn(
-                "relative flex items-end md:justify-center gap-0 overflow-x-auto no-scrollbar -mx-2 px-2 md:mx-0 md:px-0 z-10 snap-x min-h-[68px] md:min-h-[76px] pb-0.5",
-                embedded ? "pt-0" : "pt-1",
-              )}>
+            <div className="relative z-10 space-y-1 pt-0">
+              {/* Compact Search Bar integrated into Categories Section */}
+              <div className="px-3 md:px-0 md:max-w-2xl md:mx-auto">
+                  <motion.div
+                    onClick={handleSearchClick}
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="flex-1 rounded-[10px] md:rounded-full px-3 h-[36px] shadow-sm flex items-center bg-white border border-gray-100 cursor-pointer">
+                    <SearchIcon sx={{ color: "#F6881F", fontSize: 20 }} />
+                    <input
+                      type="text"
+                      placeholder={searchPlaceholder || "Search Products..."}
+                      readOnly
+                      className="flex-1 bg-transparent border-none outline-none pl-2 text-slate-800 font-bold placeholder:text-slate-300 text-[14px] cursor-pointer"
+                    />
+                    <div className="flex items-center gap-2 border-l border-orange-100 pl-2">
+                      <MicIcon sx={{ color: "#F6881F", fontSize: 18 }} />
+                    </div>
+                  </motion.div>
+                </div>
+
+              <motion.div
+                layout
+                transition={{
+                  layout: {
+                    type: "spring",
+                    stiffness: 420,
+                    damping: 34,
+                    mass: 0.6,
+                  },
+                }}
+                style={{
+                  height: navHeight,
+                  opacity: navOpacity,
+                  marginTop: categorySpacing,
+                  display: displayNav,
+                  overflowY: "hidden",
+                }}
+                className={cn(
+                  "relative flex items-end md:justify-center gap-0 overflow-x-auto no-scrollbar -mx-2 px-2 md:mx-0 md:px-0 z-10 snap-x min-h-[56px] md:min-h-[64px] pb-0.5",
+                  embedded ? "pt-0" : "pt-0.5",
+                )}>
               {categories.slice(0, 10).map((cat) => {
                 const isActive = activeCategory?.id === cat.id;
                 return (
@@ -698,7 +661,8 @@ const MainLocationHeader = ({
                   />
                 );
               })}
-            </motion.div>
+              </motion.div>
+            </div>
           )}
 
           {/* Background Decorative patterns */}

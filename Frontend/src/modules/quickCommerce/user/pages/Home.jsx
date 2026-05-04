@@ -674,7 +674,7 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
       {isInitialPageLoading ? (
         <QuickHomeLoadingState embedded={embedded} />
       ) : (
-        <div className={cn("pt-[160px] md:pt-[180px]", embedded && "pt-0")}>
+        <div className={cn("pt-0", embedded && "pt-0")}>
           {/* Hero Banners (mobile): admin-configured or static fallback */}
           <>
             <div className={cn("block md:hidden", embedded ? "-mt-[1px]" : "mt-0")}>
@@ -846,7 +846,7 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
             <div
               className={cn(
                 "w-full mb-5 overflow-hidden relative group z-20 md:mt-3",
-                embedded ? "-mt-[35px]" : "-mt-[65px]",
+                embedded ? "mt-2" : "mt-4 md:mt-6",
               )}>
               <div
                 className={cn(
@@ -958,23 +958,19 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
           {/* Lowest Price ever Section  (kept as static for now) */}
           <div
             className={cn(
-              "mb-4 md:mb-8",
-              embedded ? "-mt-[22px] md:-mt-[32px]" : "-mt-[60px] md:-mt-[60px]",
+              "mb-4 md:mb-6",
+              embedded ? "mt-4 md:mt-5" : "mt-6 md:mt-10",
             )}>
-            <div className="relative overflow-hidden bg-linear-to-br from-[#0c831f]/10 via-[#0c831f]/5 to-transparent pt-[20px] pb-0 border-y border-[#0c831f]/10 shadow-sm md:shadow-[inset_0_-10px_40px_rgba(0,0,0,0.02)]">
-              {/* Background Decoration */}
-              <div className="absolute -top-10 -right-10 h-40 w-40 md:h-80 md:w-80 bg-[#0c831f]/10 rounded-full blur-3xl opacity-60" />
-              <div className="absolute -bottom-10 -left-10 h-40 w-40 md:h-80 md:w-80 bg-yellow-400/10 rounded-full blur-3xl opacity-60" />
-
-              <div className="container mx-auto px-4 md:px-8 lg:px-[50px] relative z-10">
-                <div className="flex justify-between items-center mb-6 md:mb-10 px-1">
+            <div className="relative overflow-hidden bg-[#e7f3ff] pt-6 md:pt-8 pb-0 rounded-none md:rounded-[32px] mx-0 md:mx-8 lg:mx-[50px] shadow-sm">
+              <div className="relative z-10 px-4 md:px-8">
+                <div className="flex justify-between items-center mb-3 md:mb-5 px-1">
                   <div className="flex flex-col">
-                    <h3 className="text-xl md:text-4xl font-[1000] text-[#1A1A1A] tracking-tighter uppercase leading-none">
-                      Lowest Price <span className="text-[#0c831f]">ever</span>
+                    <h3 className="text-lg md:text-3xl font-[1000] text-[#004b91] tracking-tighter uppercase leading-none">
+                      Lowest Price <span className="text-[#004b91]">ever</span>
                     </h3>
-                    <div className="flex items-center gap-1.5 md:gap-2 mt-1.5 md:mt-3">
-                      <div className="h-1 w-1 md:h-2 md:w-2 bg-[#0c831f] rounded-full animate-pulse shadow-[0_0_8px_rgba(12,131,31,0.5)]" />
-                      <span className="text-[10px] md:text-xs font-black text-[#0c831f] uppercase tracking-wider md:tracking-[0.2em] opacity-80">
+                    <div className="flex items-center gap-1.5 md:gap-2 mt-1 md:mt-2">
+                      <div className="h-1 w-1 md:h-1.5 md:w-1.5 bg-[#004b91] rounded-full animate-pulse" />
+                      <span className="text-[9px] md:text-[10px] font-black text-[#004b91] uppercase tracking-wider opacity-80">
                         Unbeatable Savings • Updated hourly
                       </span>
                     </div>
@@ -983,22 +979,22 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
                     onClick={() => navigate(getQuickCategoriesPath())}
                     whileHover={{ x: 5, scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    className="flex items-center gap-1 md:gap-2 bg-white px-3 py-1.5 md:px-6 md:py-3 rounded-full text-[#0c831f] font-bold text-[10px] md:text-sm cursor-pointer shadow-sm md:shadow-lg border border-[#0c831f]/5 transition-all">
+                    className="flex items-center gap-1 md:gap-1.5 bg-white px-3 py-1.5 md:px-5 md:py-2.5 rounded-full text-[#004b91] font-bold text-[9px] md:text-xs cursor-pointer shadow-sm border border-[#004b91]/5 transition-all shrink-0 whitespace-nowrap">
                     See all{" "}
                     <ArrowRightIcon
-                      sx={{ fontSize: 12, ml: { xs: 0.2, md: 0.5 } }}
+                      sx={{ fontSize: 10, ml: 0.5 }}
                     />
                   </motion.div>
                 </div>
 
-                <div className="relative z-10 flex overflow-x-auto gap-3 md:gap-6 pb-6 md:pb-8 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0 snap-x snap-mandatory scroll-smooth">
+                <div className="relative z-10 flex overflow-x-auto gap-3 md:gap-4 pb-5 md:pb-6 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0 snap-x snap-mandatory scroll-smooth">
                   {products.slice(0, 12).map((product) => (
                     <div
                       key={product.id}
-                      className="w-[130px] md:w-[160px] lg:w-[180px] shrink-0 snap-start">
+                      className="w-[125px] md:w-[155px] lg:w-[175px] shrink-0 snap-start">
                       <ProductCard
                         product={product}
-                        className="bg-white shadow-[0_8px_20px_-8px_rgba(0,0,0,0.1)] md:shadow-[0_15px_30px_rgba(0,0,0,0.05)] border-green-50/50 md:border-slate-100 transition-all"
+                        className="bg-white rounded-[20px] shadow-[0_8px_20px_-8px_rgba(0,0,0,0.1)] border-blue-50/50 transition-all"
                         compact={true}
                       />
                     </div>

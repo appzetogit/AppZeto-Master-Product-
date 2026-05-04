@@ -80,6 +80,41 @@ import ChevronDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import FavoriteBorderOutlinedIcon from "@mui/icons-material/FavoriteBorderOutlined";
 import ShoppingCartOutlinedIcon from "@mui/icons-material/ShoppingCartOutlined";
 
+const serviceTabs = [
+  {
+    id: "food",
+    name: "Food",
+    icon: "https://cdn-icons-png.flaticon.com/512/3075/3075977.png",
+    route: "/food/user",
+  },
+  {
+    id: "quick",
+    name: "Instamart",
+    icon: "https://cdn-icons-png.flaticon.com/512/3724/3724720.png",
+    route: "/quick",
+  },
+  {
+    id: "taxi",
+    name: "Dineout",
+    icon: "https://cdn-icons-png.flaticon.com/512/2515/2515183.png",
+    route: "/taxi",
+  },
+  {
+    id: "hotel",
+    name: "Explore",
+    icon: "https://cdn-icons-png.flaticon.com/512/854/854878.png",
+    route: "/user/auth/portal",
+  },
+];
+
+const withAlpha = (hex, alpha) => {
+  const value = String(hex || "#000000").replace("#", "");
+  const r = parseInt(value.slice(0, 2), 16) || 0;
+  const g = parseInt(value.slice(2, 4), 16) || 0;
+  const b = parseInt(value.slice(4, 6), 16) || 0;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
 const lightenHex = (hex, amount = 0.18) => {
   const normalized = String(hex || "").replace("#", "");
   if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return hex;
@@ -575,6 +610,62 @@ const MainLocationHeader = ({
             </div>
           )}
 
+          {/* Service Tabs (Mobile/Desktop) */}
+          <div className="relative z-10 px-1 pt-1 mb-3 flex items-end justify-start gap-[6px] overflow-x-auto no-scrollbar">
+            {serviceTabs.map((tab) => {
+              const isActive = tab.id === "quick";
+              const themeColor = baseHeaderColor || "#0c831f";
+              
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => navigate(tab.route)}
+                  className={cn(
+                    "relative flex flex-col items-center justify-start flex-1 min-w-[70px] h-[72px] transition-all duration-300",
+                    isActive ? "z-20" : "z-10"
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "absolute inset-x-0 rounded-t-[14px] rounded-b-none",
+                      isActive ? "top-0 bottom-0" : "top-[6px] bottom-0"
+                    )}
+                    style={{
+                      background: isActive ? "#ffffff" : "rgba(255,255,255,0.14)",
+                      borderTop: `1.2px solid ${isActive ? withAlpha(themeColor, 0.25) : "rgba(255,255,255,0.12)"}`,
+                      borderLeft: `1.2px solid ${isActive ? withAlpha(themeColor, 0.18) : "rgba(255,255,255,0.12)"}`,
+                      borderRight: `1.2px solid ${isActive ? withAlpha(themeColor, 0.18) : "rgba(255,255,255,0.12)"}`,
+                      boxShadow: isActive ? "0 -3px 15px rgba(0,0,0,0.06)" : "none",
+                      backdropFilter: isActive ? undefined : "blur(12px)",
+                    }}
+                  />
+                  <div className={cn(
+                    "absolute inset-x-0 bottom-0 z-10 flex flex-col items-center justify-center gap-[2px] px-1",
+                    isActive ? "top-0" : "top-[6px]"
+                  )}>
+                    <img
+                      src={tab.icon}
+                      alt={tab.name}
+                      className={cn(
+                        "object-contain transition-transform duration-300",
+                        isActive ? "h-[28px] w-[28px] scale-105" : "h-[24px] w-[24px] brightness-[1.3]"
+                      )}
+                    />
+                    <span
+                      style={{ color: isActive ? themeColor : "#ffffff" }}
+                      className={cn(
+                        "text-[9px] font-extrabold",
+                        !isActive && "drop-shadow-[0_1px_5px_rgba(0,0,0,0.45)]"
+                      )}
+                    >
+                      {tab.name}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
           {/* Collapsible Delivery Info & Location (MOBILE ONLY) */}
           {showTopContent && <div className="md:hidden">
             <motion.div
@@ -586,11 +677,6 @@ const MainLocationHeader = ({
                 overflow: "hidden",
               }}
               className="relative z-10">
-              <div className="mb-1">
-                <span className="inline-flex items-center rounded-full border border-black/10 bg-white/18 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-slate-900 backdrop-blur-sm">
-                  {appName}
-                </span>
-              </div>
               <div className="flex justify-between items-start">
                 <div className="flex flex-col">
                   <div className="flex items-center gap-1.5 mb-0.5">

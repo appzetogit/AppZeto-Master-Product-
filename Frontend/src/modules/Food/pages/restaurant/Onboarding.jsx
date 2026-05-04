@@ -415,7 +415,7 @@ function TimeSelector({ label, value, onChange }) {
 export default function RestaurantOnboarding() {
   const companyName = useCompanyName()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -525,6 +525,15 @@ export default function RestaurantOnboarding() {
     fallbackInputRef: null,
   })
 
+  const goToStep = (nextStep, options = {}) => {
+    const normalizedStep = Math.min(4, Math.max(1, Number(nextStep) || 1))
+    const shouldReplace = options.replace === true
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.set("step", String(normalizedStep))
+    setStep(normalizedStep)
+    setSearchParams(nextParams, { replace: shouldReplace })
+  }
+
   const getPreviewImageUrl = (value) => {
     if (!value) return null
     if (typeof value === "string") return value
@@ -617,6 +626,8 @@ export default function RestaurantOnboarding() {
       if (stepNum >= 1 && stepNum <= 4) {
         setStep(stepNum)
       }
+    } else {
+      goToStep(1, { replace: true })
     }
 
     const localData = loadOnboardingFromLocalStorage()
@@ -707,7 +718,7 @@ export default function RestaurantOnboarding() {
       // Only set step from localStorage if URL doesn't have a step parameter
       if (localData.currentStep && !stepParam) {
         hasRestoredDraftStepRef.current = true
-        setStep(localData.currentStep)
+        goToStep(localData.currentStep, { replace: true })
       }
     }
   }, [searchParams])
@@ -845,10 +856,10 @@ export default function RestaurantOnboarding() {
           if (!stepParam && !hasRestoredDraftStepRef.current) {
             // If already registered/pending, stay on step 1 for editing
             if (data.status === "approved" || data.status === "pending") {
-               setStep(1)
+               goToStep(1, { replace: true })
             } else {
                const stepToShow = determineStepToShow({ step1: data, step2: data, step3: data, step4: data })
-               setStep(stepToShow)
+               goToStep(stepToShow, { replace: true })
             }
           }
         } else {
@@ -1160,13 +1171,13 @@ export default function RestaurantOnboarding() {
     setSaving(true)
     try {
       if (step === 1) {
-        setStep(2)
+        goToStep(2)
         window.scrollTo({ top: 0, behavior: "instant" })
       } else if (step === 2) {
-        setStep(3)
+        goToStep(3)
         window.scrollTo({ top: 0, behavior: "instant" })
       } else if (step === 3) {
-        setStep(4)
+        goToStep(4)
         window.scrollTo({ top: 0, behavior: "instant" })
       } else if (step === 4) {
         // Final submit: create restaurant in DB using backend multipart endpoint.
@@ -2453,7 +2464,7 @@ export default function RestaurantOnboarding() {
             <button
               onClick={() => {
                 if (step > 1) {
-                  setStep((s) => s - 1)
+                  goToStep(step - 1)
                   window.scrollTo({ top: 0, behavior: "instant" })
                 } else {
                   handleLogout()
@@ -2543,7 +2554,7 @@ export default function RestaurantOnboarding() {
             <Button
               variant="ghost"
               disabled={step === 1 || saving}
-              onClick={() => { setStep((s) => Math.max(1, s - 1)); window.scrollTo({ top: 0, behavior: "instant" }) }}
+              onClick={() => { goToStep(step - 1); window.scrollTo({ top: 0, behavior: "instant" }) }}
               className="text-sm text-gray-700 bg-transparent"
             >
               Back

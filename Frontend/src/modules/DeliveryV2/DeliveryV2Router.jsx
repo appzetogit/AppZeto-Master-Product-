@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import Loader from "@food/components/Loader";
 
@@ -34,6 +34,7 @@ import NotificationsV2 from './pages/NotificationsV2';
 
 
 const DeliveryV2Router = () => {
+  const location = useLocation();
   return (
     <Suspense fallback={<Loader />}>
       <Routes>
@@ -41,7 +42,7 @@ const DeliveryV2Router = () => {
         <Route path="welcome" element={<Welcome />} />
         <Route path="login" element={<SignIn />} />
         <Route path="otp" element={<OTP />} />
-        <Route path="signup" element={<Navigate to="/food/delivery/login" replace />} />
+        <Route path="signup" element={<Navigate to={`/food/delivery/login${location.search}`} replace />} />
         <Route path="signup/details" element={<SignupStep1 />} />
         <Route path="signup/documents" element={<SignupStep2 />} />
         <Route path="verification" element={<PendingVerification />} />

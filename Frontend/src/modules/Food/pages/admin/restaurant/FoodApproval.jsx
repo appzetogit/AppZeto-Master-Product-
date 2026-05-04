@@ -403,6 +403,23 @@ export default function FoodApproval() {
                     )}
                 </div>
 
+                {/* Variants */}
+                {selectedRequest.variants && selectedRequest.variants.length > 0 && (
+                  <div className="col-span-full">
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
+                      Variants ({selectedRequest.variants.length})
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {selectedRequest.variants.map((variant, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+                          <span className="text-sm font-medium text-gray-700">{variant.name}</span>
+                          <span className="text-sm font-bold text-green-600">₹{variant.price}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {selectedRequest.description && (
                   <div className="col-span-full">
                     <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Description</label>

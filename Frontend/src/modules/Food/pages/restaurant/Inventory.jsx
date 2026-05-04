@@ -734,6 +734,7 @@ function SimpleCalendar({ selectedDate, onDateSelect, isOpen, onClose }) {
 
 export default function Inventory() {
   const navigate = useNavigate()
+  const filterHistoryEntryActiveRef = useRef(false)
   const [activeTab, setActiveTab] = useState(() => {
     try {
       if (typeof window === "undefined") return "all-items"
@@ -767,7 +768,6 @@ export default function Inventory() {
   const [togglePopupOpen, setTogglePopupOpen] = useState(false)
   const [toggleTarget, setToggleTarget] = useState(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [isAddPopupOpen, setIsAddPopupOpen] = useState(false)
 
   // Toggle popup state
   const [selectedOption, setSelectedOption] = useState("specific-time")
@@ -1176,7 +1176,11 @@ export default function Inventory() {
   const handleTouchStart = (e) => {
     const target = e.target
     // Don't handle swipe if starting on topbar
-    if (tabBarRef.current?.contains(target)) return
+    if (
+      tabBarRef.current?.contains(target) || 
+      target.closest('.overflow-x-auto') || 
+      target.closest('.scrollbar-hide')
+    ) return
 
     touchStartX.current = e.touches[0].clientX
     touchStartY.current = e.touches[0].clientY
@@ -1466,7 +1470,7 @@ export default function Inventory() {
   // Handle filter apply
   const handleFilterApply = () => {
     setIsLoading(true)
-    setFilterOpen(false)
+    closeFilterDrawer()
 
     // Simulate loading
     setTimeout(() => {
@@ -1477,8 +1481,46 @@ export default function Inventory() {
   // Handle filter clear
   const handleFilterClear = () => {
     setSelectedFilter("all")
+    closeFilterDrawer()
+  }
+
+  const openFilterDrawer = () => {
+    setFilterOpen(true)
+  }
+
+  const closeFilterDrawer = () => {
+    if (typeof window !== "undefined" && filterHistoryEntryActiveRef.current) {
+      window.history.back()
+      return
+    }
+
     setFilterOpen(false)
   }
+
+  const handleAddItem = () => {
+    navigate(`/food/restaurant/hub-menu/item/new`, {
+      state: {
+        backTo: "/food/restaurant/inventory",
+      },
+    })
+  }
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !filterOpen || filterHistoryEntryActiveRef.current) return
+
+    const handlePopState = () => {
+      filterHistoryEntryActiveRef.current = false
+      setFilterOpen(false)
+    }
+
+    window.history.pushState({ ...(window.history.state || {}), inventoryFilterOpen: true }, "")
+    filterHistoryEntryActiveRef.current = true
+    window.addEventListener("popstate", handlePopState)
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState)
+    }
+  }, [filterOpen])
 
   // Update menu API when category/item toggles change
   const updateAvailabilityAPI = async (categoryId, itemId, isAvailable) => {
@@ -1860,7 +1902,11 @@ export default function Inventory() {
         onMouseDown={(e) => {
           const target = e.target
           // Don't handle swipe if starting on topbar
-          if (tabBarRef.current?.contains(target)) return
+          if (
+            tabBarRef.current?.contains(target) || 
+            target.closest('.overflow-x-auto') || 
+            target.closest('.scrollbar-hide')
+          ) return
 
           mouseStartX.current = e.clientX
           mouseEndX.current = e.clientX
@@ -1966,7 +2012,7 @@ export default function Inventory() {
               </div>
 
               <button
-                onClick={() => setFilterOpen(true)}
+                onClick={openFilterDrawer}
                 className="relative flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 transition-colors hover:border-slate-300 hover:bg-slate-50"
               >
                 <SlidersHorizontal className="w-4 h-4 text-slate-700" />
@@ -2436,7 +2482,7 @@ export default function Inventory() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 bg-black/50 z-50"
-              onClick={() => setFilterOpen(false)}
+              onClick={closeFilterDrawer}
             />
             <motion.div
               initial={{ y: "100%" }}
@@ -2700,54 +2746,23 @@ export default function Inventory() {
         onConfirm={handleTimePickerConfirm}
       />
 
-      {/* Add Popup */}
-      <AnimatePresence>
-        {isAddPopupOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsAddPopupOpen(false)}
-              className="fixed inset-0 bg-black/50 z-[70]"
-            />
-            <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl z-[71] max-h-[70vh] overflow-y-auto pb-[calc(1rem+env(safe-area-inset-bottom)+5.5rem)]"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="sticky top-0 bg-white px-4 py-4 border-b border-gray-200">
-                <h2 className="text-lg font-bold text-gray-900 text-center">Add item</h2>
-              </div>
-              <div className="px-4 py-4 space-y-2">
-                <button
-                  onClick={() => {
-                    setIsAddPopupOpen(false)
-                    navigate(`/food/restaurant/hub-menu/item/new`, {
-                      state: {
-                        backTo: "/food/restaurant/inventory",
-                      },
-                    })
-                  }}
-                  className="w-full py-3 px-4 text-left rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <span className="text-sm font-medium text-gray-900">Add item</span>
-                </button>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
       {/* Floating Menu Button & Popup (hidden on Add-ons tab) */}
       {activeTab !== "add-ons" && (
         <div className="fixed right-4 bottom-24 z-30 flex flex-col items-end gap-2">
           <motion.button
             whileTap={{ scale: 0.96 }}
-            onClick={() => setIsAddPopupOpen(true)}
+            onClick={() => {
+              setActiveTab("add-ons")
+              setIsAddAddonOpen(true)
+              window.scrollTo({ top: 0, behavior: 'smooth' })
+            }}
+            className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-[0_22px_40px_-24px_rgba(15,23,42,0.85)]"
+          >
+            Add Add-on
+          </motion.button>
+          <motion.button
+            whileTap={{ scale: 0.96 }}
+            onClick={handleAddItem}
             className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-[0_22px_40px_-24px_rgba(15,23,42,0.85)]"
           >
             + Add item

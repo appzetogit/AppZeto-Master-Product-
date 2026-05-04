@@ -900,7 +900,7 @@ export default function RestaurantOnboarding() {
     if (!step1.ownerEmail?.trim()) {
       errors.push("Owner email is required")
     } else if (!OWNER_EMAIL_REGEX.test(step1.ownerEmail.trim())) {
-      errors.push("Email must be a valid @gmail.com address")
+      errors.push("Please enter a valid email address")
     }
     if (!step1.ownerPhone?.trim()) {
       errors.push("Owner phone number is required")

@@ -54,7 +54,7 @@ export const ProfileV2 = () => {
     }).catch(() => {})
   }, [])
 
-  const refId = profile?._id || profile?.id || profile?.referralCode || ""
+  const refId = profile?.referralCode || profile?._id || profile?.id || ""
   const referralLink = refId ? `${window.location.origin}/food/delivery/signup?ref=${encodeURIComponent(String(refId))}` : ""
 
   const handleShareReferral = async () => {

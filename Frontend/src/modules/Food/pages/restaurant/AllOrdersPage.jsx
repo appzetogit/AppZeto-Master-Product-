@@ -510,19 +510,16 @@ export default function AllOrdersPage() {
           </button>
           <div className="flex-1">
             <p className="text-sm text-gray-600">Showing order history for</p>
-            <div className="flex items-center gap-2">
-              <h1 className="text-base font-bold text-gray-900">
-                {restaurantData?.name || 'Restaurant'}
-              </h1>
-              <ChevronDown className="w-4 h-4 text-gray-600" />
-            </div>
+            <h1 className="text-base font-bold text-gray-900">
+              {restaurantData?.name || 'Restaurant'}
+            </h1>
           </div>
-          <button
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            aria-label="Help"
-          >
-            <HelpCircle className="w-5 h-5 text-gray-900" />
-          </button>
+
+
+
+
+
+
         </div>
       </div>
 

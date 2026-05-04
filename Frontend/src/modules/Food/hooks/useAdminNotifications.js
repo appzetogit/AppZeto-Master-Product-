@@ -219,6 +219,54 @@ const mapDiningApprovalRequests = (response) => {
     });
 };
 
+const mapCategoryApprovals = (response) => {
+  const payload = response?.data?.data;
+  const rows =
+    payload?.categories ||
+    payload?.items ||
+    payload?.data ||
+    response?.data?.categories ||
+    [];
+
+  return (Array.isArray(rows) ? rows : [])
+    .filter((item) => String(item?.approvalStatus || item?.status || "").toLowerCase() === "pending")
+    .map((item) => ({
+      id: `approval-category-${String(item?._id || item?.id || "")}`,
+      title: "Category Approval Pending",
+      message: `${item?.name || "Category"} from ${item?.restaurantName || "Restaurant"} is waiting for review.`,
+      type: "approval",
+      category: "category_approval",
+      path: "/admin/food/categories",
+      createdAt: item?.requestedAt || item?.createdAt || item?.updatedAt,
+      timeLabel: toDateLabel(item?.requestedAt || item?.createdAt || item?.updatedAt),
+      metaLabel: joinMeta(item?.restaurantName, item?.name),
+    }));
+};
+
+const mapAddonApprovals = (response) => {
+  const payload = response?.data?.data;
+  const rows =
+    payload?.addons ||
+    payload?.items ||
+    payload?.data ||
+    response?.data?.addons ||
+    [];
+
+  return (Array.isArray(rows) ? rows : [])
+    .filter((item) => String(item?.approvalStatus || item?.status || "").toLowerCase() === "pending")
+    .map((item) => ({
+      id: `approval-addon-${String(item?._id || item?.id || "")}`,
+      title: "Add-on Approval Pending",
+      message: `${item?.name || "Add-on"} from ${item?.restaurantName || "Restaurant"} is waiting for review.`,
+      type: "approval",
+      category: "addon_approval",
+      path: "/admin/food/addons",
+      createdAt: item?.requestedAt || item?.createdAt || item?.updatedAt,
+      timeLabel: toDateLabel(item?.requestedAt || item?.createdAt || item?.updatedAt),
+      metaLabel: joinMeta(item?.restaurantName, item?.name),
+    }));
+};
+
 const resolveSocketOrigin = (value) => {
   const raw = String(value || "").trim();
   if (!raw) return "";
@@ -242,6 +290,18 @@ export default function useAdminNotifications(options = {}) {
       setLoading(true);
       const dismissed = new Set(getDismissedIds());
 
+      const results = await Promise.allSettled([
+        adminAPI.getPendingRestaurants(),
+        adminAPI.getDeliveryPartnerJoinRequests({ page: 1, limit: 50 }),
+        adminAPI.getPendingFoodApprovals({ page: 1, limit: 50 }),
+        adminAPI.getSupportTicketsAdmin({ page: 1, limit: 50, source: "all" }),
+        adminAPI.getDeliverySupportTickets({ page: 1, limit: 50 }),
+        adminAPI.getExpiredFssaiNotifications(),
+        adminAPI.getDiningRestaurants(),
+        adminAPI.getCategories({ approvalStatus: "pending", limit: 50 }),
+        adminAPI.getRestaurantAddons({ approvalStatus: "pending", limit: 50 }),
+      ]);
+
       const [
         restaurantsRes,
         deliveryJoinRes,
@@ -250,15 +310,9 @@ export default function useAdminNotifications(options = {}) {
         deliverySupportRes,
         fssaiExpiredRes,
         diningApprovalRes,
-      ] = await Promise.all([
-        adminAPI.getPendingRestaurants(),
-        adminAPI.getDeliveryPartnerJoinRequests({ page: 1, limit: 50 }),
-        adminAPI.getPendingFoodApprovals({ page: 1, limit: 50 }),
-        adminAPI.getSupportTicketsAdmin({ page: 1, limit: 50, source: "all" }),
-        adminAPI.getDeliverySupportTickets({ page: 1, limit: 50 }),
-        adminAPI.getExpiredFssaiNotifications(),
-        adminAPI.getDiningRestaurants(),
-      ]);
+        categoryApprovalRes,
+        addonApprovalRes,
+      ] = results.map((r) => (r.status === "fulfilled" ? r.value : null));
 
       const restaurantRows =
         restaurantsRes?.data?.data ||
@@ -273,12 +327,15 @@ export default function useAdminNotifications(options = {}) {
         ...mapDeliverySupport(deliverySupportRes),
         ...mapExpiredFssai(fssaiExpiredRes),
         ...mapDiningApprovalRequests(diningApprovalRes),
+        ...mapCategoryApprovals(categoryApprovalRes),
+        ...mapAddonApprovals(addonApprovalRes),
       ])
         .filter((item) => !dismissed.has(item.id))
         .sort((a, b) => toDateValue(b.createdAt) - toDateValue(a.createdAt));
 
       setItems(aggregated);
-    } catch {
+    } catch (error) {
+      console.error("Failed to load admin notifications:", error);
       setItems([]);
     } finally {
       setLoading(false);

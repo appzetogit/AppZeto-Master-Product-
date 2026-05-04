@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
-import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import { AnimatePresence, motion } from "framer-motion"
 import {
   ArrowLeft,
@@ -46,7 +45,6 @@ const scopePillClass = (scope) => {
 export default function MenuCategoriesPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const goBack = useRestaurantBackNavigation()
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -57,6 +55,38 @@ export default function MenuCategoriesPage() {
   const [uploadingImage, setUploadingImage] = useState(false)
   const [isPhotoPickerOpen, setIsPhotoPickerOpen] = useState(false)
   const fileInputRef = useRef(null)
+  const modalHistoryEntryActiveRef = useRef(false)
+
+  // Handle back button to close modal
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const handlePopState = () => {
+      if (modalHistoryEntryActiveRef.current) {
+        modalHistoryEntryActiveRef.current = false
+        setShowModal(false)
+      }
+    }
+
+    if (showModal) {
+      if (!modalHistoryEntryActiveRef.current) {
+        window.history.pushState({ ...(window.history.state || {}), categoryModalOpen: true }, "")
+        modalHistoryEntryActiveRef.current = true
+      }
+      window.addEventListener("popstate", handlePopState)
+    } else {
+      if (modalHistoryEntryActiveRef.current) {
+        if (window.history.state?.categoryModalOpen) {
+          window.history.back()
+        }
+        modalHistoryEntryActiveRef.current = false
+      }
+    }
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState)
+    }
+  }, [showModal])
 
   useEffect(() => {
     fetchCategories()
@@ -70,13 +100,34 @@ export default function MenuCategoriesPage() {
     setSelectedImageFile(null)
     setImagePreview(null)
     setShowModal(true)
-    navigate(location.pathname, { replace: true, state: null })
+    navigate(location.pathname, {
+      replace: true,
+      state: {
+        ...location.state,
+        draftCategoryName: undefined,
+      },
+    })
   }, [location.pathname, location.state, navigate])
 
   const ownCategories = useMemo(
     () => categories.filter((category) => category.ownedByRestaurant),
     [categories],
   )
+
+  const handleBack = () => {
+    const explicitBackPath = typeof location.state?.backTo === "string" ? location.state.backTo.trim() : ""
+    if (explicitBackPath) {
+      navigate(explicitBackPath)
+      return
+    }
+
+    if (window.history.length > 1) {
+      navigate(-1)
+      return
+    }
+
+    navigate("/food/restaurant")
+  }
 
   const fetchCategories = async () => {
     try {
@@ -229,7 +280,7 @@ export default function MenuCategoriesPage() {
     <div className="min-h-screen bg-slate-50 pb-24">
       <div className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="px-4 py-3 flex items-center gap-3">
-          <button onClick={goBack} className="rounded-full p-1 hover:bg-slate-100">
+          <button onClick={handleBack} className="rounded-full p-1 hover:bg-slate-100">
             <ArrowLeft className="h-5 w-5 text-slate-700" />
           </button>
           <div>
@@ -329,11 +380,12 @@ export default function MenuCategoriesPage() {
                     <button
                       onClick={() => handleToggleActive(category)}
                       className="rounded-xl bg-slate-100 p-2 text-slate-700 disabled:opacity-50"
-                      disabled={!isEditable}
+                      disabled={isGlobal}
                       title={category?.isActive !== false ? "Deactivate" : "Activate"}
                     >
                       {category?.isActive !== false ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                     </button>
+                    {status !== "approved" && (
                     <button
                       onClick={() => openEditModal(category)}
                       className="rounded-xl bg-blue-50 p-2 text-blue-700 disabled:opacity-50"
@@ -341,6 +393,7 @@ export default function MenuCategoriesPage() {
                     >
                       <Edit2 className="h-4 w-4" />
                     </button>
+                    )}
                     <button
                       onClick={() => handleDeleteCategory(category)}
                       className="rounded-xl bg-rose-50 p-2 text-rose-700 disabled:opacity-50"

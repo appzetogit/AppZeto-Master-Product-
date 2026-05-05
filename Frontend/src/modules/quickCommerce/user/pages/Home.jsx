@@ -762,7 +762,7 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
                         </div>
                       </motion.div>
                       <motion.div
-                        onClick={() => navigate("/categories")}
+                        onClick={() => navigate(getQuickCategoriesPath())}
                         whileTap={{ scale: 0.96 }}
                         className="min-w-full">
                         <div className="w-full h-[190px] bg-white relative overflow-hidden flex border-y border-gray-100 shadow-[0_4px_15px_rgba(0,0,0,0.05)] group">

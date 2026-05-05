@@ -8,6 +8,7 @@ import {
   getOffers,
   getProductById,
   getProductReviews,
+  submitProductReview,
   getProducts,
 } from '../controllers/catalog.controller.js';
 import { addToCart, clearCart, getCart, removeCartItem, updateCartItem } from '../controllers/cart.controller.js';
@@ -90,6 +91,7 @@ router.post('/coupons/apply', applyCoupon);
 router.get('/categories', getCategories);
 router.get('/products', getProducts);
 router.get('/products/:productId/reviews', getProductReviews);
+router.post('/products/reviews', optionalAuth, submitProductReview);
 router.get('/products/:productId', getProductById);
 router.get('/zones/public', listPublicZones);
 

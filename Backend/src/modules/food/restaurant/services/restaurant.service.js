@@ -10,6 +10,7 @@ import {
     notifyAdminsSafely, 
     notifyOwnerSafely 
 } from '../../../../core/notifications/firebase.service.js';
+import { isPointInPolygon } from '../../../../utils/geo.js';
 
 const normalizeName = (value) =>
     String(value || '')
@@ -359,6 +360,24 @@ export const registerRestaurant = async (payload, files) => {
     try {
         const latNum = toFiniteNumber(latitude);
         const lngNum = toFiniteNumber(longitude);
+
+        // Strict Geofencing Validation
+        if (!zoneId) {
+            throw new ValidationError('Zone is required');
+        }
+        if (latNum === null || lngNum === null) {
+            throw new ValidationError('Invalid address coordinates');
+        }
+
+        const zone = await FoodZone.findById(zoneId).lean();
+        if (!zone || !Array.isArray(zone.coordinates) || zone.coordinates.length < 3) {
+            throw new ValidationError('Invalid zone configuration');
+        }
+
+        if (!isPointInPolygon(latNum, lngNum, zone.coordinates)) {
+            throw new ValidationError('Selected address is outside the selected zone');
+        }
+
         const restaurant = await FoodRestaurant.create({
             restaurantName,
             restaurantNameNormalized,
@@ -590,7 +609,7 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
     }
 
     const currentRestaurant = await FoodRestaurant.findById(restaurantId)
-        .select('restaurantName restaurantNameNormalized ownerPhone ownerPhoneDigits ownerPhoneLast10 primaryContactNumber status fssaiNumber fssaiImage')
+        .select('restaurantName restaurantNameNormalized ownerPhone ownerPhoneDigits ownerPhoneLast10 primaryContactNumber status fssaiNumber fssaiImage zoneId')
         .lean();
 
     if (!currentRestaurant) {
@@ -751,6 +770,26 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
         // Optional geo coords for server-side distance filtering.
         const lat = toFiniteNumber(loc.latitude);
         const lng = toFiniteNumber(loc.longitude);
+
+        if (lat === null || lng === null) {
+            throw new ValidationError('Invalid address coordinates');
+        }
+
+        // Strict Geofencing Validation: Check if address is within the zone
+        const targetZoneId = update.zoneId || currentRestaurant.zoneId;
+        if (!targetZoneId) {
+            throw new ValidationError('Zone is required');
+        }
+
+        const zone = await FoodZone.findById(targetZoneId).lean();
+        if (!zone || !Array.isArray(zone.coordinates) || zone.coordinates.length < 3) {
+            throw new ValidationError('Invalid zone configuration');
+        }
+
+        if (!isPointInPolygon(lat, lng, zone.coordinates)) {
+            throw new ValidationError('Selected address is outside the selected zone');
+        }
+
         update.location = {
             type: 'Point',
             coordinates: lat !== null && lng !== null ? [lng, lat] : undefined,

@@ -52,7 +52,7 @@ const ACCOUNT_HOLDER_NAME_REGEX = /^[A-Za-z ]+$/
 const GST_LEGAL_NAME_REGEX = /^[A-Za-z ]+$/
 const FEATURED_DISH_NAME_REGEX = /^[A-Za-z ]+$/
 const NAME_REGEX = /^[A-Za-z ]+$/
-const OWNER_EMAIL_REGEX = /^[a-zA-Z0-9._%+\-]+@gmail\.com$/
+const OWNER_EMAIL_REGEX = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/
 const PHONE_NUMBER_REGEX = /^\d{10,12}$/
 const PRIMARY_PHONE_NUMBER_REGEX = /^\d{10}$/
 const PINCODE_REGEX = /^\d{6}$/
@@ -332,6 +332,25 @@ const parseLocalYMDDate = (value) => {
   return new Date(year, month - 1, day)
 }
 
+/**
+ * Ray-casting point-in-polygon check for frontend validation.
+ */
+const isPointInPolygon = (lat, lng, polygon) => {
+  if (!Array.isArray(polygon) || polygon.length < 3) return false
+  let inside = false
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = Number(polygon[i].longitude || polygon[i].lng)
+    const yi = Number(polygon[i].latitude || polygon[i].lat)
+    const xj = Number(polygon[j].longitude || polygon[j].lng)
+    const yj = Number(polygon[j].latitude || polygon[j].lat)
+    const intersect =
+      yi > lat !== yj > lat &&
+      lng < ((xj - xi) * (lat - yi)) / (yj - yi + 0.0) + xi
+    if (intersect) inside = !inside
+  }
+  return inside
+}
+
 function TimeSelector({ label, value, onChange }) {
   const timeValue = stringToTime(value)
 
@@ -396,7 +415,7 @@ function TimeSelector({ label, value, onChange }) {
 export default function RestaurantOnboarding() {
   const companyName = useCompanyName()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -506,6 +525,15 @@ export default function RestaurantOnboarding() {
     fallbackInputRef: null,
   })
 
+  const goToStep = (nextStep, options = {}) => {
+    const normalizedStep = Math.min(4, Math.max(1, Number(nextStep) || 1))
+    const shouldReplace = options.replace === true
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.set("step", String(normalizedStep))
+    setStep(normalizedStep)
+    setSearchParams(nextParams, { replace: shouldReplace })
+  }
+
   const getPreviewImageUrl = (value) => {
     if (!value) return null
     if (typeof value === "string") return value
@@ -598,6 +626,8 @@ export default function RestaurantOnboarding() {
       if (stepNum >= 1 && stepNum <= 4) {
         setStep(stepNum)
       }
+    } else {
+      goToStep(1, { replace: true })
     }
 
     const localData = loadOnboardingFromLocalStorage()
@@ -688,7 +718,7 @@ export default function RestaurantOnboarding() {
       // Only set step from localStorage if URL doesn't have a step parameter
       if (localData.currentStep && !stepParam) {
         hasRestoredDraftStepRef.current = true
-        setStep(localData.currentStep)
+        goToStep(localData.currentStep, { replace: true })
       }
     }
   }, [searchParams])
@@ -826,10 +856,10 @@ export default function RestaurantOnboarding() {
           if (!stepParam && !hasRestoredDraftStepRef.current) {
             // If already registered/pending, stay on step 1 for editing
             if (data.status === "approved" || data.status === "pending") {
-               setStep(1)
+               goToStep(1, { replace: true })
             } else {
                const stepToShow = determineStepToShow({ step1: data, step2: data, step3: data, step4: data })
-               setStep(stepToShow)
+               goToStep(stepToShow, { replace: true })
             }
           }
         } else {
@@ -881,7 +911,7 @@ export default function RestaurantOnboarding() {
     if (!step1.ownerEmail?.trim()) {
       errors.push("Owner email is required")
     } else if (!OWNER_EMAIL_REGEX.test(step1.ownerEmail.trim())) {
-      errors.push("Email must be a valid @gmail.com address")
+      errors.push("Please enter a valid email address")
     }
     if (!step1.ownerPhone?.trim()) {
       errors.push("Owner phone number is required")
@@ -909,6 +939,21 @@ export default function RestaurantOnboarding() {
       errors.push("Pincode is required")
     } else if (!PINCODE_REGEX.test(step1.location.pincode.trim())) {
       errors.push("Pincode must contain exactly 6 digits")
+    }
+
+    // Geofencing Validation: Ensure coordinates are inside the selected zone
+    if (step1.zoneId && step1.location?.latitude && step1.location?.longitude) {
+      const selectedZone = zones.find((z) => String(z._id || z.id) === step1.zoneId)
+      if (selectedZone && Array.isArray(selectedZone.coordinates) && selectedZone.coordinates.length >= 3) {
+        const isInside = isPointInPolygon(
+          Number(step1.location.latitude),
+          Number(step1.location.longitude),
+          selectedZone.coordinates,
+        )
+        if (!isInside) {
+          errors.push("Selected address is outside the selected zone")
+        }
+      }
     }
 
     return errors
@@ -1126,13 +1171,13 @@ export default function RestaurantOnboarding() {
     setSaving(true)
     try {
       if (step === 1) {
-        setStep(2)
+        goToStep(2)
         window.scrollTo({ top: 0, behavior: "instant" })
       } else if (step === 2) {
-        setStep(3)
+        goToStep(3)
         window.scrollTo({ top: 0, behavior: "instant" })
       } else if (step === 3) {
-        setStep(4)
+        goToStep(4)
         window.scrollTo({ top: 0, behavior: "instant" })
       } else if (step === 4) {
         // Final submit: create restaurant in DB using backend multipart endpoint.
@@ -1263,7 +1308,10 @@ export default function RestaurantOnboarding() {
             <Label className="text-xs text-gray-700">Restaurant name*</Label>
             <Input
               value={step1.restaurantName || ""}
-              onChange={(e) => setStep1({ ...step1, restaurantName: e.target.value })}
+              onChange={(e) => {
+                const val = e.target.value.replace(/[^A-Za-z ]/g, "")
+                setStep1({ ...step1, restaurantName: val })
+              }}
               className="mt-1 bg-white text-sm text-black placeholder-black"
               placeholder="Customers will see this name"
               disabled={!isEditing}
@@ -1312,7 +1360,10 @@ export default function RestaurantOnboarding() {
             <Label className="text-xs text-gray-700">Full name*</Label>
             <Input
               value={step1.ownerName || ""}
-              onChange={(e) => setStep1({ ...step1, ownerName: e.target.value })}
+              onChange={(e) => {
+                const val = e.target.value.replace(/[^A-Za-z ]/g, "")
+                setStep1({ ...step1, ownerName: val })
+              }}
               className="mt-1 bg-white text-sm text-black placeholder-black"
               placeholder="Owner full name"
               disabled={!isEditing}
@@ -1613,20 +1664,48 @@ export default function RestaurantOnboarding() {
       placesAutocompleteRef.current.addListener("place_changed", () => {
         const place = placesAutocompleteRef.current.getPlace()
         const parsed = parsePlace(place)
-        setStep1((prev) => ({
-          ...prev,
-          location: {
-            ...prev.location,
-            formattedAddress: parsed.formattedAddress || prev.location.formattedAddress,
-            addressLine1: prev.location.addressLine1 || parsed.formattedAddress || "",
-            area: parsed.area || prev.location.area,
-            city: parsed.city || prev.location.city,
-            state: parsed.state || prev.location.state,
-            pincode: parsed.pincode || prev.location.pincode,
-            latitude: parsed.latitude !== "" ? parsed.latitude : prev.location.latitude,
-            longitude: parsed.longitude !== "" ? parsed.longitude : prev.location.longitude,
-          },
-        }))
+
+        // Immediate Geofencing Check
+        setStep1((prev) => {
+          if (prev.zoneId && parsed.latitude && parsed.longitude) {
+            // Access latest zones from state
+            const selectedZone = zones.find((z) => String(z._id || z.id) === prev.zoneId)
+            if (
+              selectedZone &&
+              Array.isArray(selectedZone.coordinates) &&
+              selectedZone.coordinates.length >= 3
+            ) {
+              const isInside = isPointInPolygon(
+                Number(parsed.latitude),
+                Number(parsed.longitude),
+                selectedZone.coordinates,
+              )
+              if (!isInside) {
+                toast.error("Selected address is outside the selected zone")
+                // Clear search input if outside
+                if (locationSearchInputRef.current) {
+                  locationSearchInputRef.current.value = ""
+                }
+                return prev
+              }
+            }
+          }
+
+          return {
+            ...prev,
+            location: {
+              ...prev.location,
+              formattedAddress: parsed.formattedAddress || prev.location.formattedAddress,
+              addressLine1: prev.location.addressLine1 || parsed.formattedAddress || "",
+              area: parsed.area || prev.location.area,
+              city: parsed.city || prev.location.city,
+              state: parsed.state || prev.location.state,
+              pincode: parsed.pincode || prev.location.pincode,
+              latitude: parsed.latitude !== "" ? parsed.latitude : prev.location.latitude,
+              longitude: parsed.longitude !== "" ? parsed.longitude : prev.location.longitude,
+            },
+          }
+        })
       })
     }
 
@@ -2385,7 +2464,7 @@ export default function RestaurantOnboarding() {
             <button
               onClick={() => {
                 if (step > 1) {
-                  setStep((s) => s - 1)
+                  goToStep(step - 1)
                   window.scrollTo({ top: 0, behavior: "instant" })
                 } else {
                   handleLogout()
@@ -2475,7 +2554,7 @@ export default function RestaurantOnboarding() {
             <Button
               variant="ghost"
               disabled={step === 1 || saving}
-              onClick={() => { setStep((s) => Math.max(1, s - 1)); window.scrollTo({ top: 0, behavior: "instant" }) }}
+              onClick={() => { goToStep(step - 1); window.scrollTo({ top: 0, behavior: "instant" }) }}
               className="text-sm text-gray-700 bg-transparent"
             >
               Back

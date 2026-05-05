@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from "react-router-dom"
+import { Routes, Route, Navigate, useLocation } from "react-router-dom"
 import UserLayout from "./UserLayout"
 import { Suspense, lazy } from "react"
 import Loader from "@food/components/Loader"
@@ -85,6 +85,7 @@ const Wallet = lazy(() => import("@food/pages/user/Wallet"))
 const SubmitComplaint = lazy(() => import("@food/pages/user/complaints/SubmitComplaint"))
 
 export default function UserRouter() {
+  const location = useLocation()
   return (
     <Suspense fallback={<Loader />}>
       <Routes>
@@ -267,8 +268,8 @@ export default function UserRouter() {
           <Route path="profile/cancellation" element={<Cancellation />} />
 
           {/* Auth - User login is centralized at /user/auth/login */}
-          <Route path="auth/login" element={<Navigate to="/user/auth/login" replace />} />
-          <Route path="auth/sign-in" element={<Navigate to="/user/auth/login" replace />} />
+          <Route path="auth/login" element={<Navigate to={`/user/auth/login${location.search}`} replace />} />
+          <Route path="auth/sign-in" element={<Navigate to={`/user/auth/login${location.search}`} replace />} />
           <Route path="auth/otp" element={<OTP />} />
           <Route path="auth/callback" element={<AuthCallback />} />
 

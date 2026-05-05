@@ -21,6 +21,24 @@ export const WishlistProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [isFullDataFetched, setIsFullDataFetched] = useState(false);
 
+  const shrinkWishlistItem = (item) => {
+    if (!item) return null;
+    return {
+      id: item.id || item._id,
+      _id: item._id || item.id,
+      name: item.name,
+      price: Number(item.price || 0),
+      salePrice: Number(item.salePrice || 0),
+      originalPrice: Number(item.originalPrice || item.mrp || item.price || 0),
+      image: item.image || item.mainImage,
+      mainImage: item.mainImage || item.image,
+      weight: item.weight,
+      unit: item.unit,
+      deliveryTime: item.deliveryTime,
+      discount: item.discount,
+    };
+  };
+
   // Fetch wishlist from backend on mount or authentication change
   const fetchWishlistIds = async () => {
     if (isAuthenticated) {
@@ -88,7 +106,23 @@ export const WishlistProvider = ({ children }) => {
   // Save local wishlist to localStorage (fallback/guest mode)
   useEffect(() => {
     if (!isAuthenticated) {
-      localStorage.setItem("wishlist", JSON.stringify(wishlist));
+      try {
+        const shrunkWishlist = wishlist.map(shrinkWishlistItem).filter(Boolean);
+        localStorage.setItem("wishlist", JSON.stringify(shrunkWishlist));
+      } catch (error) {
+        if (error.name === "QuotaExceededError") {
+          console.warn("Wishlist storage quota exceeded. Attempting to clear space...");
+          try {
+            localStorage.removeItem("recent_searches");
+            localStorage.removeItem("search_history");
+            localStorage.removeItem("appzeto_recent_searches");
+            localStorage.removeItem("user_recent_searches_v1");
+          } catch (e) {
+            // ignore cleanup errors
+          }
+        }
+        console.error("Failed to save wishlist to localStorage", error);
+      }
     }
   }, [wishlist, isAuthenticated]);
 

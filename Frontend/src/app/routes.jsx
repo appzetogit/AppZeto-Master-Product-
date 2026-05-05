@@ -147,12 +147,12 @@ const AppRoutes = () => {
   return (
     <Routes>
         {/* Root now lands on the portal page */}
-        <Route path="/" element={<Navigate to="/user/auth/portal" replace />} />
+        <Route path="/" element={<Navigate to={`/user/auth/portal${location.search}`} replace />} />
 
         {/* Auth Module */}
         <Route path="/user/auth/*" element={<AuthApp />} />
-        <Route path="/portal" element={<Navigate to="/user/auth/portal" replace />} />
-        <Route path="/login" element={<Navigate to="/user/auth/login" replace />} />
+        <Route path="/portal" element={<Navigate to={`/user/auth/portal${location.search}`} replace />} />
+        <Route path="/login" element={<Navigate to={`/user/auth/login${location.search}`} replace />} />
 
         {/* Shared home entry so /food/user <-> /quick doesn't remount through different app trees */}
         <Route path="/food/user" element={<SharedFoodHomeRoute />} />
@@ -169,7 +169,8 @@ const AppRoutes = () => {
           }
         />
 
-        {/* Quick storefront - handled by QuickCommerceApp below which has its own CartProvider */}
+        {/* Quick storefront landing keeps the shared food layout */}
+        <Route path="/quick" element={<SharedFoodHomeRoute />} />
 
         {/* Global shared cart */}
         <Route

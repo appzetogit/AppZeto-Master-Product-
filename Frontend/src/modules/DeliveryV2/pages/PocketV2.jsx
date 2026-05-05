@@ -4,7 +4,7 @@ import {
   Wallet, IndianRupee, ArrowRight,
   ShieldCheck, AlertTriangle, HelpCircle,
   Receipt, FileText, LayoutGrid, X, ChevronRight,
-  Sparkles, Loader2
+  Sparkles, Loader2, Gift
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { deliveryAPI } from '@food/api';
@@ -30,6 +30,7 @@ export const PocketV2 = () => {
     weeklyOrders: 0,
     payoutAmount: 0,
     payoutPeriod: 'Current Week',
+    totalBonus: 0,
     bankDetailsFilled: false
   });
 
@@ -77,6 +78,7 @@ export const PocketV2 = () => {
           weeklyOrders: Number(summary.totalOrders) || 0,
           payoutAmount: Number(wallet.lastPayout?.amount || wallet.totalWithdrawn || 0),
           payoutPeriod: wallet.lastPayout ? new Date(wallet.lastPayout.date).toLocaleDateString() : 'No recent payout',
+          totalBonus: Number(wallet.totalBonus) || 0,
           bankDetailsFilled: isFilled
         });
 
@@ -371,6 +373,22 @@ export const PocketV2 = () => {
                       <Receipt className="w-5 h-5" />
                    </div>
                    <p className="text-sm font-bold text-gray-800 leading-tight">Limit Settlement</p>
+                </div>
+             </div>
+
+             {/* Referral Bonus Row */}
+             <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between active:bg-gray-50 transition-all" onClick={() => navigate('/food/delivery/pocket/balance')}>
+                <div className="flex items-center gap-4">
+                   <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center text-green-600 border border-green-100">
+                      <Gift className="w-6 h-6" />
+                   </div>
+                   <div>
+                      <span className="text-sm font-bold text-gray-800 block">Referral Bonus</span>
+                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tight">Earned Rewards</p>
+                   </div>
+                </div>
+                <div className="text-right">
+                   <p className="text-lg font-black text-green-600">+{formatCurrency(walletState.totalBonus)}</p>
                 </div>
              </div>
 

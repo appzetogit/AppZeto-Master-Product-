@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { useNavigate, Link } from "react-router-dom"
+import { useNavigate, Link, useLocation } from "react-router-dom"
 import {
   Select,
   SelectContent,
@@ -23,6 +23,9 @@ const countryCodes = [
 export default function DeliverySignIn() {
   const companyName = useCompanyName()
   const navigate = useNavigate()
+  const location = useLocation()
+  const searchParams = new URLSearchParams(location.search)
+  const referralCode = searchParams.get("ref") || ""
   const [formData, setFormData] = useState({
     phone: "",
     countryCode: "+91",
@@ -101,6 +104,16 @@ export default function DeliverySignIn() {
         module: "delivery",
       }
       sessionStorage.setItem("deliveryAuthData", JSON.stringify(authData))
+      
+      if (referralCode) {
+        try {
+          const existingSignupDetails = JSON.parse(sessionStorage.getItem("deliverySignupDetails") || "{}")
+          sessionStorage.setItem("deliverySignupDetails", JSON.stringify({
+            ...existingSignupDetails,
+            ref: referralCode
+          }))
+        } catch (e) {}
+      }
 
       // Navigate to OTP page
       navigate("/food/delivery/otp")

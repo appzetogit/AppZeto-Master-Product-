@@ -24,7 +24,9 @@ export const getDeliveryReferralStats = async (deliveryPartnerId) => {
     return {
         referralCount: Number(partner?.referralCount) || 0,
         totalReferralEarnings,
-        rewardAmount: Math.max(0, Number(settingsDoc?.referralRewardDelivery) || 0)
+        rewardAmount: Math.max(0, Number(settingsDoc?.delivery?.referrerReward) || 0),
+        referrerRewardAmount: Math.max(0, Number(settingsDoc?.delivery?.referrerReward) || 0),
+        refereeRewardAmount: Math.max(0, Number(settingsDoc?.delivery?.refereeReward) || 0)
     };
 };
 

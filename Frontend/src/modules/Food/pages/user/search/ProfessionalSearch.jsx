@@ -39,7 +39,8 @@ const SEARCH_HISTORY_KEY = "professional_search_history_v1"
 
 export default function ProfessionalSearch() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const initialQuery = searchParams.get("q") || ""
+  const location = useRouterLocation()
+  const initialQuery = location.state?.query || searchParams.get("q") || ""
   const navigate = useNavigate()
   const { location: userCoords } = useGeoLocation()
   const { zoneId } = useZone(userCoords)

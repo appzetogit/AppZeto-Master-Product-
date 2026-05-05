@@ -18,6 +18,7 @@ import {
   Soup,
   Coffee,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Switch } from "@food/components/ui/switch";
 import {
   Popover,
@@ -153,6 +154,7 @@ export default function HomeHeader({
   bannerComponent,
 }) {
   const navigate = useNavigate();
+  const [isListening, setIsListening] = useState(false);
   const routerLocation = useRouterLocation();
   const videoRef = useRef(null);
   const [notifications, setNotifications] = useState(() => {
@@ -237,6 +239,35 @@ export default function HomeHeader({
       window.dispatchEvent(new CustomEvent("notificationsUpdated"));
       return next;
     });
+  };
+
+  const handleVoiceSearch = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Voice search is not supported in this browser.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-IN';
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => setIsListening(false);
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      if (transcript) {
+        if (activeTab === "quick") {
+          navigate("/quick/search", { state: { query: transcript } });
+        } else {
+          // For food search, we might need to trigger the overlay or redirect to a dedicated search page
+          // Based on Home.jsx, it opens an overlay. But we can redirect to the search page if available.
+          navigate("/food/user/search", { state: { query: transcript } });
+        }
+      }
+    };
+    recognition.start();
   };
 
   return (
@@ -472,8 +503,7 @@ export default function HomeHeader({
       <div className="relative z-10 pt-3 pb-1 px-3 -mt-[1px] overflow-hidden">
         {isFood && <div className="absolute inset-0 bg-gradient-to-b from-black/25 to-transparent pointer-events-none" />}
         <div className="flex items-center gap-2 mb-2">
-          <button
-            type="button"
+          <div
             className="flex-1 rounded-[12px] h-[46px] flex items-center px-3 cursor-pointer relative overflow-hidden bg-white shadow-[0_6px_18px_rgba(15,23,42,0.10)] border-0 text-left"
             onClick={handleSearchFocus}
           >
@@ -495,11 +525,18 @@ export default function HomeHeader({
             </div>
             <div className="flex items-center gap-1.5">
               <div className="w-[1px] h-[16px] bg-orange-200" />
-              <div className="h-[28px] w-[28px] rounded-full flex items-center justify-center bg-orange-50">
-                <Mic className="h-[14px] w-[14px] text-[#F6881F]" strokeWidth={2.3} />
-              </div>
+              <button
+                type="button"
+                onClick={handleVoiceSearch}
+                className={cn(
+                  "h-[28px] w-[28px] rounded-full flex items-center justify-center transition-all",
+                  isListening ? "bg-orange-500 scale-110 animate-pulse" : "bg-orange-50 hover:bg-orange-100"
+                )}
+              >
+                <Mic className={cn("h-[14px] w-[14px]", isListening ? "text-white" : "text-[#F6881F]")} strokeWidth={2.3} />
+              </button>
             </div>
-          </button>
+          </div>
 
           {isFood ? (
             <div className="px-2 flex flex-col items-center justify-center min-w-[64px]">
@@ -519,6 +556,7 @@ export default function HomeHeader({
             <button
               type="button"
               className="rounded-[16px] h-[52px] w-[52px] flex items-center justify-center shadow-xl bg-white"
+              onClick={() => navigate("/quick/wishlist")}
             >
               <Bookmark className="h-[22px] w-[22px]" style={{ color: theme.accent }} />
             </button>

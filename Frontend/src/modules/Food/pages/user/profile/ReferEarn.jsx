@@ -78,7 +78,7 @@ export default function ReferEarn() {
     };
   }, []);
 
-  const refId = userProfile?._id || userProfile?.id || userProfile?.referralCode || "";
+  const refId = userProfile?.referralCode || userProfile?._id || userProfile?.id || "";
   const referralLink = refId
     ? `${window.location.origin}/food/user/auth/login?ref=${encodeURIComponent(String(refId))}`
     : "";

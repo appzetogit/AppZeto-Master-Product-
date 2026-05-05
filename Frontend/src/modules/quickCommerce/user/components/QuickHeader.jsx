@@ -8,7 +8,7 @@ import {
   buildMiniCartColor, 
   buildSearchBarBackgroundColor 
 } from '../utils/headerTheme';
-import { getQuickCartPath, getQuickHomePath, getQuickSearchPath, getQuickWalletPath } from '../utils/routes';
+import { getQuickCartPath, getQuickHomePath, getQuickSearchPath, getQuickWalletPath, getQuickWishlistPath } from '../utils/routes';
 import { resolveQuickImageUrl } from '../utils/image';
 import logo from '../assets/Logo.png';
 import { useCart } from '../context/CartContext';
@@ -154,8 +154,32 @@ export default function QuickHeader({ showSearch = true, activeCategory = null, 
     navigate(getQuickSearchPath(pathname));
   };
 
+  const handleVoiceSearch = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Voice search is not supported in this browser.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-IN';
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => setIsListening(false);
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      if (transcript) {
+        navigate(getQuickSearchPath(pathname), { state: { query: transcript } });
+      }
+    };
+    recognition.start();
+  };
+
   // Search placeholder animation
   const [searchPlaceholder, setSearchPlaceholder] = useState("Search ");
+  const [isListening, setIsListening] = useState(false);
   const [typingState, setTypingState] = useState({
     textIndex: 0,
     charIndex: 0,
@@ -294,7 +318,16 @@ export default function QuickHeader({ showSearch = true, activeCategory = null, 
                    <span className="opacity-60 text-[15px]">{searchPlaceholder}</span>
               </div>
               <div className="flex items-center gap-2 border-l border-white/10 pl-3">
-                <MicIcon sx={{ color: "#ffffff", fontSize: 20 }} />
+                <button
+                  type="button"
+                  onClick={handleVoiceSearch}
+                  className={cn(
+                    "p-1.5 rounded-full transition-all",
+                    isListening ? "bg-white text-[#0c831f] scale-110 animate-pulse" : "text-white hover:bg-white/10"
+                  )}
+                >
+                  <MicIcon sx={{ color: "inherit", fontSize: 20 }} />
+                </button>
               </div>
             </motion.div>
           </div>
@@ -304,6 +337,7 @@ export default function QuickHeader({ showSearch = true, activeCategory = null, 
             <motion.button
               whileHover={{ scale: 1.15, rotate: 5 }}
               whileTap={{ scale: 0.9 }}
+              onClick={() => navigate(getQuickWishlistPath(pathname))}
               className="text-white hover:text-white/80 transition-all">
               <FavoriteBorderOutlinedIcon sx={{ fontSize: 24 }} />
             </motion.button>
@@ -397,7 +431,16 @@ export default function QuickHeader({ showSearch = true, activeCategory = null, 
                 <span className="opacity-60 text-[14px]">{searchPlaceholder}</span>
             </div>
             <div className="flex items-center gap-2 border-l border-white/10 pl-2.5">
-              <MicIcon sx={{ color: "#ffffff", fontSize: 18 }} />
+              <button
+                type="button"
+                onClick={handleVoiceSearch}
+                className={cn(
+                  "p-1 rounded-full transition-all",
+                  isListening ? "bg-white text-[#0c831f] scale-110 animate-pulse" : "text-white hover:bg-white/10"
+                )}
+              >
+                <MicIcon sx={{ color: "inherit", fontSize: 18 }} />
+              </button>
             </div>
           </motion.div>
         </div>

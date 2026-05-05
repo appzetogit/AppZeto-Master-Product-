@@ -20,7 +20,9 @@ export const getUserReferralStats = async (userId) => {
     return {
         referralCount: Number(user?.referralCount) || 0,
         totalReferralEarnings: Number(wallet?.referralEarnings) || 0,
-        rewardAmount: Math.max(0, Number(settingsDoc?.referralRewardUser) || 0)
+        rewardAmount: Math.max(0, Number(settingsDoc?.user?.referrerReward) || 0),
+        referrerRewardAmount: Math.max(0, Number(settingsDoc?.user?.referrerReward) || 0),
+        refereeRewardAmount: Math.max(0, Number(settingsDoc?.user?.refereeReward) || 0)
     };
 };
 
@@ -89,7 +91,9 @@ export const getUserReferralDetails = async (userId) => {
         stats: {
             referralCount: Number(user?.referralCount) || 0,
             totalReferralEarnings: Number(wallet?.referralEarnings) || 0,
-            rewardAmount: Math.max(0, Number(settingsDoc?.referralRewardUser) || 0),
+            rewardAmount: Math.max(0, Number(settingsDoc?.user?.referrerReward) || 0),
+            referrerRewardAmount: Math.max(0, Number(settingsDoc?.user?.referrerReward) || 0),
+            refereeRewardAmount: Math.max(0, Number(settingsDoc?.user?.refereeReward) || 0),
             totalInvited,
             creditedCount,
             pendingCount,

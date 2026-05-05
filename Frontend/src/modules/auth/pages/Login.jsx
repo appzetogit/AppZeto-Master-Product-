@@ -19,6 +19,9 @@ export default function UnifiedOTPFastLogin() {
   const [nameError, setNameError] = useState("")
   const location = useLocation()
   const navigate = useNavigate()
+  const searchParams = new URLSearchParams(location.search)
+  const referralCode = searchParams.get("ref") || ""
+  
   const submitting = useRef(false)
   const redirectTo = typeof location.state?.redirectTo === "string" && location.state.redirectTo.trim()
     ? location.state.redirectTo.trim()
@@ -136,7 +139,18 @@ export default function UnifiedOTPFastLogin() {
         console.warn("Failed to get FCM token during login", e);
       }
 
-      const response = await authAPI.verifyOTP(phoneNumber, otpDigits, "login", null, null, "user", null, null, fcmToken, platform)
+      const response = await authAPI.verifyOTP(
+        phoneNumber, 
+        otpDigits, 
+        "login", 
+        null, 
+        null, 
+        "user", 
+        null, 
+        referralCode, 
+        fcmToken, 
+        platform
+      )
       const data = response?.data?.data || response?.data || {}
       const accessToken = data.accessToken
       const refreshToken = data.refreshToken || null

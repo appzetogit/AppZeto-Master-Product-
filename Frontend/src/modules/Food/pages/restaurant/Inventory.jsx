@@ -797,6 +797,7 @@ export default function Inventory() {
   const touchEndX = useRef(0)
   const touchStartY = useRef(0)
   const isSwiping = useRef(false)
+  const blockTabSwipeRef = useRef(false)
   const mouseStartX = useRef(0)
   const mouseEndX = useRef(0)
   const isMouseDown = useRef(false)
@@ -824,9 +825,11 @@ export default function Inventory() {
 
   // Inventory tabs
   const inventoryTabs = ["all-items", "add-ons"]
+  const isPureVegRestaurant = restaurantProfile?.pureVegRestaurant === true
 
   // Tab bar ref for excluding swipe on topbar
   const tabBarRef = useRef(null)
+  const filterChipsRef = useRef(null)
 
   // Content container ref
   const contentContainerRef = useRef(null)
@@ -1175,20 +1178,42 @@ export default function Inventory() {
   // Handle swipe gestures
   const handleTouchStart = (e) => {
     const target = e.target
+    const startX = e.touches[0].clientX
+    const viewportWidth =
+      typeof window !== "undefined" ? window.innerWidth || document.documentElement.clientWidth || 0 : 0
+    const edgeThreshold = 28
+
+    blockTabSwipeRef.current = false
+
+    // Let native Android/iOS edge-back gestures win instead of switching inventory tabs.
+    if (
+      startX <= edgeThreshold ||
+      (viewportWidth > 0 && startX >= viewportWidth - edgeThreshold)
+    ) {
+      blockTabSwipeRef.current = true
+      return
+    }
+
     // Don't handle swipe if starting on topbar
     if (
       tabBarRef.current?.contains(target) || 
+      filterChipsRef.current?.contains(target) ||
       target.closest('.overflow-x-auto') || 
       target.closest('.scrollbar-hide')
-    ) return
+    ) {
+      blockTabSwipeRef.current = true
+      return
+    }
 
-    touchStartX.current = e.touches[0].clientX
+    touchStartX.current = startX
     touchStartY.current = e.touches[0].clientY
     touchEndX.current = e.touches[0].clientX
     isSwiping.current = false
   }
 
   const handleTouchMove = (e) => {
+    if (blockTabSwipeRef.current) return
+
     if (!isSwiping.current) {
       const deltaX = Math.abs(e.touches[0].clientX - touchStartX.current)
       const deltaY = Math.abs(e.touches[0].clientY - touchStartY.current)
@@ -1205,6 +1230,15 @@ export default function Inventory() {
   }
 
   const handleTouchEnd = () => {
+    if (blockTabSwipeRef.current) {
+      touchStartX.current = 0
+      touchEndX.current = 0
+      touchStartY.current = 0
+      isSwiping.current = false
+      blockTabSwipeRef.current = false
+      return
+    }
+
     if (!isSwiping.current) {
       touchStartX.current = 0
       touchEndX.current = 0
@@ -1247,6 +1281,7 @@ export default function Inventory() {
     touchEndX.current = 0
     touchStartY.current = 0
     isSwiping.current = false
+    blockTabSwipeRef.current = false
   }
 
   // Persist categories to localStorage whenever they change
@@ -1339,10 +1374,11 @@ export default function Inventory() {
     [categories]
   )
 
-  const activeFilterOptions = useMemo(
-    () => (activeTab === "add-ons" ? ADDON_FILTER_OPTIONS : MENU_FILTER_OPTIONS),
-    [activeTab]
-  )
+  const activeFilterOptions = useMemo(() => {
+    if (activeTab === "add-ons") return ADDON_FILTER_OPTIONS
+    if (!isPureVegRestaurant) return MENU_FILTER_OPTIONS
+    return MENU_FILTER_OPTIONS.filter((option) => option.value !== "non-veg")
+  }, [activeTab, isPureVegRestaurant])
 
   useEffect(() => {
     if (!activeFilterOptions.some((option) => option.value === selectedFilter)) {
@@ -2022,18 +2058,12 @@ export default function Inventory() {
                 )}
               </button>
 
-              {activeTab === "add-ons" && (
-                <button
-                  onClick={() => setIsAddAddonOpen((v) => !v)}
-                  className="h-10 rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white shadow-[0_18px_32px_-24px_rgba(15,23,42,0.85)] transition-colors hover:bg-slate-800"
-                  style={{ minWidth: "128px" }}
-                >
-                  {isAddAddonOpen ? "Close" : "Add Add-on"}
-                </button>
-              )}
             </div>
 
-            <div className="mt-4 flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+            <div
+              ref={filterChipsRef}
+              className="inventory-filter-scroll mt-4 flex gap-2 overflow-x-auto scrollbar-hide pb-1"
+            >
               {activeFilterOptions.map((option) => {
                 const count = activeTab === "add-ons"
                   ? (addonFilterCounts[option.value] || 0)
@@ -2746,20 +2776,22 @@ export default function Inventory() {
         onConfirm={handleTimePickerConfirm}
       />
 
+      {/* Floating Action Buttons */}
+      {activeTab === "add-ons" && (
+        <div className="fixed right-4 bottom-28 z-30 flex flex-col items-end gap-2">
+          <motion.button
+            whileTap={{ scale: 0.96 }}
+            onClick={() => setIsAddAddonOpen((prev) => !prev)}
+            className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-[0_22px_40px_-24px_rgba(15,23,42,0.85)]"
+          >
+            {isAddAddonOpen ? "Close Add Add-on" : "Add Add-on"}
+          </motion.button>
+        </div>
+      )}
+
       {/* Floating Menu Button & Popup (hidden on Add-ons tab) */}
       {activeTab !== "add-ons" && (
         <div className="fixed right-4 bottom-24 z-30 flex flex-col items-end gap-2">
-          <motion.button
-            whileTap={{ scale: 0.96 }}
-            onClick={() => {
-              setActiveTab("add-ons")
-              setIsAddAddonOpen(true)
-              window.scrollTo({ top: 0, behavior: 'smooth' })
-            }}
-            className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-[0_22px_40px_-24px_rgba(15,23,42,0.85)]"
-          >
-            Add Add-on
-          </motion.button>
           <motion.button
             whileTap={{ scale: 0.96 }}
             onClick={handleAddItem}

@@ -6,12 +6,19 @@ export default function BottomNavigation() {
   const location = useLocation()
   const { isAuthenticated } = useAuth()
   const pathname = location.pathname
+  const profileSource = new URLSearchParams(location.search).get("from")
   const redirectTo = `${location.pathname || "/food/user"}${location.search || ""}${location.hash || ""}`
 
   // Check active routes - support both /user/* and /* paths
   const isDining = pathname === "/food/dining" || pathname.startsWith("/food/user/dining")
   const isUnder250 = pathname === "/food/under-250" || pathname.startsWith("/food/user/under-250")
-  const isProfile = pathname.startsWith("/food/profile") || pathname.startsWith("/food/user/profile")
+  const isSharedFoodProfile =
+    (pathname === "/profile" || pathname.startsWith("/profile/")) &&
+    profileSource !== "quick"
+  const isProfile =
+    pathname.startsWith("/food/profile") ||
+    pathname.startsWith("/food/user/profile") ||
+    isSharedFoodProfile
   const isDelivery =
     !isDining &&
     !isUnder250 &&

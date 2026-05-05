@@ -3924,6 +3924,20 @@ export async function addDeliveryPartnerBonus(body, adminUser) {
         createdByAdminId: adminUser?._id
     });
 
+    const bonusAmount = Math.max(0, Number(body.amount) || 0);
+    if (bonusAmount > 0) {
+        await FoodDeliveryWallet.findOneAndUpdate(
+            { deliveryPartnerId: body.deliveryPartnerId },
+            {
+                $inc: {
+                    balance: bonusAmount,
+                    totalBonus: bonusAmount
+                }
+            },
+            { upsert: true }
+        );
+    }
+
     try {
         const { notifyOwnerSafely } = await import('../../../../core/notifications/firebase.service.js');
         await notifyOwnerSafely(

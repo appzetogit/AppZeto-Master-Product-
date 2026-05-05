@@ -62,6 +62,7 @@ export default function EditFoodPage() {
   const [showMenu, setShowMenu] = useState(false)
   const [menuSections, setMenuSections] = useState([])
   const [availableCategories, setAvailableCategories] = useState([])
+  const [isPureVegRestaurant, setIsPureVegRestaurant] = useState(false)
 
   // Lenis smooth scrolling
   useEffect(() => {
@@ -204,6 +205,33 @@ export default function EditFoodPage() {
       isMounted = false
     }
   }, [isNewFood])
+
+  useEffect(() => {
+    let isMounted = true
+
+    const fetchRestaurantProfile = async () => {
+      try {
+        const response = await restaurantAPI.getCurrentRestaurant()
+        const profile =
+          response?.data?.data?.restaurant ||
+          response?.data?.restaurant ||
+          response?.data?.data ||
+          null
+        if (!isMounted) return
+        const pureVeg = profile?.pureVegRestaurant === true
+        setIsPureVegRestaurant(pureVeg)
+        if (pureVeg) {
+          setFormData((prev) => ({ ...prev, foodType: "Veg" }))
+        }
+      } catch {}
+    }
+
+    fetchRestaurantProfile()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const [newTag, setNewTag] = useState("")
   const [newNutrition, setNewNutrition] = useState("")
@@ -588,7 +616,7 @@ export default function EditFoodPage() {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff8100] focus:border-transparent outline-none"
                   >
                     <option value="Veg">Veg</option>
-                    <option value="Non-Veg">Non-Veg</option>
+                    {!isPureVegRestaurant && <option value="Non-Veg">Non-Veg</option>}
                   </select>
                 </div>
               </div>

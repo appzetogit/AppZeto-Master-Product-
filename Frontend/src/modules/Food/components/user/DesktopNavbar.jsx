@@ -57,10 +57,17 @@ export default function DesktopNavbar({ showLogo = true }) {
         location.pathname.length > 1
             ? location.pathname.replace(/\/+$/, "")
             : location.pathname
+    const profileSource = new URLSearchParams(location.search).get("from")
     const isQuick = normalizedPath === "/quick" || normalizedPath.startsWith("/quick/")
     const isDining = location.pathname === "/food/user/dining" || location.pathname === "/food/dining"
     const isUnder250 = location.pathname === "/food/user/under-250" || location.pathname === "/food/under-250"
-    const isProfile = location.pathname.startsWith("/food/user/profile") || location.pathname.startsWith("/food/profile")
+    const isSharedFoodProfile =
+        (normalizedPath === "/profile" || normalizedPath.startsWith("/profile/")) &&
+        profileSource !== "quick"
+    const isProfile =
+        location.pathname.startsWith("/food/user/profile") ||
+        location.pathname.startsWith("/food/profile") ||
+        isSharedFoodProfile
     const isDelivery = !isDining && !isUnder250 && !isProfile && !isQuick && (location.pathname === "/food/user" || location.pathname === "/food" || (location.pathname.startsWith("/food/user") && !location.pathname.includes("/dining") && !location.pathname.includes("/under-250") && !location.pathname.includes("/profile")))
     const isBannerRoute =
         location.pathname === "/food/user" ||

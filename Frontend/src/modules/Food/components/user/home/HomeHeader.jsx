@@ -68,26 +68,29 @@ const withAlpha = (hex, alpha) => {
 };
 
 const quickTheme = (baseColor) => {
-  const base = normalizeHex(baseColor, "#67c6f5");
+  const base = normalizeHex(baseColor, "#2f7a46");
   return {
-    topBg: `linear-gradient(140deg, ${withAlpha(base, 0.96)} 0%, ${withAlpha(base, 0.78)} 100%)`,
+    topBg: `linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.25) 100%), ${base}`,
     accent: base,
     text: "#ffffff",
-    activeBg: "#ffffff",
-    activeText: base,
-    inactiveBg: withAlpha("#ffffff", 0.18),
-    inactiveBorder: withAlpha("#ffffff", 0.2),
+    activeBg: base,
+    activeText: "#ffffff",
+    inactiveBg: "rgba(0,0,0,0.3)",
+    inactiveBorder: "rgba(255,255,255,0.08)",
   };
 };
 
-const foodTheme = {
-  topBg: "transparent",
-  accent: "#F6881F",
-  text: "#ffffff",
-  activeBg: "#ffffff",
-  activeText: "#C4510A",
-  inactiveBg: "rgba(255,255,255,0.14)",
-  inactiveBorder: "rgba(255,255,255,0.12)",
+const foodTheme = (vegMode) => {
+  const base = vegMode ? "#2f7a46" : "#F6881F";
+  return {
+    topBg: `linear-gradient(180deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.2) 100%), ${base}`,
+    accent: base,
+    text: "#ffffff",
+    activeBg: base,
+    activeText: "#ffffff",
+    inactiveBg: "rgba(0,0,0,0.25)",
+    inactiveBorder: "rgba(255,255,255,0.08)",
+  };
 };
 
 const isMeaningfulLocationValue = (value) => {
@@ -177,7 +180,7 @@ export default function HomeHeader({
     return () => window.removeEventListener("notificationsUpdated", sync);
   }, []);
 
-  const theme = activeTab === "quick" ? quickTheme(quickThemeColor) : foodTheme;
+  const theme = activeTab === "quick" ? quickTheme(quickThemeColor) : foodTheme(vegMode);
   const isFood = activeTab === "food";
   const walletPath = isFood ? "/food/user/wallet" : "/quick/wallet";
   const { title: locationTitle, subtitle: locationSubtitle } = useMemo(
@@ -274,10 +277,10 @@ export default function HomeHeader({
     <motion.div
       className={`relative transition-all duration-400 ${
         isFood
-          ? "min-h-[320px] overflow-hidden"
-          : "min-h-[188px] overflow-visible"
+          ? "min-h-[280px] overflow-hidden"
+          : "min-h-[120px] overflow-visible"
       }`}
-      style={{ background: isFood ? "transparent" : theme.topBg, color: theme.text }}
+      style={{ background: theme.topBg, color: theme.text }}
     >
       {headerVideoUrl && (
         <div className="absolute inset-0 z-0 flex justify-center overflow-hidden">
@@ -296,8 +299,18 @@ export default function HomeHeader({
               }`}
             />
             */}
-          <div className="absolute inset-0 bg-gradient-to-b from-[#0B0F19] via-[#1c1439] to-[#0a0a0a]" />
-          <div className="absolute inset-0 bg-gradient-to-br from-[#312e81]/30 via-transparent to-transparent" />
+          <div 
+            className="absolute inset-0 transition-colors duration-700" 
+            style={{ 
+              background: `linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.4) 100%), ${theme.accent}` 
+            }} 
+          />
+          <div 
+            className="absolute inset-0 transition-colors duration-700 opacity-30"
+            style={{
+              background: `radial-gradient(circle at 20% 30%, ${withAlpha(theme.accent, 0.4)}, transparent 70%)`
+            }}
+          />
         </div>
       )}
 
@@ -313,15 +326,15 @@ export default function HomeHeader({
 
       {isFood && (
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <Pizza className="absolute top-10 right-[15%] opacity-[0.10] text-[#F6881F]" size={64} />
-          <Beef className="absolute top-40 left-[10%] opacity-[0.08] text-[#F6881F]" size={80} />
-          <ChefHat className="absolute bottom-[20%] right-[20%] opacity-[0.08] text-[#F6881F]" size={56} />
-          <Coffee className="absolute top-20 left-[30%] opacity-[0.08] text-[#F6881F]" size={48} />
-          <Soup className="absolute bottom-[40%] left-[5%] opacity-[0.05] text-[#F6881F]" size={72} />
+          <Pizza className="absolute top-10 right-[15%] opacity-[0.10]" style={{ color: theme.accent }} size={64} />
+          <Beef className="absolute top-40 left-[10%] opacity-[0.08]" style={{ color: theme.accent }} size={80} />
+          <ChefHat className="absolute bottom-[20%] right-[20%] opacity-[0.08]" style={{ color: theme.accent }} size={56} />
+          <Coffee className="absolute top-20 left-[30%] opacity-[0.08]" style={{ color: theme.accent }} size={48} />
+          <Soup className="absolute bottom-[40%] left-[5%] opacity-[0.05]" style={{ color: theme.accent }} size={72} />
         </div>
       )}
 
-      <div className="flex items-center justify-between px-5 pt-6 mb-3 relative z-10">
+      <div className="flex items-center justify-between px-5 pt-4 mb-2 relative z-10">
         <button
           type="button"
           className="flex items-start gap-2 cursor-pointer flex-1 min-w-0 bg-transparent border-0 p-0 text-left outline-none"
@@ -348,8 +361,8 @@ export default function HomeHeader({
             </>
           ) : (
             <div className="flex flex-col min-w-0">
-              <span className="text-[22px] font-black tracking-tighter leading-none mb-1">15 mins</span>
-              <span className="text-[11px] font-bold truncate opacity-70">To {locationTitle}</span>
+              <span className="text-[20px] font-black tracking-tighter leading-none mb-0.5">15 mins</span>
+              <span className="text-[10px] font-bold truncate opacity-70">To {locationTitle}</span>
             </div>
           )}
         </button>
@@ -440,7 +453,7 @@ export default function HomeHeader({
         </div>
       </div>
 
-      <div className="px-3 pt-1 flex items-end justify-start gap-[6px] relative z-10">
+      <div className="px-3 pt-1 flex items-end justify-start gap-1 relative z-10">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           const handleTabIntent = () => {
@@ -464,33 +477,54 @@ export default function HomeHeader({
               onMouseEnter={handleTabIntent}
               onTouchStart={handleTabIntent}
               onFocus={handleTabIntent}
-              className={`relative flex flex-col items-center justify-start flex-1 min-w-0 h-[80px] transition-all duration-300 ${isActive ? "z-20" : "z-10"}`}
+              className={`relative flex flex-col items-center justify-start flex-1 min-w-0 h-[64px] transition-all duration-300 ${isActive ? "z-20" : "z-10"}`}
             >
               {tab.badge && (
                 <div className="absolute -top-[10px] left-1/2 -translate-x-1/2 z-30 rounded-full bg-gradient-to-r from-orange-500 to-orange-400 px-2 py-0.5 text-[7.5px] font-black uppercase text-white shadow-lg">
                   {tab.badge}
                 </div>
               )}
+              
               <div
-                className={`absolute inset-x-0 ${isActive ? "top-0 bottom-0" : "top-[8px] bottom-0"} rounded-t-[18px] rounded-b-none`}
+                className={cn(
+                  "absolute inset-x-0 bottom-0 transition-all duration-300",
+                  isActive ? "top-0 rounded-t-[20px]" : "top-[10px] rounded-t-[16px]"
+                )}
                 style={{
                   background: isActive ? theme.activeBg : theme.inactiveBg,
-                  borderTop: `1.5px solid ${isActive ? withAlpha(theme.accent, 0.25) : theme.inactiveBorder}`,
-                  borderLeft: `1.5px solid ${isActive ? withAlpha(theme.accent, 0.18) : theme.inactiveBorder}`,
-                  borderRight: `1.5px solid ${isActive ? withAlpha(theme.accent, 0.18) : theme.inactiveBorder}`,
-                  boxShadow: isActive ? "0 -4px 20px rgba(0,0,0,0.08)" : "none",
-                  backdropFilter: isActive ? undefined : "blur(14px)",
+                  borderTop: isActive ? `1px solid ${withAlpha(theme.accent, 0.1)}` : `1px solid ${theme.inactiveBorder}`,
+                  boxShadow: isActive ? "0 -4px 20px rgba(0,0,0,0.12)" : "none",
+                  backdropFilter: isActive ? undefined : "blur(12px)",
                 }}
-              />
-              <div className={`absolute inset-x-0 bottom-0 z-10 flex flex-col items-center justify-center gap-[3px] px-1 ${isActive ? "top-0" : "top-[8px]"}`}>
+              >
+                {/* Continuous Curve Effect (Swiggy Style) */}
+                {isActive && (
+                  <>
+                    <div 
+                      className="absolute bottom-0 -left-[14px] w-[14px] h-[14px] pointer-events-none"
+                      style={{
+                        background: `radial-gradient(circle at 0 0, transparent 14px, ${theme.activeBg} 0)`
+                      }}
+                    />
+                    <div 
+                      className="absolute bottom-0 -right-[14px] w-[14px] h-[14px] pointer-events-none"
+                      style={{
+                        background: `radial-gradient(circle at 100% 0, transparent 14px, ${theme.activeBg} 0)`
+                      }}
+                    />
+                  </>
+                )}
+              </div>
+
+              <div className={`absolute inset-x-0 bottom-0 z-10 flex flex-col items-center justify-center gap-[4px] px-1 ${isActive ? "top-0" : "top-[10px]"}`}>
                 <img
                   src={tab.icon}
                   alt={tab.name}
-                  className={`object-contain transition-transform duration-300 ${isActive ? "h-[32px] w-[32px] scale-105" : "h-[28px] w-[28px] brightness-[1.3]"}`}
+                  className={`object-contain transition-transform duration-300 ${isActive ? "h-[28px] w-[28px] scale-110" : "h-[24px] w-[24px] brightness-[1.2]"}`}
                 />
                 <span
                   style={{ color: isActive ? theme.activeText : "#ffffff" }}
-                  className={`text-[10px] font-extrabold ${isActive ? "" : "drop-shadow-[0_1px_6px_rgba(0,0,0,0.55)]"}`}
+                  className={`text-[10px] font-black tracking-tight ${isActive ? "" : "drop-shadow-[0_1px_4px_rgba(0,0,0,0.5)] opacity-90"}`}
                 >
                   {tab.name}
                 </span>
@@ -500,45 +534,44 @@ export default function HomeHeader({
         })}
       </div>
 
-      <div className="relative z-10 pt-3 pb-1 px-3 -mt-[1px] overflow-hidden">
-        {isFood && <div className="absolute inset-0 bg-gradient-to-b from-black/25 to-transparent pointer-events-none" />}
-        <div className="flex items-center gap-2 mb-2">
-          <div
-            className="flex-1 rounded-[12px] h-[46px] flex items-center px-3 cursor-pointer relative overflow-hidden bg-white shadow-[0_6px_18px_rgba(15,23,42,0.10)] border-0 text-left"
-            onClick={handleSearchFocus}
-          >
-            <div className="absolute left-0 top-0 bottom-0 w-[2.5px] rounded-l-[12px] bg-gradient-to-b from-[#F6881F] to-[#FF5E3A]" />
-            <Search className="h-[16px] w-[16px] ml-1.5 mr-2 flex-shrink-0 text-[#F6881F]" strokeWidth={2.3} />
-            <div className="flex-1 overflow-hidden relative h-[20px]">
-              <AnimatePresence mode="wait">
-                <motion.span
-                  key={placeholderIndex}
-                  initial={{ y: 12, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  exit={{ y: -12, opacity: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="absolute inset-0 whitespace-nowrap leading-[22px] text-[12.5px] font-medium text-gray-400"
+      <div className="relative z-10 pt-0 pb-0 px-3 -mt-[1px] overflow-visible">
+        {isFood && (
+          <div className="flex items-center gap-2 mb-2">
+            <div
+              className="flex-1 rounded-[12px] h-[46px] flex items-center px-3 cursor-pointer relative overflow-hidden bg-white shadow-[0_6px_18px_rgba(15,23,42,0.10)] border-0 text-left"
+              onClick={handleSearchFocus}
+            >
+              <div className="absolute left-0 top-0 bottom-0 w-[2.5px] rounded-l-[12px] bg-gradient-to-b from-[#F6881F] to-[#FF5E3A]" />
+              <Search className="h-[16px] w-[16px] ml-1.5 mr-2 flex-shrink-0 text-[#F6881F]" strokeWidth={2.3} />
+              <div className="flex-1 overflow-hidden relative h-[20px]">
+                <AnimatePresence mode="wait">
+                  <motion.span
+                    key={placeholderIndex}
+                    initial={{ y: 12, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: -12, opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="absolute inset-0 whitespace-nowrap leading-[22px] text-[12.5px] font-medium text-gray-400"
+                  >
+                    {placeholders?.[placeholderIndex] || "Search for food..."}
+                  </motion.span>
+                </AnimatePresence>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-[1px] h-[16px] bg-orange-200" />
+                <button
+                  type="button"
+                  onClick={handleVoiceSearch}
+                  className={cn(
+                    "h-[28px] w-[28px] rounded-full flex items-center justify-center transition-all",
+                    isListening ? "bg-orange-500 scale-110 animate-pulse" : "bg-orange-50 hover:bg-orange-100"
+                  )}
                 >
-                  {placeholders?.[placeholderIndex] || "Search for food..."}
-                </motion.span>
-              </AnimatePresence>
+                  <Mic className={cn("h-[14px] w-[14px]", isListening ? "text-white" : "text-[#F6881F]")} strokeWidth={2.3} />
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-[1px] h-[16px] bg-orange-200" />
-              <button
-                type="button"
-                onClick={handleVoiceSearch}
-                className={cn(
-                  "h-[28px] w-[28px] rounded-full flex items-center justify-center transition-all",
-                  isListening ? "bg-orange-500 scale-110 animate-pulse" : "bg-orange-50 hover:bg-orange-100"
-                )}
-              >
-                <Mic className={cn("h-[14px] w-[14px]", isListening ? "text-white" : "text-[#F6881F]")} strokeWidth={2.3} />
-              </button>
-            </div>
-          </div>
 
-          {isFood ? (
             <div className="px-2 flex flex-col items-center justify-center min-w-[64px]">
               <div className="flex flex-col items-center mb-1">
                 <span className="text-[9px] font-black tracking-[0.5px] text-black dark:text-white leading-none">VEG</span>
@@ -552,16 +585,8 @@ export default function HomeHeader({
                 />
               </div>
             </div>
-          ) : (
-            <button
-              type="button"
-              className="rounded-[16px] h-[52px] w-[52px] flex items-center justify-center shadow-xl bg-white"
-              onClick={() => navigate("/quick/wishlist")}
-            >
-              <Bookmark className="h-[22px] w-[22px]" style={{ color: theme.accent }} />
-            </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {isFood && bannerComponent && (

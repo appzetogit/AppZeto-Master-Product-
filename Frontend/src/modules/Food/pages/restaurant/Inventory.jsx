@@ -22,9 +22,9 @@ import { Switch } from "@food/components/ui/switch"
 import { useNavigate } from "react-router-dom"
 import { restaurantAPI, uploadAPI } from "@food/api"
 import { toast } from "sonner"
-const debugLog = (...args) => {}
-const debugWarn = (...args) => {}
-const debugError = (...args) => {}
+const debugLog = (...args) => { }
+const debugWarn = (...args) => { }
+const debugError = (...args) => { }
 
 
 const INVENTORY_STORAGE_KEY = "restaurant_inventory_state"
@@ -435,8 +435,8 @@ function TimePickerWheel({
                   >
                     <span
                       className={`text-lg transition-all duration-200 ${selectedHour === hour
-                          ? 'font-bold text-gray-900 text-xl'
-                          : 'font-normal text-gray-400 text-base'
+                        ? 'font-bold text-gray-900 text-xl'
+                        : 'font-normal text-gray-400 text-base'
                         }`}
                     >
                       {hour}
@@ -493,8 +493,8 @@ function TimePickerWheel({
                   >
                     <span
                       className={`text-lg transition-all duration-200 ${selectedMinute === minute
-                          ? 'font-bold text-gray-900 text-xl'
-                          : 'font-normal text-gray-400 text-base'
+                        ? 'font-bold text-gray-900 text-xl'
+                        : 'font-normal text-gray-400 text-base'
                         }`}
                     >
                       {minute.toString().padStart(2, '0')}
@@ -547,8 +547,8 @@ function TimePickerWheel({
                   >
                     <span
                       className={`text-lg transition-all duration-200 ${selectedPeriod === period
-                          ? 'font-bold text-gray-900 text-xl'
-                          : 'font-normal text-gray-400 text-base'
+                        ? 'font-bold text-gray-900 text-xl'
+                        : 'font-normal text-gray-400 text-base'
                         }`}
                     >
                       {period}
@@ -712,12 +712,12 @@ function SimpleCalendar({ selectedDate, onDateSelect, isOpen, onClose }) {
                       onClose()
                     }}
                     className={`h-10 text-sm rounded transition-colors ${!isCurrent
-                        ? 'text-gray-300'
-                        : isSelectedDate
-                          ? 'bg-black text-white'
-                          : isTodayDate
-                            ? 'bg-gray-100 text-black font-semibold'
-                            : 'text-gray-700 hover:bg-gray-100'
+                      ? 'text-gray-300'
+                      : isSelectedDate
+                        ? 'bg-black text-white'
+                        : isTodayDate
+                          ? 'bg-gray-100 text-black font-semibold'
+                          : 'text-gray-700 hover:bg-gray-100'
                       }`}
                   >
                     {date.getDate()}
@@ -734,7 +734,6 @@ function SimpleCalendar({ selectedDate, onDateSelect, isOpen, onClose }) {
 
 export default function Inventory() {
   const navigate = useNavigate()
-  const filterHistoryEntryActiveRef = useRef(false)
   const [activeTab, setActiveTab] = useState(() => {
     try {
       if (typeof window === "undefined") return "all-items"
@@ -768,6 +767,7 @@ export default function Inventory() {
   const [togglePopupOpen, setTogglePopupOpen] = useState(false)
   const [toggleTarget, setToggleTarget] = useState(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [isAddPopupOpen, setIsAddPopupOpen] = useState(false)
 
   // Toggle popup state
   const [selectedOption, setSelectedOption] = useState("specific-time")
@@ -857,22 +857,22 @@ export default function Inventory() {
     const fetchMenuData = async () => {
       try {
         setLoadingInventory(true)
-        
+
         // Fetch menu from API
         const menuResponse = await restaurantAPI.getMenu()
-        
+
         if (menuResponse.data && menuResponse.data.success && menuResponse.data.data && menuResponse.data.data.menu) {
           const menuSections = menuResponse.data.data.menu.sections || []
-          
+
           // Convert menu sections to inventory categories
           const convertedCategories = menuSections.map((section, sectionIndex) => {
             // Collect all items from section and subsections
             const allItems = []
-            
+
             // Add direct items from section
             if (Array.isArray(section.items)) {
               section.items.forEach(item => {
-                  allItems.push({
+                allItems.push({
                   id: String(item.id || Date.now() + Math.random()),
                   name: item.name || "Unnamed Item",
                   description: item.description || "",
@@ -898,45 +898,45 @@ export default function Inventory() {
                 })
               })
             }
-            
+
             // Add items from subsections
             if (Array.isArray(section.subsections)) {
               section.subsections.forEach(subsection => {
                 if (Array.isArray(subsection.items)) {
                   subsection.items.forEach(item => {
-                  allItems.push({
-                  id: String(item.id || Date.now() + Math.random()),
-                  name: item.name || "Unnamed Item",
-                  description: item.description || "",
-                  image: item.image || "",
-                  images: item.image ? [item.image] : [],
-                  price: item.price ?? "",
-                  variants: Array.isArray(item.variants) ? item.variants : (Array.isArray(item.variations) ? item.variations : []),
-                  category: section.name || subsection.name || "",
-                  categoryId: section.categoryId || section.id || "",
-                  inStock: item.isAvailable !== undefined ? item.isAvailable : true,
-                  isAvailable: item.isAvailable !== undefined ? item.isAvailable : true,
-                  isVeg: item.foodType === "Veg",
-                  foodType: item.foodType || "Non-Veg",
-                  approvalStatus: String(item.approvalStatus || "approved").toLowerCase(),
-                  rejectionReason: item.rejectionReason || "",
-                  isRecommended: Boolean(recommendedMap?.[String(item.id)]),
-                  stockQuantity: item.stock || "Unlimited",
-                  unit: item.itemSizeUnit || "piece",
-                  expiryDate: null,
-                  lastRestocked: null,
-                })
+                    allItems.push({
+                      id: String(item.id || Date.now() + Math.random()),
+                      name: item.name || "Unnamed Item",
+                      description: item.description || "",
+                      image: item.image || "",
+                      images: item.image ? [item.image] : [],
+                      price: item.price ?? "",
+                      variants: Array.isArray(item.variants) ? item.variants : (Array.isArray(item.variations) ? item.variations : []),
+                      category: section.name || subsection.name || "",
+                      categoryId: section.categoryId || section.id || "",
+                      inStock: item.isAvailable !== undefined ? item.isAvailable : true,
+                      isAvailable: item.isAvailable !== undefined ? item.isAvailable : true,
+                      isVeg: item.foodType === "Veg",
+                      foodType: item.foodType || "Non-Veg",
+                      approvalStatus: String(item.approvalStatus || "approved").toLowerCase(),
+                      rejectionReason: item.rejectionReason || "",
+                      isRecommended: Boolean(recommendedMap?.[String(item.id)]),
+                      stockQuantity: item.stock || "Unlimited",
+                      unit: item.itemSizeUnit || "piece",
+                      expiryDate: null,
+                      lastRestocked: null,
+                    })
                   })
                 }
               })
             }
-            
+
             // Use category's isEnabled from menu API, not calculated from items
             // Category toggle should be independent of item toggles
             // Menu snapshots are disabled on backend; treat category toggle as derived from items (all in stock).
             const categoryInStock = allItems.length > 0 ? allItems.every(i => i.inStock) : true
             const itemCount = allItems.length
-            
+
             return {
               id: section.id || `category-${sectionIndex}`,
               name: section.name || "Unnamed Category",
@@ -973,7 +973,7 @@ export default function Inventory() {
               inStock: ruledItems.length > 0 ? ruledItems.every((item) => item.inStock) : true,
             }
           })
-          
+
           setCategories(withStockRules)
           setExpandedCategories(withStockRules.map(c => c.id))
         } else {
@@ -984,7 +984,7 @@ export default function Inventory() {
       } catch (error) {
         // Only log and show toast if it's not a network/timeout error
         if (error.code !== 'ERR_NETWORK' && error.code !== 'ECONNABORTED' && !error.message?.includes('timeout')) {
-        debugError('Error fetching menu data:', error)
+          debugError('Error fetching menu data:', error)
           toast.error('Failed to load menu data')
         } else if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
           // Silently handle network errors - backend is not running
@@ -996,7 +996,7 @@ export default function Inventory() {
         setLoadingInventory(false)
       }
     }
-    
+
     fetchMenuData()
   }, [recommendedMap])
 
@@ -1043,7 +1043,7 @@ export default function Inventory() {
     try {
       if (typeof window === "undefined") return
       localStorage.setItem(INVENTORY_ACTIVE_TAB_KEY, activeTab)
-    } catch {}
+    } catch { }
   }, [activeTab])
 
   // Load persisted add-on form
@@ -1061,7 +1061,7 @@ export default function Inventory() {
           setAddonImagePreview(parsed.preview)
         }
       }
-    } catch {}
+    } catch { }
   }, [])
 
   // Persist form state
@@ -1076,7 +1076,7 @@ export default function Inventory() {
         isOpen: isAddAddonOpen
       }
       localStorage.setItem(INVENTORY_ADDON_FORM_KEY, JSON.stringify(payload))
-    } catch {}
+    } catch { }
   }, [addonName, addonDescription, addonPrice, addonImagePreview, isAddAddonOpen])
 
   const resetAddonForm = () => {
@@ -1164,7 +1164,7 @@ export default function Inventory() {
       })
 
       // Update local state
-      setAddons(prev => prev.map(a => 
+      setAddons(prev => prev.map(a =>
         a.id === addonId ? { ...a, isAvailable } : a
       ))
 
@@ -1195,15 +1195,7 @@ export default function Inventory() {
     }
 
     // Don't handle swipe if starting on topbar
-    if (
-      tabBarRef.current?.contains(target) || 
-      filterChipsRef.current?.contains(target) ||
-      target.closest('.overflow-x-auto') || 
-      target.closest('.scrollbar-hide')
-    ) {
-      blockTabSwipeRef.current = true
-      return
-    }
+    if (tabBarRef.current?.contains(target)) return
 
     touchStartX.current = startX
     touchStartY.current = e.touches[0].clientY
@@ -1506,7 +1498,7 @@ export default function Inventory() {
   // Handle filter apply
   const handleFilterApply = () => {
     setIsLoading(true)
-    closeFilterDrawer()
+    setFilterOpen(false)
 
     // Simulate loading
     setTimeout(() => {
@@ -1517,46 +1509,8 @@ export default function Inventory() {
   // Handle filter clear
   const handleFilterClear = () => {
     setSelectedFilter("all")
-    closeFilterDrawer()
-  }
-
-  const openFilterDrawer = () => {
-    setFilterOpen(true)
-  }
-
-  const closeFilterDrawer = () => {
-    if (typeof window !== "undefined" && filterHistoryEntryActiveRef.current) {
-      window.history.back()
-      return
-    }
-
     setFilterOpen(false)
   }
-
-  const handleAddItem = () => {
-    navigate(`/food/restaurant/hub-menu/item/new`, {
-      state: {
-        backTo: "/food/restaurant/inventory",
-      },
-    })
-  }
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !filterOpen || filterHistoryEntryActiveRef.current) return
-
-    const handlePopState = () => {
-      filterHistoryEntryActiveRef.current = false
-      setFilterOpen(false)
-    }
-
-    window.history.pushState({ ...(window.history.state || {}), inventoryFilterOpen: true }, "")
-    filterHistoryEntryActiveRef.current = true
-    window.addEventListener("popstate", handlePopState)
-
-    return () => {
-      window.removeEventListener("popstate", handlePopState)
-    }
-  }, [filterOpen])
 
   // Update menu API when category/item toggles change
   const updateAvailabilityAPI = async (categoryId, itemId, isAvailable) => {
@@ -1860,11 +1814,10 @@ export default function Inventory() {
         <div ref={tabBarRef} className="grid grid-cols-2 gap-3">
           <motion.button
             onClick={() => setActiveTab("all-items")}
-            className={`relative overflow-hidden rounded-[24px] border px-4 py-3 text-sm font-semibold whitespace-nowrap ${
-              activeTab === "all-items"
+            className={`relative overflow-hidden rounded-[24px] border px-4 py-3 text-sm font-semibold whitespace-nowrap ${activeTab === "all-items"
                 ? "border-slate-950 text-white shadow-[0_18px_32px_-24px_rgba(15,23,42,0.8)]"
                 : "border-white/80 bg-white/80 text-slate-700 shadow-[0_16px_40px_-34px_rgba(15,23,42,0.4)]"
-            }`}
+              }`}
             animate={{
               scale: activeTab === "all-items" ? 1.02 : 1,
             }}
@@ -1884,9 +1837,8 @@ export default function Inventory() {
             )}
             <span className="relative z-10 flex items-center justify-center gap-2">
               <span>All items</span>
-              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                activeTab === "all-items" ? "bg-white text-slate-950" : "bg-slate-100 text-slate-600"
-              }`}>
+              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${activeTab === "all-items" ? "bg-white text-slate-950" : "bg-slate-100 text-slate-600"
+                }`}>
                 {totalItems}
               </span>
             </span>
@@ -1894,11 +1846,10 @@ export default function Inventory() {
 
           <motion.button
             onClick={() => setActiveTab("add-ons")}
-            className={`relative overflow-hidden rounded-[24px] border px-4 py-3 text-sm font-semibold whitespace-nowrap ${
-              activeTab === "add-ons"
+            className={`relative overflow-hidden rounded-[24px] border px-4 py-3 text-sm font-semibold whitespace-nowrap ${activeTab === "add-ons"
                 ? "border-slate-950 text-white shadow-[0_18px_32px_-24px_rgba(15,23,42,0.8)]"
                 : "border-white/80 bg-white/80 text-slate-700 shadow-[0_16px_40px_-34px_rgba(15,23,42,0.4)]"
-            }`}
+              }`}
             animate={{
               scale: activeTab === "add-ons" ? 1.02 : 1,
             }}
@@ -1918,9 +1869,8 @@ export default function Inventory() {
             )}
             <span className="relative z-10 flex items-center justify-center gap-2">
               <span>Add ons</span>
-              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                activeTab === "add-ons" ? "bg-white text-slate-950" : "bg-slate-100 text-slate-600"
-              }`}>
+              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${activeTab === "add-ons" ? "bg-white text-slate-950" : "bg-slate-100 text-slate-600"
+                }`}>
                 {addons.length}
               </span>
             </span>
@@ -1938,11 +1888,7 @@ export default function Inventory() {
         onMouseDown={(e) => {
           const target = e.target
           // Don't handle swipe if starting on topbar
-          if (
-            tabBarRef.current?.contains(target) || 
-            target.closest('.overflow-x-auto') || 
-            target.closest('.scrollbar-hide')
-          ) return
+          if (tabBarRef.current?.contains(target)) return
 
           mouseStartX.current = e.clientX
           mouseEndX.current = e.clientX
@@ -2048,7 +1994,7 @@ export default function Inventory() {
               </div>
 
               <button
-                onClick={openFilterDrawer}
+                onClick={() => setFilterOpen(true)}
                 className="relative flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 transition-colors hover:border-slate-300 hover:bg-slate-50"
               >
                 <SlidersHorizontal className="w-4 h-4 text-slate-700" />
@@ -2075,16 +2021,14 @@ export default function Inventory() {
                     key={option.value}
                     type="button"
                     onClick={() => setSelectedFilter(option.value)}
-                    className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                      isActive
+                    className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${isActive
                         ? "border-slate-950 bg-slate-950 text-white shadow-[0_14px_28px_-24px_rgba(15,23,42,0.9)]"
                         : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-white"
-                    }`}
+                      }`}
                   >
                     <span>{option.label}</span>
-                    <span className={`ml-2 inline-flex min-w-[20px] items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] ${
-                      isActive ? "bg-white/15 text-white" : "bg-white text-slate-500"
-                    }`}>
+                    <span className={`ml-2 inline-flex min-w-[20px] items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] ${isActive ? "bg-white/15 text-white" : "bg-white text-slate-500"
+                      }`}>
                       {count}
                     </span>
                   </button>
@@ -2217,11 +2161,10 @@ export default function Inventory() {
                         <div className="flex-1 min-w-0">
                           <div className="mb-2 flex items-center gap-2 flex-wrap">
                             <h3 className="text-base font-semibold text-slate-950">{addon.name}</h3>
-                            <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                              addon.isAvailable !== false
+                            <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${addon.isAvailable !== false
                                 ? "bg-emerald-50 text-emerald-700"
                                 : "bg-slate-100 text-slate-600"
-                            }`}>
+                              }`}>
                               {addon.isAvailable !== false ? "Live" : "Paused"}
                             </span>
                             {addon.approvalStatus === 'approved' && (
@@ -2322,11 +2265,10 @@ export default function Inventory() {
                         <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
                           {category.items?.length || category.itemCount || 0} items
                         </span>
-                        <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                          category.inStock
+                        <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${category.inStock
                             ? "bg-emerald-50 text-emerald-700"
                             : "bg-amber-50 text-amber-700"
-                        }`}>
+                          }`}>
                           {category.inStock ? "Healthy" : "Needs attention"}
                         </span>
                       </div>
@@ -2400,97 +2342,93 @@ export default function Inventory() {
                           const isRejectedItem = item.approvalStatus === "rejected"
 
                           return (
-                          <div key={item.id}>
-                            <div className="flex items-center justify-between gap-2.5 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5">
-                              <div className="flex flex-1 items-center gap-3 min-w-0">
-                                {item.image || (item.images && item.images[0]) ? (
-                                  <img
-                                    src={item.image || item.images[0]}
-                                    alt={item.name}
-                                    className="h-16 w-16 shrink-0 rounded-lg object-cover border border-slate-200"
-                                    onError={(e) => {
-                                      e.target.style.display = 'none'
-                                    }}
-                                  />
-                                ) : null}
-                                <div className="min-w-0 flex-1">
-                                  <p className="truncate text-sm font-bold text-slate-950 mb-1.5">{item.name}</p>
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold flex items-center gap-1 ${
-                                      item.isVeg
-                                        ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
-                                        : "bg-rose-50 text-rose-700 border border-rose-100"
-                                    }`}>
-                                      <div className={`h-2.5 w-2.5 shrink-0 rounded-sm border flex items-center justify-center ${item.isVeg ? 'border-green-600' : 'border-red-500'}`}>
-                                        <div className={`h-1 w-1 rounded-full ${item.isVeg ? 'bg-green-600' : 'bg-red-500'}`} />
-                                      </div>
-                                      {item.isVeg ? "VEG" : "NON-VEG"}
-                                    </span>
-                                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold border ${approvalMeta.className}`}>
-                                      {approvalMeta.label.toUpperCase()}
-                                    </span>
-                                    {item.isRecommended ? (
-                                      <span className="rounded-full bg-sky-50 border border-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-700">
-                                        RECOMMENDED
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                  <p className={`mt-1 text-xs font-medium ${
-                                    item.inStock ? "text-green-600" : "text-rose-600"
-                                  }`}>
-                                    {item.inStock ? "In stock" : getRuleStatusLabel(item.stockRule)}
-                                  </p>
-                                  {item.approvalStatus === "rejected" && item.rejectionReason ? (
-                                    <p className="mt-1 line-clamp-2 text-[11px] font-medium text-red-600">
-                                      Reason: {item.rejectionReason}
-                                    </p>
+                            <div key={item.id}>
+                              <div className="flex items-center justify-between gap-2.5 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5">
+                                <div className="flex flex-1 items-center gap-3 min-w-0">
+                                  {item.image || (item.images && item.images[0]) ? (
+                                    <img
+                                      src={item.image || item.images[0]}
+                                      alt={item.name}
+                                      className="h-16 w-16 shrink-0 rounded-lg object-cover border border-slate-200"
+                                      onError={(e) => {
+                                        e.target.style.display = 'none'
+                                      }}
+                                    />
                                   ) : null}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleEditItem(category, item)}
-                                    className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors ${
-                                      isRejectedItem
-                                        ? "bg-red-600 text-white hover:bg-red-700"
-                                        : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
-                                    }`}
-                                  >
-                                    <Pencil className="h-3 w-3" />
-                                    {isRejectedItem ? "Fix & resubmit" : "Edit"}
-                                  </button>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="truncate text-sm font-bold text-slate-950 mb-1.5">{item.name}</p>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold flex items-center gap-1 ${item.isVeg
+                                          ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                                          : "bg-rose-50 text-rose-700 border border-rose-100"
+                                        }`}>
+                                        <div className={`h-2.5 w-2.5 shrink-0 rounded-sm border flex items-center justify-center ${item.isVeg ? 'border-green-600' : 'border-red-500'}`}>
+                                          <div className={`h-1 w-1 rounded-full ${item.isVeg ? 'bg-green-600' : 'bg-red-500'}`} />
+                                        </div>
+                                        {item.isVeg ? "VEG" : "NON-VEG"}
+                                      </span>
+                                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold border ${approvalMeta.className}`}>
+                                        {approvalMeta.label.toUpperCase()}
+                                      </span>
+                                      {item.isRecommended ? (
+                                        <span className="rounded-full bg-sky-50 border border-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-700">
+                                          RECOMMENDED
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                    <p className={`mt-1 text-xs font-medium ${item.inStock ? "text-green-600" : "text-rose-600"
+                                      }`}>
+                                      {item.inStock ? "In stock" : getRuleStatusLabel(item.stockRule)}
+                                    </p>
+                                    {item.approvalStatus === "rejected" && item.rejectionReason ? (
+                                      <p className="mt-1 line-clamp-2 text-[11px] font-medium text-red-600">
+                                        Reason: {item.rejectionReason}
+                                      </p>
+                                    ) : null}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleEditItem(category, item)}
+                                      className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors ${isRejectedItem
+                                          ? "bg-red-600 text-white hover:bg-red-700"
+                                          : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+                                        }`}
+                                    >
+                                      <Pencil className="h-3 w-3" />
+                                      {isRejectedItem ? "Fix & resubmit" : "Edit"}
+                                    </button>
+                                  </div>
                                 </div>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                {/* Recommend Thumb Icon */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleRecommendToggle(category.id, item.id)
-                                  }}
-                                  className={`rounded-2xl p-2 transition-colors ${
-                                    item.isRecommended
-                                      ? "bg-blue-100 text-blue-600"
-                                      : "bg-white text-gray-400 hover:bg-slate-100"
-                                  }`}
-                                  title={item.isRecommended ? "Recommended" : "Click to recommend"}
-                                >
-                                  <ThumbsUp className="w-4 h-4" />
-                                </button>
-                                {/* Item Toggle Switch */}
-                                <div
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="rounded-full bg-white px-2 py-1 shadow-inner"
-                                >
-                                  <Switch
-                                    checked={item.inStock}
-                                    onCheckedChange={(checked) =>
-                                      handleToggleChange("item", category.id, item.id, checked)
-                                    }
-                                    className="data-[state=checked]:bg-green-600"
-                                  />
+                                <div className="flex items-center gap-3">
+                                  {/* Recommend Thumb Icon */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleRecommendToggle(category.id, item.id)
+                                    }}
+                                    className={`rounded-2xl p-2 transition-colors ${item.isRecommended
+                                        ? "bg-blue-100 text-blue-600"
+                                        : "bg-white text-gray-400 hover:bg-slate-100"
+                                      }`}
+                                    title={item.isRecommended ? "Recommended" : "Click to recommend"}
+                                  >
+                                    <ThumbsUp className="w-4 h-4" />
+                                  </button>
+                                  {/* Item Toggle Switch */}
+                                  <div
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="rounded-full bg-white px-2 py-1 shadow-inner"
+                                  >
+                                    <Switch
+                                      checked={item.inStock}
+                                      onCheckedChange={(checked) =>
+                                        handleToggleChange("item", category.id, item.id, checked)
+                                      }
+                                      className="data-[state=checked]:bg-green-600"
+                                    />
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                          </div>
                           )
                         })}
                       </div>
@@ -2512,7 +2450,7 @@ export default function Inventory() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 bg-black/50 z-50"
-              onClick={closeFilterDrawer}
+              onClick={() => setFilterOpen(false)}
             />
             <motion.div
               initial={{ y: "100%" }}
@@ -2633,7 +2571,7 @@ export default function Inventory() {
                   {/* Option 1: For specific time */}
                   <label className="flex items-center justify-between py-4 cursor-pointer border-b border-gray-200">
                     <div className="flex items-center gap-3 flex-1">
-                    
+
                       <span className="text-base text-gray-900">For specific time</span>
                       {selectedOption === "specific-time" && (
                         <div className="ml-auto py-3 flex items-center justify-center gap-4">
@@ -2654,7 +2592,7 @@ export default function Inventory() {
                           </button>
                         </div>
                       )}
-                        <input
+                      <input
                         type="radio"
                         name="outOfStockOption"
                         checked={selectedOption === "specific-time"}
@@ -2668,7 +2606,7 @@ export default function Inventory() {
                   {/* Option 2: Next business day */}
                   <label className="flex items-center justify-between py-4 cursor-pointer border-b border-gray-200">
                     <div className="flex items-center gap-3 flex-1">
-                   
+
                       <span className="text-base text-gray-900">Next business day - Opening time</span>
                       <input
                         type="radio"
@@ -2684,7 +2622,7 @@ export default function Inventory() {
                   {/* Option 3: Custom date & time */}
                   <label className="flex items-center justify-between py-4 cursor-pointer border-b border-gray-200">
                     <div className="flex items-center gap-3 flex-1">
-                    
+
                       <span className="text-base text-gray-900">Custom date & time</span>
                       <input
                         type="radio"
@@ -2719,7 +2657,7 @@ export default function Inventory() {
                   <label className="flex items-center justify-between py-4 cursor-pointer">
                     <div className="flex flex-col gap-1 flex-1">
                       <div className="flex items-center gap-3">
-                       
+
                         <span className="text-base text-gray-900">I will turn it on manually</span>
                         <input
                           type="radio"
@@ -2776,25 +2714,54 @@ export default function Inventory() {
         onConfirm={handleTimePickerConfirm}
       />
 
-      {/* Floating Action Buttons */}
-      {activeTab === "add-ons" && (
-        <div className="fixed right-4 bottom-28 z-30 flex flex-col items-end gap-2">
-          <motion.button
-            whileTap={{ scale: 0.96 }}
-            onClick={() => setIsAddAddonOpen((prev) => !prev)}
-            className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-[0_22px_40px_-24px_rgba(15,23,42,0.85)]"
-          >
-            {isAddAddonOpen ? "Close Add Add-on" : "Add Add-on"}
-          </motion.button>
-        </div>
-      )}
+      {/* Add Popup */}
+      <AnimatePresence>
+        {isAddPopupOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsAddPopupOpen(false)}
+              className="fixed inset-0 bg-black/50 z-[70]"
+            />
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl z-[71] max-h-[70vh] overflow-y-auto pb-[calc(1rem+env(safe-area-inset-bottom)+5.5rem)]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="sticky top-0 bg-white px-4 py-4 border-b border-gray-200">
+                <h2 className="text-lg font-bold text-gray-900 text-center">Add item</h2>
+              </div>
+              <div className="px-4 py-4 space-y-2">
+                <button
+                  onClick={() => {
+                    setIsAddPopupOpen(false)
+                    navigate(`/food/restaurant/hub-menu/item/new`, {
+                      state: {
+                        backTo: "/food/restaurant/inventory",
+                      },
+                    })
+                  }}
+                  className="w-full py-3 px-4 text-left rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <span className="text-sm font-medium text-gray-900">Add item</span>
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Floating Menu Button & Popup (hidden on Add-ons tab) */}
       {activeTab !== "add-ons" && (
         <div className="fixed right-4 bottom-24 z-30 flex flex-col items-end gap-2">
           <motion.button
             whileTap={{ scale: 0.96 }}
-            onClick={handleAddItem}
+            onClick={() => setIsAddPopupOpen(true)}
             className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-[0_22px_40px_-24px_rgba(15,23,42,0.85)]"
           >
             + Add item

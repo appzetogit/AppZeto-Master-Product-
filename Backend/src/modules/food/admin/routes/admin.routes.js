@@ -119,7 +119,6 @@ router.put('/fee-settings', adminController.createOrUpdateFeeSettings);
 // ----- Referral Settings -----
 router.get('/referral-settings', adminController.getReferralSettings);
 router.put('/referral-settings', adminController.createOrUpdateReferralSettings);
-router.post('/referral-settings', adminController.createOrUpdateReferralSettings);
 
 
 // ----- Delivery Cash Limit -----

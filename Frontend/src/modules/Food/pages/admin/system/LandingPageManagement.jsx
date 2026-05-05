@@ -158,46 +158,6 @@ export default function LandingPageManagement() {
     fetchSettings()
   }, [])
 
-  // Format Restaurant ID to REST format (e.g., REST422829)
-  const formatRestaurantId = (id) => {
-    if (!id) return "000000"
-
-    const idString = String(id)
-    // Extract last 6 digits from the ID
-    const parts = idString.split(/[-.]/)
-    let lastDigits = ""
-
-    // Get the last part and extract digits
-    if (parts.length > 0) {
-      const lastPart = parts[parts.length - 1]
-      // Extract only digits from the last part
-      const digits = lastPart.match(/\d+/g)
-      if (digits && digits.length > 0) {
-        // Get last 6 digits from all digits found
-        const allDigits = digits.join("")
-        lastDigits = allDigits.slice(-6).padStart(6, "0")
-      } else {
-        // If no digits in last part, look for digits in all parts
-        const allParts = parts.join("")
-        const allDigits = allParts.match(/\d+/g)
-        if (allDigits && allDigits.length > 0) {
-          const combinedDigits = allDigits.join("")
-          lastDigits = combinedDigits.slice(-6).padStart(6, "0")
-        }
-      }
-    }
-
-    // If no digits found, use a hash of the ID
-    if (!lastDigits) {
-      const hash = idString.split("").reduce((acc, char) => {
-        return ((acc << 5) - acc) + char.charCodeAt(0) | 0
-      }, 0)
-      lastDigits = Math.abs(hash).toString().slice(-6).padStart(6, "0")
-    }
-
-    return `REST${lastDigits}`
-  }
-
   // Fetch Top 10 and Gourmet when Explore More tab is active; refetch restaurants so dropdown is populated
   useEffect(() => {
     if (activeTab === 'explore-more') {
@@ -2021,7 +1981,7 @@ export default function LandingPageManagement() {
                             >
                               <div className="min-w-0">
                                 <p className="text-sm font-medium text-slate-800 truncate">{restaurant.name}</p>
-                                 <p className="text-xs text-slate-500 truncate">ID #{formatRestaurantId(restaurant.restaurantId || restaurant._id)}</p>
+                                 <p className="text-xs text-slate-500 truncate">{restaurant._id || "No ID"}</p>
                               </div>
                               <Checkbox
                                 checked={isChecked}
@@ -2146,7 +2106,7 @@ export default function LandingPageManagement() {
                           .filter(r => !gourmetRestaurants.some(gr => gr.restaurant?._id === r._id))
                           .map((restaurant) => (
                             <option key={restaurant._id} value={restaurant._id}>
-                              {restaurant.name} (#{formatRestaurantId(restaurant.restaurantId || restaurant._id)})
+                              {restaurant.name}
                             </option>
                           ))}
                       </select>
@@ -2203,8 +2163,7 @@ export default function LandingPageManagement() {
                                 </div>
                               </div>
                               <div className="p-2">
-                                 <h3 className="font-semibold text-slate-900 mb-0.5 text-sm line-clamp-1">{item.restaurant?.name || 'N/A'}</h3>
-                                <p className="text-[10px] text-slate-500">ID #{formatRestaurantId(item.restaurant?.restaurantId || item.restaurant?._id)}</p>
+                                <h3 className="font-semibold text-slate-900 mb-0.5 text-sm line-clamp-1">{item.restaurant?.name || 'N/A'}</h3>
                                 <p className="text-[10px] text-slate-500 mb-2">Rating: {item.restaurant?.rating || 0}?</p>
                                 <div className="flex items-center justify-between gap-1">
                                   <div className="flex items-center gap-0.5">
@@ -2342,7 +2301,7 @@ export default function LandingPageManagement() {
                                 {restaurant.name || 'Unnamed Restaurant'}
                               </h3>
                               <p className="text-sm text-slate-500 truncate">
-                                ID #{formatRestaurantId(restaurant.restaurantId || restaurant._id)}
+                                ID: {restaurant.restaurantId || restaurant._id}
                               </p>
                               {restaurant.rating && (
                                 <div className="flex items-center gap-1 mt-1">

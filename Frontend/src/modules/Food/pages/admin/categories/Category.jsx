@@ -44,7 +44,9 @@ const scopeBadgeClass = (scope) => {
 const zoneLabel = (zone) => {
   if (!zone) return "Global"
   if (typeof zone === "string") {
-    return zone.trim() || "Global"
+    const value = zone.trim()
+    if (/^[a-f0-9]{24}$/i.test(value)) return `Zone ID ${value.slice(-6)}`
+    return value
   }
   return zone?.name || zone?.zoneName || zone?.serviceLocation || "Zone"
 }
@@ -119,30 +121,6 @@ export default function Category() {
       )
     })
   }, [categories, searchQuery])
-
-  const zoneNameById = useMemo(() => {
-    return zones.reduce((acc, zone) => {
-      const id = String(zone?._id || zone?.id || "").trim()
-      if (!id) return acc
-      acc[id] = zone?.name || zone?.zoneName || zone?.serviceLocation || id
-      return acc
-    }, {})
-  }, [zones])
-
-  const getZoneLabel = (zoneValue) => {
-    if (!zoneValue) return "Global"
-
-    if (typeof zoneValue === "object") {
-      return zoneLabel(zoneValue)
-    }
-
-    const normalizedZoneId = String(zoneValue).trim()
-    if (!normalizedZoneId || normalizedZoneId.toLowerCase() === "global") {
-      return "Global"
-    }
-
-    return zoneNameById[normalizedZoneId] || normalizedZoneId
-  }
 
   const fetchCategories = async () => {
     try {
@@ -318,7 +296,7 @@ export default function Category() {
         category?.name || "N/A",
         category?.foodTypeScope || "Both",
         category?.isGlobal ? "Global" : "Private",
-        getZoneLabel(category?.zoneId),
+        zoneLabel(category?.zoneId),
         category?.approvalStatus || "pending",
       ])
 
@@ -484,7 +462,7 @@ export default function Category() {
                   const creatorName = category?.createdByRestaurant?.name || category?.restaurant?.name || "Admin"
                   const approvalStatus = category?.approvalStatus || "pending"
                   const isRestaurantCategory = Boolean(category?.createdByRestaurantId || category?.restaurantId)
-                  const zoneText = getZoneLabel(category?.zoneId)
+                  const zoneText = zoneLabel(category?.zoneId)
 
                   return (
                     <tr key={category.id} className="align-top hover:bg-slate-50/80">

@@ -5,10 +5,21 @@ import { cn } from "@/lib/utils";
 import ExperienceBannerCarousel from "./ExperienceBannerCarousel";
 import { resolveQuickImageUrl } from "../../utils/image";
 import { getCloudinarySrcSet } from "@/shared/utils/cloudinaryUtils";
-import { getQuickCategoryPath } from "../../utils/routes";
+import { motion } from "framer-motion";
 
 const SectionRenderer = ({ sections = [], productsById = {}, categoriesById = {}, subcategoriesById = {} }) => {
   const navigate = useNavigate();
+
+  const categoryBgColors = [
+    "#E7F3FF", // Light Blue
+    "#F0FFF4", // Light Mint
+    "#FFF5F5", // Light Rose
+    "#FFF9E7", // Light Amber
+    "#F3E8FF", // Light Purple
+    "#E6FFFA", // Light Teal
+    "#FFEDD5", // Light Orange
+    "#F0F9FF", // Light Sky
+  ];
 
   return (
     <div className="space-y-8">
@@ -30,7 +41,7 @@ const SectionRenderer = ({ sections = [], productsById = {}, categoriesById = {}
           const hydratedItems = categoryConfig.items || [];
           const rows = categoryConfig.rows || 1;
           const visibleCount = rows * 4;
-          
+
           const items = hydratedItems.map(c => ({
             ...c,
             id: c.id || c._id,
@@ -43,7 +54,7 @@ const SectionRenderer = ({ sections = [], productsById = {}, categoriesById = {}
             <div
               key={section._id}
               id={`section-${section._id}`}
-              className=""
+              className="mt-0"
             >
               {heading && (
                 <div className="flex items-center justify-between mb-2">
@@ -56,31 +67,53 @@ const SectionRenderer = ({ sections = [], productsById = {}, categoriesById = {}
                 </div>
               )}
               <div
-                className="grid grid-cols-4 gap-2 md:gap-4 overflow-hidden"
+                className="grid grid-cols-4 gap-2 md:gap-4 overflow-hidden [perspective:1000px]"
                 style={{
                   gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
                 }}
               >
-                {items.map((cat) => (
-                  <div
+                {items.map((cat, idx) => (
+                  <motion.div
                     key={cat.id}
-                    onClick={() => navigate(getQuickCategoryPath(cat.id))}
+                    initial={{
+                      rotateY: idx % 2 === 0 ? 45 : -45,
+                      opacity: 0,
+                      y: 20,
+                      scale: 0.95
+                    }}
+                    whileInView={{
+                      rotateY: 0,
+                      opacity: 1,
+                      y: 0,
+                      scale: 1
+                    }}
+                    viewport={{ once: true, amount: 0.2 }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 260,
+                      damping: 20,
+                      delay: (idx % 4) * 0.05
+                    }}
+                    onClick={() => navigate(`/category/${cat.id}`)}
                     className="flex flex-col items-center group cursor-pointer"
                   >
-                    <div className="w-full aspect-square bg-card dark:bg-background rounded-2xl p-2 mb-1 group-hover:bg-accent transition-colors flex items-center justify-center overflow-hidden shadow-sm border border-border">
+                    <div
+                      className="w-full aspect-square rounded-2xl p-2.5 mb-1.5 group-hover:scale-[1.05] transition-all duration-300 flex items-center justify-center overflow-hidden shadow-sm border border-white/50"
+                      style={{ backgroundColor: categoryBgColors[idx % categoryBgColors.length] }}
+                    >
                       <img
                         src={cat.image}
                         srcSet={getCloudinarySrcSet(cat.image)}
                         sizes="(max-width: 768px) 25vw, 150px"
                         alt={cat.name}
-                        className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-300"
+                        className="w-full h-full object-contain group-hover:rotate-6 transition-transform duration-500 drop-shadow-sm mix-blend-multiply"
                         loading="lazy"
                       />
                     </div>
-                    <span className="text-[10px] md:text-xs font-bold text-foreground text-center line-clamp-1 group-hover:text-primary">
+                    <span className="text-[10px] md:text-xs font-bold text-slate-700 text-center line-clamp-1 group-hover:text-black transition-colors">
                       {cat.name}
                     </span>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
             </div>
@@ -124,12 +157,12 @@ const SectionRenderer = ({ sections = [], productsById = {}, categoriesById = {}
                           null;
 
                         if (parentId) {
-                          navigate(getQuickCategoryPath(parentId), {
+                          navigate(`/category/${parentId}`, {
                             state: { activeSubcategoryId: cat._id },
                           });
                         } else {
                           // Fallback to previous behavior if we can't resolve parent
-                          navigate(getQuickCategoryPath(cat._id));
+                          navigate(`/category/${cat._id}`);
                         }
                       }}
                     >
@@ -177,11 +210,11 @@ const SectionRenderer = ({ sections = [], productsById = {}, categoriesById = {}
 
           if (singleRowScrollable) {
             return (
-            <div
-              key={section._id}
-              id={`section-${section._id}`}
-              className="mb-2"
-            >
+              <div
+                key={section._id}
+                id={`section-${section._id}`}
+                className="mb-2"
+              >
                 <div className="flex items-center justify-between mb-3">
                   {heading && (
                     <h3 className="text-base font-black text-foreground">
@@ -231,14 +264,14 @@ const SectionRenderer = ({ sections = [], productsById = {}, categoriesById = {}
                   columns === 1
                     ? "grid-cols-1"
                     : columns === 2
-                    ? "grid-cols-2"
-                    : columns === 3
-                    ? "grid-cols-3"
-                    : columns === 4
-                    ? "grid-cols-4"
-                    : columns === 5
-                    ? "grid-cols-5"
-                    : "grid-cols-2"
+                      ? "grid-cols-2"
+                      : columns === 3
+                        ? "grid-cols-3"
+                        : columns === 4
+                          ? "grid-cols-4"
+                          : columns === 5
+                            ? "grid-cols-5"
+                            : "grid-cols-2"
                 )}
               >
                 {items.map((product) => (

@@ -7,17 +7,10 @@ export async function getPublicReferralSettingsController(req, res, next) {
         // Expose only the fields needed by clients.
         const payload = settings
             ? {
-                user: {
-                    referrerReward: Number(settings?.user?.referrerReward) || 0,
-                    refereeReward: Number(settings?.user?.refereeReward) || 0,
-                    limit: Number(settings?.user?.limit) || 0
-                },
-                delivery: {
-                    referrerReward: Number(settings?.delivery?.referrerReward) || 0,
-                    refereeReward: Number(settings?.delivery?.refereeReward) || 0,
-                    limit: Number(settings?.delivery?.limit) || 0
-                },
-                isActive: settings?.isActive !== false
+                referralRewardUser: Number(settings.referralRewardUser) || 0,
+                referralRewardDelivery: Number(settings.referralRewardDelivery) || 0,
+                referralLimitUser: Number(settings.referralLimitUser) || 0,
+                referralLimitDelivery: Number(settings.referralLimitDelivery) || 0
             }
             : null;
         return res.status(200).json({ success: true, message: 'Referral settings fetched successfully', data: { referralSettings: payload } });

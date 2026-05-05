@@ -536,19 +536,6 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
   const hasHeroBanners = (heroConfig.banners?.items || []).length > 0;
   const shouldShowHeroFallback = !isInitialPageLoading && !hasHeroBanners;
 
-  // Preload first hero banner for performance (Point 6)
-  useEffect(() => {
-    if (hasHeroBanners && heroConfig.banners.items[0]?.imageUrl) {
-      const link = document.createElement("link");
-      link.rel = "preload";
-      link.as = "image";
-      link.href = resolveQuickImageUrl(heroConfig.banners.items[0].imageUrl);
-      document.head.appendChild(link);
-      return () => {
-        if (document.head.contains(link)) document.head.removeChild(link);
-      };
-    }
-  }, [hasHeroBanners, heroConfig.banners.items]);
 
   // Autoplay for Mobile Banner Carousel
   useEffect(() => {
@@ -694,7 +681,7 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
       {isInitialPageLoading ? (
         <QuickHomeLoadingState embedded={embedded} />
       ) : (
-        <div className={cn("pt-[100px]", embedded && "pt-0")}>
+        <div className={cn("pt-0", embedded && "pt-0")}>
           {/* Hero Banners (mobile): admin-configured or static fallback */}
           <>
             <div className={cn("block md:hidden", embedded ? "-mt-[1px]" : "mt-0")}>
@@ -761,7 +748,7 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
                         </div>
                       </motion.div>
                       <motion.div
-                        onClick={() => navigate(getQuickCategoriesPath())}
+                        onClick={() => navigate("/categories")}
                         whileTap={{ scale: 0.96 }}
                         className="min-w-full">
                         <div className="w-full h-[190px] bg-white dark:bg-card relative overflow-hidden flex border-y border-gray-100 dark:border-white/5 shadow-[0_4px_15px_rgba(0,0,0,0.05)] group">
@@ -866,7 +853,7 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
             <div
               className={cn(
                 "w-full mb-5 overflow-hidden relative group z-20 md:mt-3",
-                embedded ? "-mt-[35px]" : "-mt-[65px]",
+                embedded ? "mt-2" : "mt-4 md:mt-6",
               )}>
               <div
                 className={cn(
@@ -924,7 +911,7 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
                         }}
                         className="flex flex-col items-center gap-1 min-w-[84px] md:min-w-[112px] lg:min-w-[128px] cursor-pointer group/item snap-start">
                         <div
-                          className="relative w-[84px] h-[96px] md:w-[112px] md:h-[126px] lg:w-[128px] lg:h-[140px] rounded-[22px] shadow-[0_10px_22px_rgba(15,23,42,0.10)] border flex items-start justify-center p-2 transition-all duration-300 group-hover/item:-translate-y-1 group-hover/item:shadow-[0_16px_30px_rgba(15,23,42,0.14)] overflow-hidden"
+                          className="relative w-[84px] h-[96px] md:w-[112px] md:h-[126px] lg:w-[128px] lg:h-[140px] rounded-t-full rounded-b-[24px] shadow-[0_10px_22px_rgba(15,23,42,0.10)] border flex items-start justify-center p-2 transition-all duration-300 group-hover/item:-translate-y-1 group-hover/item:shadow-[0_16px_30px_rgba(15,23,42,0.14)] overflow-hidden"
                           style={{
                             backgroundImage: `linear-gradient(135deg, rgba(255,255,255,0.96) 0%, rgba(255,255,255,0.6) 24%, rgba(255,255,255,0.15) 100%), linear-gradient(135deg, ${palette.bgFrom}, ${palette.bgVia}, ${palette.bgTo})`,
                             borderColor: palette.frameColor,
@@ -972,26 +959,19 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
           {/* Lowest Price ever Section  (kept as static for now) */}
           <div
             className={cn(
-              "mb-4 md:mb-8",
-              embedded ? "-mt-[12px] md:-mt-[16px]" : "mt-0 md:mt-4",
+              "mb-4 md:mb-6",
+              embedded ? "mt-4 md:mt-5" : "mt-6 md:mt-10",
             )}>
-            <div className="relative overflow-hidden bg-linear-to-br from-[#0c831f]/10 via-[#0c831f]/5 to-transparent pt-[20px] pb-0 border-y border-[#0c831f]/10 shadow-sm md:shadow-[inset_0_-10px_40px_rgba(0,0,0,0.02)]">
-              {/* Background Decoration */}
-              <div className="absolute -top-10 -right-10 h-40 w-40 md:h-80 md:w-80 bg-[#0c831f]/10 rounded-full blur-3xl opacity-60" />
-              <div className="absolute -bottom-10 -left-10 h-40 w-40 md:h-80 md:w-80 bg-yellow-400/10 rounded-full blur-3xl opacity-60" />
-
-              <div className="container mx-auto px-4 md:px-8 lg:px-[50px] relative z-10">
-                <div className="flex justify-between items-center mb-6 md:mb-10 px-1">
+            <div className="relative overflow-hidden bg-[#e7f3ff] pt-6 md:pt-8 pb-0 rounded-none md:rounded-[32px] mx-0 md:mx-8 lg:mx-[50px] shadow-sm">
+              <div className="relative z-10 px-4 md:px-8">
+                <div className="flex justify-between items-center mb-3 md:mb-5 px-1">
                   <div className="flex flex-col">
-                    <h3 className="text-xl md:text-4xl font-[1000] text-foreground tracking-tighter uppercase leading-none">
-                      {activeCategory && activeCategory._id !== "all" && activeCategory.id !== "all"
-                        ? <>{activeCategory.name} <span className="text-[#0c831f]">Products</span></>
-                        : <>Lowest Price <span className="text-[#0c831f]">ever</span></>
-                      }
+                    <h3 className="text-lg md:text-3xl font-[1000] text-[#004b91] tracking-tighter uppercase leading-none">
+                      Lowest Price <span className="text-[#004b91]">ever</span>
                     </h3>
-                    <div className="flex items-center gap-1.5 md:gap-2 mt-1.5 md:mt-3">
-                      <div className="h-1 w-1 md:h-2 md:w-2 bg-[#0c831f] rounded-full animate-pulse shadow-[0_0_8px_rgba(12,131,31,0.5)]" />
-                      <span className="text-[10px] md:text-xs font-black text-[#0c831f] uppercase tracking-wider md:tracking-[0.2em] opacity-80">
+                    <div className="flex items-center gap-1.5 md:gap-2 mt-1 md:mt-2">
+                      <div className="h-1 w-1 md:h-1.5 md:w-1.5 bg-[#004b91] rounded-full animate-pulse" />
+                      <span className="text-[9px] md:text-[10px] font-black text-[#004b91] uppercase tracking-wider opacity-80">
                         Unbeatable Savings • Updated hourly
                       </span>
                     </div>
@@ -1000,23 +980,24 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
                     onClick={() => navigate(getQuickCategoriesPath())}
                     whileHover={{ x: 5, scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    className="flex items-center gap-1 md:gap-2 bg-card dark:bg-background px-3 py-1.5 md:px-6 md:py-3 rounded-full text-[#0c831f] font-bold text-[10px] md:text-sm cursor-pointer shadow-sm md:shadow-lg border border-border transition-all">
+                    className="flex items-center gap-1 md:gap-1.5 bg-white px-3 py-1.5 md:px-5 md:py-2.5 rounded-full text-[#004b91] font-bold text-[9px] md:text-xs cursor-pointer shadow-sm border border-[#004b91]/5 transition-all shrink-0 whitespace-nowrap">
                     See all{" "}
                     <ArrowRightIcon
-                      sx={{ fontSize: 12, ml: { xs: 0.2, md: 0.5 } }}
+                      sx={{ fontSize: 10, ml: 0.5 }}
                     />
                   </motion.div>
                 </div>
 
-                <div className="relative z-10 flex overflow-x-auto gap-3 md:gap-6 pb-6 md:pb-8 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0 snap-x snap-mandatory scroll-smooth">
-                  {filteredProducts.slice(0, 12).map((product) => (
+                <div className="relative z-10 flex overflow-x-auto gap-3 md:gap-4 pb-5 md:pb-6 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0 snap-x snap-mandatory scroll-smooth">
+                  {products.slice(0, 12).map((product) => (
                     <div
                       key={product.id}
-                      className="w-[130px] md:w-[160px] lg:w-[180px] shrink-0 snap-start">
+                      className="w-[125px] md:w-[155px] lg:w-[175px] shrink-0 snap-start">
                       <ProductCard
                         product={product}
-                        className="shadow-[0_8px_20px_-8px_rgba(0,0,0,0.1)] md:shadow-[0_15px_30px_rgba(0,0,0,0.05)] border-green-50/50 md:border-slate-100 transition-all dark:border-white/5"
+                        className="bg-white rounded-[20px] shadow-[0_8px_20px_-8px_rgba(0,0,0,0.1)] border-blue-50/50 transition-all"
                         compact={true}
+                        curvedInfo={true}
                       />
                     </div>
                   ))}
@@ -1034,7 +1015,7 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
 
           {/* Offer Sections (admin-configured: Trending, etc.) – show on Home so user sees them */}
           {offerSections.length > 0 && (
-            <div className="w-full px-0 pt-0 pb-6 md:pb-10">
+            <div className="w-full px-0 pt-0 pb-2 md:pb-4">
               {[...offerSections]
                 .filter(section => {
                   if ((section.title || '').trim().toLowerCase() === 'best sellers') return false;
@@ -1081,7 +1062,10 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
                       whileInView={{ opacity: 1, y: 0 }}
                       viewport={{ once: true, amount: 0.25 }}
                       transition={{ duration: 0.4 }}
-                      className="mb-10 rounded-none overflow-hidden shadow-[0_18px_35px_rgba(15,23,42,0.16)] bg-white dark:bg-card border-y border-slate-100/70 dark:border-white/5 border-x-0 md:border-x">
+                      className={cn(
+                        "mb-4 rounded-none overflow-hidden shadow-[0_10px_25px_rgba(15,23,42,0.1)] border-y border-slate-100/70 border-x-0 md:border-x",
+                        section.title?.toLowerCase().includes('masala') ? "bg-[#FFF9E7]" : "bg-white"
+                      )}>
                       <div
                         className="relative flex items-center justify-between px-5 md:px-8 py-5 md:py-6 text-black dark:text-white"
                         style={{
@@ -1191,9 +1175,22 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
           {sectionsForRenderer.length > 0 && (
             <div
               className={cn(
-                "container mx-auto px-4 md:px-8 lg:px-[50px]",
-                embedded ? "pt-2 pb-24 md:pt-6 md:pb-16" : "pt-2 pb-10 md:pt-4 md:pb-16",
+                "container mx-auto px-4 md:px-8 lg:px-[50px] bg-[#F0F9FF] rounded-none pt-4 pb-10 mt-[-28px] mb-10 relative z-[1] border-x-2 border-b-2 border-sky-200/50 shadow-sm overflow-hidden",
               )}>
+              {/* Animated Top Border Glow */}
+              <motion.div
+                animate={{
+                  x: ["-100%", "100%"],
+                  opacity: [0, 1, 0]
+                }}
+                transition={{
+                  duration: 3,
+                  repeat: Infinity,
+                  ease: "linear"
+                }}
+                className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-transparent via-sky-400/80 to-transparent"
+              />
+
               <SectionRenderer
                 sections={sectionsForRenderer}
                 productsById={productsById}
@@ -1218,7 +1215,6 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
           {embedded && (
             <>
               <MiniCart
-                position="center"
                 linkTo={getQuickCartPath(routePathname)}
               />
               <ProductDetailSheet />

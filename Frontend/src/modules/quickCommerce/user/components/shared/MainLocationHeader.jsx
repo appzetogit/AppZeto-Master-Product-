@@ -26,7 +26,7 @@ import { Sparkles } from "lucide-react";
 import { customerApi } from "../../services/customerApi";
 import ThemeToggle from "../layout/ThemeToggle";
 
-// MUI Icons (shared with Home.jsx)
+// MUI Icons
 import HomeIcon from "@mui/icons-material/Home";
 import DevicesIcon from "@mui/icons-material/Devices";
 import LocalGroceryStoreIcon from "@mui/icons-material/LocalGroceryStore";
@@ -49,6 +49,13 @@ import DiamondIcon from "@mui/icons-material/Diamond";
 import ColorLensIcon from "@mui/icons-material/ColorLens";
 import BuildIcon from "@mui/icons-material/Build";
 import LuggageIcon from "@mui/icons-material/Luggage";
+import AccessTimeIcon from "@mui/icons-material/AccessTime";
+import LocationOnIcon from "@mui/icons-material/LocationOn";
+import SearchIcon from "@mui/icons-material/Search";
+import MicIcon from "@mui/icons-material/Mic";
+import ChevronDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import FavoriteBorderOutlinedIcon from "@mui/icons-material/FavoriteBorderOutlined";
+import ShoppingCartOutlinedIcon from "@mui/icons-material/ShoppingCartOutlined";
 
 const ICON_COMPONENTS = {
   electronics: DevicesIcon,
@@ -72,49 +79,12 @@ const ICON_COMPONENTS = {
   grocery: LocalGroceryStoreIcon,
 };
 
-// MUI Icons
-import AccessTimeIcon from "@mui/icons-material/AccessTime";
-import LocationOnIcon from "@mui/icons-material/LocationOn";
-import SearchIcon from "@mui/icons-material/Search";
-import MicIcon from "@mui/icons-material/Mic";
-import ChevronDownIcon from "@mui/icons-material/KeyboardArrowDown";
-import FavoriteBorderOutlinedIcon from "@mui/icons-material/FavoriteBorderOutlined";
-import ShoppingCartOutlinedIcon from "@mui/icons-material/ShoppingCartOutlined";
-
 const serviceTabs = [
-  {
-    id: "food",
-    name: "Food",
-    icon: "https://cdn-icons-png.flaticon.com/512/3075/3075977.png",
-    route: "/food/user",
-  },
-  {
-    id: "quick",
-    name: "Instamart",
-    icon: "https://cdn-icons-png.flaticon.com/512/3724/3724720.png",
-    route: "/quick",
-  },
-  {
-    id: "taxi",
-    name: "Dineout",
-    icon: "https://cdn-icons-png.flaticon.com/512/2515/2515183.png",
-    route: "/taxi",
-  },
-  {
-    id: "hotel",
-    name: "Explore",
-    icon: "https://cdn-icons-png.flaticon.com/512/854/854878.png",
-    route: "/user/auth/portal",
-  },
+  { name: "Food" },
+  { name: "Quick" },
+  { name: "Instamart" },
+  { name: "Dineout" },
 ];
-
-const withAlpha = (hex, alpha) => {
-  const value = String(hex || "#000000").replace("#", "");
-  const r = parseInt(value.slice(0, 2), 16) || 0;
-  const g = parseInt(value.slice(2, 4), 16) || 0;
-  const b = parseInt(value.slice(4, 6), 16) || 0;
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-};
 
 const lightenHex = (hex, amount = 0.18) => {
   const normalized = String(hex || "").replace("#", "");
@@ -135,7 +105,6 @@ const lightenHex = (hex, amount = 0.18) => {
 function buildActiveTabPath(l, r) {
   const y = 20;
   const mapX = (x) => l + ((x - 1.5) / (98.5 - 1.5)) * (r - l);
-  // Softer shoulders + flatter crown for a cleaner active tab curve.
   return `M 0 ${y} L ${l} ${y} L ${l} 12 C ${mapX(2.6)} 7 ${mapX(8.2)} 1.55 ${mapX(15)} 1.55 L ${mapX(85)} 1.55 C ${mapX(91.8)} 1.55 ${mapX(97.4)} 7 ${mapX(98.5)} 12 V ${y} L 100 ${y}`;
 }
 
@@ -202,7 +171,7 @@ function CategoryNavColumn({
           <img
             src={cat.icon}
             alt={cat.name}
-            className="h-5 w-5 object-contain md:h-6 md:w-6"
+            className="h-4 w-4 object-contain md:h-5 md:w-5"
             style={{ opacity: isActive ? 1 : 0.92 }}
           />
         )}
@@ -211,7 +180,7 @@ function CategoryNavColumn({
         <span
           ref={labelRef}
           className={cn(
-            "relative z-10 mx-auto block max-w-[72px] truncate px-1 pb-0.5 text-center text-[8px] uppercase tracking-tight md:max-w-[88px] md:text-[10px]",
+            "relative z-10 mx-auto block max-w-[72px] truncate px-1 pb-1 text-center text-[9px] uppercase tracking-tight md:max-w-[88px] md:text-[11px]",
             isActive ? "font-black" : "font-semibold",
           )}
           style={{
@@ -400,7 +369,6 @@ const MainLocationHeader = ({
   const rawCartOpacity = useTransform(scrollY, [0, 110, 150], [1, 0.7, 0]);
   const rawCartScale = useTransform(scrollY, [0, 110, 150], [1, 0.9, 0.75]);
 
-  // Helper to hide elements completely when collapsed to prevent clicks
   const rawDisplayContent = useTransform(scrollY, (value) =>
     value > 160 ? "none" : "block",
   );
@@ -467,7 +435,7 @@ const MainLocationHeader = ({
             backgroundImage: headerGradient,
           }}
           className={cn(
-            "px-4 overflow-hidden transition-all duration-300",
+            "px-4 transition-all duration-300",
             embedded
               ? "border-b border-black/5 shadow-[0_10px_24px_rgba(15,23,42,0.10)] backdrop-blur-xl"
               : "sticky top-0 shadow-[0_4px_20px_rgba(0,0,0,0.15)]",
@@ -540,27 +508,9 @@ const MainLocationHeader = ({
                 </div>
               </div>
 
-              {/* Center Section: Search Bar */}
-              <div className="flex-1 max-w-[450px] lg:max-w-2xl px-6">
-                <div className="flex items-center gap-3">
-                  <motion.div
-                    onClick={handleSearchClick}
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.99 }}
-                    style={{ backgroundColor: searchBarBg }}
-                    className="rounded-full px-4 h-11 shadow-md flex items-center border border-white/50 transition-all duration-200 focus-within:ring-2 focus-within:ring-emerald-400/60 cursor-pointer flex-1">
-                    <SearchIcon sx={{ color: "#000000", fontSize: 20 }} />
-                    <input
-                      type="text"
-                      placeholder={searchPlaceholder || "Search Products..."}
-                      readOnly
-                      className="flex-1 bg-transparent border-none outline-none pl-2 text-slate-800 font-semibold placeholder:text-slate-300 text-[15px] cursor-pointer"
-                    />
-                    <div className="flex items-center gap-2 border-l border-slate-100 pl-3">
-                      <MicIcon sx={{ color: "#000000", fontSize: 20 }} />
-                    </div>
-                  </motion.div>
-
+              {/* Center Section: Empty (Search moved to categories) */}
+              <div className="flex-1 px-6">
+                <div className="flex items-center justify-end gap-3">
                   <motion.button
                     initial={{ opacity: 0, scale: 0.9, y: -8 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -615,64 +565,6 @@ const MainLocationHeader = ({
             </div>
           )}
 
-          {/* Service Tabs (Mobile/Desktop) - Hide when embedded in another module's home */}
-          {!embedded && (
-            <div className="relative z-10 px-1 pt-1 mb-3 flex items-end justify-start gap-[6px] overflow-x-auto no-scrollbar">
-            {serviceTabs.map((tab) => {
-              const isActive = tab.id === "quick";
-              const themeColor = baseHeaderColor || "#0c831f";
-              
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => navigate(tab.route)}
-                  className={cn(
-                    "relative flex flex-col items-center justify-start flex-1 min-w-[70px] h-[72px] transition-all duration-300",
-                    isActive ? "z-20" : "z-10"
-                  )}
-                >
-                  <div
-                    className={cn(
-                      "absolute inset-x-0 rounded-t-[14px] rounded-b-none",
-                      isActive ? "top-0 bottom-0" : "top-[6px] bottom-0"
-                    )}
-                    style={{
-                      background: isActive ? "#ffffff" : "rgba(255,255,255,0.14)",
-                      borderTop: `1.2px solid ${isActive ? withAlpha(themeColor, 0.25) : "rgba(255,255,255,0.12)"}`,
-                      borderLeft: `1.2px solid ${isActive ? withAlpha(themeColor, 0.18) : "rgba(255,255,255,0.12)"}`,
-                      borderRight: `1.2px solid ${isActive ? withAlpha(themeColor, 0.18) : "rgba(255,255,255,0.12)"}`,
-                      boxShadow: isActive ? "0 -3px 15px rgba(0,0,0,0.06)" : "none",
-                      backdropFilter: isActive ? undefined : "blur(12px)",
-                    }}
-                  />
-                  <div className={cn(
-                    "absolute inset-x-0 bottom-0 z-10 flex flex-col items-center justify-center gap-[2px] px-1",
-                    isActive ? "top-0" : "top-[6px]"
-                  )}>
-                    <img
-                      src={tab.icon}
-                      alt={tab.name}
-                      className={cn(
-                        "object-contain transition-transform duration-300",
-                        isActive ? "h-[28px] w-[28px] scale-105" : "h-[24px] w-[24px] brightness-[1.3]"
-                      )}
-                    />
-                    <span
-                      style={{ color: isActive ? themeColor : "#ffffff" }}
-                      className={cn(
-                        "text-[9px] font-extrabold",
-                        !isActive && "drop-shadow-[0_1px_5px_rgba(0,0,0,0.45)]"
-                      )}
-                    >
-                      {tab.name}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-          )}
-
           {/* Collapsible Delivery Info & Location (MOBILE ONLY) */}
           {!embedded && showTopContent && <div className="md:hidden">
             <motion.div
@@ -684,6 +576,11 @@ const MainLocationHeader = ({
                 overflow: "hidden",
               }}
               className="relative z-10">
+              <div className="mb-1">
+                <span className="inline-flex items-center rounded-full border border-black/10 bg-white/18 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-slate-900 backdrop-blur-sm">
+                  {appName}
+                </span>
+              </div>
               <div className="flex justify-between items-start">
                 <div className="flex flex-col">
                   <div className="flex items-center gap-1.5 mb-0.5">
@@ -715,86 +612,65 @@ const MainLocationHeader = ({
             </motion.div>
           </div>}
 
-          {/* Search Bar (MOBILE ONLY) */}
-          {!embedded && showSearchBar && <div className="relative z-10 mt-0 flex items-center gap-2.5 md:hidden">
-            <motion.div
-              onClick={handleSearchClick}
-              whileTap={{ scale: 0.98 }}
-              style={{ backgroundColor: searchBarBg }}
-              className="flex-1 rounded-[14px] px-3 h-11 shadow-[0_12px_30px_rgba(15,23,42,0.12)] flex items-center border border-white/55 transition-all duration-200 focus-within:ring-2 focus-within:ring-emerald-400/60 cursor-pointer">
-              <SearchIcon sx={{ color: "#000000", fontSize: 18 }} />
-              <input
-                type="text"
-                placeholder={searchPlaceholder || "Search Products..."}
-                readOnly
-                className="flex-1 bg-transparent border-none outline-none pl-2 text-slate-800 font-semibold placeholder:text-slate-300 text-[14px] cursor-pointer"
-              />
-              <div className="flex items-center gap-2 border-l border-slate-100 pl-2.5">
-                <MicIcon sx={{ color: "#000000", fontSize: 18 }} />
-              </div>
-            </motion.div>
+          {/* Top Search removed from here and moved to categories section below */}
 
-            <div className="flex items-center gap-2">
-              <ThemeToggle />
-              <motion.button
-                initial={{ opacity: 0, scale: 0.9, y: -8 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.15, ease: "easeOut" }}
-                style={{
-                  opacity: cartOpacity,
-                  scale: cartScale,
-                  display: displayCart,
-                }}
-                type="button"
-                aria-label="Open cart"
-                onClick={() => navigate(cartPath)}
-                className="group relative h-11 w-11 shrink-0 overflow-hidden rounded-[14px] border border-white/55 bg-white/28 shadow-[0_12px_28px_rgba(15,23,42,0.14)] backdrop-blur-xl transition-all duration-300 hover:bg-white/42">
-                <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-black/5 pointer-events-none" />
-                <Lottie
-                  animationData={shoppingCartAnimation}
-                  loop
-                  className="pointer-events-none absolute inset-0 scale-[1.22] drop-shadow-[0_8px_18px_rgba(0,0,0,0.14)] transition-transform duration-300 group-hover:scale-[1.28]"
-                />
-              </motion.button>
-            </div>
-          </div>}
-
-          {/* Categories Navigation - Smooth Collapse */}
           {showCategories && categories.length > 0 && (
-            <motion.div
-              layout
-              transition={{
-                layout: {
-                  type: "spring",
-                  stiffness: 420,
-                  damping: 34,
-                  mass: 0.6,
-                },
-              }}
-              style={{
-                height: navHeight,
-                opacity: navOpacity,
-                marginTop: categorySpacing,
-                display: displayNav,
-                overflowY: "hidden",
-              }}
-              className={cn(
-                "relative flex items-end md:justify-center gap-0 overflow-x-auto no-scrollbar -mx-2 px-2 md:mx-0 md:px-0 z-10 snap-x min-h-[68px] md:min-h-[76px] pb-0.5",
-                embedded ? "pt-0" : "pt-1",
-              )}>
-              {categories.slice(0, 10).map((cat) => {
-                const isActive = activeCategory?.id === cat.id;
-                return (
-                  <CategoryNavColumn
-                    key={cat.id}
-                    cat={cat}
-                    isActive={isActive}
-                    categoryAccent={categoryAccent}
-                    onCategorySelect={onCategorySelect}
+            <div className="relative z-10 space-y-1 pt-0">
+              {/* Compact Search Bar integrated into Categories Section */}
+              <div className="px-4 md:px-0 md:max-w-2xl md:mx-auto py-2">
+                <motion.div
+                  onClick={handleSearchClick}
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="flex-1 rounded-[12px] md:rounded-full px-4 h-[44px] shadow-md flex items-center bg-white border border-gray-100 cursor-pointer">
+                  <SearchIcon sx={{ color: "#F6881F", fontSize: 22 }} />
+                  <input
+                    type="text"
+                    placeholder={searchPlaceholder || "Search Products..."}
+                    readOnly
+                    className="flex-1 bg-transparent border-none outline-none pl-3 text-slate-800 font-bold placeholder:text-slate-300 text-[15px] cursor-pointer"
                   />
-                );
-              })}
-            </motion.div>
+                  <div className="flex items-center gap-2 border-l border-orange-100 pl-3">
+                    <MicIcon sx={{ color: "#F6881F", fontSize: 20 }} />
+                  </div>
+                </motion.div>
+              </div>
+
+              <motion.div
+                layout
+                transition={{
+                  layout: {
+                    type: "spring",
+                    stiffness: 420,
+                    damping: 34,
+                    mass: 0.6,
+                  },
+                }}
+                style={{
+                  height: navHeight,
+                  opacity: navOpacity,
+                  marginTop: categorySpacing,
+                  display: displayNav,
+                  overflowY: "hidden",
+                }}
+                className={cn(
+                  "relative flex items-end md:justify-center gap-1 overflow-x-auto no-scrollbar -mx-2 px-2 md:mx-0 md:px-0 z-10 snap-x min-h-[64px] md:min-h-[72px] pb-1",
+                  embedded ? "pt-1" : "pt-2",
+                )}>
+                {categories.slice(0, 10).map((cat) => {
+                  const isActive = activeCategory?.id === cat.id;
+                  return (
+                    <CategoryNavColumn
+                      key={cat.id}
+                      cat={cat}
+                      isActive={isActive}
+                      categoryAccent={categoryAccent}
+                      onCategorySelect={onCategorySelect}
+                    />
+                  );
+                })}
+              </motion.div>
+            </div>
           )}
 
           {/* Background Decorative patterns */}

@@ -144,21 +144,17 @@ export const verifyUserOtpAndLogin = async (
           ]);
 
           if (referrer && settingsDoc) {
-            const referrerReward = Math.max(
+            const reward = Math.max(
               0,
-              Number(settingsDoc?.user?.referrerReward) || 0,
-            );
-            const refereeReward = Math.max(
-              0,
-              Number(settingsDoc?.user?.refereeReward) || 0,
+              Number(settingsDoc.referralRewardUser) || 0,
             );
             const limit = Math.max(
               0,
-              Number(settingsDoc?.user?.limit) || 0,
+              Number(settingsDoc.referralLimitUser) || 0,
             );
 
             if (
-              (referrerReward > 0 || refereeReward > 0) &&
+              reward > 0 &&
               limit > 0 &&
               Number(referrer.referralCount || 0) < limit
             ) {
@@ -169,53 +165,30 @@ export const verifyUserOtpAndLogin = async (
                 referrerId,
                 refereeId: userDoc._id,
                 role: "USER",
-                rewardAmount: referrerReward,
-                referrerRewardAmount: referrerReward,
-                refereeRewardAmount: refereeReward,
+                rewardAmount: reward,
                 status: "credited",
               });
 
-              const creditTasks = [
+              await Promise.all([
                 FoodUser.updateOne(
                   { _id: referrerId },
                   { $inc: { referralCount: 1 } },
                 ),
-              ];
-
-              if (referrerReward > 0) {
-                creditTasks.push(
-                  creditReferralReward(referrerId, referrerReward, {
-                    role: "USER",
-                    beneficiary: "referrer",
-                    refereeId: String(userDoc._id),
-                    referralLogId: String(log._id),
-                  }),
-                );
-              }
-
-              if (refereeReward > 0) {
-                creditTasks.push(
-                  creditReferralReward(userDoc._id, refereeReward, {
-                    role: "USER",
-                    beneficiary: "referee",
-                    referrerId: String(referrerId),
-                    referralLogId: String(log._id),
-                  }),
-                );
-              }
-
-              await Promise.all(creditTasks);
+                creditReferralReward(referrerId, reward, {
+                  role: "USER",
+                  refereeId: String(userDoc._id),
+                  referralLogId: String(log._id),
+                }),
+              ]);
             } else {
               await FoodReferralLog.create({
                 referrerId,
                 refereeId: userDoc._id,
                 role: "USER",
-                rewardAmount: referrerReward,
-                referrerRewardAmount: referrerReward,
-                refereeRewardAmount: refereeReward,
+                rewardAmount: reward,
                 status: "rejected",
                 reason:
-                  referrerReward <= 0 && refereeReward <= 0
+                  reward <= 0
                     ? "reward_disabled"
                     : limit <= 0
                       ? "limit_disabled"

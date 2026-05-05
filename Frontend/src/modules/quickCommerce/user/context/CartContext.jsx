@@ -347,18 +347,29 @@ const useStandaloneQuickCart = (isBridged = false) => {
         getProductId(item) === resolvedProductId ? { ...item, quantity: newQty } : item,
       ),
     );
-    if (isAuthenticated) {
+      if (isAuthenticated) {
       pendingRequestsRef.current += 1;
       try {
-        const response = await customerApi.updateCartQuantity({
+        await customerApi.updateCartQuantity({
           productId: resolvedProductId,
           quantity: newQty,
         });
         pendingRequestsRef.current -= 1;
-        syncCart(response.data?.result?.items || response.data?.items);
       } catch (error) {
         pendingRequestsRef.current -= 1;
-        if (pendingRequestsRef.current === 0) await fetchCart();
+        // If item not found in backend cart, try adding it
+        if (error?.response?.status === 404) {
+          try {
+            await customerApi.addToCart({
+              productId: resolvedProductId,
+              quantity: newQty,
+            });
+          } catch (addError) {
+            console.error("Failed to fallback-add item to cart", addError);
+          }
+        } else if (pendingRequestsRef.current === 0) {
+          await fetchCart();
+        }
       }
     }
   };
@@ -484,10 +495,23 @@ export const CartProvider = ({ children }) => {
           if (nextQuantity === 0) {
             await customerApi.removeFromCart(resolvedProductId);
           } else {
-            await customerApi.updateCartQuantity({
-              productId: resolvedProductId,
-              quantity: nextQuantity,
-            });
+            try {
+              await customerApi.updateCartQuantity({
+                productId: resolvedProductId,
+                quantity: nextQuantity,
+              });
+            } catch (error) {
+              if (error?.response?.status === 404) {
+                // Fallback: if update fails with 404, the item might be missing from backend cart
+                // but present in local bridged cart. Try adding it.
+                await customerApi.addToCart({
+                  productId: resolvedProductId,
+                  quantity: nextQuantity,
+                });
+              } else {
+                throw error;
+              }
+            }
           }
         } catch (error) {
           console.error("Failed to sync bridged updateQuantity to backend", error);

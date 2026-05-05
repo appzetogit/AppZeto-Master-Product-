@@ -149,9 +149,10 @@ const FlyingItem = ({ item }) => {
         borderRadius: "50%",
       }}
       transition={{
-        duration: 1.5,
-        times: [0, 0.2, 0.8, 1], // Timing for opacity/scale keyframes
-        ease: "easeInOut",
+        left: { type: "spring", stiffness: 120, damping: 20 },
+        top: { type: "spring", stiffness: 120, damping: 20 },
+        opacity: { duration: 1.2, times: [0, 0.2, 0.8, 1] },
+        scale: { duration: 1.2, times: [0, 0.2, 0.8, 1] },
       }}
       className="object-cover bg-white pointer-events-none z-650"
     />
@@ -192,13 +193,15 @@ const DroppingItem = ({ item }) => {
           "inset 0 4px 8px rgba(255, 255, 255, 0.8), inset 0 -4px 8px rgba(0, 0, 0, 0.1), 0 8px 20px rgba(0, 0, 0, 0.3)",
       }}
       animate={{
-        top: startPos.y + 150, // Drop down 150px
-        opacity: [0, 1, 0], // Quick flash then fade
-        scale: [0.5, 1, 0.8],
+        y: -100, // Float up
+        x: Math.random() * 100 - 50, // Random drift
+        opacity: [0, 1, 0],
+        scale: [0.5, 1.2, 0.5],
+        rotate: 15,
       }}
       transition={{
-        duration: 0.5,
-        ease: "easeIn",
+        duration: 0.8,
+        ease: "easeOut",
       }}
       className="object-cover bg-white pointer-events-none z-650"
     />

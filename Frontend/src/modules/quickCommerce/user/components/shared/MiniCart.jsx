@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, ShoppingBag } from 'lucide-react';
 import Lottie from 'lottie-react';
 import { useCart } from '../../context/CartContext';
 import { cn } from '@/lib/utils';
@@ -48,101 +48,109 @@ const MiniCart = ({
                     key="mini-cart-wrapper"
                     id="mini-cart-target"
                     className={cn(
-                        "fixed z-[55] pointer-events-none",
-                        isBottomRight
-                            ? "bottom-[88px] right-4 md:bottom-6 md:right-6"
-                            : "bottom-[80px] md:bottom-[calc(6rem-20px)] left-0 right-0 flex justify-center px-4",
+                        "fixed z-[100] pointer-events-none",
+                        "bottom-[90px] right-4 md:bottom-10 md:right-10",
                         className,
                     )}
                 >
 
                     <motion.div
-                        initial={{ y: 50, opacity: 0, scale: 0.9 }}
-                        animate={{ y: 0, opacity: 1, scale: 1 }}
-                        exit={{ y: 50, opacity: 0, scale: 0.9 }}
-                        className={cn(
-                            "pointer-events-auto",
-                            isBottomRight ? "w-[160px]" : "w-full max-w-[170px]",
-                        )}
+                        initial="closed"
+                        whileHover="open"
+                        whileTap="open"
+                        animate="closed"
+                        className="pointer-events-auto"
                     >
                         <Link
                             to={resolvedLinkTo}
-                            style={{
-                                backgroundColor: "var(--customer-mini-cart-color, #1d7440)",
-                            }}
-                            className={cn(
-                                "flex items-center gap-2 text-white rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.3)] hover:scale-[1.05] active:scale-95 transition-all group border border-white/20 relative overflow-hidden",
-                                isBottomRight ? "py-1.5 px-3" : "py-1.5 px-2.5",
-                            )}
+                            className="flex flex-col items-center justify-center w-[72px] h-[72px] md:w-[84px] md:h-[84px] bg-black text-white rounded-full shadow-[0_15px_45px_rgba(0,0,0,0.5)] hover:scale-110 transition-all duration-300 relative group overflow-hidden border-2 border-white/10"
                         >
-                            <div className="absolute inset-0 overflow-hidden rounded-full pointer-events-none">
-                                <div className="mini-cart-shimmer absolute inset-y-0 left-[-40%] w-[40%] bg-gradient-to-r from-transparent via-white/30 to-transparent skew-x-[-20deg]" />
-                            </div>
+                            <div className="absolute inset-0 bg-gradient-to-br from-white/15 to-transparent pointer-events-none" />
 
-                            {/* Item Image */}
-                            <div className={cn(
-                                "h-8 w-8 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center flex-shrink-0 shadow-sm overflow-hidden border border-white/20",
-                                isBottomRight ? "h-8 w-8" : "h-8 w-8",
-                            )}>
-                                {cart[0]?.image || cart[0]?.imageUrl || cart[0]?.mainImage ? (
-                                    <img 
-                                        src={cart[0].image || cart[0].imageUrl || cart[0].mainImage} 
-                                        alt={cart[0].name} 
-                                        className="h-full w-full object-cover"
-                                    />
-                                ) : (
-                                    <Lottie
-                                        animationData={shoppingCartAnimation}
-                                        loop
-                                        className={cn(
-                                            "pointer-events-none scale-[1.4]",
-                                            isBottomRight ? "h-8 w-8" : "h-8 w-8",
-                                        )}
-                                    />
-                                )}
-                            </div>
+                            <motion.div
+                                variants={{
+                                    open: { scale: 0.9, rotate: -5 }
+                                }}
+                                className="relative flex flex-col items-center gap-0"
+                            >
+                                <div className="relative mb-0.5">
+                                    {/* Solid Bag Icon with Propagated Animation */}
+                                    <motion.svg
+                                        width="32"
+                                        height="32"
+                                        viewBox="0 0 24 24"
+                                        fill="white"
+                                        stroke="none"
+                                    >
+                                        {/* Bag Body (Trapezoid) */}
+                                        <motion.path
+                                            d="M6 10 L18 10 L19 22 C19 23 18 24 17 24 L7 24 C6 24 5 23 5 22 L6 10 Z"
+                                            variants={{
+                                                closed: { scaleY: 1, y: 0 },
+                                                open: { scaleY: 0.9, y: 1 }
+                                            }}
+                                            transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                                        />
 
-                            {/* Text Section */}
-                            <div className="flex-1 flex flex-col justify-center min-w-0">
-                                <h4 className={cn(
-                                    "font-black leading-tight truncate uppercase tracking-tighter",
-                                    isBottomRight ? "text-[13px]" : "text-[13px]",
-                                )}>View cart</h4>
-                                <p className={cn(
-                                    "opacity-90 font-bold leading-tight",
-                                    isBottomRight ? "text-[9px]" : "text-[9px]",
-                                )}>{cartCount} {cartCount === 1 ? 'item' : 'items'}</p>
-                            </div>
+                                        {/* Left Handle */}
+                                        <motion.path
+                                            d="M9 10 C9 10 9 4 12 4"
+                                            fill="none"
+                                            stroke="white"
+                                            strokeWidth="2.5"
+                                            strokeLinecap="round"
+                                            variants={{
+                                                closed: { rotate: 0, x: 0, originX: "50%", originY: "100%" },
+                                                open: { rotate: -45, x: -3, y: -1, originX: "50%", originY: "100%" }
+                                            }}
+                                            transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                                        />
 
-                            {/* Arrow Icon in circle */}
-                            <div className={cn(
-                                "rounded-full bg-white/25 flex items-center justify-center flex-shrink-0",
-                                isBottomRight ? "h-6 w-6" : "h-6 w-6",
-                            )}>
-                                <ChevronRight size={16} strokeWidth={3} className="text-white" />
+                                        {/* Right Handle */}
+                                        <motion.path
+                                            d="M15 10 C15 10 15 4 12 4"
+                                            fill="none"
+                                            stroke="white"
+                                            strokeWidth="2.5"
+                                            strokeLinecap="round"
+                                            variants={{
+                                                closed: { rotate: 0, x: 0, originX: "50%", originY: "100%" },
+                                                open: { rotate: 45, x: 3, y: -1, originX: "50%", originY: "100%" }
+                                            }}
+                                            transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                                        />
+                                    </motion.svg>
+
+                                    <motion.span
+                                        initial={{ scale: 0 }}
+                                        animate={{ scale: 1 }}
+                                        whileHover={{ scale: 1.2 }}
+                                        className="absolute -top-1 -right-2.5 w-5 h-5 bg-[#FFC107] text-black text-[11px] font-[1000] rounded-full flex items-center justify-center border-2 border-black shadow-lg z-10"
+                                    >
+                                        {cartCount}
+                                    </motion.span>
+                                </div>
+                                <div className="flex flex-col items-center -space-y-0.5">
+                                    <span className="text-[10px] font-medium tracking-wide leading-none">VIEW</span>
+                                    <span className="text-[10px] font-medium tracking-wide leading-none">CART</span>
+                                </div>
+                            </motion.div>
+
+                            {/* Shimmer Effect */}
+                            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12 translate-x-[-150%] animate-[shimmer_2s_infinite]" />
                             </div>
                         </Link>
                     </motion.div>
                 </div>
             )}
-            <style dangerouslySetInnerHTML={{
-                __html: `
-                @keyframes mini-cart-shimmer {
-                    0% { transform: translateX(-140%); }
-                    100% { transform: translateX(320%); }
-                }
-                .mini-cart-shimmer {
-                    animation: mini-cart-shimmer 2.8s ease-in-out infinite;
-                }
-                @keyframes gradient-move {
-                    0% { background-position: 0% 50%; }
-                    50% { background-position: 100% 50%; }
-                    100% { background-position: 0% 50%; }
-                }
-                .animate-gradient {
-                    animation: gradient-move 3s ease infinite;
-                }
-            `}} />
+            <style>
+                {`
+                    @keyframes shimmer {
+                        100% { transform: translateX(150%); }
+                    }
+                `}
+            </style>
         </AnimatePresence>
     );
 };

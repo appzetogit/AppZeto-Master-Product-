@@ -155,10 +155,6 @@ export async function getRestaurantReport(req, res, next) {
 export async function getDashboardStats(req, res, next) {
     try {
         const data = await adminService.getDashboardStats(req.query || {});
-        console.log('--- DASHBOARD API RESPONSE ---');
-        console.log('Orders Total:', data.orders.total);
-        console.log('Restaurants Total:', data.restaurants.total);
-        console.log('------------------------------');
         res.status(200).json({
             success: true,
             message: 'Dashboard stats fetched successfully',

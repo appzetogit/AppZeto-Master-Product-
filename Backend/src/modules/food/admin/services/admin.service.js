@@ -406,7 +406,12 @@ export async function getDashboardStats(query = {}) {
         ? new mongoose.Types.ObjectId(query.zoneId)
         : null;
 
-    const orderMatch = {};
+    const orderMatch = {
+        $or: [
+            { "payment.method": { $in: ["cash", "wallet"] } },
+            { "payment.status": { $in: ["paid", "authorized", "captured", "settled", "refunded"] } },
+        ],
+    };
     if (periodRange) {
         orderMatch.createdAt = { $gte: periodRange.start, $lte: periodRange.end };
     }
@@ -449,7 +454,7 @@ export async function getDashboardStats(query = {}) {
                 $group: {
                     _id: null,
                     totalOrders: { $sum: 1 },
-                    delivered: { $sum: { $cond: [{ $in: ['$orderStatus', ['delivered', 'completed']] }, 1, 0] } },
+                    delivered: { $sum: { $cond: [{ $eq: ['$orderStatus', 'delivered'] }, 1, 0] } },
                     cancelled: {
                         $sum: {
                             $cond: [{ $in: ['$orderStatus', CANCELLED_ORDER_STATUSES] }, 1, 0]
@@ -467,18 +472,18 @@ export async function getDashboardStats(query = {}) {
                     },
                     revenueTotal: { 
                         $sum: { 
-                            $cond: [{ $in: ['$orderStatus', ['delivered', 'completed']] }, { $ifNull: ['$pricing.total', 0] }, 0] 
+                            $cond: [{ $eq: ['$orderStatus', 'delivered'] }, { $ifNull: ['$pricing.total', 0] }, 0] 
                         } 
                     },
                     commissionTotal: { 
                         $sum: { 
-                            $cond: [{ $in: ['$orderStatus', ['delivered', 'completed']] }, { $ifNull: ['$pricing.restaurantCommission', 0] }, 0] 
+                            $cond: [{ $eq: ['$orderStatus', 'delivered'] }, { $ifNull: ['$pricing.restaurantCommission', 0] }, 0] 
                         } 
                     },
                     platformFeeTotal: { 
                         $sum: { 
                             $cond: [
-                                { $in: ['$orderStatus', ['placed', 'created', 'confirmed', 'preparing', 'ready_for_pickup', 'picked_up', 'delivered', 'completed']] }, 
+                                { $nin: ['$orderStatus', [...CANCELLED_ORDER_STATUSES, 'refunded']] }, 
                                 { $ifNull: ['$pricing.platformFee', 0] }, 
                                 0
                             ] 
@@ -487,7 +492,7 @@ export async function getDashboardStats(query = {}) {
                     deliveryFeeTotal: { 
                         $sum: { 
                             $cond: [
-                                { $in: ['$orderStatus', ['placed', 'created', 'confirmed', 'preparing', 'ready_for_pickup', 'picked_up', 'delivered', 'completed']] }, 
+                                { $nin: ['$orderStatus', [...CANCELLED_ORDER_STATUSES, 'refunded']] }, 
                                 { $ifNull: ['$pricing.deliveryFee', 0] }, 
                                 0
                             ] 
@@ -495,12 +500,12 @@ export async function getDashboardStats(query = {}) {
                     },
                     gstTotal: { 
                         $sum: { 
-                            $cond: [{ $in: ['$orderStatus', ['delivered', 'completed']] }, { $ifNull: ['$pricing.tax', 0] }, 0] 
+                            $cond: [{ $eq: ['$orderStatus', 'delivered'] }, { $ifNull: ['$pricing.tax', 0] }, 0] 
                         } 
                     },
                     adminNetProfit: { 
                         $sum: { 
-                            $cond: [{ $in: ['$orderStatus', ['delivered', 'completed']] }, { $ifNull: ['$platformProfit', 0] }, 0] 
+                            $cond: [{ $eq: ['$orderStatus', 'delivered'] }, { $ifNull: ['$platformProfit', 0] }, 0] 
                         } 
                     }
                 }
@@ -525,13 +530,13 @@ export async function getDashboardStats(query = {}) {
                     orders: { $sum: 1 },
                     revenue: { 
                         $sum: { 
-                            $cond: [{ $in: ['$orderStatus', ['delivered', 'completed']] }, { $ifNull: ['$pricing.total', 0] }, 0] 
+                            $cond: [{ $eq: ['$orderStatus', 'delivered'] }, { $ifNull: ['$pricing.total', 0] }, 0] 
                         } 
                     },
                     commission: {
                         $sum: {
                             $cond: [
-                                { $in: ['$orderStatus', ['delivered', 'completed']] },
+                                { $eq: ['$orderStatus', 'delivered'] },
                                 { $ifNull: ['$platformProfit', { $ifNull: ['$pricing.platformFee', 0] }] },
                                 0
                             ]
@@ -549,15 +554,14 @@ export async function getDashboardStats(query = {}) {
         FoodAddon.countDocuments({ approvalStatus: 'approved', isDeleted: { $ne: true }, ...zoneScopedRestaurantMatch }),
         zoneId
             ? FoodOrder.distinct('userId', { ...orderMatch, userId: { $ne: null } }).then((ids) => ids.length)
-            : FoodUser.countDocuments({ role: 'USER', isDeleted: { $ne: true } }),
+            : FoodUser.countDocuments({}),
         FoodRestaurant.find({ ...restaurantMatch, status: 'pending' }).sort({ createdAt: -1 }).limit(5).select('restaurantName createdAt').lean(),
         FoodDeliveryPartner.find({ status: 'pending' }).sort({ createdAt: -1 }).limit(5).select('name createdAt').lean(),
-
         FoodOrder.find({ 
             ...orderMatch,
             orderStatus: { $in: [...PENDING_ORDER_STATUSES, ...PROCESSING_ORDER_STATUSES] },
         }).sort({ createdAt: -1 }).limit(5).select('orderId createdAt').lean(),
-        FoodOrder.find({ ...orderMatch, orderStatus: { $in: ['delivered', 'completed'] } }).sort({ updatedAt: -1 }).limit(5).select('orderId updatedAt').lean(),
+        FoodOrder.find({ ...orderMatch, orderStatus: 'delivered' }).sort({ updatedAt: -1 }).limit(5).select('orderId updatedAt').lean(),
         FoodOrder.find({ 
             ...orderMatch,
             orderStatus: { $in: CANCELLED_ORDER_STATUSES },
@@ -591,7 +595,7 @@ export async function getDashboardStats(query = {}) {
                     }
                 }
             ])
-            : FoodUser.find({ role: 'USER', isDeleted: { $ne: true } }).sort({ createdAt: -1 }).limit(5).select('name createdAt').lean()
+            : FoodUser.find({}).sort({ createdAt: -1 }).limit(5).select('name createdAt').lean()
     ]);
 
     const liveSignals = [];
@@ -1823,124 +1827,35 @@ export async function upsertFeeSettings(body) {
 }
 
 // ----- Referral Settings (admin) -----
-const normalizeLegacyReferralBucket = (raw = {}, modernKey, legacyKey) => {
-    const modern = raw?.[modernKey] || {};
-    return {
-        referrerReward: Math.max(
-            0,
-            Number(
-                modern?.referrerReward ??
-                raw?.[`referralReward${legacyKey}Referrer`] ??
-                raw?.[`referralReward${legacyKey}`]
-            ) || 0
-        ),
-        refereeReward: Math.max(
-            0,
-            Number(
-                modern?.refereeReward ??
-                raw?.[`referralReward${legacyKey}Referee`]
-            ) || 0
-        ),
-        limit: Math.max(
-            0,
-            Number(
-                modern?.limit ??
-                raw?.[`referralLimit${legacyKey}`]
-            ) || 0
-        )
-    };
-};
-
-const normalizeReferralSettingsDoc = (raw = {}) => ({
-    user: normalizeLegacyReferralBucket(raw, 'user', 'User'),
-    delivery: normalizeLegacyReferralBucket(raw, 'delivery', 'Delivery'),
-    isActive: raw?.isActive !== false
-});
-
-const serializeReferralSettingsResponse = (doc = {}) => {
-    const normalized = normalizeReferralSettingsDoc(doc);
-    return {
-        ...doc,
-        user: normalized.user,
-        delivery: normalized.delivery,
-        isActive: normalized.isActive
-    };
-};
-
-const migrateLegacyReferralSettings = async (doc) => {
-    if (!doc?._id) return null;
-    const normalized = normalizeReferralSettingsDoc(doc);
-    const needsMigration =
-        !doc?.user ||
-        !doc?.delivery ||
-        doc?.referralRewardUser !== undefined ||
-        doc?.referralRewardDelivery !== undefined ||
-        doc?.referralRewardUserReferrer !== undefined ||
-        doc?.referralRewardUserReferee !== undefined ||
-        doc?.referralRewardDeliveryReferrer !== undefined ||
-        doc?.referralRewardDeliveryReferee !== undefined ||
-        doc?.referralLimitUser !== undefined ||
-        doc?.referralLimitDelivery !== undefined;
-
-    if (!needsMigration) {
-        return serializeReferralSettingsResponse(doc);
-    }
-
-    const updated = await FoodReferralSettings.findByIdAndUpdate(
-        doc._id,
-        {
-            $set: normalized,
-            $unset: {
-                referralRewardUser: 1,
-                referralRewardDelivery: 1,
-                referralRewardUserReferrer: 1,
-                referralRewardUserReferee: 1,
-                referralRewardDeliveryReferrer: 1,
-                referralRewardDeliveryReferee: 1,
-                referralLimitUser: 1,
-                referralLimitDelivery: 1
-            }
-        },
-        { new: true, strict: false }
-    ).lean();
-
-    return serializeReferralSettingsResponse(updated || normalized);
-};
-
 export async function getReferralSettings() {
     const doc = await FoodReferralSettings.findOne({ isActive: true }).sort({ createdAt: -1 }).lean();
-    if (!doc) return { referralSettings: null };
-    const referralSettings = await migrateLegacyReferralSettings(doc);
-    return { referralSettings };
+    return { referralSettings: doc || null };
 }
 
 export async function upsertReferralSettings(body = {}) {
-    const normalized = normalizeReferralSettingsDoc(body);
     const existing = await FoodReferralSettings.findOne({ isActive: true }).sort({ createdAt: -1 });
-
     if (existing) {
-        const updated = await FoodReferralSettings.findByIdAndUpdate(
-            existing._id,
-            {
-                $set: normalized,
-                $unset: {
-                    referralRewardUser: 1,
-                    referralRewardDelivery: 1,
-                    referralRewardUserReferrer: 1,
-                    referralRewardUserReferee: 1,
-                    referralRewardDeliveryReferrer: 1,
-                    referralRewardDeliveryReferee: 1,
-                    referralLimitUser: 1,
-                    referralLimitDelivery: 1
-                }
-            },
-            { new: true, strict: false }
-        ).lean();
-        return serializeReferralSettingsResponse(updated || normalized);
+        const $set = {};
+
+        if (body.referralRewardUser !== undefined) $set.referralRewardUser = Math.max(0, Number(body.referralRewardUser) || 0);
+        if (body.referralRewardDelivery !== undefined) $set.referralRewardDelivery = Math.max(0, Number(body.referralRewardDelivery) || 0);
+        if (body.referralLimitUser !== undefined) $set.referralLimitUser = Math.max(0, Number(body.referralLimitUser) || 0);
+        if (body.referralLimitDelivery !== undefined) $set.referralLimitDelivery = Math.max(0, Number(body.referralLimitDelivery) || 0);
+        if (body.isActive !== undefined) $set.isActive = Boolean(body.isActive);
+
+        if (!Object.keys($set).length) return existing.toObject();
+        const updated = await FoodReferralSettings.findByIdAndUpdate(existing._id, { $set }, { new: true }).lean();
+        return updated;
     }
 
-    const created = await FoodReferralSettings.create(normalized);
-    return serializeReferralSettingsResponse(created.toObject());
+    const created = await FoodReferralSettings.create({
+        referralRewardUser: Math.max(0, Number(body.referralRewardUser) || 0),
+        referralRewardDelivery: Math.max(0, Number(body.referralRewardDelivery) || 0),
+        referralLimitUser: Math.max(0, Number(body.referralLimitUser) || 0),
+        referralLimitDelivery: Math.max(0, Number(body.referralLimitDelivery) || 0),
+        isActive: body.isActive !== false
+    });
+    return created.toObject();
 }
 
 // ----- Safety / Emergency Reports (admin) -----
@@ -4568,66 +4483,34 @@ export async function approveDeliveryPartner(id) {
             const already = await FoodReferralLog.findOne({ refereeId: partner._id, role: 'DELIVERY_PARTNER' }).lean();
             if (!already) {
                 const settingsDoc = await FoodReferralSettings.findOne({ isActive: true }).sort({ createdAt: -1 }).lean();
-                const referrerReward = Math.max(
-                    0,
-                    Number(settingsDoc?.delivery?.referrerReward) || 0
-                );
-                const refereeReward = Math.max(0, Number(settingsDoc?.delivery?.refereeReward) || 0);
-                const limit = Math.max(0, Number(settingsDoc?.delivery?.limit) || 0);
+                const reward = Math.max(0, Number(settingsDoc?.referralRewardDelivery) || 0);
+                const limit = Math.max(0, Number(settingsDoc?.referralLimitDelivery) || 0);
                 const referrer = await FoodDeliveryPartner.findById(referrerId).select('_id referralCount status').lean();
 
-                if (referrer && referrer.status === 'approved' && (referrerReward > 0 || refereeReward > 0) && limit > 0 && Number(referrer.referralCount || 0) < limit) {
+                if (referrer && referrer.status === 'approved' && reward > 0 && limit > 0 && Number(referrer.referralCount || 0) < limit) {
                     const log = await FoodReferralLog.create({
                         referrerId: referrer._id,
                         refereeId: partner._id,
                         role: 'DELIVERY_PARTNER',
-                        rewardAmount: referrerReward,
-                        referrerRewardAmount: referrerReward,
-                        refereeRewardAmount: refereeReward,
+                        rewardAmount: reward,
                         status: 'credited'
                     });
 
-                    const creditTasks = [
-                        FoodDeliveryPartner.updateOne({ _id: referrer._id }, { $inc: { referralCount: 1 } })
-                    ];
-
-                    if (referrerReward > 0) {
-                        creditTasks.push(
-                            addDeliveryPartnerBonus(
-                                {
-                                    deliveryPartnerId: String(referrer._id),
-                                    amount: referrerReward,
-                                    reference: 'Referral bonus'
-                                },
-                                null
-                            )
-                        );
-                    }
-
-                    if (refereeReward > 0) {
-                        creditTasks.push(
-                            addDeliveryPartnerBonus(
-                                {
-                                    deliveryPartnerId: String(partner._id),
-                                    amount: refereeReward,
-                                    reference: 'Referral join bonus'
-                                },
-                                null
-                            )
-                        );
-                    }
-
-                    await Promise.all(creditTasks);
+                    await Promise.all([
+                        FoodDeliveryPartner.updateOne({ _id: referrer._id }, { $inc: { referralCount: 1 } }),
+                        addDeliveryPartnerBonus(
+                            { deliveryPartnerId: String(referrer._id), amount: reward, reference: 'Referral bonus' },
+                            null
+                        )
+                    ]);
                 } else {
                     await FoodReferralLog.create({
                         referrerId: new mongoose.Types.ObjectId(referrerId),
                         refereeId: partner._id,
                         role: 'DELIVERY_PARTNER',
-                        rewardAmount: referrerReward,
-                        referrerRewardAmount: referrerReward,
-                        refereeRewardAmount: refereeReward,
+                        rewardAmount: reward,
                         status: 'rejected',
-                        reason: !referrer ? 'referrer_not_found' : referrerReward <= 0 && refereeReward <= 0 ? 'reward_disabled' : limit <= 0 ? 'limit_disabled' : 'limit_reached'
+                        reason: !referrer ? 'referrer_not_found' : reward <= 0 ? 'reward_disabled' : limit <= 0 ? 'limit_disabled' : 'limit_reached'
                     });
                 }
             }

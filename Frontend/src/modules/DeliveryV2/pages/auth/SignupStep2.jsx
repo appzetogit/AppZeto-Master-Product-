@@ -405,15 +405,14 @@ export default function SignupStep2() {
       formData.append("platform", platform);
     }
 
-    const hasDeliveryToken = Boolean(localStorage.getItem("delivery_accessToken"))
-    const isRegistrationFlow = sessionStorage.getItem("deliveryNeedsRegistration") === "true" || !hasDeliveryToken
+    const isCompleteProfile = sessionStorage.getItem("deliveryNeedsRegistration") === "true"
 
     setIsSubmitting(true)
 
     try {
       // New number (OTP ke baad pehli baar): DB me abhi partner nahi hai,
       // is case me register hi call karna hai (no auth token needed).
-      const response = isRegistrationFlow
+      const response = isCompleteProfile
         ? await deliveryAPI.register(formData)
         : await deliveryAPI.completeProfile(formData)
 
@@ -421,7 +420,7 @@ export default function SignupStep2() {
         sessionStorage.removeItem("deliverySignupDetails")
         sessionStorage.removeItem("deliverySignupDocs")
         clearDB()
-        if (isRegistrationFlow) {
+        if (isCompleteProfile) {
           sessionStorage.removeItem("deliveryNeedsRegistration")
           const pendingPhone = `${details.countryCode || "+91"} ${String(details.phone || "").replace(/\D/g, "").slice(0, 15)}`.trim()
           sessionStorage.setItem("deliveryPendingPhone", pendingPhone)

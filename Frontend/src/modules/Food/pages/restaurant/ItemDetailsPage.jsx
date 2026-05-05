@@ -24,14 +24,11 @@ import { toast } from "sonner"
 import { ImageSourcePicker } from "@food/components/ImageSourcePicker"
 import { isFlutterBridgeAvailable } from "@food/utils/imageUploadUtils"
 import { getFoodVariants } from "@food/utils/foodVariants"
-import Cropper from 'react-easy-crop'
-import { getCroppedImgFile } from "@food/utils/cropImage"
-const debugLog = (...args) => {}
-const debugWarn = (...args) => {}
-const debugError = (...args) => {}
+const debugLog = (...args) => { }
+const debugWarn = (...args) => { }
+const debugError = (...args) => { }
 
 const INVENTORY_RECOMMENDED_KEY = "restaurant_inventory_recommended_map"
-const ITEM_DRAFT_STORAGE_KEY = "restaurant_item_draft_data"
 
 
 const getUploadErrorMessage = (error, fileName = "image") => {
@@ -105,13 +102,6 @@ export default function ItemDetailsPage() {
   const [loadingCategories, setLoadingCategories] = useState(true)
   const [loadingItem, setLoadingItem] = useState(false)
   const [keyboardInset, setKeyboardInset] = useState(0)
-  const [isPureVegRestaurant, setIsPureVegRestaurant] = useState(false)
-
-  // Cropper states
-  const [imageToCrop, setImageToCrop] = useState(null)
-  const [crop, setCrop] = useState({ x: 0, y: 0 })
-  const [zoom, setZoom] = useState(1)
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null)
 
   const maxNameLength = 70
   const maxDescriptionLength = 1000
@@ -120,100 +110,6 @@ export default function ItemDetailsPage() {
   const nameLength = itemName.length
   const currentApprovalStatus = String(itemData?.approvalStatus || "").toLowerCase()
   const currentRejectionReason = String(itemData?.rejectionReason || "").trim()
-
-  useEffect(() => {
-    const fetchRestaurantProfile = async () => {
-      try {
-        const response = await restaurantAPI.getCurrentRestaurant()
-        const profile =
-          response?.data?.data?.restaurant ||
-          response?.data?.restaurant ||
-          response?.data?.data ||
-          null
-        const pureVeg = profile?.pureVegRestaurant === true
-        setIsPureVegRestaurant(pureVeg)
-        if (pureVeg) {
-          setFoodType("Veg")
-        }
-      } catch (error) {
-        debugWarn("Failed to load restaurant profile for food type scope:", error)
-      }
-    }
-
-    fetchRestaurantProfile()
-  }, [])
-
-  useEffect(() => {
-    if (isPureVegRestaurant) {
-      setFoodType("Veg")
-    }
-  }, [isPureVegRestaurant])
-
-  // Draft persistence: Load
-  useEffect(() => {
-    if (!isNewItem) return
-    const savedDraft = localStorage.getItem(ITEM_DRAFT_STORAGE_KEY)
-    if (savedDraft) {
-      try {
-        const draft = JSON.parse(savedDraft)
-        if (draft.itemName) setItemName(draft.itemName)
-        if (draft.selectedCategoryId) setSelectedCategoryId(draft.selectedCategoryId)
-        if (draft.category) setCategory(draft.category)
-        if (draft.itemDescription) setItemDescription(draft.itemDescription)
-        if (draft.foodType) setFoodType(draft.foodType)
-        if (draft.basePrice) setBasePrice(draft.basePrice)
-        if (draft.variants) setVariants(draft.variants)
-        if (draft.preparationTime) setPreparationTime(draft.preparationTime)
-        if (draft.isRecommended !== undefined) setIsRecommended(draft.isRecommended)
-        if (draft.isInStock !== undefined) setIsInStock(draft.isInStock)
-        
-        if (draft.images && draft.images.length > 0) {
-          const previewUrl = draft.images[0]
-          setImages([previewUrl])
-          
-          // Recreate File object from blob URL if possible
-          if (previewUrl.startsWith('blob:')) {
-            fetch(previewUrl)
-              .then(res => res.blob())
-              .then(blob => {
-                const file = new File([blob], "restored-image.jpg", { type: blob.type })
-                setImageFiles(new Map([[previewUrl, file]]))
-              })
-              .catch(err => debugError("Failed to restore image from blob", err))
-          }
-        }
-      } catch (e) {
-        debugError("Error loading draft", e)
-      }
-    }
-  }, [isNewItem])
-
-  // Draft persistence: Save
-  useEffect(() => {
-    if (!isNewItem) return
-    const draft = {
-      itemName,
-      selectedCategoryId,
-      category,
-      itemDescription,
-      foodType,
-      basePrice,
-      variants,
-      preparationTime,
-      isRecommended,
-      isInStock,
-      images
-    }
-    localStorage.setItem(ITEM_DRAFT_STORAGE_KEY, JSON.stringify(draft))
-  }, [isNewItem, itemName, selectedCategoryId, category, itemDescription, foodType, basePrice, variants, preparationTime, isRecommended, isInStock, images])
-
-  const openMenuCategories = () => {
-    navigate("/food/restaurant/menu-categories", {
-      state: {
-        backTo: location.pathname,
-      },
-    })
-  }
 
   const populateFormFromItem = (item = {}) => {
     setItemData(item)
@@ -466,53 +362,24 @@ export default function ItemDetailsPage() {
   const handleImageAdd = (file) => {
     if (!file) return
 
-    // Instead of adding directly, open the cropper
-    const reader = new FileReader()
-    reader.readAsDataURL(file)
-    reader.onload = () => {
-      setImageToCrop(reader.result)
-      setCrop({ x: 0, y: 0 })
-      setZoom(1)
-    }
-  }
+    // Single-image mode: keep only the first selected valid file
+    const previewUrl = URL.createObjectURL(file)
 
-  const onCropComplete = (_, pixels) => {
-    setCroppedAreaPixels(pixels)
-  }
-
-  const handleCropSave = async () => {
-    try {
-      const croppedFile = await getCroppedImgFile(
-        imageToCrop,
-        croppedAreaPixels,
-        0,
-        { horizontal: false, vertical: false },
-        'item-image.jpg'
-      )
-      
-      const previewUrl = URL.createObjectURL(croppedFile)
-      
-      // Revoke old previews
-      images.forEach((img) => {
-        if (img && img.startsWith('blob:')) {
-          URL.revokeObjectURL(img)
-        }
-      })
-
-      const newImageFilesMap = new Map()
-      newImageFilesMap.set(previewUrl, croppedFile)
-
-      setImages([previewUrl])
-      setImageFiles(newImageFilesMap)
-      setCurrentImageIndex(0)
-      setImageToCrop(null)
-      
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ""
+    images.forEach((img) => {
+      if (img && img.startsWith('blob:')) {
+        URL.revokeObjectURL(img)
       }
-    } catch (e) {
-      debugError('Error cropping image:', e)
-      toast.error('Failed to crop image')
+    })
+
+    const newImageFilesMap = new Map()
+    newImageFilesMap.set(previewUrl, file)
+
+    setImages([previewUrl])
+    setImageFiles(newImageFilesMap)
+    setCurrentImageIndex(0)
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
     }
   }
 
@@ -845,7 +712,6 @@ export default function ItemDetailsPage() {
           : `Item updated and sent for approval again with ${imageCount} image(s)`
       )
       await new Promise((resolve) => setTimeout(resolve, 200))
-      localStorage.removeItem(ITEM_DRAFT_STORAGE_KEY)
       navigate("/food/restaurant/inventory", { replace: true })
       window.dispatchEvent(new CustomEvent('foodsChanged'))
     } catch (error) {
@@ -1110,7 +976,7 @@ export default function ItemDetailsPage() {
                 {descriptionLength} / {maxDescriptionLength}
               </span>
             </div>
-          {/* Dietary Options */}
+            {/* Dietary Options */}
             <div className="flex gap-2 mt-3">
               <button
                 onClick={() => setFoodType("Veg")}
@@ -1329,7 +1195,7 @@ export default function ItemDetailsPage() {
                   <button
                     onClick={() => {
                       setIsCategoryPopupOpen(false)
-                      openMenuCategories()
+                      navigate('/restaurant/menu-categories')
                     }}
                     className="p-2 rounded-lg bg-black text-white hover:bg-gray-800 transition-colors flex items-center gap-1.5"
                     title="Add Category"
@@ -1356,7 +1222,7 @@ export default function ItemDetailsPage() {
                     <button
                       onClick={() => {
                         setIsCategoryPopupOpen(false)
-                        openMenuCategories()
+                        navigate('/restaurant/menu-categories')
                       }}
                       className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors"
                     >
@@ -1491,76 +1357,6 @@ export default function ItemDetailsPage() {
         fileNamePrefix="item-photo"
         galleryInputRef={fileInputRef}
       />
-
-      {/* Image Cropper Modal */}
-      <AnimatePresence>
-        {imageToCrop && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black z-[60]"
-            />
-            <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              className="fixed inset-0 z-[60] flex flex-col bg-black"
-            >
-              <div className="flex items-center justify-between px-4 py-4 border-b border-white/10">
-                <button
-                  onClick={() => setImageToCrop(null)}
-                  className="p-2 text-white hover:bg-white/10 rounded-full"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-                <h2 className="text-lg font-bold text-white">Crop Image</h2>
-                <button
-                  onClick={handleCropSave}
-                  className="px-4 py-2 bg-white text-black rounded-full font-bold text-sm hover:bg-gray-200 transition-colors"
-                >
-                  Done
-                </button>
-              </div>
-
-              <div className="flex-1 relative bg-neutral-900">
-                <Cropper
-                  image={imageToCrop}
-                  crop={crop}
-                  zoom={zoom}
-                  aspect={1}
-                  onCropChange={setCrop}
-                  onCropComplete={onCropComplete}
-                  onZoomChange={setZoom}
-                  objectFit="contain"
-                />
-              </div>
-
-              <div className="px-6 py-8 bg-black/80 backdrop-blur-md">
-                <div className="space-y-4">
-                  <div className="flex items-center gap-4">
-                    <span className="text-xs font-semibold text-white/60 uppercase tracking-wider">Zoom</span>
-                    <input
-                      type="range"
-                      value={zoom}
-                      min={1}
-                      max={3}
-                      step={0.1}
-                      aria-labelledby="Zoom"
-                      onChange={(e) => setZoom(Number(e.target.value))}
-                      className="flex-1 h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-white"
-                    />
-                  </div>
-                  <p className="text-center text-[11px] text-white/40">
-                    Pinch or use slider to adjust the crop
-                  </p>
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
     </div>
   )
 }

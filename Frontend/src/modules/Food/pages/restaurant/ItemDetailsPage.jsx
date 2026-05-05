@@ -105,6 +105,7 @@ export default function ItemDetailsPage() {
   const [loadingCategories, setLoadingCategories] = useState(true)
   const [loadingItem, setLoadingItem] = useState(false)
   const [keyboardInset, setKeyboardInset] = useState(0)
+  const [isPureVegRestaurant, setIsPureVegRestaurant] = useState(false)
 
   // Cropper states
   const [imageToCrop, setImageToCrop] = useState(null)
@@ -119,6 +120,34 @@ export default function ItemDetailsPage() {
   const nameLength = itemName.length
   const currentApprovalStatus = String(itemData?.approvalStatus || "").toLowerCase()
   const currentRejectionReason = String(itemData?.rejectionReason || "").trim()
+
+  useEffect(() => {
+    const fetchRestaurantProfile = async () => {
+      try {
+        const response = await restaurantAPI.getCurrentRestaurant()
+        const profile =
+          response?.data?.data?.restaurant ||
+          response?.data?.restaurant ||
+          response?.data?.data ||
+          null
+        const pureVeg = profile?.pureVegRestaurant === true
+        setIsPureVegRestaurant(pureVeg)
+        if (pureVeg) {
+          setFoodType("Veg")
+        }
+      } catch (error) {
+        debugWarn("Failed to load restaurant profile for food type scope:", error)
+      }
+    }
+
+    fetchRestaurantProfile()
+  }, [])
+
+  useEffect(() => {
+    if (isPureVegRestaurant) {
+      setFoodType("Veg")
+    }
+  }, [isPureVegRestaurant])
 
   // Draft persistence: Load
   useEffect(() => {
@@ -1081,7 +1110,7 @@ export default function ItemDetailsPage() {
                 {descriptionLength} / {maxDescriptionLength}
               </span>
             </div>
-            {/* Dietary Options */}
+          {/* Dietary Options */}
             <div className="flex gap-2 mt-3">
               <button
                 onClick={() => setFoodType("Veg")}
@@ -1093,16 +1122,18 @@ export default function ItemDetailsPage() {
                 {foodType === "Veg" && <Check className="w-4 h-4" />}
                 <span>Veg</span>
               </button>
-              <button
-                onClick={() => setFoodType("Non-Veg")}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${foodType === "Non-Veg"
-                  ? "border-red-600 border-2 text-red-600"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
-              >
-                {foodType === "Non-Veg" && <Check className="w-4 h-4" />}
-                <span>Non-Veg</span>
-              </button>
+              {!isPureVegRestaurant && (
+                <button
+                  onClick={() => setFoodType("Non-Veg")}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${foodType === "Non-Veg"
+                    ? "border-red-600 border-2 text-red-600"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                >
+                  {foodType === "Non-Veg" && <Check className="w-4 h-4" />}
+                  <span>Non-Veg</span>
+                </button>
+              )}
             </div>
           </div>
 

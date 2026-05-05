@@ -824,6 +824,7 @@ export default function Inventory() {
 
   // Inventory tabs
   const inventoryTabs = ["all-items", "add-ons"]
+  const isPureVegRestaurant = restaurantProfile?.pureVegRestaurant === true
 
   // Tab bar ref for excluding swipe on topbar
   const tabBarRef = useRef(null)
@@ -1175,6 +1176,17 @@ export default function Inventory() {
   // Handle swipe gestures
   const handleTouchStart = (e) => {
     const target = e.target
+    const startX = e.touches[0].clientX
+    const viewportWidth =
+      typeof window !== "undefined" ? window.innerWidth || document.documentElement.clientWidth || 0 : 0
+    const edgeThreshold = 28
+
+    // Let native Android/iOS edge-back gestures win instead of switching inventory tabs.
+    if (
+      startX <= edgeThreshold ||
+      (viewportWidth > 0 && startX >= viewportWidth - edgeThreshold)
+    ) return
+
     // Don't handle swipe if starting on topbar
     if (
       tabBarRef.current?.contains(target) || 
@@ -1182,7 +1194,7 @@ export default function Inventory() {
       target.closest('.scrollbar-hide')
     ) return
 
-    touchStartX.current = e.touches[0].clientX
+    touchStartX.current = startX
     touchStartY.current = e.touches[0].clientY
     touchEndX.current = e.touches[0].clientX
     isSwiping.current = false
@@ -1339,10 +1351,11 @@ export default function Inventory() {
     [categories]
   )
 
-  const activeFilterOptions = useMemo(
-    () => (activeTab === "add-ons" ? ADDON_FILTER_OPTIONS : MENU_FILTER_OPTIONS),
-    [activeTab]
-  )
+  const activeFilterOptions = useMemo(() => {
+    if (activeTab === "add-ons") return ADDON_FILTER_OPTIONS
+    if (!isPureVegRestaurant) return MENU_FILTER_OPTIONS
+    return MENU_FILTER_OPTIONS.filter((option) => option.value !== "non-veg")
+  }, [activeTab, isPureVegRestaurant])
 
   useEffect(() => {
     if (!activeFilterOptions.some((option) => option.value === selectedFilter)) {
@@ -2022,18 +2035,9 @@ export default function Inventory() {
                 )}
               </button>
 
-              {activeTab === "add-ons" && (
-                <button
-                  onClick={() => setIsAddAddonOpen((v) => !v)}
-                  className="h-10 rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white shadow-[0_18px_32px_-24px_rgba(15,23,42,0.85)] transition-colors hover:bg-slate-800"
-                  style={{ minWidth: "128px" }}
-                >
-                  {isAddAddonOpen ? "Close" : "Add Add-on"}
-                </button>
-              )}
             </div>
 
-            <div className="mt-4 flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+            <div className="inventory-filter-scroll mt-4 flex gap-2 overflow-x-auto scrollbar-hide pb-1">
               {activeFilterOptions.map((option) => {
                 const count = activeTab === "add-ons"
                   ? (addonFilterCounts[option.value] || 0)
@@ -2746,20 +2750,22 @@ export default function Inventory() {
         onConfirm={handleTimePickerConfirm}
       />
 
-      {/* Floating Menu Button & Popup (hidden on Add-ons tab) */}
-      {activeTab !== "add-ons" && (
+      {/* Floating Action Buttons */}
+      {activeTab === "add-ons" && (
         <div className="fixed right-4 bottom-24 z-30 flex flex-col items-end gap-2">
           <motion.button
             whileTap={{ scale: 0.96 }}
-            onClick={() => {
-              setActiveTab("add-ons")
-              setIsAddAddonOpen(true)
-              window.scrollTo({ top: 0, behavior: 'smooth' })
-            }}
+            onClick={() => setIsAddAddonOpen((prev) => !prev)}
             className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-[0_22px_40px_-24px_rgba(15,23,42,0.85)]"
           >
-            Add Add-on
+            {isAddAddonOpen ? "Close Add Add-on" : "Add Add-on"}
           </motion.button>
+        </div>
+      )}
+
+      {/* Floating Menu Button & Popup (hidden on Add-ons tab) */}
+      {activeTab !== "add-ons" && (
+        <div className="fixed right-4 bottom-24 z-30 flex flex-col items-end gap-2">
           <motion.button
             whileTap={{ scale: 0.96 }}
             onClick={handleAddItem}

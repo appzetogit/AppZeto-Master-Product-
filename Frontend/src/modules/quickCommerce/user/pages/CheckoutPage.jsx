@@ -231,6 +231,10 @@ const CheckoutPage = () => {
   );
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [isResolvingAddressCoords, setIsResolvingAddressCoords] = useState(false);
+  const [showAddNewAddressForm, setShowAddNewAddressForm] = useState(false);
+  const [newAddressForm, setNewAddressForm] = useState({ label: "Home", name: "", phone: "", address: "", landmark: "", city: "", zipCode: "" });
+  const [newAddressErrors, setNewAddressErrors] = useState({});
+  const [isSavingNewAddress, setIsSavingNewAddress] = useState(false);
   const [isCouponModalOpen, setIsCouponModalOpen] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [orderId, setOrderId] = useState(null);
@@ -247,12 +251,9 @@ const CheckoutPage = () => {
   const [showRecipientForm, setShowRecipientForm] = useState(
     Boolean(storedCheckoutState.showRecipientForm),
   );
-  const [recipientData, setRecipientData] = useState(
-    storedCheckoutState.recipientData || DEFAULT_RECIPIENT_DATA,
-  );
-  const [savedRecipient, setSavedRecipient] = useState(
-    storedCheckoutState.savedRecipient || null,
-  );
+  const [recipientData, setRecipientData] = useState(DEFAULT_RECIPIENT_DATA);
+  const [savedRecipient, setSavedRecipient] = useState(null);
+  const [recipientErrors, setRecipientErrors] = useState({});
   const sharedProfileName = String(
     userProfile?.name || user?.name || "",
   ).trim();
@@ -289,6 +290,7 @@ const CheckoutPage = () => {
   const [manualCode, setManualCode] = useState(
     storedCheckoutState.manualCode || "",
   );
+  const [showShareModal, setShowShareModal] = useState(false);
 
   const timeSlots = [
     { id: "now", label: "Now", sublabel: "10-15 min" },
@@ -423,17 +425,8 @@ const CheckoutPage = () => {
         phone: nextPhone,
       };
     });
-
-    setRecipientData((prev) => {
-      const nextName = prev.name || sharedProfileName;
-      const nextPhone = prev.phone || sharedProfilePhone;
-      if (nextName === prev.name && nextPhone === prev.phone) return prev;
-      return {
-        ...prev,
-        name: nextName,
-        phone: nextPhone,
-      };
-    });
+    // Note: recipientData is intentionally NOT pre-filled from profile —
+    // the receiver is a different person, so the user must enter their details manually.
   }, [sharedProfileName, sharedProfilePhone]);
 
   useEffect(() => {
@@ -532,14 +525,41 @@ const CheckoutPage = () => {
   };
 
   const handleSaveRecipient = () => {
-    if (
-      !recipientData.completeAddress ||
-      !recipientData.name ||
-      recipientData.phone.length !== 10
-    ) {
-      showToast("Please fill all required fields", "error");
+    const errors = {};
+
+    if (!recipientData.completeAddress?.trim()) {
+      errors.completeAddress = "Complete address is required";
+    } else if (recipientData.completeAddress.trim().length < 5) {
+      errors.completeAddress = "Address is too short, please enter a valid address";
+    }
+
+    if (!recipientData.name?.trim()) {
+      errors.name = "Receiver's name is required";
+    } else if (recipientData.name.trim().length < 2) {
+      errors.name = "Name must be at least 2 characters";
+    }
+
+    if (!recipientData.phone) {
+      errors.phone = "Phone number is required";
+    } else if (recipientData.phone.length !== 10) {
+      errors.phone = `Phone number must be exactly 10 digits (entered ${recipientData.phone.length})`;
+    } else if (!/^[6-9]\d{9}$/.test(recipientData.phone)) {
+      errors.phone = "Enter a valid Indian mobile number starting with 6, 7, 8 or 9";
+    }
+
+    if (recipientData.pincode && recipientData.pincode.length !== 6) {
+      errors.pincode = "Pin code must be exactly 6 digits";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      // Show the first error as a toast
+      const firstError = Object.values(errors)[0];
+      showToast(firstError, "error");
+      setRecipientErrors(errors);
       return;
     }
+
+    setRecipientErrors({});
     setSavedRecipient(recipientData);
     setShowRecipientForm(false);
     try {
@@ -556,8 +576,22 @@ const CheckoutPage = () => {
   };
 
   const handleMoveToWishlist = (item) => {
-    addToWishlist(item);
-    removeFromCart(item.id);
+    // Normalize the cart item into a proper product object for the wishlist
+    const productId = String(item?.productId || item?.itemId || item?.id || item?._id || "").split("::")[0];
+    if (!productId) {
+      showToast("Could not move item to wishlist", "error");
+      return;
+    }
+    const productForWishlist = {
+      ...item,
+      id: productId,
+      _id: productId,
+      productId,
+      mainImage: item.mainImage || item.image || "",
+      image: item.image || item.mainImage || "",
+    };
+    addToWishlist(productForWishlist);
+    removeFromCart(productId);
     showToast(`${item.name} moved to wishlist`, "success");
   };
 
@@ -691,12 +725,87 @@ const CheckoutPage = () => {
     }
   };
 
+  const handleSaveNewAddress = async () => {
+    const errors = {};
+    if (!newAddressForm.name.trim()) errors.name = "Name is required";
+    if (!newAddressForm.phone || newAddressForm.phone.length !== 10) errors.phone = "Valid 10-digit phone number is required";
+    if (!newAddressForm.address.trim()) errors.address = "Address is required";
+    if (!newAddressForm.city.trim()) errors.city = "City is required";
+    if (newAddressForm.zipCode && newAddressForm.zipCode.length > 0 && newAddressForm.zipCode.length !== 6) errors.zipCode = "Pincode must be exactly 6 digits";
+
+    if (Object.keys(errors).length > 0) {
+      setNewAddressErrors(errors);
+      showToast(Object.values(errors)[0], "error");
+      return;
+    }
+
+    setNewAddressErrors({});
+    setIsSavingNewAddress(true);
+    try {
+      // Geocode the address for coordinates
+      const query = [newAddressForm.address, newAddressForm.landmark, newAddressForm.city, newAddressForm.zipCode].filter(Boolean).join(", ");
+      let resolvedLoc = null;
+      try {
+        const resp = await customerApi.geocodeAddress(query);
+        const loc = resp.data?.result?.location;
+        if (loc && Number.isFinite(loc.lat) && Number.isFinite(loc.lng)) {
+          resolvedLoc = { lat: loc.lat, lng: loc.lng };
+        }
+      } catch { /* geocoding optional */ }
+
+      // Save via location context
+      const newAddr = {
+        label: newAddressForm.label,
+        name: newAddressForm.name.trim(),
+        phone: newAddressForm.phone,
+        address: newAddressForm.address.trim(),
+        landmark: newAddressForm.landmark.trim(),
+        city: newAddressForm.city.trim(),
+        zipCode: newAddressForm.zipCode,
+        ...(resolvedLoc ? { location: resolvedLoc } : {}),
+      };
+
+      // Set as current address
+      setCurrentAddress({
+        type: newAddr.label,
+        name: newAddr.name,
+        phone: newAddr.phone,
+        address: newAddr.address,
+        landmark: newAddr.landmark,
+        city: newAddr.city,
+        zipCode: newAddr.zipCode,
+        ...(resolvedLoc ? { location: resolvedLoc } : {}),
+      });
+
+      if (resolvedLoc) {
+        updateLocation(
+          { name: query, time: currentLocation?.time || "12-15 mins", latitude: resolvedLoc.lat, longitude: resolvedLoc.lng },
+          { persist: true, updateSavedHome: false },
+        );
+      }
+
+      showToast("Address saved!", "success");
+      setShowAddNewAddressForm(false);
+      setNewAddressForm({ label: "Home", name: "", phone: "", address: "", landmark: "", city: "", zipCode: "" });
+      setIsAddressModalOpen(false);
+    } catch (e) {
+      showToast(e?.message || "Failed to save address", "error");
+    } finally {
+      setIsSavingNewAddress(false);
+    }
+  };
+
   const handleSaveEditedAddress = async () => {
-    if (
-      !editAddressForm.address.trim() ||
-      !editAddressForm.city.trim()
-    ) {
-      showToast("Please fill address and city", "error");
+    if (!editAddressForm.address.trim()) {
+      showToast("Please enter your address", "error");
+      return;
+    }
+    if (!editAddressForm.city.trim()) {
+      showToast("Please enter your city", "error");
+      return;
+    }
+    if (editAddressForm.zipCode && editAddressForm.zipCode.length > 0 && editAddressForm.zipCode.length !== 6) {
+      showToast("Pincode must be exactly 6 digits", "error");
       return;
     }
 
@@ -799,20 +908,34 @@ const CheckoutPage = () => {
   };
 
   const handleShare = async () => {
-    if (navigator.share) {
+    const shareUrl = window.location.origin;
+    const shareText = `Hey! Check out ${appName} for quick grocery delivery in minutes! 🛒`;
+    const shareData = { title: `${appName} - Quick Delivery`, text: shareText, url: shareUrl };
+
+    // Try native share sheet first (works on mobile/PWA)
+    if (typeof navigator.share === "function") {
       try {
-        await navigator.share({
-          title: `${appName} Checkout`,
-          text: `Hey! I'm ordering some goodies from ${appName}. Total: ₹${totalAmount}`,
-          url: window.location.href,
-        });
+        await navigator.share(shareData);
+        return;
       } catch (err) {
-        console.log("Error sharing:", err);
+        if (err.name === "AbortError") return; // user cancelled — do nothing
+        // Other error — fall through to modal
       }
-    } else {
-      navigator.clipboard.writeText(window.location.href);
-      showToast("Link copied to clipboard!", "success");
     }
+
+    // Desktop fallback: show share options modal
+    setShowShareModal(true);
+  };
+
+  const handleCopyLink = async () => {
+    const shareUrl = window.location.origin;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      showToast("Link copied to clipboard!", "success");
+    } catch {
+      showToast(shareUrl, "info");
+    }
+    setShowShareModal(false);
   };
 
   const handleApplyCoupon = async (coupon) => {
@@ -851,21 +974,8 @@ const CheckoutPage = () => {
   const getCartItem = (productId) => cart.find((item) => item.id === productId);
 
   useEffect(() => {
-    // Hydrate "order for someone else" address from localStorage, if present
-    try {
-      if (typeof window !== "undefined") {
-        const raw = window.localStorage.getItem(RECIPIENT_STORAGE_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed && parsed.completeAddress && parsed.name && parsed.phone) {
-            setRecipientData(parsed);
-            setSavedRecipient(parsed);
-          }
-        }
-      }
-    } catch {
-      // ignore parse errors
-    }
+    // Recipient data is intentionally not restored from localStorage —
+    // the receiver is a different person and should be entered fresh each time.
 
     const fetchCoupons = async () => {
       try {
@@ -1304,39 +1414,44 @@ const CheckoutPage = () => {
                           Enter delivery address details
                         </h4>
                         <div className="space-y-3">
-                          <Input
-                            placeholder="Enter complete address*"
-                            value={recipientData.completeAddress}
-                            onChange={(e) =>
-                              setRecipientData({
-                                ...recipientData,
-                                completeAddress: e.target.value,
-                              })
-                            }
-                            className="h-12 rounded-xl border-slate-200 focus:ring-[#0c831f] focus:border-[#0c831f] text-sm"
-                          />
+                          <div>
+                            <Input
+                              placeholder="Enter complete address*"
+                              value={recipientData.completeAddress}
+                              onChange={(e) => {
+                                setRecipientData({ ...recipientData, completeAddress: e.target.value });
+                                if (recipientErrors.completeAddress) setRecipientErrors((prev) => ({ ...prev, completeAddress: "" }));
+                              }}
+                              className={`h-12 rounded-xl text-sm ${recipientErrors.completeAddress ? "border-rose-400 focus:ring-rose-400 focus:border-rose-400" : "border-slate-200 focus:ring-[#0c831f] focus:border-[#0c831f]"}`}
+                            />
+                            {recipientErrors.completeAddress && (
+                              <p className="text-xs text-rose-500 mt-1 ml-1">{recipientErrors.completeAddress}</p>
+                            )}
+                          </div>
                           <Input
                             placeholder="Find landmark (optional)"
                             value={recipientData.landmark}
-                            onChange={(e) =>
-                              setRecipientData({
-                                ...recipientData,
-                                landmark: e.target.value,
-                              })
-                            }
+                            onChange={(e) => setRecipientData({ ...recipientData, landmark: e.target.value })}
                             className="h-12 rounded-xl border-slate-200 focus:ring-[#0c831f] focus:border-[#0c831f] text-sm"
                           />
-                          <Input
-                            placeholder="Enter pin code (optional)"
-                            value={recipientData.pincode}
-                            onChange={(e) =>
-                              setRecipientData({
-                                ...recipientData,
-                                pincode: e.target.value,
-                              })
-                            }
-                            className="h-12 rounded-xl border-slate-200 focus:ring-[#0c831f] focus:border-[#0c831f] text-sm"
-                          />
+                          <div>
+                            <Input
+                              placeholder="Enter pin code (optional)"
+                              value={recipientData.pincode}
+                              type="text"
+                              inputMode="numeric"
+                              maxLength={6}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/\D/g, "").slice(0, 6);
+                                setRecipientData({ ...recipientData, pincode: val });
+                                if (recipientErrors.pincode) setRecipientErrors((prev) => ({ ...prev, pincode: "" }));
+                              }}
+                              className={`h-12 rounded-xl text-sm ${recipientErrors.pincode ? "border-rose-400 focus:ring-rose-400 focus:border-rose-400" : "border-slate-200 focus:ring-[#0c831f] focus:border-[#0c831f]"}`}
+                            />
+                            {recipientErrors.pincode && (
+                              <p className="text-xs text-rose-500 mt-1 ml-1">{recipientErrors.pincode}</p>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -1349,33 +1464,63 @@ const CheckoutPage = () => {
                           address
                         </p>
                         <div className="space-y-3">
-                          <Input
-                            placeholder="Receiver's name*"
-                            value={recipientData.name}
-                            onChange={(e) =>
-                              setRecipientData({
-                                ...recipientData,
-                                name: e.target.value,
-                              })
-                            }
-                            className="h-12 rounded-xl border-slate-200 focus:ring-[#0c831f] focus:border-[#0c831f] text-sm"
-                          />
-                          <div className="relative">
+                          <div>
                             <Input
-                              placeholder="Receiver's phone number*"
-                              value={recipientData.phone}
-                              onChange={(e) =>
-                                setRecipientData({
-                                  ...recipientData,
-                                  phone: e.target.value,
-                                })
-                              }
-                              className="h-12 rounded-xl border-slate-200 focus:ring-[#0c831f] focus:border-[#0c831f] text-sm pr-10"
+                              placeholder="Receiver's name*"
+                              value={recipientData.name}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/[^a-zA-Z\u00C0-\u024F\s]/g, "");
+                                setRecipientData({ ...recipientData, name: val });
+                                if (recipientErrors.name) setRecipientErrors((prev) => ({ ...prev, name: "" }));
+                              }}
+                              className={`h-12 rounded-xl text-sm ${recipientErrors.name ? "border-rose-400 focus:ring-rose-400 focus:border-rose-400" : "border-slate-200 focus:ring-[#0c831f] focus:border-[#0c831f]"}`}
                             />
-                            <Contact2
-                              size={18}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-                            />
+                            {recipientErrors.name && (
+                              <p className="text-xs text-rose-500 mt-1 ml-1">{recipientErrors.name}</p>
+                            )}
+                          </div>
+                          <div>
+                            <div className="relative">
+                              <Input
+                                placeholder="Receiver's phone number*"
+                                value={recipientData.phone}
+                                type="tel"
+                                inputMode="numeric"
+                                maxLength={10}
+                                onChange={(e) => {
+                                  const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+                                  setRecipientData({ ...recipientData, phone: val });
+                                  if (recipientErrors.phone) setRecipientErrors((prev) => ({ ...prev, phone: "" }));
+                                }}
+                                className={`h-12 rounded-xl text-sm pr-10 ${recipientErrors.phone ? "border-rose-400 focus:ring-rose-400 focus:border-rose-400" : "border-slate-200 focus:ring-[#0c831f] focus:border-[#0c831f]"}`}
+                              />
+                              <button
+                                type="button"
+                                title="Pick from contacts"
+                                onClick={async () => {
+                                  if ("contacts" in navigator && "ContactsManager" in window) {
+                                    try {
+                                      const contacts = await navigator.contacts.select(["tel"], { multiple: false });
+                                      if (contacts?.length && contacts[0]?.tel?.length) {
+                                        const raw = contacts[0].tel[0].replace(/\D/g, "").slice(-10);
+                                        setRecipientData((prev) => ({ ...prev, phone: raw }));
+                                        if (recipientErrors.phone) setRecipientErrors((prev) => ({ ...prev, phone: "" }));
+                                      }
+                                    } catch {
+                                      // user cancelled or permission denied
+                                    }
+                                  } else {
+                                    document.querySelector("input[placeholder=\"Receiver's phone number*\"]")?.focus();
+                                  }
+                                }}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#0c831f] transition-colors cursor-pointer p-1 rounded-lg hover:bg-slate-100"
+                              >
+                                <Contact2 size={18} />
+                              </button>
+                            </div>
+                            {recipientErrors.phone && (
+                              <p className="text-xs text-rose-500 mt-1 ml-1">{recipientErrors.phone}</p>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1827,255 +1972,447 @@ const CheckoutPage = () => {
       </div>
 
       {/* Address Selection Modal */}
-      <Dialog open={isAddressModalOpen} onOpenChange={setIsAddressModalOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Select Delivery Address</DialogTitle>
-            <DialogDescription>
-              Choose where you want your order delivered.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            {locationSavedAddresses.map((addr) => (
-              <button
-                key={addr.id}
-                onClick={() => handleSelectSavedAddress(addr)}
-                disabled={isResolvingAddressCoords}
-                className={`w-full p-4 rounded-2xl border-2 text-left transition-all ${
-                  currentAddress.id === addr.id
-                    ? "border-[#0c831f] bg-green-50 shadow-sm"
-                    : "border-slate-100 bg-white hover:border-slate-200"
-                }`}>
-                <div className="flex items-center gap-3 mb-2">
-                  <div
-                    className={`p-2 rounded-full ${currentAddress.id === addr.id ? "bg-[#0c831f] text-white" : "bg-slate-100 text-slate-500"}`}>
-                    <MapPin size={16} />
-                  </div>
-                  <span className="font-black text-slate-800 uppercase tracking-widest text-[10px]">
-                    {addr.label}
-                  </span>
-                </div>
-                <p className="text-sm font-bold text-slate-800">
-                  {addr.name || user?.name || currentAddress.name || "Customer"}
-                </p>
-                <p className="text-xs text-slate-500 leading-relaxed mb-1">
-                  {addr.address}
-                </p>
-                {addr.phone && (
-                  <p className="text-[11px] text-slate-400 font-medium">
-                    Phone: {addr.phone}
-                  </p>
-                )}
-              </button>
-            ))}
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              className="w-full border-green-600 text-green-600 hover:bg-green-50"
-              onClick={() => navigate("/cart/address-selector")}>
-              <Plus size={16} className="mr-2" /> Add New Address
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Current Address Modal - slides up from bottom */}
-      <Dialog open={isEditAddressOpen} onOpenChange={setIsEditAddressOpen}>
-        <DialogContent className="sm:max-w-[425px] overflow-hidden p-0">
+      {/* Select Delivery Address Modal */}
+      <AnimatePresence>
+        {isAddressModalOpen && (
           <motion.div
-            initial={{ y: "100%", opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: "100%", opacity: 0 }}
-            transition={{ type: "spring", stiffness: 260, damping: 25 }}
-            className="p-6">
-            <DialogHeader>
-              <DialogTitle>Edit Delivery Address</DialogTitle>
-              <DialogDescription>
-                Update the details of your current delivery address.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label
-                  htmlFor="edit-address"
-                  className="text-xs font-semibold text-slate-700">
-                  Address
-                </Label>
-                <Input
-                  id="edit-address"
-                  value={editAddressForm.address}
-                  onChange={(e) =>
-                    setEditAddressForm((prev) => ({
-                      ...prev,
-                      address: e.target.value,
-                    }))
-                  }
-                  className="h-10"
-                  placeholder="House, street, area"
-                />
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[600] flex items-end sm:items-center justify-center"
+          >
+            {/* Backdrop */}
+            <div
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => { setIsAddressModalOpen(false); setShowAddNewAddressForm(false); setNewAddressErrors({}); }}
+            />
+            {/* Modal */}
+            <motion.div
+              initial={{ y: 80, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 80, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              className="relative z-10 w-full max-w-md bg-white rounded-t-[28px] sm:rounded-[28px] shadow-2xl max-h-[85vh] flex flex-col"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-100 flex-shrink-0">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Select Delivery Address</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Choose where you want your order delivered</p>
+                </div>
+                <button
+                  onClick={() => { setIsAddressModalOpen(false); setShowAddNewAddressForm(false); setNewAddressErrors({}); }}
+                  className="h-8 w-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors flex-shrink-0"
+                >
+                  <X size={16} />
+                </button>
               </div>
-              <div className="grid gap-2">
-                <Label
-                  htmlFor="edit-landmark"
-                  className="text-xs font-semibold text-slate-700">
-                  Nearest Landmark (optional)
-                </Label>
-                <Input
-                  id="edit-landmark"
-                  value={editAddressForm.landmark || ""}
-                  onChange={(e) =>
-                    setEditAddressForm((prev) => ({
-                      ...prev,
-                      landmark: e.target.value,
-                    }))
-                  }
-                  className="h-10"
-                  placeholder="e.g. Near City Mall, Opp. Temple"
-                />
+
+              {/* Address List */}
+              <div className="overflow-y-auto flex-1 px-4 py-3 space-y-3">
+                {locationSavedAddresses.length === 0 && (
+                  <p className="text-center text-sm text-slate-400 py-6">No saved addresses yet.</p>
+                )}
+                {locationSavedAddresses.map((addr) => (
+                  <button
+                    key={addr.id}
+                    onClick={() => handleSelectSavedAddress(addr)}
+                    disabled={isResolvingAddressCoords}
+                    className={`w-full p-4 rounded-2xl border-2 text-left transition-all ${
+                      currentAddress.id === addr.id
+                        ? "border-[#0c831f] bg-green-50 shadow-sm"
+                        : "border-slate-100 bg-white hover:border-slate-200"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className={`p-2 rounded-full ${currentAddress.id === addr.id ? "bg-[#0c831f] text-white" : "bg-slate-100 text-slate-500"}`}>
+                        <MapPin size={16} />
+                      </div>
+                      <span className="font-black text-slate-800 uppercase tracking-widest text-[10px]">
+                        {addr.label}
+                      </span>
+                    </div>
+                    <p className="text-sm font-bold text-slate-800">
+                      {addr.name || user?.name || currentAddress.name || "Customer"}
+                    </p>
+                    <p className="text-xs text-slate-500 leading-relaxed mb-1">{addr.address}</p>
+                    {addr.phone && (
+                      <p className="text-[11px] text-slate-400 font-medium">Phone: {addr.phone}</p>
+                    )}
+                  </button>
+                ))}
               </div>
-              <div className="grid gap-2">
-                <Label
-                  htmlFor="edit-city"
-                  className="text-xs font-semibold text-slate-700">
-                  City / Pincode
-                </Label>
-                <Input
-                  id="edit-city"
-                  value={editAddressForm.city}
-                  onChange={(e) =>
-                    setEditAddressForm((prev) => ({
-                      ...prev,
-                      city: e.target.value,
-                    }))
-                  }
-                  className="h-10"
-                  placeholder="City - Pincode"
-                />
+
+              {/* Footer */}
+              <div className="px-4 pb-5 pt-3 border-t border-slate-100 flex-shrink-0">
+                {!showAddNewAddressForm ? (
+                  <Button
+                    variant="outline"
+                    className="w-full h-12 border-2 border-[#0c831f] text-[#0c831f] hover:bg-green-50 rounded-2xl font-bold"
+                    onClick={() => setShowAddNewAddressForm(true)}
+                  >
+                    <Plus size={16} className="mr-2" /> Add New Address
+                  </Button>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <h3 className="text-sm font-bold text-slate-800">New Address</h3>
+                      <button
+                        onClick={() => { setShowAddNewAddressForm(false); setNewAddressErrors({}); }}
+                        className="text-xs text-slate-400 hover:text-slate-600"
+                      >Cancel</button>
+                    </div>
+
+                    {/* Label selector */}
+                    <div className="flex gap-2">
+                      {["Home", "Office", "Other"].map((lbl) => (
+                        <button
+                          key={lbl}
+                          type="button"
+                          onClick={() => setNewAddressForm((p) => ({ ...p, label: lbl }))}
+                          className={`flex-1 py-1.5 rounded-xl text-xs font-bold border-2 transition-all ${newAddressForm.label === lbl ? "border-[#0c831f] bg-green-50 text-[#0c831f]" : "border-slate-200 text-slate-500"}`}
+                        >{lbl}</button>
+                      ))}
+                    </div>
+
+                    {/* Name */}
+                    <div>
+                      <Input
+                        placeholder="Full name*"
+                        value={newAddressForm.name}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[^a-zA-Z\u00C0-\u024F\s]/g, "");
+                          setNewAddressForm((p) => ({ ...p, name: val }));
+                          if (newAddressErrors.name) setNewAddressErrors((p) => ({ ...p, name: "" }));
+                        }}
+                        className={`h-10 rounded-xl text-sm ${newAddressErrors.name ? "border-rose-400" : "border-slate-200 focus:ring-[#0c831f] focus:border-[#0c831f]"}`}
+                      />
+                      {newAddressErrors.name && <p className="text-xs text-rose-500 mt-0.5 ml-1">{newAddressErrors.name}</p>}
+                    </div>
+
+                    {/* Phone */}
+                    <div>
+                      <Input
+                        placeholder="Phone number*"
+                        value={newAddressForm.phone}
+                        type="tel"
+                        inputMode="numeric"
+                        maxLength={10}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+                          setNewAddressForm((p) => ({ ...p, phone: val }));
+                          if (newAddressErrors.phone) setNewAddressErrors((p) => ({ ...p, phone: "" }));
+                        }}
+                        className={`h-10 rounded-xl text-sm ${newAddressErrors.phone ? "border-rose-400" : "border-slate-200 focus:ring-[#0c831f] focus:border-[#0c831f]"}`}
+                      />
+                      {newAddressErrors.phone && <p className="text-xs text-rose-500 mt-0.5 ml-1">{newAddressErrors.phone}</p>}
+                    </div>
+
+                    {/* Address */}
+                    <div>
+                      <Input
+                        placeholder="House, street, area*"
+                        value={newAddressForm.address}
+                        onChange={(e) => {
+                          setNewAddressForm((p) => ({ ...p, address: e.target.value }));
+                          if (newAddressErrors.address) setNewAddressErrors((p) => ({ ...p, address: "" }));
+                        }}
+                        className={`h-10 rounded-xl text-sm ${newAddressErrors.address ? "border-rose-400" : "border-slate-200 focus:ring-[#0c831f] focus:border-[#0c831f]"}`}
+                      />
+                      {newAddressErrors.address && <p className="text-xs text-rose-500 mt-0.5 ml-1">{newAddressErrors.address}</p>}
+                    </div>
+
+                    {/* Landmark */}
+                    <Input
+                      placeholder="Landmark (optional)"
+                      value={newAddressForm.landmark}
+                      onChange={(e) => setNewAddressForm((p) => ({ ...p, landmark: e.target.value }))}
+                      className="h-10 rounded-xl border-slate-200 focus:ring-[#0c831f] focus:border-[#0c831f] text-sm"
+                    />
+
+                    {/* City + Pincode */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Input
+                          placeholder="City*"
+                          value={newAddressForm.city}
+                          onChange={(e) => {
+                            setNewAddressForm((p) => ({ ...p, city: e.target.value }));
+                            if (newAddressErrors.city) setNewAddressErrors((p) => ({ ...p, city: "" }));
+                          }}
+                          className={`h-10 rounded-xl text-sm ${newAddressErrors.city ? "border-rose-400" : "border-slate-200 focus:ring-[#0c831f] focus:border-[#0c831f]"}`}
+                        />
+                        {newAddressErrors.city && <p className="text-xs text-rose-500 mt-0.5 ml-1">{newAddressErrors.city}</p>}
+                      </div>
+                      <div>
+                        <Input
+                          placeholder="Pincode"
+                          value={newAddressForm.zipCode}
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={6}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, "").slice(0, 6);
+                            setNewAddressForm((p) => ({ ...p, zipCode: val }));
+                            if (newAddressErrors.zipCode) setNewAddressErrors((p) => ({ ...p, zipCode: "" }));
+                          }}
+                          className={`h-10 rounded-xl text-sm ${newAddressErrors.zipCode ? "border-rose-400" : "border-slate-200 focus:ring-[#0c831f] focus:border-[#0c831f]"}`}
+                        />
+                        {newAddressErrors.zipCode && <p className="text-xs text-rose-500 mt-0.5 ml-1">{newAddressErrors.zipCode}</p>}
+                      </div>
+                    </div>
+
+                    <Button
+                      onClick={handleSaveNewAddress}
+                      disabled={isSavingNewAddress}
+                      className="w-full h-11 rounded-2xl bg-[#0c831f] hover:bg-[#0b721b] text-white font-bold"
+                    >
+                      {isSavingNewAddress ? "Saving..." : "Save Address"}
+                    </Button>
+                  </div>
+                )}
               </div>
-            </div>
-            <DialogFooter className="mt-2">
-              <Button
-                variant="outline"
-                onClick={() => setIsEditAddressOpen(false)}
-                className="border-slate-200 text-slate-600 hover:bg-slate-50">
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSaveEditedAddress}
-                className="bg-[#0c831f] hover:bg-[#0b721b] text-white font-bold">
-                Save changes
-              </Button>
-            </DialogFooter>
+            </motion.div>
           </motion.div>
-        </DialogContent>
-      </Dialog>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Current Address Modal */}
+      <AnimatePresence>
+        {isEditAddressOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[600] flex items-end sm:items-center justify-center"
+          >
+            <div
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setIsEditAddressOpen(false)}
+            />
+            <motion.div
+              initial={{ y: 80, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 80, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              className="relative z-10 w-full max-w-md bg-white rounded-t-[28px] sm:rounded-[28px] shadow-2xl"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-100">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Edit Delivery Address</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Update your current delivery address</p>
+                </div>
+                <button
+                  onClick={() => setIsEditAddressOpen(false)}
+                  className="h-8 w-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Form */}
+              <div className="px-5 py-4 space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-address" className="text-xs font-semibold text-slate-700">Address</Label>
+                  <Input
+                    id="edit-address"
+                    value={editAddressForm.address}
+                    onChange={(e) => setEditAddressForm((prev) => ({ ...prev, address: e.target.value }))}
+                    className="h-11 rounded-xl border-slate-200 focus:ring-[#0c831f] focus:border-[#0c831f]"
+                    placeholder="House, street, area"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-landmark" className="text-xs font-semibold text-slate-700">Nearest Landmark (optional)</Label>
+                  <Input
+                    id="edit-landmark"
+                    value={editAddressForm.landmark || ""}
+                    onChange={(e) => setEditAddressForm((prev) => ({ ...prev, landmark: e.target.value }))}
+                    className="h-11 rounded-xl border-slate-200 focus:ring-[#0c831f] focus:border-[#0c831f]"
+                    placeholder="e.g. Near City Mall, Opp. Temple"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-city" className="text-xs font-semibold text-slate-700">City</Label>
+                    <Input
+                      id="edit-city"
+                      value={editAddressForm.city || ""}
+                      onChange={(e) => setEditAddressForm((prev) => ({ ...prev, city: e.target.value }))}
+                      className="h-11 rounded-xl border-slate-200 focus:ring-[#0c831f] focus:border-[#0c831f]"
+                      placeholder="City"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-pincode" className="text-xs font-semibold text-slate-700">Pincode</Label>
+                    <Input
+                      id="edit-pincode"
+                      value={editAddressForm.zipCode || ""}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, "").slice(0, 6);
+                        setEditAddressForm((prev) => ({ ...prev, zipCode: val }));
+                      }}
+                      className={`h-11 rounded-xl focus:ring-[#0c831f] focus:border-[#0c831f] ${
+                        editAddressForm.zipCode && editAddressForm.zipCode.length > 0 && editAddressForm.zipCode.length !== 6
+                          ? "border-rose-400"
+                          : "border-slate-200"
+                      }`}
+                      placeholder="6-digit code"
+                    />
+                    {editAddressForm.zipCode && editAddressForm.zipCode.length > 0 && editAddressForm.zipCode.length !== 6 && (
+                      <p className="text-xs text-rose-500 mt-1">Must be 6 digits</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-5 pb-6 pt-2 flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsEditAddressOpen(false)}
+                  className="flex-1 h-11 rounded-2xl border-slate-200 text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSaveEditedAddress}
+                  className="flex-1 h-11 rounded-2xl bg-[#0c831f] hover:bg-[#0b721b] text-white font-bold"
+                >
+                  Save changes
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Coupon Selection Modal */}
-      <Dialog open={isCouponModalOpen} onOpenChange={setIsCouponModalOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Apply Coupon</DialogTitle>
-            <DialogDescription>
-              Browse available offers and save more.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-            {coupons.map((coupon) => (
-              <div
-                key={coupon.code}
-                className={`p-4 rounded-2xl border-2 transition-all relative overflow-hidden ${
-                  selectedCoupon?.code === coupon.code
-                    ? "border-[#0c831f] bg-green-50 shadow-sm"
-                    : "border-slate-100 bg-white hover:border-slate-200"
-                }`}>
-                {selectedCoupon?.code === coupon.code && (
-                  <div className="absolute top-0 right-0 p-1.5 bg-[#0c831f] text-white rounded-bl-xl">
-                    <Check size={12} strokeWidth={4} />
-                  </div>
+      <AnimatePresence>
+        {isCouponModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[600] flex items-end sm:items-center justify-center p-4"
+          >
+            <div
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setIsCouponModalOpen(false)}
+            />
+            <motion.div
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              className="relative z-10 w-full max-w-md bg-white rounded-[28px] shadow-2xl flex flex-col max-h-[85vh]"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-100 flex-shrink-0">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Apply Coupon</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Browse available offers and save more.</p>
+                </div>
+                <button
+                  onClick={() => setIsCouponModalOpen(false)}
+                  className="h-8 w-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors flex-shrink-0"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Coupon List */}
+              <div className="px-4 py-4 space-y-4 overflow-y-auto flex-1">
+                {coupons.length === 0 && (
+                  <p className="text-center text-sm text-slate-400 py-6">No coupons available right now.</p>
                 )}
-                <div className="flex items-start gap-3">
+                {coupons.map((coupon) => (
                   <div
-                    className={`p-3 rounded-2xl ${selectedCoupon?.code === coupon.code ? "bg-[#0c831f]/10 text-[#0c831f]" : "bg-orange-50 text-orange-500"}`}>
-                    <Tag size={20} />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-black text-slate-800 tracking-wider mb-1">
-                      {coupon.code}
-                    </p>
-                    <p className="text-xs text-slate-500 leading-relaxed mb-3">
-                      {coupon.description}
-                    </p>
+                    key={coupon.code}
+                    className={`p-4 rounded-2xl border-2 transition-all relative overflow-hidden ${
+                      selectedCoupon?.code === coupon.code
+                        ? "border-[#0c831f] bg-green-50 shadow-sm"
+                        : "border-slate-100 bg-white hover:border-slate-200"
+                    }`}>
+                    {selectedCoupon?.code === coupon.code && (
+                      <div className="absolute top-0 right-0 p-1.5 bg-[#0c831f] text-white rounded-bl-xl">
+                        <Check size={12} strokeWidth={4} />
+                      </div>
+                    )}
+                    <div className="flex items-start gap-3">
+                      <div className={`p-3 rounded-2xl flex-shrink-0 ${selectedCoupon?.code === coupon.code ? "bg-[#0c831f]/10 text-[#0c831f]" : "bg-orange-50 text-orange-500"}`}>
+                        <Tag size={20} />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-black text-slate-800 tracking-wider mb-1">{coupon.code}</p>
+                        <p className="text-xs text-slate-500 leading-relaxed">{coupon.description}</p>
+                      </div>
+                    </div>
                     <button
                       onClick={() => handleApplyCoupon(coupon)}
                       disabled={selectedCoupon?.code === coupon.code}
-                      className={`w-full py-2.5 rounded-xl font-bold text-sm transition-all ${
+                      className={`w-full mt-3 py-2.5 rounded-xl font-bold text-sm transition-all ${
                         selectedCoupon?.code === coupon.code
                           ? "bg-white text-[#0c831f] border-2 border-[#0c831f] cursor-default"
                           : "bg-[#0c831f] text-white hover:bg-[#0b721b]"
                       }`}>
-                      {selectedCoupon?.code === coupon.code
-                        ? "Applied"
-                        : "Apply Now"}
+                      {selectedCoupon?.code === coupon.code ? "Applied ✓" : "Apply Now"}
                     </button>
                   </div>
+                ))}
+              </div>
+
+              {/* Manual code input */}
+              <div className="px-4 pb-5 pt-3 border-t border-slate-100 flex-shrink-0">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                  <Input
+                    placeholder="Enter coupon code manually"
+                    value={manualCode}
+                    onChange={(e) => setManualCode(e.target.value.toUpperCase())}
+                    className="pl-10 h-12 rounded-xl focus-visible:ring-[#0c831f]"
+                  />
+                  <button
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#0c831f] font-bold text-xs"
+                    onClick={async () => {
+                      if (!manualCode.trim()) {
+                        showToast("Please enter a coupon code", "error");
+                        return;
+                      }
+                      try {
+                        const res = await customerApi.validateCoupon({
+                          code: manualCode.trim(),
+                          cartTotal,
+                          items: cart,
+                          customerId: user?._id,
+                        });
+                        if (res.data.success) {
+                          const data = res.data.result;
+                          setSelectedCoupon({
+                            code: manualCode.trim(),
+                            description: "Applied manually",
+                            ...data,
+                          });
+                          showToast(`Coupon ${manualCode.trim()} applied!`, "success");
+                        } else {
+                          showToast(res.data.message || "Invalid coupon", "error");
+                        }
+                      } catch (error) {
+                        showToast(error.response?.data?.message || "Invalid coupon", "error");
+                      }
+                    }}>
+                    CHECK
+                  </button>
                 </div>
               </div>
-            ))}
-          </div>
-          <div className="pt-2">
-            <div className="relative">
-              <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                size={16}
-              />
-              <Input
-                placeholder="Enter coupon code manually"
-                value={manualCode}
-                onChange={(e) => setManualCode(e.target.value.toUpperCase())}
-                className="pl-10 h-12 rounded-xl focus-visible:ring-[#0c831f]"
-              />
-              <button
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#0c831f] font-bold text-xs"
-                onClick={async () => {
-                  if (!manualCode.trim()) {
-                    showToast("Please enter a coupon code", "error");
-                    return;
-                  }
-                  try {
-                    const res = await customerApi.validateCoupon({
-                      code: manualCode.trim(),
-                      cartTotal,
-                      items: cart,
-                      customerId: user?._id,
-                    });
-                    if (res.data.success) {
-                      const data = res.data.result;
-                      setSelectedCoupon({
-                        code: manualCode.trim(),
-                        description: "Applied manually",
-                        ...data,
-                      });
-                      showToast(
-                        `Coupon ${manualCode.trim()} applied!`,
-                        "success",
-                      );
-                    } else {
-                      showToast(res.data.message || "Invalid coupon", "error");
-                    }
-                  } catch (error) {
-                    showToast(
-                      error.response?.data?.message || "Invalid coupon",
-                      "error",
-                    );
-                  }
-                }}>
-                CHECK
-              </button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Success Overlay */}
       <AnimatePresence>
@@ -2133,6 +2470,73 @@ const CheckoutPage = () => {
             `,
         }}
       />
+
+      {/* Share Modal — shown on desktop where native share sheet isn't available */}
+      <AnimatePresence>
+        {showShareModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[700] flex items-end sm:items-center justify-center px-4 pb-6 sm:pb-0"
+          >
+            <div
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+              onClick={() => setShowShareModal(false)}
+            />
+            <motion.div
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              className="relative z-10 w-full max-w-sm rounded-[28px] bg-white p-6 shadow-2xl"
+            >
+              <h3 className="text-lg font-bold text-slate-900 mb-1">Share {appName}</h3>
+              <p className="text-sm text-slate-500 mb-5">Choose how you'd like to share</p>
+
+              <div className="space-y-3">
+                {/* WhatsApp */}
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(`Hey! Check out ${appName} for quick grocery delivery in minutes! ${window.location.origin}`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setShowShareModal(false)}
+                  className="flex items-center gap-3 w-full rounded-2xl border-2 border-slate-100 p-3 hover:border-green-200 hover:bg-green-50 transition-all"
+                >
+                  <div className="h-10 w-10 rounded-full bg-[#25D366] flex items-center justify-center text-white font-black text-lg flex-shrink-0">W</div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-800">WhatsApp</p>
+                    <p className="text-xs text-slate-500">Share via WhatsApp</p>
+                  </div>
+                  <ChevronRight size={16} className="ml-auto text-slate-400" />
+                </a>
+
+                {/* Copy Link */}
+                <button
+                  onClick={handleCopyLink}
+                  className="flex items-center gap-3 w-full rounded-2xl border-2 border-slate-100 p-3 hover:border-slate-200 hover:bg-slate-50 transition-all text-left"
+                >
+                  <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
+                    <Clipboard size={18} className="text-slate-600" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-slate-800">Copy Link</p>
+                    <p className="text-xs text-slate-500 truncate">{window.location.origin}</p>
+                  </div>
+                  <ChevronRight size={16} className="ml-auto text-slate-400 flex-shrink-0" />
+                </button>
+              </div>
+
+              <button
+                onClick={() => setShowShareModal(false)}
+                className="mt-4 w-full rounded-2xl border-2 border-slate-200 py-3 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

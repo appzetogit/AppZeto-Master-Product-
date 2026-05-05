@@ -29,6 +29,13 @@ const CartPage = () => {
   const { cart, removeFromCart, updateQuantity, cartTotal, clearCart, loading } = useCart();
   const { showToast } = useToast();
   const { settings } = useSettings();
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  const handleClearAll = async () => {
+    setShowClearConfirm(false);
+    await clearCart();
+    showToast("Cart cleared", "info");
+  };
 
   const categoriesPath = getQuickCategoriesPath();
   const checkoutPath = getQuickCheckoutPath();
@@ -152,12 +159,45 @@ const CartPage = () => {
           </div>
 
           <button
-            onClick={clearCart}
+            onClick={() => setShowClearConfirm(true)}
             className="text-sm font-semibold text-rose-500 transition-colors hover:text-rose-600"
           >
             Clear all
           </button>
         </div>
+
+        {/* Clear cart confirmation */}
+        {showClearConfirm && (
+          <div className="fixed inset-0 z-[600] flex items-end sm:items-center justify-center px-4 pb-6 sm:pb-0">
+            <div
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setShowClearConfirm(false)}
+            />
+            <div className="relative z-10 w-full max-w-sm rounded-[28px] bg-white p-6 shadow-2xl">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-rose-50 mx-auto">
+                <Trash2 size={22} className="text-rose-500" />
+              </div>
+              <h3 className="text-center text-lg font-bold text-slate-900">Clear your cart?</h3>
+              <p className="mt-2 text-center text-sm text-slate-500">
+                All {itemCount} item{itemCount === 1 ? "" : "s"} will be removed. This can't be undone.
+              </p>
+              <div className="mt-6 flex gap-3">
+                <button
+                  onClick={() => setShowClearConfirm(false)}
+                  className="flex-1 rounded-2xl border-2 border-slate-200 py-3 text-sm font-bold text-slate-700 transition-colors hover:border-slate-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleClearAll}
+                  className="flex-1 rounded-2xl bg-rose-500 py-3 text-sm font-bold text-white transition-colors hover:bg-rose-600"
+                >
+                  Clear all
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <section className="mb-4 rounded-[24px] bg-[#e9f7ec] p-4 shadow-sm">
           <div className="flex items-start justify-between gap-4">
@@ -187,9 +227,12 @@ const CartPage = () => {
               <div className="flex gap-4">
                 <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-50">
                   <img
-                    src={resolveQuickImageUrl(item.image || item.mainImage) || item.image}
+                    src={resolveQuickImageUrl(item.mainImage || item.image) || item.mainImage || item.image || "https://images.unsplash.com/photo-1542838132-92c53300491e?q=80&w=200&auto=format&fit=crop"}
                     alt={item.name}
                     className="h-full w-full object-contain p-2"
+                    onError={(e) => {
+                      e.currentTarget.src = "https://images.unsplash.com/photo-1542838132-92c53300491e?q=80&w=200&auto=format&fit=crop";
+                    }}
                   />
                 </div>
 
@@ -237,8 +280,16 @@ const CartPage = () => {
                         {item.quantity}
                       </span>
                       <button
-                        onClick={() => updateQuantity(item.id || item._id, 1)}
-                        className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-700 shadow-sm"
+                        onClick={() => {
+                          const stock = Number(item.stock ?? Infinity);
+                          if (item.quantity >= stock) {
+                            showToast(`Only ${stock} in stock`, "error");
+                            return;
+                          }
+                          updateQuantity(item.id || item._id, 1);
+                        }}
+                        disabled={item.quantity >= Number(item.stock ?? Infinity)}
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-700 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <Plus size={14} strokeWidth={3} />
                       </button>
@@ -352,24 +403,30 @@ const CartPage = () => {
           </div>
         </section>
 
-        <section className="mt-4 rounded-[24px] bg-white p-5 shadow-sm">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
-                Checkout
-              </p>
-              <h2 className="mt-1 text-lg font-bold text-slate-900">
-                Address, payment and seller confirmation
-              </h2>
-              <p className="mt-1 text-sm leading-6 text-slate-500">
-                Review delivery details on the next screen and place the order to push it into the matched seller dashboard.
-              </p>
+        <Link
+          to={checkoutPath}
+          state={{ selectedPayment }}
+          className="block mt-4"
+        >
+          <section className="rounded-[24px] bg-white p-5 shadow-sm transition-all hover:shadow-md active:scale-[0.99]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
+                  Checkout
+                </p>
+                <h2 className="mt-1 text-lg font-bold text-slate-900">
+                  Address, payment and seller confirmation
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  Review delivery details on the next screen and place the order to push it into the matched seller dashboard.
+                </p>
+              </div>
+              <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0c831f]/10 text-[#0c831f]">
+                <ChevronRight size={18} />
+              </div>
             </div>
-            <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500">
-              <ChevronRight size={18} />
-            </div>
-          </div>
-        </section>
+          </section>
+        </Link>
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 z-[520] border-t border-slate-200 bg-white px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(15,23,42,0.08)]">

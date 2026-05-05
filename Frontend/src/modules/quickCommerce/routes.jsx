@@ -29,49 +29,56 @@ import { ProductDetailProvider } from "./user/context/ProductDetailContext"
 import { WishlistProvider } from "./user/context/WishlistContext"
 import { CartAnimationProvider } from "./user/context/CartAnimationContext"
 
-export default function QuickCommerceRoutes() {
+// Inner routes component — kept separate so Suspense doesn't remount providers
+function QuickCommerceInnerRoutes() {
   return (
     <Suspense fallback={<Loader />}>
-      <CartProvider>
-        <LocationProvider>
-          <WishlistProvider>
-            <CartAnimationProvider>
-              <ProductDetailProvider>
-                <Routes>
-                  <Route element={<UserLayout />}>
-                    <Route index element={<Home />} />
-                    <Route path="cart" element={<Cart />} />
-                    <Route path="orders" element={<Orders />} />
-                    <Route path="orders/:orderId" element={<OrderDetail />} />
-                    <Route path="products" element={<Products />} />
-                    <Route path="categories" element={<Categories />} />
-                    <Route path="categories/:categoryId" element={<CategoryProducts />} />
-                    <Route path="product/:productId" element={<ProductDetail />} />
-                    <Route path="checkout" element={<Checkout />} />
-                    <Route path="profile" element={<Navigate to="/profile?from=quick" replace />} />
-                    <Route path="profile/edit" element={<Navigate to="/profile/edit?from=quick" replace />} />
-                    <Route path="wallet" element={<Wallet />} />
-                    <Route path="addresses" element={<Addresses />} />
-                    <Route path="support" element={<Support />} />
-                    <Route path="wishlist" element={<Wishlist />} />
-                    <Route path="transactions" element={<Transactions />} />
-                    <Route path="privacy" element={<Privacy />} />
-                    <Route path="about" element={<About />} />
-                    <Route path="terms" element={<Terms />} />
-                    <Route path="search" element={<Search />} />
-                    <Route path="user" element={<Navigate to="/quick" replace />} />
-                    <Route path="user/*" element={<Navigate to="/quick" replace />} />
-                  </Route>
-                  
-                  {/* Redirects */}
-                  <Route path="/" element={<Navigate to="/quick" replace />} />
-                  <Route path="*" element={<Navigate to="/quick" replace />} />
-                </Routes>
-              </ProductDetailProvider>
-            </CartAnimationProvider>
-          </WishlistProvider>
-        </LocationProvider>
-      </CartProvider>
+      <Routes>
+        <Route element={<UserLayout />}>
+          <Route index element={<Home />} />
+          <Route path="home" element={<Home />} />
+          <Route path="cart" element={<Cart />} />
+          <Route path="orders" element={<Orders />} />
+          <Route path="orders/:orderId" element={<OrderDetail />} />
+          <Route path="products" element={<Products />} />
+          <Route path="categories" element={<Categories />} />
+          <Route path="categories/:categoryId" element={<CategoryProducts />} />
+          <Route path="product/:productId" element={<ProductDetail />} />
+          <Route path="checkout" element={<Checkout />} />
+          <Route path="profile" element={<Navigate to="/profile?from=quick" replace />} />
+          <Route path="profile/edit" element={<Navigate to="/profile/edit?from=quick" replace />} />
+          <Route path="wallet" element={<Wallet />} />
+          <Route path="addresses" element={<Addresses />} />
+          <Route path="support" element={<Support />} />
+          <Route path="wishlist" element={<Wishlist />} />
+          <Route path="transactions" element={<Transactions />} />
+          <Route path="privacy" element={<Privacy />} />
+          <Route path="about" element={<About />} />
+          <Route path="terms" element={<Terms />} />
+          <Route path="search" element={<Search />} />
+          <Route path="user" element={<Navigate to="/quick" replace />} />
+          <Route path="user/*" element={<Navigate to="/quick" replace />} />
+        </Route>
+
+        {/* Redirects */}
+        <Route path="*" element={<Navigate to="/quick" replace />} />
+      </Routes>
     </Suspense>
-  )
+  );
+}
+
+export default function QuickCommerceRoutes() {
+  return (
+    <CartProvider>
+      <LocationProvider>
+        <WishlistProvider>
+          <CartAnimationProvider>
+            <ProductDetailProvider>
+              <QuickCommerceInnerRoutes />
+            </ProductDetailProvider>
+          </CartAnimationProvider>
+        </WishlistProvider>
+      </LocationProvider>
+    </CartProvider>
+  );
 }

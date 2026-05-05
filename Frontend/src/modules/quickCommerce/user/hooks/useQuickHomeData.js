@@ -122,6 +122,7 @@ const QUICK_HEADER_RETURN_STORAGE_KEY = "food.quick.headerReturn";
 let globalQuickHomeCache = {
   data: null,
   headerSections: new Map(), // headerId -> sections
+  categoryProducts: new Map(), // headerId -> products
   lastFetched: 0,
 };
 
@@ -143,6 +144,7 @@ export const useQuickHomeData = ({ currentLocation }) => {
   const [heroConfig, setHeroConfig] = useState(globalQuickHomeCache.data?.heroConfig || { banners: { items: [] }, categoryIds: [] });
   const [headerSections, setHeaderSections] = useState([]);
   const [loadingHeaderSections, setLoadingHeaderSections] = useState(false);
+  const [categoryProducts, setCategoryProducts] = useState(null); // null = use global products
 
   const fetchDataSeqRef = useRef(0);
 
@@ -290,32 +292,68 @@ export const useQuickHomeData = ({ currentLocation }) => {
   useEffect(() => {
     if (!activeCategory || activeCategory._id === "all") {
       setHeaderSections([]);
+      setCategoryProducts(null); // reset to global products
       return;
     }
 
+    const headerId = activeCategory._id;
+
     const fetchHeader = async () => {
-      const headerId = activeCategory._id;
       if (globalQuickHomeCache.headerSections.has(headerId)) {
         setHeaderSections(globalQuickHomeCache.headerSections.get(headerId));
-        return;
-      }
-
-      setLoadingHeaderSections(true);
-      try {
-        const res = await customerApi.getExperienceSections({ pageType: "header", headerId });
-        if (res.data.success) {
-          const raw = res.data.result || res.data.results || res.data;
-          const sections = Array.isArray(raw) ? raw : [];
-          setHeaderSections(sections);
-          globalQuickHomeCache.headerSections.set(headerId, sections);
+      } else {
+        setLoadingHeaderSections(true);
+        try {
+          const res = await customerApi.getExperienceSections({ pageType: "header", headerId });
+          if (res.data.success) {
+            const raw = res.data.result || res.data.results || res.data;
+            const sections = Array.isArray(raw) ? raw : [];
+            setHeaderSections(sections);
+            globalQuickHomeCache.headerSections.set(headerId, sections);
+          }
+        } catch (e) {
+          console.error("Error fetching header sections:", e);
+        } finally {
+          setLoadingHeaderSections(false);
         }
-      } catch (e) {
-        console.error("Error fetching header sections:", e);
-      } finally {
-        setLoadingHeaderSections(false);
       }
     };
+
+    const fetchCategoryProducts = async () => {
+      if (globalQuickHomeCache.categoryProducts.has(headerId)) {
+        setCategoryProducts(globalQuickHomeCache.categoryProducts.get(headerId));
+        return;
+      }
+      try {
+        const res = await customerApi.getProducts({ categoryId: headerId, limit: 50 });
+        if (res?.data?.success) {
+          const rawResult = res.data.result;
+          const dbProds = Array.isArray(res.data.results)
+            ? res.data.results
+            : Array.isArray(rawResult?.items)
+            ? rawResult.items
+            : Array.isArray(rawResult)
+            ? rawResult
+            : [];
+          const formatted = dbProds.map((p) => ({
+            ...p,
+            id: p._id,
+            image: p.mainImage || p.image || "https://images.unsplash.com/photo-1550989460-0adf9ea622e2",
+            price: Number(p.salePrice || 0) > 0 ? Number(p.salePrice) : Number(p.price || 0),
+            originalPrice: Number(p.originalPrice || p.mrp || p.price || p.salePrice || 0),
+            weight: p.weight || "1 unit",
+            deliveryTime: "8-15 mins",
+          }));
+          globalQuickHomeCache.categoryProducts.set(headerId, formatted);
+          setCategoryProducts(formatted);
+        }
+      } catch (e) {
+        console.error("Error fetching category products:", e);
+      }
+    };
+
     fetchHeader();
+    fetchCategoryProducts();
   }, [activeCategory]);
 
   return {
@@ -323,6 +361,7 @@ export const useQuickHomeData = ({ currentLocation }) => {
     activeCategory,
     setActiveCategory,
     products,
+    categoryProducts, // null when "All" is active, array when a specific category is selected
     quickCategories,
     experienceSections,
     offerSections,

@@ -169,8 +169,7 @@ const AppRoutes = () => {
           }
         />
 
-        {/* Quick storefront landing keeps the shared food layout */}
-        <Route path="/quick" element={<SharedFoodHomeRoute />} />
+        {/* Quick storefront - handled by QuickCommerceApp below which has its own CartProvider */}
 
         {/* Global shared cart */}
         <Route

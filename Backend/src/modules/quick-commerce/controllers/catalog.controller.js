@@ -235,6 +235,69 @@ export const getCoupons = async (_req, res) => {
   return res.json({ success: true, results: coupons });
 };
 
+export const applyCoupon = async (req, res) => {
+  setNoCache(res);
+  const { code, cartTotal } = req.body;
+
+  if (!code) {
+    return res.status(400).json({ success: false, message: 'Coupon code is required' });
+  }
+
+  const coupons = await getQuickCoupons();
+  const coupon = coupons.find(
+    (c) => String(c.code || '').toUpperCase() === String(code).toUpperCase()
+  );
+
+  if (!coupon) {
+    return res.status(404).json({ success: false, message: 'Coupon not found or expired' });
+  }
+
+  const now = new Date();
+  if (coupon.expiryDate && new Date(coupon.expiryDate) < now) {
+    return res.status(400).json({ success: false, message: 'This coupon has expired' });
+  }
+
+  if (coupon.startDate && new Date(coupon.startDate) > now) {
+    return res.status(400).json({ success: false, message: 'This coupon is not active yet' });
+  }
+
+  const minOrder = Number(coupon.minOrderValue || coupon.minOrder || 0);
+  const total = Number(cartTotal || 0);
+  if (minOrder > 0 && total < minOrder) {
+    return res.status(400).json({
+      success: false,
+      message: `Minimum order value of ₹${minOrder} required for this coupon`,
+    });
+  }
+
+  // Calculate discount
+  let discountAmount = 0;
+  const discountType = String(coupon.discountType || 'flat').toLowerCase();
+  const discountValue = Number(coupon.discountValue || coupon.discount || 0);
+  const maxDiscount = Number(coupon.maxDiscount || coupon.maxDiscountValue || 0);
+
+  if (discountType === 'percent' || discountType === 'percentage') {
+    discountAmount = Math.round((total * discountValue) / 100);
+    if (maxDiscount > 0) discountAmount = Math.min(discountAmount, maxDiscount);
+  } else {
+    discountAmount = discountValue;
+  }
+
+  discountAmount = Math.min(discountAmount, total);
+
+  return res.json({
+    success: true,
+    message: `Coupon ${coupon.code} applied successfully!`,
+    result: {
+      code: coupon.code,
+      description: coupon.description,
+      discountAmount,
+      discountType,
+      discountValue,
+    },
+  });
+};
+
 export const getOffers = async (_req, res) => {
   setNoCache(res);
   const offers = await getQuickOffers();

@@ -76,6 +76,11 @@ const ProductCard = React.memo(
       (e) => {
         e.preventDefault();
         e.stopPropagation();
+        const stock = Number(product.stock ?? Infinity);
+        if (stock <= 0) {
+          showToast("This product is out of stock", "error");
+          return;
+        }
         if (imageRef.current) {
           animateAddToCart(
             imageRef.current.getBoundingClientRect(),
@@ -91,6 +96,11 @@ const ProductCard = React.memo(
       (e) => {
         e.preventDefault();
         e.stopPropagation();
+        const stock = Number(product.stock ?? Infinity);
+        if (quantity >= stock) {
+          showToast(`Only ${stock} in stock`, "error");
+          return;
+        }
         updateQuantity(product.id || product._id, 1);
       },
       [updateQuantity, product.id, product._id],

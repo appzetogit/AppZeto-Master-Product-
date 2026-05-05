@@ -437,8 +437,16 @@ const ProductDetailPage = () => {
                   </button>
                   <span className="flex-1 text-center text-xl font-black">{quantity}</span>
                   <button
-                    onClick={() => updateQuantity(product.id || product._id, 1)}
-                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl transition-all hover:bg-white/20"
+                    disabled={quantity >= Number(product.stock ?? Infinity)}
+                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl transition-all hover:bg-white/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                    onClick={() => {
+                      const stock = Number(product.stock ?? Infinity);
+                      if (quantity >= stock) {
+                        showToast(`Only ${stock} in stock`, "error");
+                        return;
+                      }
+                      updateQuantity(product.id || product._id, 1);
+                    }}
                   >
                     <Plus size={24} strokeWidth={3} />
                   </button>
@@ -446,6 +454,11 @@ const ProductDetailPage = () => {
               ) : (
                   <Button
                     onClick={async () => {
+                      const stock = Number(product.stock ?? Infinity);
+                      if (stock <= 0) {
+                        showToast("This product is out of stock", "error");
+                        return;
+                      }
                       await addToCart(product);
                       showToast(`${product.name} added to cart`, "success");
                     }}

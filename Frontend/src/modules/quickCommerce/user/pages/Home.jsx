@@ -493,6 +493,7 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
     activeCategory,
     setActiveCategory,
     products,
+    categoryProducts,
     quickCategories,
     experienceSections,
     offerSections,
@@ -600,6 +601,26 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
     }
     return quickCategories;
   }, [heroConfig.categoryIds, categoryMap, quickCategories]);
+
+  // Filter products by active header category
+  // Prefer server-fetched categoryProducts when a specific category is active
+  const filteredProducts = useMemo(() => {
+    const activeCatId = activeCategory?._id || activeCategory?.id;
+    if (!activeCatId || activeCatId === "all") return products;
+
+    // Use server-fetched category products if available
+    if (categoryProducts !== null) return categoryProducts;
+
+    // Fallback: client-side filter by categoryId parentId
+    return products.filter((p) => {
+      const productCatId = p.categoryId?._id || p.categoryId || p.category?._id || p.category;
+      if (!productCatId) return false;
+      const cat = categoryMap[String(productCatId)];
+      if (!cat) return false;
+      const parentHeaderId = cat.parentId || cat.headerId || cat.parent?._id || cat.header?._id;
+      return String(parentHeaderId) === String(activeCatId) || String(productCatId) === String(activeCatId);
+    });
+  }, [products, categoryProducts, activeCategory, categoryMap]);
 
   const sectionsForRenderer = headerSections.length ? headerSections : experienceSections;
 
@@ -970,7 +991,10 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
                 <div className="flex justify-between items-center mb-6 md:mb-10 px-1">
                   <div className="flex flex-col">
                     <h3 className="text-xl md:text-4xl font-[1000] text-[#1A1A1A] tracking-tighter uppercase leading-none">
-                      Lowest Price <span className="text-[#0c831f]">ever</span>
+                      {activeCategory && activeCategory._id !== "all" && activeCategory.id !== "all"
+                        ? <>{activeCategory.name} <span className="text-[#0c831f]">Products</span></>
+                        : <>Lowest Price <span className="text-[#0c831f]">ever</span></>
+                      }
                     </h3>
                     <div className="flex items-center gap-1.5 md:gap-2 mt-1.5 md:mt-3">
                       <div className="h-1 w-1 md:h-2 md:w-2 bg-[#0c831f] rounded-full animate-pulse shadow-[0_0_8px_rgba(12,131,31,0.5)]" />
@@ -992,7 +1016,7 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
                 </div>
 
                 <div className="relative z-10 flex overflow-x-auto gap-3 md:gap-6 pb-6 md:pb-8 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0 snap-x snap-mandatory scroll-smooth">
-                  {products.slice(0, 12).map((product) => (
+                  {filteredProducts.slice(0, 12).map((product) => (
                     <div
                       key={product.id}
                       className="w-[130px] md:w-[160px] lg:w-[180px] shrink-0 snap-start">
@@ -1003,9 +1027,11 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
                       />
                     </div>
                   ))}
-                  {products.length === 0 && !isLoading && (
+                  {filteredProducts.length === 0 && !isLoading && (
                     <div className="w-full py-10 md:py-20 text-center text-slate-400 font-black italic md:text-xl">
-                      Curating the best deals for you...
+                      {activeCategory && activeCategory._id !== "all"
+                        ? `No products found in ${activeCategory.name}`
+                        : "Curating the best deals for you..."}
                     </div>
                   )}
                 </div>
@@ -1017,7 +1043,22 @@ const Home = ({ embedded = false, onThemeChange, embeddedHeaderColor = null }) =
           {offerSections.length > 0 && (
             <div className="w-full px-0 pt-0 pb-6 md:pb-10">
               {[...offerSections]
-                .filter(section => (section.title || '').trim().toLowerCase() !== 'best sellers')
+                .filter(section => {
+                  if ((section.title || '').trim().toLowerCase() === 'best sellers') return false;
+                  // If a specific category is active, only show sections that match it
+                  const activeCatId = activeCategory?._id || activeCategory?.id;
+                  if (!activeCatId || activeCatId === "all") return true;
+                  const sectionCatIds = (section.categoryIds || []).map(c =>
+                    typeof c === "object" ? String(c._id || c.id || "") : String(c)
+                  );
+                  if (sectionCatIds.length === 0) return true; // no category filter = show always
+                  return sectionCatIds.some(id => {
+                    if (id === String(activeCatId)) return true;
+                    const cat = categoryMap[id];
+                    const parentHeaderId = cat?.parentId || cat?.headerId || cat?.parent?._id || cat?.header?._id;
+                    return String(parentHeaderId) === String(activeCatId);
+                  });
+                })
                 .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
                 .map((section) => {
                   const bgColor = getBackgroundColorByValue(

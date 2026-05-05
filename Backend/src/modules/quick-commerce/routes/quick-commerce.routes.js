@@ -3,6 +3,7 @@ import { upload } from '../../../middleware/upload.js';
 import {
   getCategories,
   getCoupons,
+  applyCoupon,
   getHomeData,
   getOffers,
   getProductById,
@@ -85,6 +86,7 @@ router.get('/experience/hero', getHomeData); // Bridge hero to home data for now
 router.get('/offer-sections', getHomeData); // Bridge offer-sections
 router.get('/offers', getOffers);
 router.get('/coupons', getCoupons);
+router.post('/coupons/apply', applyCoupon);
 router.get('/categories', getCategories);
 router.get('/products', getProducts);
 router.get('/products/:productId/reviews', getProductReviews);

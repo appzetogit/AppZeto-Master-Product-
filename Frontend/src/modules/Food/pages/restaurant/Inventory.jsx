@@ -797,6 +797,7 @@ export default function Inventory() {
   const touchEndX = useRef(0)
   const touchStartY = useRef(0)
   const isSwiping = useRef(false)
+  const blockTabSwipeRef = useRef(false)
   const mouseStartX = useRef(0)
   const mouseEndX = useRef(0)
   const isMouseDown = useRef(false)
@@ -828,6 +829,7 @@ export default function Inventory() {
 
   // Tab bar ref for excluding swipe on topbar
   const tabBarRef = useRef(null)
+  const filterChipsRef = useRef(null)
 
   // Content container ref
   const contentContainerRef = useRef(null)
@@ -1181,18 +1183,27 @@ export default function Inventory() {
       typeof window !== "undefined" ? window.innerWidth || document.documentElement.clientWidth || 0 : 0
     const edgeThreshold = 28
 
+    blockTabSwipeRef.current = false
+
     // Let native Android/iOS edge-back gestures win instead of switching inventory tabs.
     if (
       startX <= edgeThreshold ||
       (viewportWidth > 0 && startX >= viewportWidth - edgeThreshold)
-    ) return
+    ) {
+      blockTabSwipeRef.current = true
+      return
+    }
 
     // Don't handle swipe if starting on topbar
     if (
       tabBarRef.current?.contains(target) || 
+      filterChipsRef.current?.contains(target) ||
       target.closest('.overflow-x-auto') || 
       target.closest('.scrollbar-hide')
-    ) return
+    ) {
+      blockTabSwipeRef.current = true
+      return
+    }
 
     touchStartX.current = startX
     touchStartY.current = e.touches[0].clientY
@@ -1201,6 +1212,8 @@ export default function Inventory() {
   }
 
   const handleTouchMove = (e) => {
+    if (blockTabSwipeRef.current) return
+
     if (!isSwiping.current) {
       const deltaX = Math.abs(e.touches[0].clientX - touchStartX.current)
       const deltaY = Math.abs(e.touches[0].clientY - touchStartY.current)
@@ -1217,6 +1230,15 @@ export default function Inventory() {
   }
 
   const handleTouchEnd = () => {
+    if (blockTabSwipeRef.current) {
+      touchStartX.current = 0
+      touchEndX.current = 0
+      touchStartY.current = 0
+      isSwiping.current = false
+      blockTabSwipeRef.current = false
+      return
+    }
+
     if (!isSwiping.current) {
       touchStartX.current = 0
       touchEndX.current = 0
@@ -1259,6 +1281,7 @@ export default function Inventory() {
     touchEndX.current = 0
     touchStartY.current = 0
     isSwiping.current = false
+    blockTabSwipeRef.current = false
   }
 
   // Persist categories to localStorage whenever they change
@@ -2037,7 +2060,10 @@ export default function Inventory() {
 
             </div>
 
-            <div className="inventory-filter-scroll mt-4 flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+            <div
+              ref={filterChipsRef}
+              className="inventory-filter-scroll mt-4 flex gap-2 overflow-x-auto scrollbar-hide pb-1"
+            >
               {activeFilterOptions.map((option) => {
                 const count = activeTab === "add-ons"
                   ? (addonFilterCounts[option.value] || 0)
@@ -2752,7 +2778,7 @@ export default function Inventory() {
 
       {/* Floating Action Buttons */}
       {activeTab === "add-ons" && (
-        <div className="fixed right-4 bottom-24 z-30 flex flex-col items-end gap-2">
+        <div className="fixed right-4 bottom-28 z-30 flex flex-col items-end gap-2">
           <motion.button
             whileTap={{ scale: 0.96 }}
             onClick={() => setIsAddAddonOpen((prev) => !prev)}

@@ -31,6 +31,7 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
     const [
         cashLimitSettings,
         walletDoc,
+        totalBonusAgg,
         cashCollectedAgg,
         totalDepositedCashAgg,
         pendingWithdrawalsAgg,
@@ -39,6 +40,10 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
     ] = await Promise.all([
         getDeliveryCashLimitSettings(),
         FoodDeliveryWallet.findOne({ deliveryPartnerId: partnerId }).lean(),
+        DeliveryBonusTransaction.aggregate([
+            { $match: { deliveryPartnerId: partnerId } },
+            { $group: { _id: null, total: { $sum: { $ifNull: ['$amount', 0] } } } }
+        ]),
         FoodOrder.aggregate([
             { $match: { 'dispatch.deliveryPartnerId': partnerId, orderStatus: 'delivered', 'payment.method': 'cash' } },
             { $group: { _id: null, cashCollected: { $sum: { $ifNull: ['$pricing.total', 0] } } } }
@@ -56,6 +61,10 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
     ]);
 
     const wallet = walletDoc || { balance: 0, totalEarnings: 0, totalBonus: 0, totalSettled: 0 };
+    const recordedBonus = Number(wallet.totalBonus || 0);
+    const aggregatedBonus = Number(totalBonusAgg?.[0]?.total) || 0;
+    const effectiveBonus = Math.max(recordedBonus, aggregatedBonus);
+    const missingBonusBalance = Math.max(0, effectiveBonus - recordedBonus);
     const grossCashCollected = Number(cashCollectedAgg?.[0]?.cashCollected) || 0;
     const totalDepositedCash = Number(totalDepositedCashAgg?.[0]?.depositedCash) || 0;
     const cashInHand = Math.max(0, grossCashCollected - totalDepositedCash);
@@ -64,7 +73,8 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
     const totalCashLimit = Number(cashLimitSettings.deliveryCashLimit) || 0;
     const deliveryWithdrawalLimit = Number(cashLimitSettings.deliveryWithdrawalLimit) || 100;
 
-    const pocketBalance = Math.max(0, Number(wallet.balance || 0) - pendingWithdrawals);
+    const effectiveWalletBalance = Number(wallet.balance || 0) + missingBonusBalance;
+    const pocketBalance = Math.max(0, effectiveWalletBalance - pendingWithdrawals);
 
     const transactions = transactionsResult.transactions.map(t => ({
         id: t._id,
@@ -78,13 +88,13 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
     }));
 
     return {
-        totalBalance: (wallet.totalEarnings || 0) + (wallet.totalBonus || 0),
+        totalBalance: (wallet.totalEarnings || 0) + effectiveBonus,
         pocketBalance,
         cashInHand,
         totalWithdrawn: wallet.totalSettled || 0,
         pendingWithdrawals,
         totalEarned: wallet.totalEarnings || 0,
-        totalBonus: wallet.totalBonus || 0,
+        totalBonus: effectiveBonus,
         totalCashLimit,
         availableCashLimit: Math.max(0, totalCashLimit - cashInHand),
         deliveryWithdrawalLimit,

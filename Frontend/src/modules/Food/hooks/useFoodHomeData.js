@@ -322,19 +322,23 @@ export const useFoodHomeData = ({
     // If vegMode is 'all' or false, show all restaurants (dish level filtering handles 'all' mode).
     let filtered = [...deferredRestaurants].filter(r => vegMode !== "pure" || r.pureVegRestaurant);
     
-    // Strictly filter by availability (only show open restaurants)
-    filtered = filtered.filter(r => {
+    // Compute availability status for sorting rather than strictly filtering out closed ones
+    filtered = filtered.map(r => {
       const status = getRestaurantAvailabilityStatus(r, new Date(availabilityTick), { ignoreOperationalStatus: false });
-      return status.isOpen;
+      return { ...r, _isOpen: status.isOpen };
     });
 
-    // Apply sorting
-    if (sortBy === "rating-high") {
-      filtered.sort((a, b) => b.rating - a.rating);
-    } else {
-      // Default: Rating/Distance
-      filtered.sort((a, b) => b.rating - a.rating);
-    }
+    // Apply sorting: Open restaurants first, then by rating
+    filtered.sort((a, b) => {
+      if (a._isOpen !== b._isOpen) {
+        return a._isOpen ? -1 : 1;
+      }
+      if (sortBy === "rating-high") {
+        return b.rating - a.rating;
+      }
+      // Default: Rating
+      return b.rating - a.rating;
+    });
     return filtered;
   }, [deferredRestaurants, vegMode, sortBy, availabilityTick]);
 

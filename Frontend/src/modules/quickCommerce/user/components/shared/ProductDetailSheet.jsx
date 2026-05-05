@@ -59,8 +59,8 @@ const ProductDetailSheet = () => {
         }
         setActiveImageIndex(0);
 
-        if (selectedProduct?.id) {
-            fetchReviews(selectedProduct.id);
+        if (selectedProduct?.id || selectedProduct?._id) {
+            fetchReviews(selectedProduct.id || selectedProduct._id);
         }
     }, [selectedProduct]);
 
@@ -85,7 +85,7 @@ const ProductDetailSheet = () => {
         try {
             setIsSubmittingReview(true);
             const res = await customerApi.submitReview({
-                productId: selectedProduct.id,
+                productId: selectedProduct.id || selectedProduct._id,
                 rating: newReview.rating,
                 comment: newReview.comment
             });
@@ -130,7 +130,9 @@ const ProductDetailSheet = () => {
           )
         : null;
     const quantity = cartItem ? cartItem.quantity : 0;
-    const isWishlisted = selectedProduct ? isInWishlist(selectedProduct.id) : false;
+    const isWishlisted = selectedProduct
+        ? isInWishlist(selectedProduct.id || selectedProduct._id)
+        : false;
 
     useEffect(() => {
         if (isOpen) {
@@ -183,13 +185,13 @@ const ProductDetailSheet = () => {
         showToast(`${selectedProduct.name} added to cart`, 'success');
     };
 
-    const handleIncrement = () => updateQuantity(selectedProduct.id, 1);
+    const handleIncrement = () => updateQuantity(selectedProduct.id || selectedProduct._id, 1);
 
     const handleDecrement = () => {
         if (quantity === 1) {
-            removeFromCart(selectedProduct.id);
+            removeFromCart(selectedProduct.id || selectedProduct._id);
         } else {
-            updateQuantity(selectedProduct.id, -1);
+            updateQuantity(selectedProduct.id || selectedProduct._id, -1);
         }
     };
 

@@ -6,6 +6,56 @@ const WishlistContext = createContext();
 
 export const useWishlist = () => useContext(WishlistContext);
 
+const normalizeWishlistId = (value) => String(value ?? "").split("::")[0];
+
+const normalizeWishlistProduct = (item, fallback = {}) => {
+  const source =
+    typeof item === "string"
+      ? { ...fallback, id: item, _id: item }
+      : { ...fallback, ...(item || {}) };
+  const normalizedId = normalizeWishlistId(source.id || source._id);
+
+  if (!normalizedId) return null;
+
+  return {
+    ...source,
+    id: normalizedId,
+    _id: normalizedId,
+    name: source.name,
+    price: Number(source.price || source.salePrice || 0),
+    salePrice: Number(source.salePrice || source.price || 0),
+    originalPrice: Number(
+      source.originalPrice || source.mrp || source.salePrice || source.price || 0,
+    ),
+    image: source.image || source.mainImage,
+    mainImage: source.mainImage || source.image,
+    weight: source.weight,
+    unit: source.unit,
+    deliveryTime: source.deliveryTime,
+    discount: source.discount,
+  };
+};
+
+const buildWishlistFromProducts = (products = [], fallbackItems = []) => {
+  const fallbackMap = new Map(
+    fallbackItems
+      .map((item) => {
+        const normalized = normalizeWishlistProduct(item);
+        return normalized ? [normalized.id, normalized] : null;
+      })
+      .filter(Boolean),
+  );
+
+  return products
+    .map((product) => {
+      const productId = normalizeWishlistId(
+        typeof product === "string" ? product : product?._id || product?.id,
+      );
+      return normalizeWishlistProduct(product, fallbackMap.get(productId) || {});
+    })
+    .filter(Boolean);
+};
+
 export const WishlistProvider = ({ children }) => {
   const { isAuthenticated } = useAuth();
   const [wishlist, setWishlist] = useState(() => {
@@ -22,21 +72,7 @@ export const WishlistProvider = ({ children }) => {
   const [isFullDataFetched, setIsFullDataFetched] = useState(false);
 
   const shrinkWishlistItem = (item) => {
-    if (!item) return null;
-    return {
-      id: item.id || item._id,
-      _id: item._id || item.id,
-      name: item.name,
-      price: Number(item.price || 0),
-      salePrice: Number(item.salePrice || 0),
-      originalPrice: Number(item.originalPrice || item.mrp || item.price || 0),
-      image: item.image || item.mainImage,
-      mainImage: item.mainImage || item.image,
-      weight: item.weight,
-      unit: item.unit,
-      deliveryTime: item.deliveryTime,
-      discount: item.discount,
-    };
+    return normalizeWishlistProduct(item);
   };
 
   // Fetch wishlist from backend on mount or authentication change
@@ -45,19 +81,8 @@ export const WishlistProvider = ({ children }) => {
       setLoading(true);
       try {
         const response = await customerApi.getWishlist({ idsOnly: true });
-        // Handle both populated and unpopulated products for flexibility
         const products = response.data.result.products || [];
-        const backendWishlist = products.map((product) => {
-          if (typeof product === "string") {
-            return { id: product, _id: product };
-          }
-          return {
-            ...product,
-            id: product._id,
-            image: product.mainImage,
-          };
-        });
-        setWishlist(backendWishlist);
+        setWishlist((prev) => buildWishlistFromProducts(products, prev));
         setIsFullDataFetched(false);
       } catch (error) {
         console.error("Failed to fetch wishlist from backend", error);
@@ -73,12 +98,7 @@ export const WishlistProvider = ({ children }) => {
       try {
         const response = await customerApi.getWishlist({ idsOnly: false });
         const products = response.data.result.products || [];
-        const backendWishlist = products.map((product) => ({
-          ...product,
-          id: product._id,
-          image: product.mainImage,
-        }));
-        setWishlist(backendWishlist);
+        setWishlist((prev) => buildWishlistFromProducts(products, prev));
         setIsFullDataFetched(true);
       } catch (error) {
         console.error("Failed to fetch full wishlist from backend", error);
@@ -132,21 +152,25 @@ export const WishlistProvider = ({ children }) => {
         const response = await customerApi.addToWishlist({
           productId: product.id || product._id,
         });
-        const backendWishlist = response.data.result.products.map((p) => ({
-          ...p,
-          id: p._id,
-          image: p.mainImage,
-        }));
-        setWishlist(backendWishlist);
+        const products = response?.data?.result?.products || [];
+        setWishlist((prev) => buildWishlistFromProducts(products, [...prev, product]));
         setIsFullDataFetched(true);
       } catch (error) {
         console.error("Error adding to wishlist on backend", error);
       }
     } else {
       setWishlist((prev) => {
-        const id = product.id || product._id;
-        if (prev.some((item) => (item.id || item._id) === id)) return prev;
-        return [...prev, { ...product, id }];
+        const normalizedProduct = normalizeWishlistProduct(product);
+        if (!normalizedProduct) return prev;
+        if (
+          prev.some(
+            (item) =>
+              normalizeWishlistId(item.id || item._id) === normalizedProduct.id,
+          )
+        ) {
+          return prev;
+        }
+        return [...prev, normalizedProduct];
       });
     }
   };
@@ -155,34 +179,37 @@ export const WishlistProvider = ({ children }) => {
     if (isAuthenticated) {
       try {
         const response = await customerApi.removeFromWishlist(productId);
-        const backendWishlist = response.data.result.products.map((p) => ({
-          ...p,
-          id: p._id,
-          image: p.mainImage,
-        }));
-        setWishlist(backendWishlist);
+        const normalizedId = normalizeWishlistId(productId);
+        const products = response?.data?.result?.products || [];
+        setWishlist((prev) =>
+          buildWishlistFromProducts(
+            products,
+            prev.filter(
+              (item) => normalizeWishlistId(item.id || item._id) !== normalizedId,
+            ),
+          ),
+        );
         setIsFullDataFetched(true);
       } catch (error) {
         console.error("Error removing from wishlist on backend", error);
       }
     } else {
+      const normalizedId = normalizeWishlistId(productId);
       setWishlist((prev) =>
-        prev.filter((item) => (item.id || item._id) !== productId),
+        prev.filter(
+          (item) => normalizeWishlistId(item.id || item._id) !== normalizedId,
+        ),
       );
     }
   };
 
   const toggleWishlist = async (product) => {
-    const id = product.id || product._id;
+    const id = normalizeWishlistId(product.id || product._id);
     if (isAuthenticated) {
       try {
         const response = await customerApi.toggleWishlist({ productId: id });
-        const backendWishlist = response.data.result.products.map((p) => ({
-          ...p,
-          id: p._id,
-          image: p.mainImage,
-        }));
-        setWishlist(backendWishlist);
+        const products = response?.data?.result?.products || [];
+        setWishlist((prev) => buildWishlistFromProducts(products, [...prev, product]));
         setIsFullDataFetched(true);
       } catch (error) {
         console.error("Error toggling wishlist on backend", error);
@@ -197,13 +224,26 @@ export const WishlistProvider = ({ children }) => {
   };
 
   const isInWishlist = (productId) => {
-    return wishlist.some((item) => (item.id || item._id) === productId);
+    const normalizedId = normalizeWishlistId(productId);
+    return wishlist.some(
+      (item) => normalizeWishlistId(item.id || item._id) === normalizedId,
+    );
   };
 
   const clearWishlist = async () => {
-    // Clearing wishlist might not have a dedicated API, usually it's individual removes
-    // or a clear endpoint. If no clear endpoint, we can't easily sync but let's assume local clearing first.
+    if (isAuthenticated) {
+      try {
+        const ids = wishlist
+          .map((item) => normalizeWishlistId(item.id || item._id))
+          .filter(Boolean);
+        await Promise.all(ids.map((id) => customerApi.removeFromWishlist(id)));
+      } catch (error) {
+        console.error("Error clearing wishlist on backend", error);
+      }
+    }
+
     setWishlist([]);
+    setIsFullDataFetched(true);
   };
 
   return (

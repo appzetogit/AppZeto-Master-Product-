@@ -57,7 +57,7 @@ const OrdersPage = () => {
           <ChevronLeft size={22} className="text-slate-800" />
         </button>
         <h1 className="text-xl font-semibold tracking-tight text-slate-900">
-          My Orders
+          Quick Orders
         </h1>
       </div>
 

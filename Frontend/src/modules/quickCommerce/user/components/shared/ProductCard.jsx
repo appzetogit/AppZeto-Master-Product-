@@ -165,7 +165,7 @@ const ProductCard = React.memo(
                 <Heart
                   size={window.innerWidth < 768 ? 14 : 18}
                   className={cn(
-                    isWishlisted ? "text-red-500 fill-current" : "text-slate-300 group-hover:text-slate-400",
+                    isWishlisted ? "text-red-500 fill-red-500" : "text-slate-300 group-hover:text-slate-400",
                   )}
                 />
               </motion.div>

@@ -24,6 +24,7 @@ import LogoImage from "@/assets/Logo.png";
 import shoppingCartAnimation from "@/assets/lottie/shopping-cart.json";
 import { Sparkles } from "lucide-react";
 import { customerApi } from "../../services/customerApi";
+import ThemeToggle from "../layout/ThemeToggle";
 
 // MUI Icons (shared with Home.jsx)
 import HomeIcon from "@mui/icons-material/Home";
@@ -571,6 +572,9 @@ const MainLocationHeader = ({
                   )}
                 </motion.button>
 
+                <div className="flex items-center">
+                  <ThemeToggle />
+                </div>
               </div>
             </div>
           )}
@@ -641,26 +645,29 @@ const MainLocationHeader = ({
               </div>
             </motion.div>
 
-            <motion.button
-              initial={{ opacity: 0, scale: 0.9, y: -8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.15, ease: "easeOut" }}
-              style={{
-                opacity: cartOpacity,
-                scale: cartScale,
-                display: displayCart,
-              }}
-              type="button"
-              aria-label="Open cart"
-              onClick={() => navigate(cartPath)}
-              className="group relative h-11 w-11 shrink-0 overflow-hidden rounded-[14px] border border-white/55 bg-white/28 shadow-[0_12px_28px_rgba(15,23,42,0.14)] backdrop-blur-xl transition-all duration-300 hover:bg-white/42">
-              <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-black/5 pointer-events-none" />
-              <Lottie
-                animationData={shoppingCartAnimation}
-                loop
-                className="pointer-events-none absolute inset-0 scale-[1.22] drop-shadow-[0_8px_18px_rgba(0,0,0,0.14)] transition-transform duration-300 group-hover:scale-[1.28]"
-              />
-            </motion.button>
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <motion.button
+                initial={{ opacity: 0, scale: 0.9, y: -8 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.15, ease: "easeOut" }}
+                style={{
+                  opacity: cartOpacity,
+                  scale: cartScale,
+                  display: displayCart,
+                }}
+                type="button"
+                aria-label="Open cart"
+                onClick={() => navigate(cartPath)}
+                className="group relative h-11 w-11 shrink-0 overflow-hidden rounded-[14px] border border-white/55 bg-white/28 shadow-[0_12px_28px_rgba(15,23,42,0.14)] backdrop-blur-xl transition-all duration-300 hover:bg-white/42">
+                <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-black/5 pointer-events-none" />
+                <Lottie
+                  animationData={shoppingCartAnimation}
+                  loop
+                  className="pointer-events-none absolute inset-0 scale-[1.22] drop-shadow-[0_8px_18px_rgba(0,0,0,0.14)] transition-transform duration-300 group-hover:scale-[1.28]"
+                />
+              </motion.button>
+            </div>
           </div>}
 
           {/* Categories Navigation - Smooth Collapse */}

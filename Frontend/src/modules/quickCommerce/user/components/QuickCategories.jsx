@@ -38,7 +38,7 @@ function CategoryTileImage({ name, image }) {
     <img
       src={src}
       alt={name}
-      className="h-full w-full object-contain mix-blend-multiply transition-transform duration-500 group-hover:scale-110 drop-shadow-md"
+      className="h-full w-full object-contain mix-blend-multiply dark:mix-blend-normal transition-transform duration-500 group-hover:scale-110 drop-shadow-md"
       onError={() => setBroken(true)}
     />
   );
@@ -49,11 +49,11 @@ export default function QuickCategories({ categories = [] }) {
 
   return (
     <section 
-      className="mt-16 overflow-hidden rounded-[60px] border border-white/60 bg-white/40 backdrop-blur-2xl shadow-[0_30px_70px_-20px_rgba(0,0,0,0.06)] relative"
+      className="mt-16 overflow-hidden rounded-[60px] border border-white/60 dark:border-white/10 bg-white/40 dark:bg-card/40 backdrop-blur-2xl shadow-[0_30px_70px_-20px_rgba(0,0,0,0.06)] relative transition-all duration-500"
     >
       {/* Decorative Blur Background */}
-      <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-50 rounded-full blur-[80px] -mr-32 -mt-32 opacity-60" />
-      <div className="absolute bottom-0 left-0 w-64 h-64 bg-amber-50 rounded-full blur-[80px] -ml-32 -mb-32 opacity-40" />
+      <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-50 dark:bg-emerald-900/20 rounded-full blur-[80px] -mr-32 -mt-32 opacity-60" />
+      <div className="absolute bottom-0 left-0 w-64 h-64 bg-amber-50 dark:bg-amber-900/20 rounded-full blur-[80px] -ml-32 -mb-32 opacity-40" />
 
       <div className="relative z-10 p-10 md:p-14">
         <div className="mb-12 flex items-end justify-between px-2">
@@ -63,7 +63,7 @@ export default function QuickCategories({ categories = [] }) {
             </h2>
             <p className="text-base font-semibold text-slate-400 dark:text-slate-500">Discover our meticulously curated selections.</p>
           </div>
-          <div className="h-px flex-1 mx-12 bg-slate-100 hidden lg:block" />
+          <div className="h-px flex-1 mx-12 bg-slate-100 dark:bg-slate-800 hidden lg:block" />
         </div>
 
         <div className="grid grid-cols-2 gap-8 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10">
@@ -85,7 +85,7 @@ export default function QuickCategories({ categories = [] }) {
                 className="group flex flex-col items-center gap-4 focus:outline-none"
               >
                 <div 
-                  className="relative flex aspect-square w-full items-center justify-center rounded-[40px] p-3 shadow-[0_8px_20px_-10px_rgba(0,0,0,0.08)] transition-all duration-500 group-hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.15)] group-hover:rotate-2 border-2 border-white overflow-hidden"
+                  className="relative flex aspect-square w-full items-center justify-center rounded-[40px] p-3 shadow-[0_8px_20px_-10px_rgba(0,0,0,0.08)] transition-all duration-500 group-hover:shadow-[0_20_40px_-15px_rgba(0,0,0,0.15)] group-hover:rotate-2 border-2 border-white dark:border-white/10 overflow-hidden dark:brightness-90 dark:contrast-110"
                   style={{ 
                     background: `linear-gradient(135deg, ${palette.from}, ${palette.to})`,
                   }}
@@ -95,7 +95,7 @@ export default function QuickCategories({ categories = [] }) {
                     
                     <CategoryTileImage name={cat.name} image={cat.image} />
                 </div>
-                <span className="text-center text-[10px] font-black leading-tight text-slate-800 line-clamp-2 md:text-[12px] uppercase tracking-[0.14em] font-outfit px-1 group-hover:text-[#0c831f] transition-colors">
+                <span className="text-center text-[10px] font-black leading-tight text-slate-800 dark:text-slate-200 line-clamp-2 md:text-[12px] uppercase tracking-[0.14em] font-outfit px-1 group-hover:text-[#0c831f] transition-colors">
                   {cat.name}
                 </span>
               </motion.button>

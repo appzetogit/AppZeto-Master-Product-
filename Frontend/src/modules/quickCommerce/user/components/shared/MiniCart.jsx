@@ -81,7 +81,7 @@ const MiniCart = ({
 
                             {/* Item Image */}
                             <div className={cn(
-                                "h-8 w-8 rounded-full bg-white flex items-center justify-center flex-shrink-0 shadow-sm overflow-hidden border border-white/20",
+                                "h-8 w-8 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center flex-shrink-0 shadow-sm overflow-hidden border border-white/20",
                                 isBottomRight ? "h-8 w-8" : "h-8 w-8",
                             )}>
                                 {cart[0]?.image || cart[0]?.imageUrl || cart[0]?.mainImage ? (

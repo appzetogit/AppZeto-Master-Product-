@@ -246,22 +246,22 @@ const LocationDrawer = ({ isOpen, onClose }) => {
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed bottom-0 left-0 right-0 bg-white rounded-t-[32px] z-[610] max-h-[90vh] overflow-y-auto outline-none shadow-2xl pb-8">
-            <div className="sticky top-0 bg-white px-6 pt-6 pb-4 flex flex-col gap-4 z-20">
+            className="fixed bottom-0 left-0 right-0 bg-white dark:bg-card rounded-t-[32px] z-[610] max-h-[90vh] overflow-y-auto outline-none shadow-2xl pb-8 transition-colors duration-500">
+            <div className="sticky top-0 bg-white dark:bg-card px-6 pt-6 pb-4 flex flex-col gap-4 z-20 transition-colors duration-500">
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-extrabold text-[#1A1A1A]">Select delivery location</h2>
-                <button onClick={onClose} className="h-10 w-10 bg-black/5 rounded-full flex items-center justify-center"><X size={20} /></button>
+                <h2 className="text-xl font-extrabold text-[#1A1A1A] dark:text-foreground">Select delivery location</h2>
+                <button onClick={onClose} className="h-10 w-10 bg-black/5 dark:bg-white/5 rounded-full flex items-center justify-center dark:text-foreground"><X size={20} /></button>
               </div>
 
               <div className="relative group">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500" size={20} />
                 <input
                   type="text"
                   placeholder="Search for area, street name.."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onFocus={() => setIsSearchFocused(true)}
-                  className="w-full bg-gray-100 border-none rounded-2xl py-4 pl-12 pr-4 text-sm font-semibold outline-none"
+                  className="w-full bg-gray-100 dark:bg-slate-800 border-none rounded-2xl py-4 pl-12 pr-4 text-sm font-semibold outline-none dark:text-foreground dark:placeholder:text-slate-500"
                 />
               </div>
             </div>
@@ -269,37 +269,37 @@ const LocationDrawer = ({ isOpen, onClose }) => {
             <div className="px-4 flex flex-col gap-3">
               <button 
                 onClick={handleSelectCurrentLocation}
-                className="flex items-center gap-4 bg-gray-50 p-4 rounded-2xl text-left w-full hover:bg-gray-100"
+                className="flex items-center gap-4 bg-gray-50 dark:bg-slate-900/50 p-4 rounded-2xl text-left w-full hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
               >
                 <MapPin className="text-green-600" size={24} />
                 <div className="flex-1">
-                  <h3 className="font-bold text-green-600">Use current location</h3>
-                  <p className="text-sm text-gray-500 truncate">{currentLocation.name}</p>
+                  <h3 className="font-bold text-green-600 dark:text-emerald-500">Use current location</h3>
+                  <p className="text-sm text-gray-500 dark:text-slate-400 truncate">{currentLocation.name}</p>
                 </div>
               </button>
 
               <button 
                 onClick={handleAddAddress}
-                className="flex items-center gap-4 bg-gray-50 p-4 rounded-2xl text-left w-full hover:bg-gray-100"
+                className="flex items-center gap-4 bg-gray-50 dark:bg-slate-900/50 p-4 rounded-2xl text-left w-full hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
               >
-                <Plus className="text-green-600" size={24} />
-                <h3 className="font-bold text-green-600">Add new address</h3>
+                <Plus className="text-green-600 dark:text-emerald-500" size={24} />
+                <h3 className="font-bold text-green-600 dark:text-emerald-500">Add new address</h3>
               </button>
 
               {savedAddresses.length > 0 && (
                 <div className="mt-4">
-                  <h4 className="text-xs font-bold text-gray-400 uppercase mb-3">Saved addresses</h4>
+                  <h4 className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase mb-3">Saved addresses</h4>
                   <div className="flex flex-col gap-3">
                     {savedAddresses.map(addr => (
                       <button 
                         key={addr.id}
                         onClick={() => handleSelectAddress(addr)}
-                        className="flex items-center gap-4 bg-white border border-gray-100 p-4 rounded-2xl text-left hover:bg-gray-50"
+                        className="flex items-center gap-4 bg-white dark:bg-slate-900/40 border border-gray-100 dark:border-white/5 p-4 rounded-2xl text-left hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
                       >
-                        <div className="bg-gray-50 p-2 rounded-lg"><Home className="text-gray-400" size={20} /></div>
+                        <div className="bg-gray-50 dark:bg-slate-800 p-2 rounded-lg"><Home className="text-gray-400 dark:text-slate-500" size={20} /></div>
                         <div className="flex-1">
-                          <h3 className="font-bold">{addr.label}</h3>
-                          <p className="text-xs text-gray-500 line-clamp-2">{addr.address}</p>
+                          <h3 className="font-bold dark:text-slate-200">{addr.label}</h3>
+                          <p className="text-xs text-gray-500 dark:text-slate-400 line-clamp-2">{addr.address}</p>
                         </div>
                       </button>
                     ))}
@@ -315,10 +315,10 @@ const LocationDrawer = ({ isOpen, onClose }) => {
                       <button 
                         key={p.place_id}
                         onClick={() => handleSelectPlace(p)}
-                        className="p-3 text-left hover:bg-gray-50 rounded-lg text-sm border-b border-gray-50"
+                        className="p-3 text-left hover:bg-gray-50 dark:hover:bg-slate-800 rounded-lg text-sm border-b border-gray-50 dark:border-white/5 transition-colors"
                       >
-                        <p className="font-bold">{p.structured_formatting?.main_text}</p>
-                        <p className="text-xs text-gray-500">{p.structured_formatting?.secondary_text}</p>
+                        <p className="font-bold dark:text-slate-200">{p.structured_formatting?.main_text}</p>
+                        <p className="text-xs text-gray-500 dark:text-slate-400">{p.structured_formatting?.secondary_text}</p>
                       </button>
                     ))}
                   </div>

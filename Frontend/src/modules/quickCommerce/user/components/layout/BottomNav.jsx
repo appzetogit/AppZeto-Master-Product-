@@ -32,7 +32,7 @@ const BottomNav = () => {
     };
 
     return (
-        <div className="fixed bottom-0 left-0 right-0 z-[500] bg-white border-t border-gray-100 flex items-center justify-around h-[70px] md:hidden shadow-[0_-8px_30px_rgba(0,0,0,0.06)] px-4 pb-[env(safe-area-inset-bottom)]">
+        <div className="fixed bottom-0 left-0 right-0 z-[500] bg-white/80 dark:bg-card/80 backdrop-blur-xl border-t border-gray-100 dark:border-border flex items-center justify-around h-[70px] md:hidden shadow-[0_-8px_30px_rgba(0,0,0,0.06)] px-4 pb-[env(safe-area-inset-bottom)] transition-all duration-300">
             {navItems.map((item) => {
                 const isActive = isActivePath(item.path);
 
@@ -51,7 +51,7 @@ const BottomNav = () => {
                                         initial={{ opacity: 0, scale: 0.8 }}
                                         animate={{ opacity: 1, scale: 1 }}
                                         exit={{ opacity: 0, scale: 0.8 }}
-                                        className="absolute -inset-y-2 -inset-x-4 bg-[#0c831f]/5 rounded-[20px] -z-10"
+                                        className="absolute -inset-y-2 -inset-x-4 bg-[#0c831f]/5 dark:bg-[#0c831f]/20 rounded-[20px] -z-10"
                                         transition={{ type: "spring", stiffness: 400, damping: 30 }}
                                     />
                                 )}
@@ -69,7 +69,7 @@ const BottomNav = () => {
                                     strokeWidth={isActive ? 2.5 : 2}
                                     className={cn(
                                         "transition-colors duration-300",
-                                        isActive ? "text-[#0c831f]" : "text-gray-400"
+                                        isActive ? "text-[#0c831f]" : "text-gray-400 dark:text-slate-500"
                                     )}
                                 />
                             </motion.div>
@@ -80,7 +80,7 @@ const BottomNav = () => {
                                 }}
                                 className={cn(
                                     "text-[10px] font-bold tracking-tight mt-1 transition-colors duration-300",
-                                    isActive ? "text-[#0c831f]" : "text-gray-400"
+                                    isActive ? "text-[#0c831f]" : "text-gray-400 dark:text-slate-500"
                                 )}
                             >
                                 {item.label}

@@ -283,9 +283,9 @@ const ProductDetailPage = () => {
   if (loadingProduct) {
     return (
       <div className="mx-auto flex min-h-[60vh] max-w-[1920px] items-center justify-center px-4 md:px-[50px]">
-        <div className="flex items-center gap-3 rounded-2xl bg-white px-6 py-4 shadow-sm">
+        <div className="flex items-center gap-3 rounded-2xl bg-card border border-border px-6 py-4 shadow-sm">
           <Loader2 className="animate-spin text-[#0c831f]" size={22} />
-          <span className="font-bold text-slate-600">Loading product...</span>
+          <span className="font-bold text-slate-600 dark:text-slate-400">Loading product...</span>
         </div>
       </div>
     );
@@ -294,8 +294,8 @@ const ProductDetailPage = () => {
   if (!product) {
     return (
       <div className="mx-auto flex min-h-[60vh] max-w-[1920px] flex-col items-center justify-center px-4 text-center md:px-[50px]">
-        <h1 className="text-2xl font-black text-slate-900">Product not found</h1>
-        <p className="mt-2 max-w-md text-sm font-medium text-slate-500">
+        <h1 className="text-2xl font-black text-foreground">Product not found</h1>
+        <p className="mt-2 max-w-md text-sm font-medium text-slate-500 dark:text-slate-400">
           {productError || "This product may have been removed or is no longer available."}
         </p>
         <Button
@@ -312,7 +312,7 @@ const ProductDetailPage = () => {
     <div className="relative z-10 mx-auto w-full max-w-[1920px] animate-in px-4 py-4 fade-in duration-700 md:px-[50px] md:py-8">
       <button
         onClick={() => navigate(-1)}
-        className="group mb-6 inline-flex items-center gap-2 font-bold text-slate-500 transition-colors hover:text-[#0c831f]"
+        className="group mb-6 inline-flex items-center gap-2 font-bold text-slate-500 dark:text-slate-400 transition-colors hover:text-[#0c831f]"
       >
         <ArrowLeft
           size={20}
@@ -323,7 +323,7 @@ const ProductDetailPage = () => {
 
       <div className="flex flex-col gap-10 lg:flex-row lg:gap-16">
         <div className="space-y-4 lg:w-[45%] xl:w-[40%]">
-          <div className="relative aspect-square overflow-hidden rounded-[2rem] border border-slate-100 bg-white shadow-sm">
+          <div className="relative aspect-square overflow-hidden rounded-[2rem] border border-border bg-white dark:bg-slate-800 shadow-sm transition-colors">
             <img
               src={activeImage}
               alt={product.name}
@@ -334,8 +334,8 @@ const ProductDetailPage = () => {
               className={cn(
                 "absolute right-5 top-5 rounded-full p-3.5 shadow-lg transition-all",
                 isWishlisted
-                  ? "bg-red-50 text-red-500"
-                  : "bg-white text-slate-400",
+                  ? "bg-red-50 dark:bg-red-950/30 text-red-500"
+                  : "bg-white dark:bg-slate-700 text-slate-400 dark:text-slate-300",
               )}
             >
               <Heart size={20} className={cn(isWishlisted && "fill-current")} />
@@ -370,13 +370,13 @@ const ProductDetailPage = () => {
               <span className="rounded-full border border-[#0c831f]/20 bg-[#0c831f]/10 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-[#0c831f]">
                 {product.category}
               </span>
-              <div className="flex items-center gap-1 rounded-full bg-orange-50 px-3 py-1 text-xs font-bold text-orange-500">
+              <div className="flex items-center gap-1 rounded-full bg-orange-50 dark:bg-orange-950/30 px-3 py-1 text-xs font-bold text-orange-500">
                 <Star size={12} fill="currentColor" />
                 {averageRating} ({reviews.length || "0"})
               </div>
             </div>
 
-            <h1 className="mb-2 text-3xl font-black leading-tight text-slate-800 md:text-4xl">
+            <h1 className="mb-2 text-3xl font-black leading-tight text-foreground md:text-4xl transition-colors">
               {product.name}
             </h1>
 
@@ -384,10 +384,10 @@ const ProductDetailPage = () => {
               <div className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
                 <ShieldCheck size={14} />
               </div>
-              <span className="text-sm font-black uppercase tracking-tighter text-slate-500">
+              <span className="text-sm font-black uppercase tracking-tighter text-slate-500 dark:text-slate-400">
                 Sold by:
                 {" "}
-                <span className="text-slate-900 underline decoration-emerald-500/30 decoration-2 underline-offset-4">
+                <span className="text-foreground underline decoration-emerald-500/30 decoration-2 underline-offset-4">
                   {product.storeName}
                 </span>
               </span>
@@ -400,11 +400,11 @@ const ProductDetailPage = () => {
               </span>
               {product.originalPrice > product.price && (
                 <>
-                  <span className="text-lg font-bold text-slate-400 line-through">
+                  <span className="text-lg font-bold text-slate-400 dark:text-slate-500 line-through">
                     {"\u20B9"}
                     {product.originalPrice}
                   </span>
-                  <span className="rounded-lg bg-red-50 px-2 py-1 text-xs font-black uppercase text-red-500">
+                  <span className="rounded-lg bg-red-50 dark:bg-red-950/30 px-2 py-1 text-xs font-black uppercase text-red-500">
                     {Math.round(
                       ((product.originalPrice - product.price) /
                         product.originalPrice) *
@@ -416,12 +416,12 @@ const ProductDetailPage = () => {
               )}
             </div>
 
-            <p className="max-w-2xl text-lg font-medium leading-relaxed text-slate-600">
+            <p className="max-w-2xl text-lg font-medium leading-relaxed text-slate-600 dark:text-slate-300 transition-colors">
               {product.description}
             </p>
           </div>
 
-          <div className="flex flex-col items-center gap-6 rounded-[2.5rem] border border-slate-100 bg-slate-50 p-6 sm:flex-row">
+          <div className="flex flex-col items-center gap-6 rounded-[2.5rem] border border-border bg-slate-50 dark:bg-slate-900 p-6 sm:flex-row transition-colors">
             <div className="w-full sm:w-72">
               {quantity > 0 ? (
                 <div className="flex h-16 w-full items-center rounded-2xl bg-[#0c831f] px-2 text-white shadow-xl shadow-green-100">
@@ -462,7 +462,7 @@ const ProductDetailPage = () => {
                 <ShieldCheck size={14} />
                 Hygiene Guaranteed
               </span>
-              <span className="flex items-center justify-center gap-1 text-sm font-bold text-slate-400 sm:justify-start">
+              <span className="flex items-center justify-center gap-1 text-sm font-bold text-slate-400 dark:text-slate-500 sm:justify-start">
                 <Clock size={14} />
                 Delivered in {product.deliveryTime}
               </span>
@@ -473,30 +473,30 @@ const ProductDetailPage = () => {
             {product.details.map((detail) => (
               <div
                 key={detail.label}
-                className="rounded-2xl border border-slate-100 bg-white p-4 text-center shadow-sm"
+                className="rounded-2xl border border-border bg-card p-4 text-center shadow-sm transition-colors"
               >
-                <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
                   {detail.label}
                 </p>
-                <p className="text-sm font-black text-slate-800">{detail.value}</p>
+                <p className="text-sm font-black text-foreground">{detail.value}</p>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      <div className="mt-20 border-t border-slate-100 pt-16">
+      <div className="mt-20 border-t border-border pt-16">
         <div className="flex flex-col gap-12 lg:flex-row">
           <div className="lg:w-[40%]">
-            <div className="sticky top-24 rounded-[2.5rem] border border-slate-100 bg-white p-8 shadow-sm">
-              <h3 className="mb-2 text-2xl font-black text-slate-800">Write a Review</h3>
-              <p className="mb-6 text-sm font-medium text-slate-500">
+            <div className="sticky top-24 rounded-[2.5rem] border border-border bg-card p-8 shadow-sm transition-colors">
+              <h3 className="mb-2 text-2xl font-black text-foreground">Write a Review</h3>
+              <p className="mb-6 text-sm font-medium text-slate-500 dark:text-slate-400">
                 Share your experience with this product
               </p>
 
               <form onSubmit={handleReviewSubmit} className="space-y-6">
                 <div className="space-y-3">
-                  <label className="text-xs font-black uppercase tracking-widest text-slate-400">
+                  <label className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
                     Your Rating
                   </label>
                   <div className="flex gap-2">
@@ -508,8 +508,8 @@ const ProductDetailPage = () => {
                         className={cn(
                           "flex h-12 w-12 items-center justify-center rounded-xl transition-all",
                           newReview.rating >= star
-                            ? "bg-orange-50 text-orange-500"
-                            : "bg-slate-50 text-slate-300",
+                            ? "bg-orange-50 dark:bg-orange-950/30 text-orange-500"
+                            : "bg-slate-50 dark:bg-slate-800 text-slate-300 dark:text-slate-600",
                         )}
                       >
                         <Star
@@ -521,7 +521,7 @@ const ProductDetailPage = () => {
                 </div>
 
                 <div className="space-y-3">
-                  <label className="text-xs font-black uppercase tracking-widest text-slate-400">
+                  <label className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
                     Comment
                   </label>
                   <textarea
@@ -533,14 +533,14 @@ const ProductDetailPage = () => {
                       }))
                     }
                     placeholder="What did you like or dislike?"
-                    className="min-h-[120px] w-full rounded-2xl bg-slate-50 p-4 text-sm font-bold outline-none ring-1 ring-transparent transition-all focus:ring-[#0c831f]/20"
+                    className="min-h-[120px] w-full rounded-2xl bg-slate-50 dark:bg-slate-800 p-4 text-sm font-bold outline-none ring-1 ring-transparent transition-all focus:ring-[#0c831f]/20 dark:text-white"
                   />
                 </div>
 
                 <Button
                   type="submit"
                   disabled={isSubmittingReview}
-                  className="h-14 w-full rounded-2xl bg-slate-900 font-black text-white shadow-xl shadow-slate-100 transition-all hover:bg-slate-800 active:scale-95"
+                  className="h-14 w-full rounded-2xl bg-foreground font-black text-background shadow-xl shadow-slate-100 dark:shadow-none transition-all hover:bg-slate-800 active:scale-95"
                 >
                   {isSubmittingReview ? "SUBMITTING..." : "SUBMIT REVIEW"}
                 </Button>
@@ -553,7 +553,7 @@ const ProductDetailPage = () => {
 
           <div className="space-y-8 lg:w-[60%]">
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-3xl font-black text-slate-800">Customer Reviews</h3>
+              <h3 className="text-3xl font-black text-foreground">Customer Reviews</h3>
               <div className="flex items-center gap-2 rounded-xl border border-[#0c831f]/10 bg-[#0c831f]/5 px-4 py-2">
                 <MessageSquare size={18} className="text-[#0c831f]" />
                 <span className="font-black text-[#0c831f]">
@@ -571,11 +571,11 @@ const ProductDetailPage = () => {
                 {reviews.map((review) => (
                   <div
                     key={review._id}
-                    className="rounded-[2rem] border border-slate-100 bg-white p-8 shadow-sm"
+                    className="rounded-[2rem] border border-border bg-card p-8 shadow-sm transition-colors"
                   >
                     <div className="mb-4 flex items-start justify-between">
                       <div className="flex items-center gap-4">
-                        <div className="ds-h2 flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-slate-50 text-slate-400">
+                        <div className="ds-h2 flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500">
                           {(review.userId?.profileImage || review.userId?.image || review.userAvatar) ? (
                             <img
                               src={resolveQuickImageUrl(review.userId?.profileImage || review.userId?.image || review.userAvatar)}
@@ -587,7 +587,7 @@ const ProductDetailPage = () => {
                           )}
                         </div>
                         <div>
-                          <h4 className="font-black text-slate-800">
+                          <h4 className="font-black text-foreground transition-colors">
                             {review.userId?.name || review.userName || "Anonymous"}
                           </h4>
                           <div className="flex items-center gap-1">
@@ -598,7 +598,7 @@ const ProductDetailPage = () => {
                                 className={cn(
                                   index < review.rating
                                     ? "fill-orange-400 text-orange-400"
-                                    : "text-slate-200",
+                                    : "text-slate-200 dark:text-slate-700",
                                 )}
                               />
                             ))}
@@ -611,14 +611,14 @@ const ProductDetailPage = () => {
                           : ""}
                       </span>
                     </div>
-                    <p className="font-medium leading-relaxed text-slate-600">
+                    <p className="font-medium leading-relaxed text-slate-600 dark:text-slate-300 transition-colors">
                       {review.comment}
                     </p>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="rounded-[3rem] border-2 border-dashed border-slate-200 bg-slate-50 p-20 text-center">
+              <div className="rounded-[3rem] border-2 border-dashed border-border bg-background p-20 text-center">
                 <p className="text-sm font-black uppercase text-slate-400">
                   No reviews yet. Be the first!
                 </p>

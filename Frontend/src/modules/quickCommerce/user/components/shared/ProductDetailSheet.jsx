@@ -236,21 +236,21 @@ const ProductDetailSheet = () => {
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.96, y: 30 }}
                         transition={{ type: 'spring', damping: 28, stiffness: 380 }}
-                        className="hidden md:flex fixed z-[230] top-[72px] bottom-[16px] left-[3%] right-[3%] lg:left-[6%] lg:right-[6%] xl:left-[12%] xl:right-[12%] bg-white rounded-3xl shadow-[0_40px_100px_rgba(0,0,0,0.25)] overflow-hidden"
+                        className="hidden md:flex fixed z-[230] top-[72px] bottom-[16px] left-[3%] right-[3%] lg:left-[6%] lg:right-[6%] xl:left-[12%] xl:right-[12%] bg-white dark:bg-card rounded-3xl shadow-[0_40px_100px_rgba(0,0,0,0.25)] overflow-hidden transition-colors duration-500"
                     >
                         {/* Parent flex container that holds both sides together so the whole modal scrolls */}
                         <div className="flex w-full min-h-full">
                                 {/* Left: Image Gallery — sticky to window so it doesn't scroll out of view if you want */}
-                                <div className="relative w-[42%] lg:w-[44%] flex-shrink-0 flex flex-col min-h-full sticky top-0" style={{ background: 'linear-gradient(145deg, #f9fafb 0%, #f1f8f2 50%, #fafbfc 100%)' }}>
+                                <div className="relative w-[42%] lg:w-[44%] flex-shrink-0 flex flex-col min-h-full sticky top-0 bg-gradient-to-br from-slate-50 via-emerald-50/30 to-slate-50 dark:from-slate-900 dark:via-emerald-900/10 dark:to-slate-900 transition-colors duration-500">
                                     {/* Top bar with back + wishlist */}
                                     <div className="absolute top-0 left-0 right-0 flex items-center justify-between p-5 z-20">
                                         <motion.button
                                             whileHover={{ scale: 1.05 }}
                                             whileTap={{ scale: 0.9 }}
                                             onClick={closeProduct}
-                                            className="w-10 h-10 bg-white/95 backdrop-blur-md rounded-xl shadow-md shadow-black/5 flex items-center justify-center hover:shadow-lg transition-all border border-gray-100/80"
+                                            className="w-10 h-10 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md rounded-xl shadow-md shadow-black/5 flex items-center justify-center hover:shadow-lg transition-all border border-gray-100/80 dark:border-white/10"
                                         >
-                                            <ArrowLeft size={18} className="text-gray-700" strokeWidth={2.5} />
+                                            <ArrowLeft size={18} className="text-gray-700 dark:text-slate-300" strokeWidth={2.5} />
                                         </motion.button>
 
                                         {/* Discount Badge (center) */}
@@ -271,12 +271,12 @@ const ProductDetailSheet = () => {
                                             onClick={toggleWishlist}
                                             className={cn(
                                                 "w-10 h-10 backdrop-blur-md rounded-xl shadow-md shadow-black/5 flex items-center justify-center hover:shadow-lg transition-all border",
-                                                isWishlisted ? "bg-red-50/95 border-red-100" : "bg-white/95 border-gray-100/80"
+                                                isWishlisted ? "bg-red-50/95 dark:bg-red-950/30 border-red-100 dark:border-red-900" : "bg-white/95 dark:bg-slate-800/95 border-gray-100/80 dark:border-white/10"
                                             )}
                                         >
                                             <Heart size={18} className={cn(
                                                 "transition-all",
-                                                isWishlisted ? 'text-red-500 fill-red-500' : 'text-gray-400 hover:text-red-400'
+                                                isWishlisted ? 'text-red-500 fill-red-500' : 'text-gray-400 dark:text-slate-500 hover:text-red-400'
                                             )} />
                                         </motion.button>
                                     </div>
@@ -295,11 +295,11 @@ const ProductDetailSheet = () => {
                                                         className={cn(
                                                             'w-[52px] h-[52px] lg:w-14 lg:h-14 rounded-xl overflow-hidden flex-shrink-0 transition-all duration-300 border-2',
                                                             i === activeImageIndex
-                                                                ? 'border-[#0c831f] shadow-lg shadow-green-100/60 ring-2 ring-green-100 bg-white'
-                                                                : 'border-gray-200/60 opacity-50 hover:opacity-90 bg-white/60'
+                                                                ? 'border-[#0c831f] shadow-lg shadow-green-100/60 dark:shadow-none ring-2 ring-green-100 dark:ring-green-900/30 bg-white dark:bg-slate-800'
+                                                                : 'border-gray-200/60 dark:border-white/5 opacity-50 hover:opacity-90 bg-white/60 dark:bg-slate-800/60'
                                                         )}
                                                     >
-                                                        <img src={img} alt="" className="w-full h-full object-contain p-1.5" />
+                                                        <img src={img} alt="" className="w-full h-full object-contain p-1.5 mix-blend-multiply dark:mix-blend-normal" />
                                                     </motion.button>
                                                 ))}
                                             </div>
@@ -316,7 +316,7 @@ const ProductDetailSheet = () => {
                                                     transition={{ duration: 0.15 }}
                                                     src={allImages[activeImageIndex]}
                                                     alt={`${selectedProduct.name} ${activeImageIndex + 1}`}
-                                                    className="w-full h-full object-contain mix-blend-multiply drop-shadow-2xl hover:scale-[1.03] transition-transform duration-500 absolute inset-0 m-auto p-12"
+                                                    className="w-full h-full object-contain mix-blend-multiply dark:mix-blend-normal drop-shadow-2xl hover:scale-[1.03] transition-transform duration-500 absolute inset-0 m-auto p-12"
                                                 />
                                             </AnimatePresence>
                                         </div>
@@ -331,7 +331,7 @@ const ProductDetailSheet = () => {
                                                     onClick={() => setActiveImageIndex(i)}
                                                     className={cn(
                                                         'rounded-full transition-all duration-400',
-                                                        i === activeImageIndex ? 'w-8 h-2 bg-[#0c831f]' : 'w-2 h-2 bg-gray-300/60 hover:bg-gray-400'
+                                                        i === activeImageIndex ? 'w-8 h-2 bg-[#0c831f]' : 'w-2 h-2 bg-gray-300/60 dark:bg-slate-700/60 hover:bg-gray-400'
                                                     )}
                                                 />
                                             ))}
@@ -340,7 +340,7 @@ const ProductDetailSheet = () => {
                                 </div>
 
                                 {/* Right: Product Info (scrollable naturally) */}
-                                <div className="flex-1 flex flex-col bg-white">
+                                <div className="flex-1 flex flex-col bg-white dark:bg-card transition-colors duration-500">
                                     <div className="flex-1 px-7 py-6 lg:px-8 lg:py-7 space-y-3">
 
                                         {/* Top badges row */}
@@ -349,9 +349,9 @@ const ProductDetailSheet = () => {
                                                 initial={{ opacity: 0, x: -10 }}
                                                 animate={{ opacity: 1, x: 0 }}
                                                 transition={{ delay: 0.1 }}
-                                                className="inline-flex items-center gap-1.5 bg-[#f0fdf4] border border-green-200/50 text-[#15803d] px-3 py-1.5 rounded-lg text-[10px] font-[700] uppercase tracking-wider"
+                                                className="inline-flex items-center gap-1.5 bg-[#f0fdf4] dark:bg-emerald-950/30 border border-green-200/50 dark:border-emerald-800/30 text-[#15803d] dark:text-emerald-400 px-3 py-1.5 rounded-lg text-[10px] font-[700] uppercase tracking-wider"
                                             >
-                                                <Clock size={12} strokeWidth={2.5} className="text-[#0c831f]" />
+                                                <Clock size={12} strokeWidth={2.5} className="text-[#0c831f] dark:text-emerald-500" />
                                                 {selectedProduct.deliveryTime || '8-15 MINS'}
                                             </motion.div>
                                             {selectedProduct.originalPrice > selectedProduct.price && (
@@ -359,7 +359,7 @@ const ProductDetailSheet = () => {
                                                     initial={{ opacity: 0, x: -10 }}
                                                     animate={{ opacity: 1, x: 0 }}
                                                     transition={{ delay: 0.15 }}
-                                                    className="text-[10px] font-[700] text-[#0c831f] bg-green-50 px-3 py-1.5 rounded-lg border border-green-200/50 uppercase tracking-wider"
+                                                    className="text-[10px] font-[700] text-[#0c831f] dark:text-emerald-500 bg-green-50 dark:bg-green-950/30 px-3 py-1.5 rounded-lg border border-green-200/50 dark:border-emerald-800/30 uppercase tracking-wider"
                                                 >
                                                     💰 Save ₹{selectedProduct.originalPrice - selectedProduct.price}
                                                 </motion.div>
@@ -368,11 +368,11 @@ const ProductDetailSheet = () => {
                                                 initial={{ opacity: 0, x: -10 }}
                                                 animate={{ opacity: 1, x: 0 }}
                                                 transition={{ delay: 0.2 }}
-                                                className="flex items-center gap-1 px-2.5 py-1.5 bg-orange-50 text-orange-600 rounded-lg text-[10px] font-[700] border border-orange-100/50"
+                                                className="flex items-center gap-1 px-2.5 py-1.5 bg-orange-50 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 rounded-lg text-[10px] font-[700] border border-orange-100/50 dark:border-orange-900/30"
                                             >
                                                 <Star size={10} fill="currentColor" />
                                                 {reviews.length > 0 ? (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1) : '4.8'}
-                                                <span className="text-orange-400 font-medium">({reviews.length > 0 ? reviews.length : '120+'})</span>
+                                                <span className="text-orange-400 dark:text-orange-500 font-medium">({reviews.length > 0 ? reviews.length : '120+'})</span>
                                             </motion.div>
                                         </div>
 
@@ -382,17 +382,17 @@ const ProductDetailSheet = () => {
                                             animate={{ opacity: 1, y: 0 }}
                                             transition={{ delay: 0.15 }}
                                         >
-                                            <h1 className="text-[22px] lg:text-[26px] font-[800] text-[#111827] leading-[1.2] tracking-tight mb-1">
+                                            <h1 className="text-[22px] lg:text-[26px] font-[800] text-foreground leading-[1.2] tracking-tight mb-1">
                                                 {selectedProduct.name}
                                             </h1>
                                             <div className="flex items-center gap-3 mb-2">
                                                 {selectedProduct.weight && (
                                                     <span className="text-[13px] text-gray-400 font-[600]">{selectedProduct.weight}</span>
                                                 )}
-                                                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-100 rounded-full">
+                                                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-white/5 rounded-full">
                                                     <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                                                    <span className="text-[11px] font-bold text-slate-500">
-                                                        Sold by: <span className="text-slate-800">{selectedProduct.storeName || selectedProduct.restaurantName || "Fresh Mart"}</span>
+                                                    <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                                                        Sold by: <span className="text-foreground">{selectedProduct.storeName || selectedProduct.restaurantName || "Fresh Mart"}</span>
                                                     </span>
                                                     <div className="flex items-center justify-center w-3 h-3 bg-[#0c831f] rounded-full text-white">
                                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" className="w-2 h-2"><polyline points="20 6 9 17 4 12"></polyline></svg>
@@ -406,8 +406,7 @@ const ProductDetailSheet = () => {
                                             initial={{ opacity: 0, y: 12 }}
                                             animate={{ opacity: 1, y: 0 }}
                                             transition={{ delay: 0.2 }}
-                                            className="relative overflow-hidden rounded-[20px] border border-green-200/60 shadow-sm"
-                                            style={{ background: 'linear-gradient(135deg, #f4fdf6 0%, #eefbf1 100%)' }}
+                                            className="relative overflow-hidden rounded-[20px] border border-green-200/60 dark:border-emerald-800/30 shadow-sm bg-gradient-to-br from-emerald-50/50 to-green-50/30 dark:from-emerald-950/20 dark:to-green-950/10"
                                         >
                                             {/* Decorative subtle patterns */}
                                             <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/5 rounded-full blur-3xl" />
@@ -435,11 +434,11 @@ const ProductDetailSheet = () => {
                                                 </div>
                                                 <div>
                                                     {quantity > 0 ? (
-                                                        <div className="flex items-center gap-1 bg-white border border-green-200 rounded-xl p-1 shadow-sm">
-                                                            <motion.button whileTap={{ scale: 0.85 }} onClick={handleDecrement} className="w-9 h-9 bg-green-50 rounded-lg flex items-center justify-center text-green-700 hover:bg-green-100 transition-colors">
+                                                        <div className="flex items-center gap-1 bg-white dark:bg-slate-800 border border-green-200 dark:border-emerald-800/30 rounded-xl p-1 shadow-sm transition-colors">
+                                                            <motion.button whileTap={{ scale: 0.85 }} onClick={handleDecrement} className="w-9 h-9 bg-green-50 dark:bg-green-900/30 rounded-lg flex items-center justify-center text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors">
                                                                 <Minus size={16} strokeWidth={2.5} />
                                                             </motion.button>
-                                                            <span className="font-[800] text-base text-gray-800 w-8 text-center">{quantity}</span>
+                                                            <span className="font-[800] text-base text-gray-800 dark:text-slate-200 w-8 text-center">{quantity}</span>
                                                             <motion.button whileTap={{ scale: 0.85 }} onClick={handleIncrement} className="w-9 h-9 bg-[#0c831f] rounded-lg flex items-center justify-center text-white hover:bg-[#0a7019] transition-colors shadow-sm">
                                                                 <Plus size={16} strokeWidth={2.5} />
                                                             </motion.button>
@@ -489,9 +488,9 @@ const ProductDetailSheet = () => {
                                                 initial={{ opacity: 0 }}
                                                 animate={{ opacity: 1 }}
                                                 transition={{ delay: 0.25 }}
-                                                className="bg-gray-50/60 rounded-xl p-3 border border-gray-100/70"
+                                                className="bg-gray-50/60 dark:bg-slate-900/60 rounded-xl p-3 border border-gray-100/70 dark:border-white/5 transition-colors"
                                             >
-                                                <h4 className="text-[10px] font-[700] text-gray-400 uppercase tracking-[0.14em] mb-2.5">Select Variant</h4>
+                                                <h4 className="text-[10px] font-[700] text-gray-400 dark:text-slate-500 uppercase tracking-[0.14em] mb-2.5">Select Variant</h4>
                                                 <div className="flex gap-3 flex-wrap">
                                                     {selectedProduct.variants.map((v, idx) => (
                                                         <motion.button
@@ -502,8 +501,8 @@ const ProductDetailSheet = () => {
                                                             className={cn(
                                                                 'px-4 py-2 font-[600] rounded-lg text-[13px] transition-all border-2',
                                                                 selectedVariant?.sku === v.sku
-                                                                    ? 'bg-green-50 border-[#0c831f] text-[#0c831f] shadow-md shadow-green-100/50'
-                                                                    : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:shadow-sm'
+                                                                    ? 'bg-green-50 dark:bg-green-950/30 border-[#0c831f] text-[#0c831f] shadow-md shadow-green-100/50 dark:shadow-none'
+                                                                    : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-white/5 text-gray-600 dark:text-slate-400 hover:border-gray-300 dark:hover:border-white/10 hover:shadow-sm'
                                                             )}
                                                         >
                                                             {v.name}
@@ -515,8 +514,8 @@ const ProductDetailSheet = () => {
 
                                         {/* Decorative Divider */}
                                         <div className="relative -mt-1 -mb-1">
-                                            <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
-                                            <div className="absolute left-1/2 -translate-x-1/2 -top-1 w-2 h-2 bg-white border border-gray-200 rounded-full" />
+                                            <div className="h-px bg-gradient-to-r from-transparent via-gray-200 dark:via-slate-800 to-transparent" />
+                                            <div className="absolute left-1/2 -translate-x-1/2 -top-1 w-2 h-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-white/5 rounded-full" />
                                         </div>
 
                                         {/* Description */}
@@ -525,15 +524,14 @@ const ProductDetailSheet = () => {
                                                 initial={{ opacity: 0 }}
                                                 animate={{ opacity: 1 }}
                                                 transition={{ delay: 0.3 }}
-                                                className="rounded-[16px] p-5 pb-7 border border-gray-100/70 -mt-1 mb-6 shadow-sm"
-                                                style={{ background: 'linear-gradient(135deg, #fafbfc 0%, #f8fafb 100%)' }}
+                                                className="rounded-[16px] p-5 pb-7 border border-gray-100/70 dark:border-white/5 -mt-1 mb-6 shadow-sm bg-slate-50 dark:bg-slate-900 transition-colors"
                                             >
-                                                <h3 className="font-[800] text-gray-900 mb-3 text-[14px] tracking-tight flex items-center gap-2">
+                                                <h3 className="font-[800] text-gray-900 dark:text-slate-100 mb-3 text-[14px] tracking-tight flex items-center gap-2">
                                                     <span className="w-1 h-3.5 bg-[#0c831f] rounded-full" />
                                                     About this product
                                                 </h3>
                                                 <div
-                                                    className="text-[12.5px] text-gray-500 font-[500] leading-[1.8] pl-3 whitespace-pre-line"
+                                                    className="text-[12.5px] text-gray-500 dark:text-slate-400 font-[500] leading-[1.8] pl-3 whitespace-pre-line"
                                                     dangerouslySetInnerHTML={{ __html: cleanDesc }}
                                                 />
                                             </motion.div>
@@ -545,7 +543,7 @@ const ProductDetailSheet = () => {
                                             animate={{ opacity: 1 }}
                                             transition={{ delay: 0.35 }}
                                         >
-                                            <h3 className="font-[700] text-gray-900 mb-2.5 text-[14px] tracking-tight flex items-center gap-2">
+                                            <h3 className="font-[700] text-gray-900 dark:text-slate-100 mb-2.5 text-[14px] tracking-tight flex items-center gap-2">
                                                 <span className="w-0.5 h-4 bg-[#0c831f] rounded-full" />
                                                 Product Details
                                             </h3>
@@ -561,13 +559,13 @@ const ProductDetailSheet = () => {
                                                         initial={{ opacity: 0, y: 6 }}
                                                         animate={{ opacity: 1, y: 0 }}
                                                         transition={{ delay: 0.35 + idx * 0.04 }}
-                                                        className="bg-white p-3 rounded-lg border border-gray-100/70 hover:shadow-sm hover:border-gray-200/70 transition-all duration-300 group"
+                                                        className="bg-white dark:bg-slate-900 p-3 rounded-lg border border-gray-100/70 dark:border-white/5 hover:shadow-sm hover:border-gray-200/70 dark:hover:border-white/10 transition-all duration-300 group"
                                                     >
                                                         <div className="flex items-start gap-2">
                                                             <span className="text-sm mt-0.5 group-hover:scale-110 transition-transform">{d.emoji}</span>
                                                             <div>
-                                                                <span className="text-gray-400 text-[9px] block mb-0.5 font-[600] uppercase tracking-[0.1em]">{d.label}</span>
-                                                                <span className="font-[700] text-gray-800 text-[12px]">{d.value}</span>
+                                                                <span className="text-gray-400 dark:text-slate-500 text-[9px] block mb-0.5 font-[600] uppercase tracking-[0.1em]">{d.label}</span>
+                                                                <span className="font-[700] text-gray-800 dark:text-slate-200 text-[12px]">{d.value}</span>
                                                             </div>
                                                         </div>
                                                     </motion.div>
@@ -587,18 +585,18 @@ const ProductDetailSheet = () => {
                                                 { icon: '⚡', label: 'Express Delivery', sub: 'Under 15 mins' },
                                                 { icon: '✅', label: 'Quality Assured', sub: '3x checked' }
                                             ].map((t, i) => (
-                                                <div key={i} className="text-center p-2.5 rounded-lg bg-gray-50/50 border border-gray-100/40 hover:bg-white hover:border-gray-200/50 hover:shadow-sm transition-all duration-300">
+                                                <div key={i} className="text-center p-2.5 rounded-lg bg-gray-50/50 dark:bg-slate-900/50 border border-gray-100/40 dark:border-white/5 hover:bg-white dark:hover:bg-slate-800 hover:border-gray-200/50 dark:hover:border-white/10 hover:shadow-sm transition-all duration-300">
                                                     <span className="text-base block mb-0.5">{t.icon}</span>
-                                                    <p className="text-[9px] font-[700] text-gray-700 uppercase tracking-wider leading-tight">{t.label}</p>
-                                                    <p className="text-[8px] text-gray-400 font-[500] mt-0.5">{t.sub}</p>
+                                                    <p className="text-[9px] font-[700] text-gray-700 dark:text-slate-300 uppercase tracking-wider leading-tight">{t.label}</p>
+                                                    <p className="text-[8px] text-gray-400 dark:text-slate-500 font-[500] mt-0.5">{t.sub}</p>
                                                 </div>
                                             ))}
                                         </motion.div>
 
                                         {/* Decorative Divider */}
                                         <div className="relative">
-                                            <div className="h-px bg-gradient-to-r from-transparent via-gray-200/80 to-transparent" />
-                                            <div className="absolute left-1/2 -translate-x-1/2 -top-1 w-2 h-2 bg-white border border-gray-200 rounded-full" />
+                                            <div className="h-px bg-gradient-to-r from-transparent via-gray-200/80 dark:via-slate-800 to-transparent" />
+                                            <div className="absolute left-1/2 -translate-x-1/2 -top-1 w-2 h-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-white/5 rounded-full" />
                                         </div>
 
                                         {/* Reviews */}
@@ -608,21 +606,21 @@ const ProductDetailSheet = () => {
                                             transition={{ delay: 0.45 }}
                                             className="space-y-4"
                                         >
-                                            <h3 className="text-[14px] font-[700] text-gray-900 flex items-center justify-between tracking-tight">
+                                            <h3 className="text-[14px] font-[700] text-gray-900 dark:text-slate-100 flex items-center justify-between tracking-tight">
                                                 <span className="flex items-center gap-2">
                                                     <span className="w-0.5 h-4 bg-orange-400 rounded-full" />
                                                     Customer Reviews
                                                 </span>
-                                                <div className="flex items-center gap-1 px-2.5 py-1 bg-orange-50 text-orange-600 rounded-lg text-[10px] font-[700] border border-orange-100/50">
+                                                <div className="flex items-center gap-1 px-2.5 py-1 bg-orange-50 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 rounded-lg text-[10px] font-[700] border border-orange-100/50 dark:border-orange-900/30">
                                                     <Star size={10} fill="currentColor" />
                                                     {reviews.length > 0 ? (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1) : '4.8'}
-                                                    <span className="text-orange-400 font-[500] text-[9px]">({reviews.length > 0 ? reviews.length : '120+'} reviews)</span>
+                                                    <span className="text-orange-400 dark:text-orange-500 font-[500] text-[9px]">({reviews.length > 0 ? reviews.length : '120+'} reviews)</span>
                                                 </div>
                                             </h3>
 
                                             {/* Review Form */}
-                                            <div className="bg-gradient-to-br from-slate-50/80 to-gray-50/80 p-4 rounded-xl border border-slate-100/70">
-                                                <h4 className="font-[700] text-gray-800 text-[13px] mb-2.5 flex items-center gap-2">
+                                            <div className="bg-gradient-to-br from-slate-50/80 to-gray-50/80 dark:from-slate-900/80 dark:to-slate-950/80 p-4 rounded-xl border border-slate-100/70 dark:border-white/5 transition-colors">
+                                                <h4 className="font-[700] text-gray-800 dark:text-slate-200 text-[13px] mb-2.5 flex items-center gap-2">
                                                     <MessageSquare size={13} className="text-[#0c831f]" />
                                                     Rate this product
                                                 </h4>
@@ -637,15 +635,15 @@ const ProductDetailSheet = () => {
                                                                 onClick={() => setNewReview({ ...newReview, rating: s })}
                                                                 className={cn(
                                                                     'h-8 w-8 rounded-lg flex items-center justify-center transition-all',
-                                                                    newReview.rating >= s ? 'bg-orange-100 text-orange-500 shadow-sm shadow-orange-100' : 'bg-white text-gray-300 border border-gray-100 hover:border-orange-200'
+                                                                    newReview.rating >= s ? 'bg-orange-100 dark:bg-orange-950/50 text-orange-500 shadow-sm shadow-orange-100 dark:shadow-none' : 'bg-white dark:bg-slate-800 text-gray-300 dark:text-slate-600 border border-gray-100 dark:border-white/5 hover:border-orange-200'
                                                                 )}
                                                             >
                                                                 <Star size={14} className={cn(newReview.rating >= s && 'fill-current')} />
                                                             </motion.button>
                                                         ))}
                                                     </div>
-                                                    <textarea value={newReview.comment} onChange={(e) => setNewReview({ ...newReview, comment: e.target.value })} placeholder="Share your experience..." className="w-full bg-white border border-gray-100 rounded-lg p-3 text-[12px] font-[500] min-h-[70px] outline-none focus:border-[#0c831f]/40 focus:ring-2 focus:ring-green-50 transition-all resize-none" />
-                                                    <Button type="submit" disabled={isSubmittingReview} className="w-full h-9 bg-gray-900 hover:bg-gray-800 text-white font-[700] rounded-lg text-[10px] uppercase tracking-widest transition-all hover:shadow-md active:scale-[0.98]">
+                                                    <textarea value={newReview.comment} onChange={(e) => setNewReview({ ...newReview, comment: e.target.value })} placeholder="Share your experience..." className="w-full bg-white dark:bg-slate-800 border border-gray-100 dark:border-white/5 rounded-lg p-3 text-[12px] font-[500] min-h-[70px] outline-none focus:border-[#0c831f]/40 focus:ring-2 focus:ring-green-50 dark:focus:ring-green-900/20 transition-all resize-none dark:text-slate-200" />
+                                                    <Button type="submit" disabled={isSubmittingReview} className="w-full h-9 bg-gray-900 dark:bg-foreground hover:bg-gray-800 dark:text-background font-[700] rounded-lg text-[10px] uppercase tracking-widest transition-all hover:shadow-md active:scale-[0.98]">
                                                         {isSubmittingReview ? 'Submitting...' : 'Post Review'}
                                                     </Button>
                                                 </form>
@@ -662,23 +660,23 @@ const ProductDetailSheet = () => {
                                                             initial={{ opacity: 0, y: 6 }}
                                                             animate={{ opacity: 1, y: 0 }}
                                                             transition={{ delay: 0.08 * rIdx }}
-                                                            className="p-3 rounded-lg border border-gray-100/70 space-y-1.5 hover:shadow-sm hover:border-gray-200/70 transition-all duration-300 bg-white"
+                                                            className="p-3 rounded-lg border border-gray-100/70 dark:border-white/5 space-y-1.5 hover:shadow-sm hover:border-gray-200/70 dark:hover:border-white/10 transition-all duration-300 bg-white dark:bg-card"
                                                         >
                                                             <div className="flex justify-between items-start">
                                                                 <div className="flex items-center gap-2">
-                                                                    <div className="h-7 w-7 rounded-full bg-gradient-to-br from-green-100 to-emerald-50 flex items-center justify-center text-[9px] font-[800] text-[#0c831f] ring-1 ring-green-50">{r.userId?.name?.[0] || 'A'}</div>
+                                                                    <div className="h-7 w-7 rounded-full bg-gradient-to-br from-green-100 to-emerald-50 dark:from-emerald-900 dark:to-green-950 flex items-center justify-center text-[9px] font-[800] text-[#0c831f] dark:text-emerald-400 ring-1 ring-green-50 dark:ring-white/5">{r.userId?.name?.[0] || 'A'}</div>
                                                                     <div>
-                                                                        <p className="text-[11px] font-[700] text-gray-800">{r.userId?.name || 'Anonymous'}</p>
-                                                                        <div className="flex gap-0.5">{[...Array(5)].map((_, i) => <Star key={i} size={9} className={cn(i < r.rating ? 'text-orange-400 fill-orange-400' : 'text-gray-200')} />)}</div>
+                                                                        <p className="text-[11px] font-[700] text-gray-800 dark:text-slate-200">{r.userId?.name || 'Anonymous'}</p>
+                                                                        <div className="flex gap-0.5">{[...Array(5)].map((_, i) => <Star key={i} size={9} className={cn(i < r.rating ? 'text-orange-400 fill-orange-400' : 'text-gray-200 dark:text-slate-800')} />)}</div>
                                                                     </div>
                                                                 </div>
                                                                 <span className="text-[9px] font-[600] text-gray-400">{new Date(r.createdAt).toLocaleDateString()}</span>
                                                             </div>
-                                                            <p className="text-[11px] text-gray-500 font-[500] leading-relaxed pl-9">{r.comment}</p>
+                                                            <p className="text-[11px] text-gray-500 dark:text-slate-400 font-[500] leading-relaxed pl-9">{r.comment}</p>
                                                         </motion.div>
                                                     ))
                                                 ) : (
-                                                    <div className="py-8 text-center bg-gradient-to-b from-gray-50 to-white rounded-xl border border-dashed border-gray-200">
+                                                    <div className="py-8 text-center bg-gradient-to-b from-gray-50 to-white dark:from-slate-900 dark:to-slate-950 rounded-xl border border-dashed border-gray-200 dark:border-white/5">
                                                         <MessageSquare size={20} className="text-gray-300 mx-auto mb-1.5" />
                                                         <p className="text-[10px] font-[600] text-gray-400 uppercase tracking-widest">No reviews yet — be the first!</p>
                                                     </div>
@@ -731,14 +729,14 @@ const ProductDetailSheet = () => {
                             mass: 0.8
                         }}
                         className={cn(
-                            "md:hidden fixed z-[230] bg-white shadow-2xl overflow-hidden flex flex-col",
+                            "md:hidden fixed z-[230] bg-white dark:bg-card shadow-2xl overflow-hidden flex flex-col",
                         )}
                         style={{ willChange: "transform, top, bottom, left, width, border-radius" }}
                     >
                         {/* Drag Handle (Visible only when not fully expanded) */}
                         {!isExpanded && (
                             <div className="absolute top-0 left-0 right-0 h-8 flex justify-center items-center z-50 pointer-events-none">
-                                <div className="w-12 h-1.5 bg-gray-300 rounded-full" />
+                                <div className="w-12 h-1.5 bg-gray-300 dark:bg-slate-700 rounded-full" />
                             </div>
                         )}
 
@@ -747,9 +745,9 @@ const ProductDetailSheet = () => {
                             <motion.button
                                 onClick={closeProduct}
                                 whileTap={{ scale: 0.9 }}
-                                className="w-10 h-10 bg-white shadow-lg rounded-full flex items-center justify-center border border-gray-100 pointer-events-auto"
+                                className="w-10 h-10 bg-white dark:bg-slate-800 shadow-lg rounded-full flex items-center justify-center border border-gray-100 dark:border-white/10 pointer-events-auto"
                             >
-                                <ArrowLeft size={24} className="text-[#0c831f]" strokeWidth={3} />
+                                <ArrowLeft size={24} className="text-[#0c831f] dark:text-emerald-500" strokeWidth={3} />
                             </motion.button>
                             <div className="flex gap-3 pointer-events-auto invisible">
                                 {/* Hidden as per request to simplify the view */}
@@ -759,14 +757,14 @@ const ProductDetailSheet = () => {
                         {/* Scrollable Content */}
                         <div
                             className={cn(
-                                "flex-1 overflow-x-hidden no-scrollbar pb-24 bg-white",
+                                "flex-1 overflow-x-hidden no-scrollbar pb-24 bg-white dark:bg-card",
                                 isExpanded ? "overflow-y-auto" : "overflow-y-hidden"
                             )}
                             onScroll={handleScroll}
                             onWheel={handleWheel}
                         >
                             {/* Product Image Carousel */}
-                            <div className="relative w-full aspect-[4/3] bg-gradient-to-b from-[#F5F7F8] to-white pt-16 pb-8">
+                            <div className="relative w-full aspect-[4/3] bg-gradient-to-b from-[#F5F7F8] to-white dark:from-slate-900 dark:to-card pt-16 pb-8 transition-colors duration-500">
                                 <div
                                     ref={scrollRef}
                                     className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar h-full w-full"
@@ -783,7 +781,7 @@ const ProductDetailSheet = () => {
                                                 transition={{ duration: 0.4 }}
                                                 src={img}
                                                 alt={`${selectedProduct.name} ${i + 1}`}
-                                                className="w-full h-full object-contain mix-blend-multiply drop-shadow-xl"
+                                                className="w-full h-full object-contain mix-blend-multiply dark:mix-blend-normal drop-shadow-xl"
                                             />
                                         </div>
                                     ))}

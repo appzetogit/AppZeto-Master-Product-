@@ -32,7 +32,7 @@ const CustomerLayout = ({ children, showHeader: showHeaderProp, fullHeight = fal
     const finalShowFooterMessageMobile = showFooterMessage && !isProductDetailOpen;
 
     return (
-        <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+        <div className="min-h-screen bg-background flex flex-col font-sans">
             <main className={cn("flex-1 md:pb-0", !fullHeight && "pb-16")}>
                 {children}
             </main>
